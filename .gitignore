@@ -1,0 +1,18 @@
+# Project place file
+/rebirth-roblox.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+
+# Pruebas automáticas: archivos montados por tests/run_tests.py
+/tests/.build/
+
+# Binarios locales del intérprete de Luau (cada desarrollador los instala; ver tests/README.md)
+/tools/
+*.exe
+
+# Caché de Python
+__pycache__/

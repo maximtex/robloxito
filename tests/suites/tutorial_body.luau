@@ -1,0 +1,168 @@
+PlayerDataService.start()
+EnergyService.start()
+UpgradeService.start()
+QuestService.start()
+TutorialService.start()
+
+local failures = 0
+local function check(name, ok)
+	if not ok then failures += 1 end
+	print((ok and "OK   " or "FALLO") .. "  " .. name)
+end
+local function record(userId) return storeData["player_" .. userId] end
+-- Historial de TutorialStatus que ha visto el cliente
+local function track(player)
+	local history = {}
+	local set = player.SetAttribute
+	function player.SetAttribute(self, k, v)
+		if k == "TutorialStatus" then table.insert(history, v) end
+		set(self, k, v)
+	end
+	return history
+end
+local function status(p) return p:GetAttribute("TutorialStatus") end
+local function step(p) return p:GetAttribute("TutorialStep") end
+local function give(profile, petId)
+	-- Lo que hace PetService al abrir un huevo (aquí sin pasar por el santuario).
+	local uid = tostring(profile.PetData.NextPetUid)
+	profile.PetData.NextPetUid += 1
+	table.insert(profile.PetData.Pets, { Uid = uid, PetId = petId })
+	return uid
+end
+
+print("-- 1. Jugador nuevo: recorrido completo")
+local alice = newPlayer("Alice", 1)
+local aliceHistory = track(alice)
+join(alice)
+advance(0)
+local profile = PlayerDataService.get(alice)
+check("al entrar: tutorial activo, 0 pasos hechos", status(alice) == "Active" and step(alice) == 0)
+advance(5)
+check("a los 5 s (5 ⚡ generados) sigue en el paso 1", step(alice) == 0)
+advance(6)
+check("con 10 ⚡ generados por el cristal: paso 1 hecho", step(alice) == 1)
+advance(0.5)
+fireServer("PurchaseUpgrade", alice, "GeneratorPower")
+advance(1)
+check("tras comprar una mejora real: paso 2 hecho", step(alice) == 2)
+give(profile, "Sproutling")
+advance(1)
+check("con su primera mascota: paso 3 hecho", step(alice) == 3)
+table.insert(profile.PetData.Equipped, profile.PetData.Pets[1].Uid)
+advance(1)
+check("al equiparla: paso 4 hecho", step(alice) == 4)
+local energyBefore = profile.Energy
+local production = profile.ProductionPerSecond
+table.insert(profile.PetData.UnlockedZones, "CrystalValley")
+advance(1)
+check("al desbloquear el Valle: tutorial completado", status(alice) == "Completed" and step(alice) == 5)
+check(("no concede energía: solo la producción de ese segundo (+%s)"):format(tostring(profile.Energy - energyBefore)), math.abs(profile.Energy - energyBefore - production) < 1e-9)
+leave(alice)
+advance(0)
+check("se guarda como completado", record(1).Tutorial.Status == "Completed" and record(1).Tutorial.Step == 5)
+alice = newPlayer("Alice", 1)
+aliceHistory = track(alice)
+join(alice)
+advance(3)
+check("al volver: completado y nunca se muestra como activo", status(alice) == "Completed" and not table.find(aliceHistory, "Active"))
+
+print("-- 2. Veterano con mascotas y el Valle (registro sin campo Tutorial)")
+storeData.player_2 = { Version = 2, Energy = 9000, UpgradeLevels = { GeneratorPower = 12 }, Pets = { { Uid = "1", PetId = "MossFox" }, { Uid = "2", PetId = "QuartzFox" } }, Equipped = { "1" }, NextPetUid = 3, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 300, EnergyEarned = 50000 } } }
+local bob = newPlayer("Bob", 2)
+local bobHistory = track(bob)
+join(bob)
+advance(0)
+check("se completa solo al cargar y el cliente nunca lo ve activo", status(bob) == "Completed" and not table.find(bobHistory, "Active"))
+-- La energía extra de Bob viene de sus LOGROS (Fase 5, al cargar), no del tutorial:
+local achievementEnergy = 0
+for _, f in fired do
+	if f.Name == "QuestState" and f.Player == bob and type(f.Args[1].Notices) == "table" then
+		for _, n in f.Args[1].Notices do
+			if n.Type == "Achievement" then achievementEnergy += n.Reward or 0 end
+		end
+	end
+end
+print(("  (logros concedidos al cargar: +%d de energía)"):format(achievementEnergy))
+check("el tutorial no cambia su energía (solo los logros de misiones) ni sus mascotas", PlayerDataService.get(bob).Energy == 9000 + achievementEnergy and #PlayerDataService.get(bob).PetData.Pets == 2)
+
+print("-- 3. Veterano a medias: tiene mascota pero no la equipó")
+storeData.player_3 = { Version = 2, Energy = 40, UpgradeLevels = { GeneratorPower = 0 }, Pets = { { Uid = "1", PetId = "Sproutling" } }, Equipped = {}, NextPetUid = 2 }
+local cara = newPlayer("Cara", 3)
+join(cara)
+advance(0)
+check("no repite lo que ya cumple: empieza en 'Equipa tu mascota' (3 hechos)", status(cara) == "Active" and step(cara) == 3)
+PlayerDataService.get(cara).PetData.Equipped = {}
+advance(1)
+check("lo hecho no se deshace (sigue en 3)", step(cara) == 3)
+
+print("-- 4. Omitir")
+fireServer("SkipTutorial", cara)
+check("omitir lo marca como Skipped", status(cara) == "Skipped")
+leave(cara)
+advance(0)
+check("se guarda omitido", record(3).Tutorial.Status == "Skipped")
+cara = newPlayer("Cara", 3)
+local caraHistory = track(cara)
+join(cara)
+advance(2)
+check("al volver sigue omitido y no se muestra", status(cara) == "Skipped" and not table.find(caraHistory, "Active"))
+table.insert(PlayerDataService.get(cara).PetData.Equipped, "1")
+advance(2)
+check("cumplir pasos después de omitir no lo reactiva", status(cara) == "Skipped")
+
+print("-- 5. El cliente no puede declarar pasos")
+local dan = newPlayer("Dan", 4)
+join(dan)
+advance(0.5)
+fireServer("SkipTutorial", dan, { Status = "Completed", Step = 5 })
+check("argumentos extra se ignoran: solo puede omitir (Skipped, no Completed)", status(dan) == "Skipped" and step(dan) == 0)
+fireServer("SkipTutorial", alice)
+advance(1)
+check("omitir un tutorial ya completado no lo cambia", status(alice) == "Completed")
+local before = #fired
+for _ = 1, 20 do fireServer("SkipTutorial", dan) end
+check("ráfaga de solicitudes limitada sin errores", status(dan) == "Skipped" and #fired == before)
+
+print("-- 6. Datos guardados corruptos")
+storeData.player_5 = { Version = 2, Tutorial = { Status = "Hacked", Step = 99 } }
+local eve = newPlayer("Eve", 5)
+join(eve)
+advance(0)
+check("estado inválido -> activo; paso fuera de rango recortado (y completado)", status(eve) == "Completed" and step(eve) == 5)
+storeData.player_6 = { Version = 2, Tutorial = { Status = "Active", Step = -4 } }
+local fay = newPlayer("Fay", 6)
+join(fay)
+advance(0)
+check("paso negativo -> 0", status(fay) == "Active" and step(fay) == 0)
+
+print("-- 7. Carga fallida")
+storeData.player_7 = { Version = 2, Energy = 777, Tutorial = { Status = "Active", Step = 2 } }
+local snapshot7 = deep(storeData.player_7)
+storeFail = 5
+local gus = newPlayer("Gus", 7)
+join(gus)
+advance(40)
+check("sin datos no hay tutorial (sin atributos) y el estado es Failed", status(gus) == nil and gus:GetAttribute("DataStatus") == "Failed")
+fireServer("SkipTutorial", gus)
+leave(gus)
+advance(0)
+local same = record(7).Tutorial.Step == snapshot7.Tutorial.Step and record(7).Tutorial.Status == "Active" and record(7).Energy == 777
+check("omitir sin datos no hace nada y el registro no cambia", same)
+
+print("-- 8. Dos jugadores a la vez")
+local h1, h2 = newPlayer("Hana", 8), newPlayer("Ivo", 9)
+join(h1)
+join(h2)
+advance(11)
+check("los dos avanzan con su propia energía (paso 1 cada uno)", step(h1) == 1 and step(h2) == 1)
+advance(0.5)
+fireServer("PurchaseUpgrade", h1, "GeneratorPower")
+fireServer("SkipTutorial", h2)
+advance(1)
+check("la compra de uno no avanza al otro, y omitir de uno no afecta al otro", step(h1) == 2 and status(h1) == "Active" and status(h2) == "Skipped" and step(h2) == 1)
+leave(h1)
+leave(h2)
+advance(0)
+check("cada uno guarda su propio estado", record(8).Tutorial.Status == "Active" and record(8).Tutorial.Step == 2 and record(9).Tutorial.Status == "Skipped")
+
+print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

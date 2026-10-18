@@ -16,3 +16,6 @@ sourcemap.json
 
 # Caché de Python
 __pycache__/
+
+# Worktrees temporales de Claude Code (copias locales del repositorio)
+/.claude/worktrees/

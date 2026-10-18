@@ -1,0 +1,99 @@
+-- Los ocho núcleos elementales. Solo datos: la lógica está en CoreLogic (servidor).
+-- FASE 1: todavía no está conectado a ningún servicio (ni producción, ni guardado, ni
+-- interfaz). Nada de esto cambia la economía actual.
+--
+-- DECISIONES APROBADAS
+-- - Ocho elementos, en este orden: Naturaleza, Agua, Fuego, Viento, Rayo, Hielo, Sombra
+--   y Celestial.
+-- - Naturaleza ES el cristal actual: su nivel es UpgradeLevels.GeneratorPower y su
+--   producción y coste son los de Economy/EconomyConfig. Aquí NO se duplica.
+-- - Naturaleza está desbloqueada desde el principio; los otros siete se desbloquean
+--   pagando energía, con costes crecientes.
+-- - Todos los núcleos desbloqueados producirán energía pasiva (en una fase futura); solo
+--   el elemento seleccionado habilitará sus habilidades.
+-- - Las mascotas multiplican la producción de TODOS los núcleos desbloqueados, una sola
+--   vez sobre la suma: total = (Σ producción base) · multiplicador de mascotas.
+-- - Producción offline: (Σ producción base) · mascotas · 50 %, con un máximo de 4 horas
+--   de ausencia (aún sin conectar).
+-- - La energía offline NO cuenta para las misiones de "generar energía".
+--
+-- PARÁMETROS PROVISIONALES (marcados con [PROVISIONAL]): son puntos de partida
+-- razonados a partir de la economía actual, NO un balance definitivo. Falta telemetría
+-- real (duración de sesiones, nivel típico de los jugadores) para fijarlos.
+-- Referencias de la economía actual (EconomyConfig):
+--   mejora del cristal N cuesta 10 · 1,5^N (N = 10: 576; N = 15: 4 378; N = 20: 33 252)
+--   y produce (1 + N) ⚡/s; Valle Cristalino 2 500; huevos 100, 750, 5 000 y 8 000.
+
+local CoreConfig = {
+	-- Orden de los elementos (el índice define su escalón de coste y producción).
+	Order = { "Nature", "Water", "Fire", "Wind", "Lightning", "Ice", "Shadow", "Celestial" },
+	DefaultElement = "Nature",
+
+	Elements = {
+		Nature = {
+			DisplayName = "Naturaleza",
+			-- Su nivel y su producción son los de esta mejora existente (no se duplican).
+			UpgradeId = "GeneratorPower",
+		},
+		Water = { DisplayName = "Agua" },
+		Fire = { DisplayName = "Fuego" },
+		Wind = { DisplayName = "Viento" },
+		Lightning = { DisplayName = "Rayo" },
+		Ice = { DisplayName = "Hielo" },
+		Shadow = { DisplayName = "Sombra" },
+		Celestial = { DisplayName = "Celestial" },
+	},
+
+	-- Desbloqueo del núcleo en la posición k del orden (k = 2..8):
+	--   coste = BaseCost · Growth^(k - 2)
+	-- [PROVISIONAL] 5 000 ≈ el Huevo de Cristal (tras el Valle, 2 500) y la mejora 15
+	-- del cristal; ×4 por núcleo: 5 000, 20 000, 80 000, 320 000, 1,28 M, 5,12 M, 20,48 M.
+	Unlock = {
+		BaseCost = 5000,
+		Growth = 4,
+		-- [PROVISIONAL, comportamiento explícito] Desbloqueo secuencial: para desbloquear
+		-- un núcleo hacen falta todos los anteriores del orden (no se puede saltar ninguno).
+		Sequential = true,
+	},
+
+	-- Núcleos distintos de Naturaleza (Naturaleza usa EconomyConfig.Upgrades.GeneratorPower).
+	-- Núcleo en la posición k, nivel n:
+	--   producción = BaseProduction · TierMultiplier^(k - 1) · (1 + n)    [⚡/s]
+	--   coste de subir al nivel n + 1 = floor(BaseUpgradeCost · TierMultiplier^(k - 1) · CostGrowth^n)
+	-- [PROVISIONAL] Mismos parámetros que el cristal (base 1, coste 10, ×1,5 por nivel,
+	-- máximo 50) multiplicados por 2 por escalón: cada núcleo produce y cuesta el doble que
+	-- el anterior, así que el tiempo de amortización de cada mejora es el mismo en todos.
+	Upgrade = {
+		BaseProduction = 1,
+		BaseUpgradeCost = 10,
+		CostGrowth = 1.5,
+		TierMultiplier = 2,
+		MaxLevel = 50,
+	},
+
+	-- Cambio de elemento seleccionado:
+	--   coste = max(MinCost, floor(ProductionSeconds · producción base total))
+	-- [PROVISIONAL] El equivalente a 1 minuto de producción (mínimo 100), con un
+	-- enfriamiento de 10 s para evitar cambios en ráfaga.
+	Switch = {
+		MinCost = 100,
+		ProductionSeconds = 60,
+		CooldownSeconds = 10,
+	},
+
+	-- Producción offline (aún NO se concede: solo se calcula en CoreLogic).
+	--   recompensa = floor(min(ausencia, CapSeconds) · Σ producción base · mascotas · Efficiency)
+	Offline = {
+		CapSeconds = 4 * 60 * 60, -- APROBADO: 4 horas
+		Efficiency = 0.5, -- APROBADO: 50 %
+		IncludePetMultiplier = true, -- APROBADO: las mascotas cuentan (una sola vez)
+	},
+
+	-- Topes de seguridad para datos guardados y entradas.
+	MaxMastery = 1e12,
+	-- Multiplicador de mascotas máximo aceptado (el real del juego no pasa de ×7); por
+	-- encima se considera no válido (×1) para que la producción no pueda desbordarse.
+	MaxPetMultiplier = 1000,
+}
+
+return CoreConfig

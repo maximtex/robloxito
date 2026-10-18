@@ -254,6 +254,18 @@ def build_pose():
     return function_text + names_line + suite("pose_body.luau")
 
 
+def build_cores():
+    # Lógica pura: sin entorno simulado; solo los módulos reales y sus dependencias.
+    out = [mod(n, p) for n, p in [
+        ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
+        ("Economy", "src/shared/Economy.luau"),
+        ("CoreConfig", "src/shared/Config/CoreConfig.luau"),
+        ("CoreLogic", "src/server/Util/CoreLogic.luau"),
+    ]]
+    out.append(suite("cores_body.luau"))
+    return "\n".join(out)
+
+
 SUITES = [
     ("sanctuary", "Santuario del Núcleo Cósmico (geometría y animación)", build_sanctuary),
     ("sandbox", "Modo prueba del tutorial", build_sandbox),
@@ -265,6 +277,7 @@ SUITES = [
     ("petcombat", "Combate de mascotas", build_petcombat),
     ("anim", "Animación de enemigos", build_anim),
     ("pose", "Articulaciones de los enemigos", build_pose),
+    ("cores", "Ocho núcleos: configuración y lógica pura (fase 1)", build_cores),
 ]
 LEGACY = ["pettest", "eggtest", "zonetest", "savetest", "layouttest", "stagetest"]
 

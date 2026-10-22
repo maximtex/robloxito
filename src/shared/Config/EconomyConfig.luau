@@ -1,8 +1,9 @@
 -- Valores de la economía y mejoras. El servidor es la única fuente de verdad; el cliente
 -- solo los lee para mostrar información.
 -- Dos monedas: la energía (el cristal y los núcleos la producen; paga la Resonancia del
--- Cristal, huevos, zonas y núcleos) y el dinero (lo sueltan los enemigos; paga las mejoras
--- con Currency = "Money", las de la Tienda de Láser del pueblo).
+-- Cristal, zonas y núcleos) y el dinero (lo sueltan los enemigos; paga las armas
+-- (WeaponConfig) y las mejoras con Currency = "Money", las de la Armería del pueblo).
+-- El daño de cada arma se mejora en la propia arma (WeaponLogic.upgrade).
 
 local EconomyConfig = {
 	StartingEnergy = 0,
@@ -22,15 +23,6 @@ local EconomyConfig = {
 			BaseCost = 10,
 			CostMultiplier = 1.45,
 			ProductionPerLevel = 1,
-			MaxLevel = 50,
-		},
-		LaserPower = {
-			DisplayName = "Potencia del Láser",
-			Description = "Aumenta el daño del rayo láser de tu personaje y su color.",
-			Currency = "Money",
-			BaseCost = 10,
-			CostMultiplier = 1.45,
-			ProductionPerLevel = 0,
 			MaxLevel = 50,
 		},
 		WalkSpeed = {
@@ -53,8 +45,8 @@ local EconomyConfig = {
 			MaxLevel = 30,
 		},
 		LaserSpeed = {
-			DisplayName = "Cadencia del Láser",
-			Description = "Hace que el láser de tu personaje dispare mucho más rápido.",
+			DisplayName = "Cadencia",
+			Description = "Todas tus armas disparan más rápido (-2.5 % de tiempo entre disparos por nivel).",
 			Currency = "Money",
 			BaseCost = 60,
 			CostMultiplier = 1.65,

@@ -8,12 +8,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
-local CombatConfig = require(Shared.Config.CombatConfig)
 local PetConfig = require(Shared.Config.PetConfig)
 local PetCombatConfig = require(Shared.Config.PetCombatConfig)
-local CombatMath = require(Shared.CombatMath)
-local RebirthLogic = require(Shared.RebirthLogic)
-local AdventureLogic = require(Shared.AdventureLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
@@ -104,19 +100,8 @@ local function playerLaserDamage(player: Player): (number, number)
 	if not profile then
 		return 5, 0
 	end
-	local level = profile.UpgradeLevels[CombatConfig.DamageUpgradeId] or 0
-	local base = 6 + level * 4
-	local dmg = math.max(
-		1,
-		math.floor(
-			CombatMath.withBonus(
-				base,
-				RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile))
-					* AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
-			)
-		)
-	)
-	return dmg, level
+	local stats = PlayerDataService.combatStats(profile)
+	return math.max(1, stats.Shot), stats.Level
 end
 
 local function singlePetDamage(player: Player, petId: string): number
@@ -127,19 +112,12 @@ local function singlePetDamage(player: Player, petId: string): number
 	local petDef = PetConfig.Pets[petId]
 	local rarityDef = petDef and PetConfig.Rarities[petDef.Rarity]
 	local mult = (petDef and petDef.Multiplier) or (rarityDef and rarityDef.Multiplier) or 1.1
-	local level = profile.UpgradeLevels[CombatConfig.DamageUpgradeId] or 0
+	-- Base: el 60 % del poder del arma equipada (sin mascotas ni bonificaciones; con el láser
+	-- inicial, 6 como antes) por su propio multiplicador y la mejora "Poder de Mascotas"
+	local stats = PlayerDataService.combatStats(profile)
 	local petPowerLevel = profile.UpgradeLevels.PetPower or 0
-	local base = (6 + level * 2.5) * mult * (1 + petPowerLevel * 0.25)
-	return math.max(
-		1,
-		math.floor(
-			CombatMath.withBonus(
-				base,
-				RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile))
-					* AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
-			)
-		)
-	)
+	local base = stats.RawPower * 0.6 * mult * (1 + petPowerLevel * 0.25)
+	return math.max(1, math.floor(base * stats.Bonus))
 end
 
 local function clearTargetAttributes(player: Player)

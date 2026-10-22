@@ -32,7 +32,6 @@ local ChristmasDecor = require(script.Parent.Parent.Util.ChristmasDecor)
 local LeaderboardLogic = require(script.Parent.Parent.Util.LeaderboardLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local EnergyService = require(script.Parent.EnergyService)
-local EnemyService = require(script.Parent.EnemyService)
 
 local LeaderboardService = {}
 
@@ -418,17 +417,11 @@ function LeaderboardService.start()
 	end
 	refresh()
 
-	-- Energía de la semana: producción del cristal y botín de los enemigos.
+	-- Energía de la semana: la producción (los enemigos sueltan dinero, no energía).
 	EnergyService.onProduced(function(player, amount)
 		local profile = PlayerDataService.get(player)
 		if profile and PlayerDataService.isPetDataReady(profile) then
 			LeaderboardLogic.addWeekly(profile.PetData.Weekly, currentWeek(), amount)
-		end
-	end)
-	EnemyService.onDefeated(function(player, info)
-		local profile = PlayerDataService.get(player)
-		if profile and PlayerDataService.isPetDataReady(profile) and type(info.Reward) == "number" then
-			LeaderboardLogic.addWeekly(profile.PetData.Weekly, currentWeek(), info.Reward)
 		end
 	end)
 

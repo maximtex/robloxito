@@ -25,6 +25,10 @@
 --                                       mejora automática (MonetizationLogic; ShopService).
 --   Weekly: { Week, Energy }            energía generada esta semana (LeaderboardLogic;
 --                                       clasificación semanal).
+--   Weapons: { Owned, Levels, Equipped }  armas compradas o regaladas, su nivel y la
+--                                       equipada (WeaponLogic; WeaponService).
+--   Bosses: { [tipo]: número }          veces que ha derrotado a cada jefe (BossRewardService:
+--                                       premio de la primera vez y acceso a la zona siguiente).
 -- Los registros antiguos sin Energy/UpgradeLevels cargan con los valores iniciales, los
 -- que no tienen Cores (v2) empiezan con Naturaleza desbloqueada y seleccionada, y los que
 -- no tienen Rebirth (v3) empiezan sin renacimientos, los que no tienen Adventure (v4)
@@ -57,12 +61,15 @@ local AdventureLogic = require(ReplicatedStorage:WaitForChild("Shared").Adventur
 local MonetizationLogic = require(ReplicatedStorage:WaitForChild("Shared").MonetizationLogic)
 local RewardLogic = require(script.Parent.Parent.Util.RewardLogic)
 local LeaderboardLogic = require(script.Parent.Parent.Util.LeaderboardLogic)
+local WeaponLogic = require(ReplicatedStorage:WaitForChild("Shared").WeaponLogic)
+local WeaponConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.WeaponConfig)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 2: añade Energy y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
--- 5: añade Adventure. 6: añade Rewards, Shop y Weekly. 7: añade Money. Los registros v1 a v6
--- siguen cargando (sin Money empiezan con el dinero inicial).
-local SCHEMA_VERSION = 7
+-- 5: añade Adventure. 6: añade Rewards, Shop y Weekly. 7: añade Money. 8: añade Weapons y
+-- Bosses. Los registros v1 a v7 siguen cargando (sin Money empiezan con el dinero inicial;
+-- sin Weapons, con el láser al nivel de la antigua mejora "LaserPower"; sin Bosses, sin jefes).
+local SCHEMA_VERSION = 8
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -99,6 +106,8 @@ export type PetData = {
 	Rewards: RewardLogic.RewardData, -- premio diario y códigos (RewardService)
 	Shop: MonetizationLogic.ShopData, -- compras sueltas concedidas y mejora automática (ShopService)
 	Weekly: LeaderboardLogic.Weekly, -- energía generada esta semana (clasificación semanal)
+	Weapons: WeaponLogic.WeaponData, -- armas, niveles y la equipada (WeaponService)
+	Bosses: { [string]: number }, -- jefes derrotados (BossRewardService)
 }
 
 -- "Loaded": datos cargados y bloqueados para esta sesión.
@@ -172,6 +181,8 @@ function SaveService.emptyData(): PetData
 		Rewards = RewardLogic.empty(),
 		Shop = MonetizationLogic.empty(),
 		Weekly = LeaderboardLogic.emptyWeekly(),
+		Weapons = WeaponLogic.empty(),
+		Bosses = {},
 	}
 end
 
@@ -340,6 +351,22 @@ local function sanitize(raw: any): PetData
 	result.Rewards = RewardLogic.sanitize(raw.Rewards)
 	result.Shop = MonetizationLogic.sanitize(raw.Shop)
 	result.Weekly = LeaderboardLogic.sanitizeWeekly(raw.Weekly)
+	-- Armas: sin el campo (v7 o anteriores) empieza con el láser, al nivel de la antigua
+	-- mejora "Potencia del Láser" (UpgradeLevels.LaserPower) si la tenía.
+	result.Weapons = WeaponLogic.sanitize(raw.Weapons)
+	if raw.Weapons == nil and type(raw.UpgradeLevels) == "table" and isFiniteNumber(raw.UpgradeLevels.LaserPower) then
+		result.Weapons.Levels[WeaponConfig.StarterWeapon] = math.clamp(math.floor(raw.UpgradeLevels.LaserPower), 0, WeaponConfig.MaxLevel)
+	end
+	-- Jefes derrotados: tipo -> veces (enteros >= 0)
+	if type(raw.Bosses) == "table" then
+		local count = 0
+		for typeId, kills in raw.Bosses do
+			if type(typeId) == "string" and #typeId <= 64 and isFiniteNumber(kills) and kills >= 0 and count < 50 then
+				result.Bosses[typeId] = math.min(math.floor(kills), 1e9)
+				count += 1
+			end
+		end
+	end
 
 	return result
 end
@@ -424,6 +451,8 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local rewards = RewardLogic.serialize(data.Rewards)
 	local shop = MonetizationLogic.serialize(data.Shop)
 	local weekly = LeaderboardLogic.serializeWeekly(data.Weekly)
+	local weapons = WeaponLogic.serialize(data.Weapons)
+	local bosses = table.clone(data.Bosses)
 	local key = keyFor(userId)
 
 	for attempt = 1, SAVE_ATTEMPTS do
@@ -461,6 +490,8 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.Rewards = rewards
 				stored.Shop = shop
 				stored.Weekly = weekly
+				stored.Weapons = weapons
+				stored.Bosses = bosses
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)

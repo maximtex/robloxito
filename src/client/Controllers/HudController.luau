@@ -1,11 +1,10 @@
--- HUD de Monedas estilo `HUD Rediseño (standalone).html` + Panel de la Tienda de Mejoras y Láser:
+-- HUD de Monedas estilo `HUD Rediseño (standalone).html`:
 -- - A la izquierda: pila vertical limpia con:
 --     1. Icono 3D de Rayo + cantidad de Energía en crema con borde oscuro + botón cuadrado verde `+`.
 --     2. Pastilla naranja `×1.1` + texto `"Multiplicador"`.
 --     3. Icono 3D de Cristal / Tokens de Renacimiento + cantidad en lavanda con borde oscuro,
 --        y a su lado 💰 Dinero (lo sueltan los enemigos) en dorado.
--- - Panel "LaserShop" (abierto en el puesto Mejorar Láser del pueblo): sus mejoras se pagan
---   con dinero.
+-- Las mejoras que se pagan con dinero están en la Armería (WeaponController).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,24 +12,13 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local EconomyConfig = require(Shared.Config.EconomyConfig)
 local Constants = require(Shared.Constants)
-local Economy = require(Shared.Economy)
-local CombatMath = require(Shared.CombatMath)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
-local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Icons = require(script.Parent.Parent.UI.Icons)
-local RevealGate = require(script.Parent.Parent.Pets.RevealGate)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local HudLayout = require(script.Parent.Parent.UI.HudLayout)
-local Juice = require(script.Parent.Parent.UI.Juice)
 
-local PENDING_TIMEOUT = 2
-local FEEDBACK_SECONDS = 2.5
-local LASER_PANEL_SIZE = Vector2.new(540, 430)
-
-local THEME = Theme.Colors
 local FONTS = Theme.Fonts
 local INK = Color3.fromRGB(43, 29, 63) -- #2B1D3F
 local CREAM = Color3.fromRGB(255, 246, 224) -- #FFF6E0
@@ -38,66 +26,7 @@ local MULT_GOLD = Color3.fromRGB(255, 231, 168) -- #FFE7A8
 local TOKENS_LAVENDER = Color3.fromRGB(231, 216, 255) -- #E7D8FF
 local MONEY_GOLD = Color3.fromRGB(255, 218, 92)
 
-local RESULT_MESSAGES = {
-	[Constants.PurchaseCodes.Success] = "¡Mejora comprada!",
-	[Constants.PurchaseCodes.InsufficientEnergy] = "Energía insuficiente",
-	[Constants.PurchaseCodes.InsufficientMoney] = "Dinero insuficiente: derrota enemigos",
-	[Constants.PurchaseCodes.MaxLevel] = "Nivel máximo alcanzado",
-	[Constants.PurchaseCodes.TooFast] = "Demasiado rápido, espera un momento",
-	[Constants.PurchaseCodes.NotReady] = "Cargando datos, inténtalo de nuevo",
-	[Constants.PurchaseCodes.InvalidRequest] = "Solicitud no válida",
-}
-
-local SHOP_UPGRADES = {
-	{
-		Id = "LaserPower",
-		Icon = "⚡",
-		Title = "Potencia del Láser",
-		Color = Color3.fromRGB(70, 235, 255),
-		Describe = function(level: number): string
-			return ("Daño del láser: 💥 %s → %s"):format(formatNumber(CombatMath.playerDamage(level, 1)), formatNumber(CombatMath.playerDamage(level + 1, 1)))
-		end,
-	},
-	{
-		Id = "WalkSpeed",
-		Icon = "👟",
-		Title = "Velocidad de Correr",
-		Color = Color3.fromRGB(110, 245, 130),
-		Describe = function(level: number): string
-			local curSpd = 28 + level * 2.5
-			local nextSpd = 28 + (level + 1) * 2.5
-			return ("Velocidad al correr: 🏃 %.1f → %.1f"):format(curSpd, nextSpd)
-		end,
-	},
-	{
-		Id = "PetPower",
-		Icon = "🐾",
-		Title = "Poder de Mascotas",
-		Color = Color3.fromRGB(255, 205, 75),
-		Describe = function(level: number): string
-			local curPct = 100 + level * 25
-			local nextPct = 100 + (level + 1) * 25
-			return ("Daño de tus mascotas: 🐾 %d%% → %d%%"):format(curPct, nextPct)
-		end,
-	},
-	{
-		Id = "LaserSpeed",
-		Icon = "🔋",
-		Title = "Cadencia del Láser",
-		Color = Color3.fromRGB(205, 115, 255),
-		Describe = function(level: number): string
-			local curInt = math.max(0.2, 0.55 - level * 0.022)
-			local nextInt = math.max(0.2, 0.55 - (level + 1) * 0.022)
-			return ("Velocidad de disparo: ⚡ %.2fs → %.2fs"):format(curInt, nextInt)
-		end,
-	},
-}
-
 local HudController = {}
-
-export type Callbacks = {
-	onPurchaseSuccess: (() -> ())?,
-}
 
 local function create(className: string, properties: { [string]: any }, parent: Instance?): any
 	local instance = Instance.new(className)
@@ -346,94 +275,6 @@ local function buildGui(playerGui: PlayerGui)
 	addStroke(moneyValue, 3.6, Enum.ApplyStrokeMode.Contextual)
 	local moneyPop = create("UIScale", { Name = "Pop" }, moneyValue)
 
-	-- Panel de la Tienda de Láser y Mejoras (abierto desde el puesto ⚡ MEJORAR LÁSER) -------
-	local laserPanel, laserScale = UiKit.panel(screenGui, "LaserShopPanel", LASER_PANEL_SIZE, Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0.18))
-	UiKit.text(laserPanel, "Title", {
-		Position = UDim2.fromOffset(22, 14),
-		Size = UDim2.new(1, -90, 0, 32),
-		Font = FONTS.Display,
-		TextSize = 26,
-		Text = "⚡ Tienda de Láser y Mejoras",
-	})
-	UiKit.text(laserPanel, "Subtitle", {
-		Position = UDim2.fromOffset(22, 48),
-		Size = UDim2.new(1, -44, 0, 20),
-		Font = FONTS.Light,
-		TextSize = 15,
-		TextColor3 = THEME.Muted,
-		Text = "Se paga con el 💰 dinero que sueltan los enemigos.",
-	})
-	local laserClose = UiKit.button(laserPanel, "Close", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 14),
-		Size = UDim2.fromOffset(40, 40),
-		BackgroundColor3 = THEME.Inset,
-		Text = "×",
-	})
-
-	local list = UiKit.create("ScrollingFrame", {
-		Name = "UpgradeList",
-		Position = UDim2.fromOffset(22, 78),
-		Size = UDim2.new(1, -44, 1, -120),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ScrollBarThickness = 6,
-		ScrollBarImageColor3 = THEME.Stroke,
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		CanvasSize = UDim2.new(),
-	}, laserPanel)
-	UiKit.create("UIListLayout", {
-		Padding = UDim.new(0, 10),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-	}, list)
-
-	local rows = {}
-	for order, spec in SHOP_UPGRADES do
-		local row = UiKit.create("Frame", {
-			Name = "Row_" .. spec.Id,
-			Size = UDim2.new(1, -8, 0, 68),
-			BackgroundColor3 = THEME.Inset,
-			LayoutOrder = order,
-		}, list)
-		UiKit.corner(row, 12)
-		UiKit.stroke(row, spec.Color, 1.4, 0.25)
-
-		local titleLabel = UiKit.text(row, "Title", {
-			Position = UDim2.fromOffset(14, 8),
-			Size = UDim2.new(1, -200, 0, 24),
-			Font = FONTS.Display,
-			TextSize = 19,
-			TextColor3 = spec.Color,
-			Text = spec.Icon .. "  " .. spec.Title,
-		})
-		local descLabel = UiKit.text(row, "Desc", {
-			Position = UDim2.fromOffset(14, 34),
-			Size = UDim2.new(1, -200, 0, 22),
-			Font = FONTS.Light,
-			TextSize = 14,
-			TextColor3 = THEME.Text,
-		})
-		local buyBtn = UiKit.button(row, "BuyButton", {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -12, 0.5, 0),
-			Size = UDim2.fromOffset(170, 44),
-			TextSize = 16,
-		})
-		rows[spec.Id] = {
-			Spec = spec,
-			Title = titleLabel,
-			Desc = descLabel,
-			Button = buyBtn,
-		}
-	end
-
-	local laserFeedback = UiKit.text(laserPanel, "Feedback", {
-		Position = UDim2.new(0, 22, 1, -34),
-		Size = UDim2.new(1, -44, 0, 22),
-		TextSize = 15,
-		TextXAlignment = Enum.TextXAlignment.Center,
-	})
-
 	screenGui.Parent = playerGui
 
 	return {
@@ -446,27 +287,14 @@ local function buildGui(playerGui: PlayerGui)
 		TokensValue = tokensValue,
 		MoneyValue = moneyValue,
 		MoneyPop = moneyPop,
-		LaserPanel = laserPanel,
-		LaserScale = laserScale,
-		LaserClose = laserClose,
-		Rows = rows,
-		LaserFeedback = laserFeedback,
 	}
 end
 
-function HudController.start(callbacks: Callbacks?)
+function HudController.start()
 	local player = Players.LocalPlayer
 	local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
 
-	local remotes = ReplicatedStorage:WaitForChild(Constants.RemotesFolderName)
-	local purchaseRemote = remotes:WaitForChild(Constants.Remotes.PurchaseUpgrade) :: RemoteEvent
-	local resultRemote = remotes:WaitForChild(Constants.Remotes.PurchaseResult) :: RemoteEvent
-
 	local ui = buildGui(playerGui)
-
-	local pendingToken = 0
-	local pending = false
-	local feedbackToken = 0
 
 	local function applyScale()
 		local size = ui.ScreenGui.AbsoluteSize
@@ -524,104 +352,13 @@ function HudController.start(callbacks: Callbacks?)
 		local multVal = if typeof(petMult) == "number" and petMult > 0 then petMult else 1
 		ui.MultValue.Text = ("×%s"):format(formatNumber(multVal, 1))
 		popEnergy(energy, production)
-
-		for upgradeId, row in ui.Rows do
-			local def = EconomyConfig.Upgrades[upgradeId]
-			local attr = Constants.Attributes.UpgradeLevelPrefix .. upgradeId
-			local level = player:GetAttribute(attr)
-			local lvl = if typeof(level) == "number" then level else 0
-			local maxLvl = if def then def.MaxLevel else 50
-			row.Title.Text = ("%s  %s  (Nv. %d/%d)"):format(row.Spec.Icon, row.Spec.Title, lvl, maxLvl)
-			row.Desc.Text = row.Spec.Describe(lvl)
-
-			if lvl >= maxLvl then
-				row.Button.Text = "MÁXIMO"
-				row.Button.BackgroundColor3 = THEME.Max
-				row.Button.TextColor3 = THEME.Text
-				UiKit.setDisabled(row.Button, true)
-			else
-				local cost = Economy.getUpgradeCost(upgradeId, lvl) or 0
-				local affordable = (if Economy.getUpgradeCurrency(upgradeId) == "Money" then money else energy) >= cost
-				row.Button.Text = ("Mejorar · $%s"):format(formatNumber(cost))
-				row.Button.BackgroundColor3 = if affordable then THEME.Buy else THEME.Disabled
-				row.Button.TextColor3 = if affordable then THEME.Text else THEME.Muted
-				UiKit.setDisabled(row.Button, not affordable)
-			end
-		end
 	end
-
-	PanelManager.register("LaserShop", ui.LaserPanel, { OnOpen = refresh })
-	UiKit.bindModalLayout(ui.ScreenGui, ui.LaserScale, LASER_PANEL_SIZE, function(position)
-		PanelManager.setBasePosition("LaserShop", position)
-	end)
-	ui.LaserClose.Activated:Connect(function()
-		PanelManager.close("LaserShop")
-	end)
-
-	local function showFeedback(text: string, color: Color3)
-		feedbackToken += 1
-		local token = feedbackToken
-		ui.LaserFeedback.Text = text
-		ui.LaserFeedback.TextColor3 = color
-		task.delay(FEEDBACK_SECONDS, function()
-			if feedbackToken == token then
-				ui.LaserFeedback.Text = ""
-			end
-		end)
-	end
-
-	local combo, lastPurchaseAt = 0, 0
-	local function playSuccessEffects()
-		local now = os.clock()
-		combo = if now - lastPurchaseAt < 1.2 then math.min(combo + 1, 10) else 0
-		lastPurchaseAt = now
-		Juice.sound(Juice.Sounds.Upgrade, 1 + combo * 0.05)
-
-		if callbacks and callbacks.onPurchaseSuccess then
-			pcall(callbacks.onPurchaseSuccess)
-		end
-	end
-
-	for upgradeId, row in ui.Rows do
-		row.Button.Activated:Connect(function()
-			if pending then
-				return
-			end
-			pending = true
-			pendingToken += 1
-			local token = pendingToken
-			purchaseRemote:FireServer(upgradeId)
-
-			task.delay(PENDING_TIMEOUT, function()
-				if pendingToken == token then
-					pending = false
-				end
-			end)
-		end)
-	end
-
-	resultRemote.OnClientEvent:Connect(function(success: boolean, code: string)
-		pending = false
-		local message = RESULT_MESSAGES[code] or tostring(code)
-		if success then
-			showFeedback(message, THEME.BuyHighlight)
-			playSuccessEffects()
-		else
-			showFeedback(message, THEME.Error)
-		end
-		refresh()
-	end)
 
 	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.ProductionPerSecond):Connect(refresh)
-	for upgradeId in EconomyConfig.Upgrades do
-		player:GetAttributeChangedSignal(Constants.Attributes.UpgradeLevelPrefix .. upgradeId):Connect(refresh)
-	end
-	player:GetAttributeChangedSignal(Constants.Attributes.AutoUpgrade):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.RebirthTokens):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.PetMultiplier):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.Money):Connect(refresh)
-	RevealGate.Released:Connect(refresh)
 
 	refresh()
 end

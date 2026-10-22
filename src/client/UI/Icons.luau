@@ -26,6 +26,7 @@ Icons.Emoji = {
 	energy = "⚡",
 	tokens = "🪙",
 	money = "💰", -- sin textura: siempre el emoji
+	armory = "⚔️",
 }
 
 export type Props = {

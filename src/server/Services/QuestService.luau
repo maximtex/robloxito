@@ -195,11 +195,9 @@ function QuestService.start()
 	local claimRemote = RemoteService.get(Constants.Remotes.ClaimQuest)
 	local resultRemote = RemoteService.get(Constants.Remotes.QuestResult)
 
+	-- La recompensa de los enemigos es dinero: no cuenta como energía generada.
 	EnemyService.onDefeated(function(player, info)
 		record(player, { Type = "Kill", TypeId = info.TypeId, ZoneId = info.ZoneId })
-		if info.Reward > 0 then
-			record(player, { Type = "Energy", Amount = info.Reward })
-		end
 		update(player, false)
 	end)
 	PetCombatService.onAbilityHit(function(player)

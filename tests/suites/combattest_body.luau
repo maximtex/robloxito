@@ -16,17 +16,16 @@ check("nivel 16 con x2 = 63", CombatMath.playerDamage(16, 2) == 63)
 check("cada nivel de mejora suma daño (nivel 5 > nivel 4)", CombatMath.playerDamage(5, 1) > CombatMath.playerDamage(4, 1))
 check("multiplicador < 1 o nivel negativo no bajan de la base", CombatMath.playerDamage(-3, 0.5) == 10)
 
-print("-- Dinero y Tienda de Láser")
-local laserUpgrade = EconomyConfig.Upgrades[CombatConfig.DamageUpgradeId]
-check("el daño del láser sale de la Potencia del Láser, que se paga con dinero", CombatConfig.DamageUpgradeId == "LaserPower" and laserUpgrade ~= nil and laserUpgrade.Currency == "Money")
+print("-- Dinero y Armería")
+check("ya no hay una mejora de daño aparte: el daño es del arma (WeaponConfig)", EconomyConfig.Upgrades.LaserPower == nil and CombatConfig.DamageUpgradeId == nil)
 local shopMoney = true
-for _, upgradeId in { "LaserPower", "WalkSpeed", "PetPower", "LaserSpeed" } do
+for _, upgradeId in { "WalkSpeed", "PetPower", "LaserSpeed" } do
 	local def = EconomyConfig.Upgrades[upgradeId]
 	if not (def and def.Currency == "Money" and def.ProductionPerLevel == 0) then
 		shopMoney = false
 	end
 end
-check("las cuatro mejoras de la Tienda de Láser cuestan dinero y no producen energía", shopMoney)
+check("las mejoras de la Armería cuestan dinero y no producen energía", shopMoney)
 check("la Resonancia del Cristal (renacer, huevos) sigue costando energía", EconomyConfig.Upgrades.GeneratorPower.Currency == nil and EconomyConfig.Upgrades.GeneratorPower.ProductionPerLevel > 0)
 local allHit = true
 for _, def in EnemyConfig.Types do

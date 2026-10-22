@@ -33,8 +33,8 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
-local CombatConfig = require(Shared.Config.CombatConfig)
-local CombatMath = require(Shared.CombatMath)
+local WeaponConfig = require(Shared.Config.WeaponConfig)
+local WeaponLogic = require(Shared.WeaponLogic)
 local Constants = require(Shared.Constants)
 local Economy = require(Shared.Economy)
 local PetMath = require(Shared.PetMath)
@@ -144,6 +144,42 @@ function PlayerDataService.recalculateProduction(player: Player)
 	end
 end
 
+-- Números de combate del jugador con su arma equipada (WeaponLogic): daño de un disparo,
+-- segundos entre disparos, alcance, daño por segundo y "poder" (lo que escala con el arma:
+-- habilidades y núcleos), con mascotas, renacimiento y aventuras. RawPower es el poder sin
+-- mascotas ni bonificaciones (base del daño de las mascotas, que llevan su propio multiplicador).
+export type CombatStats = { WeaponId: string, Level: number, Shot: number, Cooldown: number, Range: number, Dps: number, Power: number, RawPower: number, Bonus: number }
+function PlayerDataService.combatStats(profile: Profile): CombatStats
+	local weapons = profile.PetData.Weapons
+	local weaponId = weapons.Equipped
+	local level = WeaponLogic.level(weapons, weaponId)
+	local cadence = profile.UpgradeLevels[WeaponConfig.CadenceUpgradeId] or 0
+	local bonus = RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
+	local definition = WeaponLogic.definition(weaponId) or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
+	return {
+		WeaponId = weaponId,
+		Level = level,
+		Shot = WeaponLogic.shotDamage(weaponId, level, profile.PetMultiplier, bonus),
+		Cooldown = WeaponLogic.cooldown(weaponId, cadence),
+		Range = definition.Range,
+		Dps = WeaponLogic.dps(weaponId, level, cadence, profile.PetMultiplier, bonus),
+		Power = WeaponLogic.power(weaponId, level, cadence, profile.PetMultiplier, bonus),
+		RawPower = WeaponLogic.power(weaponId, level, cadence, 1, 1),
+		Bonus = bonus,
+	}
+end
+
+-- Armas que tiene con su nivel, para el cliente ("Laser:3,PlasmaBlaster:0")
+local function weaponsText(weapons: WeaponLogic.WeaponData): string
+	local parts = {}
+	for _, weaponId in WeaponLogic.ordered() do
+		if weapons.Owned[weaponId] then
+			table.insert(parts, weaponId .. ":" .. WeaponLogic.level(weapons, weaponId))
+		end
+	end
+	return table.concat(parts, ",")
+end
+
 local function setIfChanged(player: Player, name: string, value: any)
 	if player:GetAttribute(name) ~= value then
 		player:SetAttribute(name, value)
@@ -174,15 +210,12 @@ function PlayerDataService.replicate(player: Player)
 	end
 	setIfChanged(player, attributes.PetMultiplier, profile.PetMultiplier)
 
-	local powerLevel = profile.UpgradeLevels[CombatConfig.DamageUpgradeId] or 0
-	local dmg = CombatMath.withBonus(
-		CombatMath.playerDamage(powerLevel, profile.PetMultiplier),
-		RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile))
-			* AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
-	)
-	local dps = math.floor((dmg * CombatConfig.ShotDamageScale / CombatConfig.AttackCooldown) * 10 + 0.5) / 10
-	setIfChanged(player, attributes.PlayerDamage, dmg)
-	setIfChanged(player, attributes.DamagePerSecond, dps)
+	-- Arma equipada, las que tiene y sus números (Armería, botón de disparo)
+	local stats = PlayerDataService.combatStats(profile)
+	setIfChanged(player, attributes.EquippedWeapon, stats.WeaponId)
+	setIfChanged(player, attributes.Weapons, weaponsText(profile.PetData.Weapons))
+	setIfChanged(player, attributes.PlayerDamage, stats.Shot)
+	setIfChanged(player, attributes.DamagePerSecond, stats.Dps)
 
 	-- Dinero en la lista de jugadores
 	local leaderstats = player:FindFirstChild("leaderstats")

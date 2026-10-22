@@ -2,7 +2,7 @@
 -- propone el modelo del enemigo al que apunta: el servidor comprueba el ritmo, que ese
 -- enemigo exista, esté vivo y a tiro desde la posición real del personaje (si no, el disparo
 -- se pierde; sin enemigo propuesto, con F o el botón, elige el más cercano a tiro) y calcula
--- el daño con CombatMath (nivel de mejora y mascotas del perfil del servidor). Nunca acepta
+-- el daño con el arma equipada (PlayerDataService.combatStats, perfil del servidor). Nunca acepta
 -- daño ni recompensas del cliente.
 
 local Players = game:GetService("Players")
@@ -11,9 +11,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CombatConfig = require(Shared.Config.CombatConfig)
-local CombatMath = require(Shared.CombatMath)
-local RebirthLogic = require(Shared.RebirthLogic)
-local AdventureLogic = require(Shared.AdventureLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
@@ -60,9 +57,7 @@ local function handleAttack(player: Player, aimed: any)
 		return
 	end
 
-	local level = profile.UpgradeLevels[CombatConfig.DamageUpgradeId] or 0
-	local damage = CombatMath.withBonus(CombatMath.playerDamage(level, profile.PetMultiplier), RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time()))
-		* CombatConfig.ShotDamageScale
+	local damage = PlayerDataService.combatStats(profile).Shot -- arma equipada
 
 	-- Con clic o toque llega el enemigo apuntado: solo él, si está vivo y a tiro (si no, el
 	-- disparo se pierde; nunca va a otro). Sin apuntar (F, botón): el más cercano a tiro.

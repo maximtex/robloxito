@@ -20,11 +20,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CoreConfig = require(Shared.Config.CoreConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
-local CombatConfig = require(Shared.Config.CombatConfig)
-local CombatMath = require(Shared.CombatMath)
 local AbilityLogic = require(Shared.AbilityLogic)
-local RebirthLogic = require(Shared.RebirthLogic)
-local AdventureLogic = require(Shared.AdventureLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
@@ -59,7 +55,7 @@ function CoreService.snapshot(profile: PlayerDataService.Profile): { [string]: a
 	local levels = profile.UpgradeLevels
 	local elements = {}
 	local previousUnlocked = true
-	local playerDamage = CombatMath.withBonus(CombatMath.playerDamage(levels[CombatConfig.DamageUpgradeId] or 0, profile.PetMultiplier), RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time()))
+	local playerDamage = PlayerDataService.combatStats(profile).Power -- escala con el arma equipada
 	for index, elementId in CoreConfig.Order do
 		local unlocked = CoreLogic.isUnlocked(data, elementId)
 		local level = CoreLogic.level(data, levels, elementId)

@@ -209,7 +209,7 @@ QuestService.start()
 readyListener(alice)
 check("al estar listo envía el estado", lastState(alice) ~= nil and lastState(alice).Ready == true and #lastState(alice).Daily == 3)
 for _ = 1, 5 do defeatListener(alice, { TypeId = "Thornling", Kind = "Normal", ZoneId = "Forest", Reward = 25 }) end
-check("5 derrotas reales -> 5 en el perfil + energía de enemigos en EnergyEarned", profile.PetData.Quests.Stats.Kills == 5 and profile.PetData.Quests.Stats.EnergyEarned == 125)
+check("5 derrotas reales -> 5 en el perfil; su recompensa es dinero: no cuenta como energía", profile.PetData.Quests.Stats.Kills == 5 and profile.PetData.Quests.Stats.EnergyEarned == 0)
 check("marca el perfil para guardar (no guarda él mismo)", profile.Dirty == true and saveCalls == 0)
 -- Dos reclamaciones en el mismo instante (sin tiempo entre ellas)
 local energyBefore = profile.Energy
@@ -242,7 +242,7 @@ fireServer("ClaimQuest", bob, "DefeatFive")
 check("datos cargando: no registra progreso ni concede nada (NotReady)", profiles[bob].PetData.Quests.Stats.Kills == 0 and results(bob)[1][2] == "NotReady" and profiles[bob].Energy == 0)
 -- Energía producida cuenta, y cambio de día durante la sesión
 producedListener(alice, 10)
-check("energía producida cuenta para EnergyEarned", profile.PetData.Quests.Stats.EnergyEarned == 135)
+check("energía producida cuenta para EnergyEarned", profile.PetData.Quests.Stats.EnergyEarned == 10)
 local dayBefore = profile.PetData.Quests.Daily.Day
 serverTime += 86400
 clock += 3

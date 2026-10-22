@@ -1,6 +1,6 @@
 -- Construye los puestos del pueblo estilo simulador:
 -- - 🛒 TIENDA, 🎁 PREMIOS, 📜 MISIONES
--- - ⚡ TIENDA LÁSER (para mejorar el láser que dispara tu personaje)
+-- - ⚔️ ARMERÍA (comprar, equipar y mejorar armas; WeaponController)
 -- - 🌟 MÁQUINA DE EVOLUCIÓN (para fusionar 3 mascotas iguales en su versión ★ Evo)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -545,12 +545,13 @@ function VillageService.start()
 	root.Parent = Workspace
 
 	-- Puestos del pueblo a los lados de la plaza (X = -36 y X = +36), mirando al centro. Juntos
-	-- lo que se compra (Tienda y Mejorar Láser, al este) y lo que se reclama (Premios y
+	-- lo que se compra (Tienda y Armería, al este) y lo que se reclama (Premios y
 	-- Misiones, al oeste).
 	buildStall(root, "Rewards", Vector2.new(-36, -12), Vector2.new(0, -12), "Premios", "Rewards", "🎁")
 	buildStall(root, "Quests", Vector2.new(-36, 12), Vector2.new(0, 12), "Misiones", "Quests", "📜")
 	buildStall(root, "Shop", Vector2.new(36, -12), Vector2.new(0, -12), "Tienda", "Shop", "🛒")
-	buildStall(root, "LaserShop", Vector2.new(36, 12), Vector2.new(0, 12), "Mejorar Láser", "LaserShop", "⚡")
+	-- El puesto del láser (modelo "LaserShop" de puestos_pueblo.glb) es la Armería
+	buildStall(root, "LaserShop", Vector2.new(36, 12), Vector2.new(0, 12), "Armería", "Armory", "⚔️")
 
 	local machine = VillageConfig.EvolutionMachine
 	buildEvolutionMachine(root, machine.Position, machine.FaceToward, machine.Scale)

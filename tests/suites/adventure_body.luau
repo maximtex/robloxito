@@ -365,7 +365,7 @@ args = act(p1, "TurnIn", "Herbalist")
 check("amuleto: llega puesto y la producción sube ×1.25",
 	args[1] == true and args[4].Amulet == "Sap" and args[4].Finished == true and profile.PetData.Adventure.Equipped[1] == "Sap" and near(profile.ProductionPerSecond, baseProduction * 1.25))
 advance(0)
-check("guardado en seguida: Version 6 y Adventure en el registro", record(1) and record(1).Version == 6 and record(1).Adventure.Amulets.Sap == true and record(1).Adventure.Npcs.Herbalist.Step == 4)
+check("guardado en seguida: Version 8 y Adventure en el registro", record(1) and record(1).Version == 8 and record(1).Adventure.Amulets.Sap == true and record(1).Adventure.Npcs.Herbalist.Step == 4)
 args = act(p1, "Unequip", 1)
 check("quitarlo: producción normal", args[1] == true and near(profile.ProductionPerSecond, baseProduction))
 args = act(p1, "Equip", "Sap", 2)

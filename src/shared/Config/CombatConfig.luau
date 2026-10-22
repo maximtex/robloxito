@@ -1,17 +1,14 @@
 -- Combate del jugador: daño, alcance y ritmo. El servidor calcula el daño real con
 -- CombatMath; el cliente solo usa estos valores para la interfaz.
 --
--- Fórmula del daño (CombatMath.playerDamage):
---   daño = (BaseDamage + DamagePerLevel · nivel de "Potencia del Láser")
---          · (1 + PetDamageShare · (multiplicador de mascotas - 1))
--- La Potencia del Láser se compra con el dinero que sueltan los enemigos (Tienda de Láser).
--- Las mascotas aportan la mitad de su bonificación al daño (ej. ×1.35 -> +17.5 %).
--- Ejemplos: nivel 0 sin mascotas = 10; nivel 10 con ×1.35 = 35.25; nivel 16 con ×2 = 63.
+-- El daño de cada disparo lo pone el arma equipada (WeaponConfig, WeaponLogic.shotDamage).
+-- Las mascotas aportan PetDamageShare de su bonificación al daño (ej. ×1.35 -> +17.5 %).
+-- CombatMath.playerDamage (BaseDamage + DamagePerLevel · nivel) queda como fórmula de
+-- referencia de las pruebas antiguas.
 
 local CombatConfig = {
 	BaseDamage = 10,
 	DamagePerLevel = 2,
-	DamageUpgradeId = "LaserPower",
 	PetDamageShare = 0.5,
 
 	-- Disparo por clic (clic, toque, F o el botón): un rayo al enemigo apuntado, el más

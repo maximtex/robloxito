@@ -60,6 +60,10 @@ def check_no_require(source):
 BASE = [
     ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
     ("Economy", "src/shared/Economy.luau"),
+    # Armas (campo Weapons del guardado v8)
+    ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
+    ("WeaponConfig", "src/shared/Config/WeaponConfig.luau"),
+    ("WeaponLogic", "src/shared/WeaponLogic.luau"),
     ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
     ("RebirthLogic", "src/shared/RebirthLogic.luau"),
     ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
@@ -206,6 +210,9 @@ def build_quest():
     order = [
         ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
         ("Economy", "src/shared/Economy.luau"),
+        ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
+        ("WeaponConfig", "src/shared/Config/WeaponConfig.luau"),
+        ("WeaponLogic", "src/shared/WeaponLogic.luau"),
         ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
         ("RebirthLogic", "src/shared/RebirthLogic.luau"),
         ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),

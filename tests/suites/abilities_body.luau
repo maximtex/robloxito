@@ -39,6 +39,13 @@ local function health(enemy)
 	return enemy.Status.Health
 end
 
+-- Poder del arma equipada (PlayerDataService.combatStats): estas pruebas fijan la base con
+-- la fórmula de referencia (nivel 10 y mascotas ×1.35 = 35.25) y el renacimiento y las
+-- aventuras del perfil, como el servicio real.
+PlayerDataService.combatStats = function(profile)
+	local bonus = RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
+	return { Power = CombatMath.withBonus(CombatMath.playerDamage(profile.UpgradeLevels.LaserPower or 0, profile.PetMultiplier), bonus) }
+end
 local D = CombatMath.playerDamage(10, 1.35) -- 35.25
 local function r2(value)
 	return math.floor(value * 100 + 0.5) / 100

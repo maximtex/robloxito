@@ -37,6 +37,12 @@ local Constants = {
 		-- Servidor -> cliente: (success, code, zoneId?)
 		TravelResult = "TravelResult",
 
+		-- Armería. Cliente -> servidor: (action: "Buy" | "Equip" | "Upgrade", weaponId: string)
+		WeaponAction = "WeaponAction",
+		-- Servidor -> cliente: (success, code, action, weaponId, cost?) también "BossDrop"
+		-- cuando un jefe regala su arma.
+		WeaponResult = "WeaponResult",
+
 		-- Cliente -> servidor: () solo pide atacar. El servidor decide objetivos y daño.
 		Attack = "Attack",
 		-- Servidor -> cliente: (hits: { { Position, Damage, Killed, Kind } }) para efectos
@@ -139,8 +145,11 @@ local Constants = {
 	-- Atributos que el servidor escribe en el Player (solo lectura para el cliente).
 	Attributes = {
 		Energy = "Energy",
-		-- Dinero que sueltan los enemigos; paga las mejoras de la Tienda de Láser.
+		-- Dinero que sueltan los enemigos; paga las armas y las mejoras de la Armería.
 		Money = "Money",
+		-- Armas: la equipada y las que tiene con su nivel ("Laser:3,PlasmaBlaster:0").
+		EquippedWeapon = "EquippedWeapon",
+		Weapons = "Weapons",
 		ProductionPerSecond = "ProductionPerSecond",
 		PlayerDamage = "PlayerDamage",
 		DamagePerSecond = "DamagePerSecond",
@@ -196,7 +205,9 @@ local Constants = {
 		NotReady = "NotReady",
 		MaxLevel = "MaxLevel",
 		InsufficientEnergy = "InsufficientEnergy",
-		InsufficientMoney = "InsufficientMoney", -- mejoras de la Tienda de Láser
+		InsufficientMoney = "InsufficientMoney", -- armas y mejoras de la Armería
+		AlreadyOwned = "AlreadyOwned", -- ya tiene esa arma
+		NotForSale = "NotForSale", -- arma que solo suelta un jefe
 		TooFast = "TooFast",
 		-- Mascotas y huevos
 		InventoryFull = "InventoryFull",

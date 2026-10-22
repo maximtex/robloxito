@@ -11,6 +11,7 @@ local PetFollower = require(script.Controllers.PetFollower)
 local PetController = require(script.Controllers.PetController)
 local PortalController = require(script.Controllers.PortalController)
 local CombatController = require(script.Controllers.CombatController)
+local WeaponController = require(script.Controllers.WeaponController)
 local AbilityController = require(script.Controllers.AbilityController)
 local QuestController = require(script.Controllers.QuestController)
 local CoreController = require(script.Controllers.CoreController)
@@ -34,6 +35,7 @@ PetFollower.start()
 task.spawn(PetController.start)
 task.spawn(PortalController.start)
 task.spawn(CombatController.start)
+task.spawn(WeaponController.start) -- Armería: armas y mejoras que se pagan con dinero (L)
 task.spawn(AbilityController.start) -- habilidad elemental (Q), junto al botón de ataque
 task.spawn(QuestController.start)
 task.spawn(CoreController.start)
@@ -51,9 +53,7 @@ LeaderboardController.start() -- tu fila en las tablas de clasificación
 -- Solo en Studio: lista (sin tocar) objetos de Workspace que el juego no crea.
 local WorkspaceAudit = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared").Util.WorkspaceAudit)
 task.delay(10, WorkspaceAudit.run, "cliente")
-HudController.start({
-	onPurchaseSuccess = GeneratorAnimator.playPurchaseBurst,
-})
+HudController.start()
 
 -- Si este mensaje no aparece en la Salida, no hay ningún cliente conectado (p. ej. Studio
 -- en modo Run/F8, o se está mirando la ventana del servidor).

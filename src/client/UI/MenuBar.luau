@@ -60,6 +60,15 @@ type StyleSpec = {
 }
 
 local DOCK_STYLES: { [string]: StyleSpec } = {
+	Armory = {
+		Order = 0,
+		Icon = "armory",
+		Key = "L",
+		Top = Color3.fromRGB(226, 236, 255),
+		Mid = Color3.fromRGB(110, 150, 230),
+		Bot = Color3.fromRGB(70, 104, 196),
+		LabelColor = WHITE,
+	},
 	Pets = {
 		Order = 1,
 		Icon = "pets",
@@ -171,12 +180,12 @@ local function build()
 	}, playerGui)
 	dockGui = screenGui
 
-	-- Contenedor del Dock inferior central (7 botones)
+	-- Contenedor del Dock inferior central (8 botones: 7 de 66 + Renacer de 84, con 8 de hueco)
 	local dock = UiKit.create("Frame", {
 		Name = "BottomDock",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -12),
-		Size = UDim2.fromOffset(560, 114),
+		Size = UDim2.fromOffset(640, 114),
 		BackgroundTransparency = 1,
 	}, screenGui)
 	dockScale = UiKit.create("UIScale", {}, dock)
@@ -302,7 +311,7 @@ local function build()
 		-- Ajustar escala del Dock para que nunca colisione con los botones de ataque a la derecha (~220px)
 		-- ni con la tarjeta diaria a la izquierda (~240px)
 		local maxDockWidth = size.X - 360
-		local fitScale = math.clamp(maxDockWidth / 540, 0.65, 1)
+		local fitScale = math.clamp(maxDockWidth / 614, 0.6, 1)
 		local s = math.min(baseScale, fitScale)
 		if dockScale then
 			dockScale.Scale = s

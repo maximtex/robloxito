@@ -1,5 +1,5 @@
 -- Avisos e interacción del pueblo que abren un panel de la interfaz:
--- Tienda, Premios, Misiones, Máquina de Evolución y Tienda de Láser.
+-- Tienda, Premios, Misiones, Máquina de Evolución y Armería.
 -- Los puestos y el cofre se abren al pararse en su círculo del suelo (piezas con OpenPanel;
 -- su radio en el atributo PadRadius) y se cierran al salir; la Máquina de Evolución, que no
 -- tiene círculo, con la tecla E.
@@ -18,7 +18,7 @@ local ALLOWED = {
 	Rewards = true,
 	Quests = true,
 	Evolution = true,
-	LaserShop = true,
+	Armory = true,
 }
 
 local player = Players.LocalPlayer

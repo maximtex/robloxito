@@ -4,7 +4,7 @@
 --   (principal: el seleccionado si está despierto, si no Naturaleza; secundario: solo si
 --   hay uno válido), su recarga y la recarga global entre habilidades.
 -- - Objetivos desde la posición y orientación REALES del personaje (como el ataque), daño
---   con AbilityLogic sobre CombatMath.playerDamage y la maestría del núcleo, y todo pasa
+--   con AbilityLogic sobre el poder del arma equipada y la maestría del núcleo, y todo pasa
 --   por EnemyService.damage: mismas muertes y recompensas (una vez por vida).
 -- - Estados sobre los enemigos con EnemyService.applyControl (los jefes resisten).
 -- - Recarga por ELEMENTO (cambiarlo de hueco o morir no la reinicia) y recarga global
@@ -26,13 +26,9 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
-local CombatConfig = require(Shared.Config.CombatConfig)
 local CoreConfig = require(Shared.Config.CoreConfig)
 local AbilityConfig = require(Shared.Config.AbilityConfig)
-local CombatMath = require(Shared.CombatMath)
 local AbilityLogic = require(Shared.AbilityLogic)
-local RebirthLogic = require(Shared.RebirthLogic)
-local AdventureLogic = require(Shared.AdventureLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
@@ -516,7 +512,7 @@ function AbilityService.perform(player: Player, slot: any): (string, string?, nu
 		Ability = ability,
 		ElementId = elementId :: string,
 		Level = CoreLogic.level(profile.PetData.Cores, profile.UpgradeLevels, elementId :: string),
-		Base = CombatMath.withBonus(CombatMath.playerDamage(profile.UpgradeLevels[CombatConfig.DamageUpgradeId] or 0, profile.PetMultiplier), RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())),
+		Base = PlayerDataService.combatStats(profile).Power, -- escala con el arma equipada
 		Root = root,
 		Humanoid = humanoid,
 		Hits = {},

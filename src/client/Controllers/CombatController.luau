@@ -48,6 +48,7 @@ local KIND_COLORS = {
 
 local BOSS_BAR_COLOR = Color3.fromRGB(230, 90, 100)
 local BOSS_ENRAGED_COLOR = Color3.fromRGB(255, 140, 60)
+local BOSS_CHASE_COLOR = Color3.fromRGB(255, 120, 120)
 local MAX_DAMAGE_NUMBERS = 14 -- más números a la vez no se leen y cuestan rendimiento
 local SOUND_GAP = 0.06 -- el mismo sonido no se repite antes de este intervalo
 local AIM_DISTANCE = 300 -- largo de la línea del cursor (desde la cámara) para buscar al enemigo apuntado
@@ -1257,9 +1258,12 @@ function CombatController.start()
 								if Vector2.new(offset.X, offset.Z).Magnitude <= radius + BOSS_BAR_RANGE then
 									shown = true
 									local enraged = model:GetAttribute("Enraged") == true
+									-- La IA del jefe publica a quién persigue (TargetUserId)
+									local chasing = model:GetAttribute("TargetUserId") == player.UserId
 									local name = tostring(model:GetAttribute("DisplayName"))
-									ui.BossName.Text = name .. (if enraged then "  ·  ¡Furioso!" else "") .. ("   %s / %s"):format(formatNumber(health), formatNumber(maxHealth))
-									ui.BossName.TextColor3 = if enraged then BOSS_ENRAGED_COLOR else THEME.Text
+									local status = (if chasing then "  ·  ¡Te persigue!" else "") .. (if enraged then "  ·  ¡Furioso!" else "")
+									ui.BossName.Text = name .. status .. ("   %s / %s"):format(formatNumber(health), formatNumber(maxHealth))
+									ui.BossName.TextColor3 = if enraged then BOSS_ENRAGED_COLOR elseif chasing then BOSS_CHASE_COLOR else THEME.Text
 									ui.BossFill.BackgroundColor3 = if enraged then BOSS_ENRAGED_COLOR else BOSS_BAR_COLOR
 									local fraction = math.clamp(health / maxHealth, 0, 1)
 									ui.BossFill.Size = UDim2.fromScale(fraction, 1)

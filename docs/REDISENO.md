@@ -173,3 +173,31 @@ renacimientos y no hay portales de vuelta, `leaderboard` 1).
 - El guardado real no se puede probar en Studio sin "Enable Studio Access to API Services";
   está cubierto por la batería `persist` sobre un DataStore simulado.
 - Los Ids de Robux (pases, productos, Haxigator) siguen en 0.
+
+## 4. Pruebas obligatorias (fase 9)
+
+"Studio" = comprobado en Play en Roblox Studio; "batería" = prueba automática
+(`tests/run_tests.py`); "código" = solo revisión de código.
+
+| # | Escenario | Resultado | Cómo |
+|---|---|---|---|
+| 1 | Jugador nuevo entra al mapa verde | ✅ | Studio: láser equipado, AUTO, mascota inicial, tutorial activo |
+| 2 | El mapa conserva geometría y distribución | ✅ | `git diff 24bccd4`: ningún constructor de geometría cambió (ver sección 3) |
+| 3 | Ataca automáticamente a un enemigo | ✅ | Studio: 57 disparos en ~14 s sin tocar nada; batería `petcombat` |
+| 4 | El enemigo recibe daño válido y muere | ✅ | Studio y batería `petcombat` (muerte única de EnemyLogic) |
+| 5 | Recompensa correcta | ✅ | Studio: 35 💰 · 1.375 (mascotas) = 48 por Espinillo |
+| 6 | Compra un arma y la equipa | ✅ | Studio: Plasma (4 000) y Cañón Cristalino (25 000, con el Valle); batería `weapons` |
+| 7 | Daño y cadencia del arma equipada | ✅ | Studio: Cañón Cristalino 0.45 s entre disparos y 122 💥/s; batería `petcombat` |
+| 8 | Bonificaciones de las mascotas | ✅ | Studio: el Zorrito de Cuarzo sube daño y dinero (×1.375); batería `weapons` |
+| 9 | Los huevos ya no hacen falta | ✅ | Sin compra ni incubación; el jardín vende mascotas fijas (Studio: compra de la Seta) |
+| 10 | Las mascotas guardadas no se pierden | ✅ | Baterías `persist`, `persist_cores`, `rebirth` (y arreglo de la inicial duplicada) |
+| 11 | El jefe detecta al jugador | ✅ | Studio: estado Chase y TargetUserId al acercarse |
+| 12 | Persigue y evita obstáculos | ✅ | Studio: rodeó un muro de prueba con la ruta de PathfindingService |
+| 13 | Ataca solo cuando corresponde | ✅ | Studio: ciclo Busy → Recover → Chase con avisos en el suelo |
+| 14 | El jugador puede escapar | ✅ | Studio: a 90 studs deja de perseguir |
+| 15 | Regresa a su territorio | ✅ | Studio: vuelve a Patrol junto al centro de su arena |
+| 16 | Recompensas una sola vez | ✅ | Studio: arma, mascota y energía una vez; el segundo golpe no hace nada |
+| 17 | El siguiente mapa sigue bloqueado | ✅ | Studio: con 50 000 ⚡, BossLocked; tras el Guardián, Success; batería `zones` |
+| 18 | El progreso se conserva al volver | ✅ batería | `persist`: dinero, armas, equipada, niveles y jefes. En Studio no se puede (DataStore sin acceso a la API) |
+| 19 | Sin botones rotos ni errores | ✅ | Studio: los 9 paneles se abren y cierran; 0 errores en cliente y servidor |
+| 20 | Varios jugadores a la vez | ⚠️ código | Estado por jugador, reparto por daño y premios por jugador; falta una prueba con 2 jugadores en Studio |

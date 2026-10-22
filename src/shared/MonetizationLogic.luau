@@ -3,7 +3,7 @@
 --
 -- Pases que tiene un jugador: tabla { [PassKey] = true } (la rellena ShopService al
 -- entrar, consultando a Roblox; no se guarda: Roblox es la fuente de verdad). En los
--- atributos viaja como texto "DoubleEnergy,TripleHatch".
+-- atributos viaja como texto "DoubleEnergy,PetSpace".
 --
 -- Datos guardados (campo Shop del registro):
 --   Receipts: { PurchaseId } últimas compras sueltas ya concedidas (no se conceden dos veces).
@@ -97,13 +97,6 @@ end
 
 function MonetizationLogic.maxInventory(passes: Passes?, base: number): number
 	return base + MonetizationLogic.inventoryBonus(passes)
-end
-
-function MonetizationLogic.hatchCount(passes: Passes?, requested: any): number
-	if requested == MonetizationConfig.TripleCount and owns(passes, "TripleHatch") then
-		return MonetizationConfig.TripleCount
-	end
-	return 1
 end
 
 -- Ids de Roblox -> artículo ------------------------------------------------------------------

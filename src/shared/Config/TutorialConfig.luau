@@ -10,47 +10,47 @@
 -- veterano con el Valle no repite nada: el tutorial se completa solo).
 -- Sin recompensas: las mismas acciones ya las premian las misiones.
 --
--- Guide: a dónde apunta la guía del cliente ("Crystal", "Egg:<EggId>", "Portal:<PortalId>")
--- o qué parte de la interfaz se señala ("UpgradeButton", "PetsButton").
+-- Guide: a dónde apunta la guía del cliente ("Crystal", "Stand:<pedestal del jardín>",
+-- "Arena:<zona del jefe>", "Portal:<PortalId>") o qué parte de la interfaz se señala
+-- ("ArmoryButton", "PetsButton").
 
 local TutorialConfig = {
 	Steps = {
 		{
-			Id = "Energy",
-			Title = "Genera energía",
-			Text = "El cristal produce energía sin parar. Reúne tus primeros 10 ⚡.",
-			Goal = { Source = "Stat", Key = "EnergyEarned" },
-			Target = 10,
-			Guide = "Crystal",
+			Id = "Hunt",
+			Title = "Derrota enemigos",
+			Text = "Sal del pueblo: tu arma dispara sola a los enemigos cercanos. Derrota 3 y recoge su 💰.",
+			Goal = { Source = "Stat", Key = "Kills" },
+			Target = 3,
 		},
 		{
-			Id = "Upgrade",
-			Title = "Compra una mejora",
-			Text = "Pulsa MEJORAR (abajo, en el centro) para producir más energía.",
-			Goal = { Source = "State", Key = "UpgradeLevel" },
+			Id = "Weapon",
+			Title = "Mejora tu arma",
+			Text = "Abre la ⚔️ Armería (tecla L o el puesto del pueblo) y mejora tu láser con 💰.",
+			Goal = { Source = "State", Key = "WeaponLevel" },
 			Target = 1,
-			Guide = "UpgradeButton",
+			Guide = "ArmoryButton",
 		},
 		{
 			Id = "Pet",
 			Title = "Consigue una mascota",
-			Text = "Ve al 🥚 Jardín de los Huevos (a la derecha del spawn) y abre el Huevo del Bosque (100 ⚡).",
+			Text = "En el 🐾 Jardín de mascotas (a la derecha del spawn) cada pedestal vende una. Compra la Seta Saltarina.",
 			Goal = { Source = "State", Key = "PetsOwned" },
-			Target = 1,
-			Guide = "Egg:ForestEgg",
+			Target = 2, -- la inicial y una más
+			Guide = "Stand:ForestEgg",
 		},
 		{
-			Id = "Equip",
-			Title = "Equipa tu mascota",
-			Text = "Abre 🐾 Mascotas (tecla P) y pulsa Equipar: multiplica tu energía.",
-			Goal = { Source = "State", Key = "PetsEquipped" },
+			Id = "Boss",
+			Title = "Derrota al Guardián del Bosque",
+			Text = "Te perseguirá y avisa sus golpes en el suelo: apártate del círculo rojo. Regala un arma y una mascota.",
+			Goal = { Source = "Stat", Key = "BossKills" },
 			Target = 1,
-			Guide = "PetsButton",
+			Guide = "Arena:Forest",
 		},
 		{
 			Id = "Valley",
-			Title = "Desbloquea el Valle Cristalino",
-			Text = "Reúne energía y usa el portal al final del camino.",
+			Title = "Desbloquea el Valle Morado",
+			Text = "Con el Guardián derrotado y energía suficiente, abre el portal al final del camino.",
 			Goal = { Source = "Zone", Zone = "CrystalValley" },
 			Target = 1,
 			Guide = "Portal:ForestPortal",

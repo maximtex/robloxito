@@ -13,7 +13,7 @@
 --                                            empezar que con mucho avance).
 --   Blessings = { Abundance = 1 }         -> bendiciones de las aventuras (se guardan y se
 --                                            activan cuando se quiere desde 🧿 Amuletos).
---   Pet = true                            -> una mascota del mejor huevo que ya puedas abrir
+--   Pet = "<PetId>"                       -> esa mascota (si el inventario está lleno, energía)
 --                                            (si el inventario está lleno, su precio en energía).
 
 local RewardConfig = {
@@ -26,7 +26,7 @@ local RewardConfig = {
 		{ Energy = { Minutes = 40, Min = 4000 } },
 		{ Blessings = { Fortune = 1, Fury = 1 } },
 		{ Energy = { Minutes = 60, Min = 8000 } },
-		{ Energy = { Minutes = 90, Min = 15000 }, Pet = true }, -- gran premio del día 7
+		{ Energy = { Minutes = 90, Min = 15000 }, Pet = "EmberFox" }, -- gran premio del día 7
 	},
 
 	-- Abrir el panel solo al entrar si hay premio sin reclamar (después del tutorial).

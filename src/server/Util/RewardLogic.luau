@@ -273,7 +273,7 @@ function RewardLogic.snapshot(data: RewardData, serverTime: number, production: 
 		days[index] = {
 			Energy = if reward.Energy then RewardLogic.energyAmount(reward.Energy, production) else nil,
 			Blessings = reward.Blessings,
-			Pet = reward.Pet == true,
+			Pet = if type(reward.Pet) == "string" then reward.Pet else nil,
 		}
 	end
 	return {

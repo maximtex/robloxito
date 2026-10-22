@@ -198,7 +198,7 @@ local function addGameplay(zoneId: string, obstacles: Obstacles)
 			table.insert(obstacles.Hard, circle(garden.Center.X, garden.Center.Y, garden.Radius + 3, "EggGarden"))
 		end
 	end
-	for _, egg in Deps.EggConfig.Eggs do
+	for _, egg in Deps.EggConfig.Stands do
 		if (egg.Zone or Deps.ZoneConfig.DefaultZone) == zoneId and egg.StandOffset then
 			table.insert(obstacles.Hard, circle(egg.StandOffset.X, egg.StandOffset.Y, 8, "Egg"))
 		end
@@ -347,7 +347,7 @@ end
 -- Santuarios activos de una zona: { Id, X, Z }, ordenados por Id.
 function LandscapeLayout.standsOf(zoneId: string): { { Id: string, X: number, Z: number } }
 	local result = {}
-	for eggId, egg in Deps.EggConfig.Eggs do
+	for eggId, egg in Deps.EggConfig.Stands do
 		if egg.Enabled ~= false and egg.StandOffset and (egg.Zone or Deps.ZoneConfig.DefaultZone) == zoneId then
 			table.insert(result, { Id = eggId, X = egg.StandOffset.X, Z = egg.StandOffset.Y })
 		end

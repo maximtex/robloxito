@@ -9,14 +9,11 @@ local Constants = {
 		-- Servidor -> cliente: (success: boolean, code: string, upgradeId: string?)
 		PurchaseResult = "PurchaseResult",
 
-		-- Cliente -> servidor: (eggId: string, requestId: string, count: number?)
-		-- requestId identifica la compra: si se reenvía, el servidor devuelve el mismo
-		-- resultado sin volver a cobrar ni a sortear. count = 3 abre tres (pase «Abrir ×3»).
-		PurchaseEgg = "PurchaseEgg",
-		-- Servidor -> cliente: (success, code, eggId?, petId?, petUid?, autoEquipped?, requestId?, extras?)
-		-- extras: { { PetId, Uid, AutoEquipped } } las otras mascotas de una apertura ×3
-		-- (petId es siempre la más rara).
-		EggResult = "EggResult",
+		-- Jardín de mascotas. Cliente -> servidor: (standId: string) compra la mascota de ese
+		-- pedestal con dinero (EggConfig.Stands o "Rainbow").
+		BuyPet = "BuyPet",
+		-- Servidor -> cliente: (success, code, standId?, petId?, petUid?, autoEquipped?)
+		PetShopResult = "PetShopResult",
 		-- Cliente -> servidor: (petUid: string, equip: boolean)
 		EquipPet = "EquipPet",
 		-- Cliente -> servidor: (petId: string) fusiona 3 mascotas iguales en su versión ★ Evo

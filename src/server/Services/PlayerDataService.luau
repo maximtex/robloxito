@@ -16,7 +16,7 @@
 -- Carga:
 -- - Mientras carga ("Loading") se sigue produciendo energía y cobrando recompensas de
 --   enemigos; al terminar se SUMA a la energía guardada (no se pierde ni se duplica).
---   Gastar no es posible durante la carga (mejoras, huevos y zonas exigen datos listos).
+--   Gastar no es posible durante la carga (mejoras, armas, mascotas y zonas exigen datos listos).
 -- - Si la carga falla ("Failed") se juega con valores de sesión y NUNCA se guarda: los
 --   datos buenos del DataStore no se pisan con valores por defecto.
 -- Guardado:

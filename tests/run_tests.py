@@ -176,7 +176,7 @@ def build_rebirth():
         ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
         ("CombatMath", "src/shared/CombatMath.luau"),
         ("EggConfig", "src/shared/Config/EggConfig.luau"),
-        ("EggLogic", "src/server/Util/EggLogic.luau"),
+        ("PetLogic", "src/server/Util/PetLogic.luau"),
         ("PetService", "tests/harness/rebirth_glue.luau"),
         ("RebirthService", "src/server/Services/RebirthService.luau"),
     ])
@@ -191,10 +191,10 @@ def build_adventure():
 
 def build_shop():
     # Premios (RewardService) y tienda (ShopService) reales sobre la persistencia real;
-    # Roblox (pases y recibos) y PetService simulados (shop_glue, con EggLogic real).
+    # Roblox (pases y recibos) y PetService simulados (shop_glue, con PetLogic real).
     return persist_suite("shop_body.luau", after_glue=[
         ("EggConfig", "src/shared/Config/EggConfig.luau"),
-        ("EggLogic", "src/server/Util/EggLogic.luau"),
+        ("PetLogic", "src/server/Util/PetLogic.luau"),
         ("AdventureService", "src/server/Services/AdventureService.luau"),
         ("PetService", "tests/harness/shop_glue.luau"),
         ("CodesConfig", "src/server/CodesConfig.luau"),

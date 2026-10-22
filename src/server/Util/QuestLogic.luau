@@ -48,6 +48,7 @@ export type QuestData = {
 -- Estado del perfil que usan las misiones de tipo "State".
 export type Context = {
 	UpgradeLevel: number,
+	WeaponLevel: number?, -- nivel del arma más mejorada (sin el campo cuenta como 0)
 	PetsOwned: number,
 	PetsEquipped: number,
 	CombatPetsOwned: number,
@@ -284,7 +285,7 @@ end
 -- Eventos del servidor ----------------------------------------------------------------------
 
 -- event = { Type = "Kill", TypeId, ZoneId } | { Type = "Energy", Amount } | { Type = "PetAbility" }
---   | { Type = "Upgrade" } (mejora de Resonancia comprada) | { Type = "Egg" } (huevo abierto)
+--   | { Type = "Upgrade" } (mejora de Resonancia comprada)
 -- Devuelve true si el evento era válido y se registró.
 function QuestLogic.record(data: QuestData, event: any): boolean
 	if type(event) ~= "table" then
@@ -315,7 +316,7 @@ function QuestLogic.record(data: QuestData, event: any): boolean
 		stats.EnergyEarned = math.min(stats.EnergyEarned + amount, MAX_NUMBER)
 	elseif event.Type == "PetAbility" then
 		stats.PetAbilities += 1
-	elseif event.Type == "Upgrade" or event.Type == "Egg" then
+	elseif event.Type == "Upgrade" then
 		-- Solo cuentan para las diarias de hoy (sin estadística permanente).
 	else
 		return false

@@ -244,12 +244,12 @@ for gardenId, garden in EggConfig.Gardens do
 	local inner = radius - (style.RingThickness or 1.2) / 2
 	local stands = layout.Stands
 	local zoneEggs = 0
-	for _, egg in EggConfig.Eggs do
-		if egg.Enabled ~= false and (egg.Zone or ZoneConfig.DefaultZone) == garden.Zone then
+	for _, stand in EggConfig.Stands do
+		if stand.Enabled ~= false and (stand.Zone or ZoneConfig.DefaultZone) == garden.Zone then
 			zoneEggs += 1
 		end
 	end
-	check(("%s: reúne los %d huevos de la zona"):format(gardenId, zoneEggs), #stands == zoneEggs and zoneEggs > 0)
+	check(("%s: reúne los %d pedestales de la zona"):format(gardenId, zoneEggs), #stands == zoneEggs and zoneEggs > 0)
 	local insideOk, apartOk, facingOk = true, true, true
 	for index, stand in stands do
 		if dist(stand.X, stand.Z, cx, cz) + STAND > inner then

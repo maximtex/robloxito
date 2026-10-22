@@ -84,13 +84,8 @@ check("renacer con datos no válidos: InvalidRequest", RebirthLogic.rebirth(nil,
 local maxed = { Count = RebirthConfig.MaxRebirths, Tokens = 0, Shop = {}, BestLevel = 50, LastAt = 0 }
 check("tope de renacimientos: MaxLevel", RebirthLogic.rebirth(maxed, 50, 1) == "MaxLevel" and maxed.Count == RebirthConfig.MaxRebirths)
 
-print("-- 4. Huevos: el nivel que cuenta tras renacer")
-local eggProfile = { Energy = 1e6, UpgradeLevels = { GeneratorPower = 0 }, PetData = { Pets = {}, Equipped = {}, NextPetUid = 1, UnlockedZones = {} } }
-local ancient = EggConfig.Eggs.AncientEgg
-local limits = { MaxInventory = 50, MaxEquipped = 3, UnlockUpgradeId = "GeneratorPower" }
-check("sin renacer, nivel 0: el Huevo Ancestral sigue bloqueado", EggLogic.purchase(eggProfile, ancient, 10, limits, Codes) == Codes.Locked)
-limits.UnlockLevel = RebirthLogic.unlockLevel({ BestLevel = 20 }, 0)
-check("tras renacer con nivel 20 se puede abrir aunque la Resonancia esté a 0", EggLogic.purchase(eggProfile, ancient, 10, limits, Codes) == Codes.Success)
+print("-- 4. El mejor nivel con el que se renació se conserva")
+check("unlockLevel recuerda el mejor nivel aunque la Resonancia vuelva a 0", RebirthLogic.unlockLevel({ BestLevel = 20 }, 0) == 20)
 
 print("-- 5. RebirthService real: renacer")
 local p1 = PetService.newPlayer("Ana", 1)

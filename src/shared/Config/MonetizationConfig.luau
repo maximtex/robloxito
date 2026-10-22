@@ -30,14 +30,6 @@ local MonetizationConfig = {
 			Description = "La Resonancia del Cristal sube sola en cuanto te alcanza la energía. Se puede apagar.",
 			Color = Color3.fromRGB(110, 236, 220),
 		},
-		TripleHatch = {
-			Id = 0,
-			Order = 3,
-			Icon = "🥚",
-			Name = "Abrir ×3",
-			Description = "Abre 3 huevos de una vez (pagas los 3 con energía).",
-			Color = Color3.fromRGB(255, 160, 200),
-		},
 		PetSpace = {
 			Id = 0,
 			Order = 4,
@@ -67,7 +59,6 @@ local MonetizationConfig = {
 	EnergyMultiplier = 2, -- DoubleEnergy
 	PetSlotBonus = 2, -- PetSpace: mascotas equipadas de más
 	InventoryBonus = 60, -- PetSpace: espacio de inventario de más
-	TripleCount = 3, -- TripleHatch: huevos por apertura
 	AutoUpgradeInterval = 1, -- AutoUpgrade: cada cuántos segundos mira si puede mejorar
 	AutoUpgradeMaxPerTick = 5, -- y cuántos niveles sube como mucho de una vez
 

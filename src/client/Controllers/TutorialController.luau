@@ -18,6 +18,7 @@ local Constants = require(Shared.Constants)
 local TutorialConfig = require(Shared.Config.TutorialConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local EggConfig = require(Shared.Config.EggConfig)
+local EnemyConfig = require(Shared.Config.EnemyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -46,18 +47,27 @@ local function zoneCenter(zoneId: string): Vector3?
 	return Vector3.new(base.X + zone.Center.X, base.Y, base.Z + zone.Center.Y)
 end
 
-local function guideTarget(guide: string): (Vector3?, string?)
-	if guide == "Crystal" then
+local function guideTarget(guide: string?): (Vector3?, string?)
+	if not guide then
+		return nil, nil
+	elseif guide == "Crystal" then
 		-- Centro visual del cristal flotante del santuario.
 		return GeneratorConfig.Position + Vector3.new(0, GeneratorConfig.CoreHeight, 0), ZoneConfig.DefaultZone or "Forest"
 	end
 	local kind, id = guide:match("^(%a+):(%w+)$")
-	if kind == "Egg" then
-		local egg = EggConfig.Eggs[id]
-		local zoneId = egg and (egg.Zone or ZoneConfig.DefaultZone or "Forest")
+	if kind == "Stand" then
+		local stand = EggConfig.Stands[id]
+		local zoneId = stand and (stand.Zone or ZoneConfig.DefaultZone or "Forest")
 		local center = zoneId and zoneCenter(zoneId)
-		if egg and center then
-			return center + Vector3.new(egg.StandOffset.X, 5, egg.StandOffset.Y), zoneId
+		if stand and center then
+			return center + Vector3.new(stand.StandOffset.X, 5, stand.StandOffset.Y), zoneId
+		end
+	elseif kind == "Arena" then
+		local zoneSettings = EnemyConfig.Zones[id]
+		local arena = zoneSettings and zoneSettings.Boss and zoneSettings.Boss.Arena
+		local center = arena and zoneCenter(id)
+		if arena and center then
+			return center + Vector3.new(arena.Center.X, 6, arena.Center.Y), id
 		end
 	elseif kind == "Portal" then
 		local portal = ZoneConfig.Portals[id]
@@ -70,21 +80,13 @@ local function guideTarget(guide: string): (Vector3?, string?)
 end
 
 -- Botón de la interfaz que señala un paso (de otros controladores; solo se lee).
-local function guideButton(guide: string): GuiObject?
-	local playerGui = player:FindFirstChildOfClass("PlayerGui")
-	if not playerGui then
-		return nil
-	end
+local function guideButton(guide: string?): GuiObject?
 	if guide == "PetsButton" then
 		return MenuBar.tile("Pets") -- azulejo "Mascotas" de la barra del menú
+	elseif guide == "ArmoryButton" then
+		return MenuBar.tile("Armory") -- azulejo "Armas" (la Armería)
 	end
-	local hudName, buttonName = nil, nil
-	if guide == "UpgradeButton" then
-		hudName, buttonName = "EnergyHud", "UpgradeButton"
-	end
-	local hud = hudName and playerGui:FindFirstChild(hudName)
-	local button = hud and hud:FindFirstChild(buttonName :: string, true)
-	return if button and button:IsA("GuiObject") then button else nil
+	return nil
 end
 
 local function buildGui()

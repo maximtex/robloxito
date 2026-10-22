@@ -77,7 +77,7 @@ function RebirthService.rebirth(player: Player): (string, any)
 	PlayerDataService.replicate(player)
 	PlayerDataService.markDirty(player)
 	PlayerDataService.saveNow(player)
-	PetService.pushInventory(player) -- huevos desbloqueados y espacios al día en el panel
+	PetService.pushInventory(player) -- espacios de mascotas al día en el panel
 	for _, listener in rebirthListeners do
 		task.spawn(listener, player, result.Count)
 	end

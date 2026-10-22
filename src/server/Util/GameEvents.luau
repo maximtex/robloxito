@@ -1,6 +1,6 @@
 -- Avisos entre servicios del servidor sin que dependan unos de otros: quien hace algo lo
 -- anuncia (fire) y quien quiera reaccionar se suscribe (on). Lo usan las misiones diarias
--- para contar las mejoras compradas (UpgradePurchased) y los huevos abiertos (EggOpened).
+-- para contar las mejoras compradas (UpgradePurchased).
 -- Puro (sin APIs de Roblox): las pruebas lo cargan tal cual.
 
 local GameEvents = {}

@@ -1,12 +1,11 @@
--- Configuración de los 3 Huevos del juego (cada uno con 3 tipos de mascotas):
--- 1. Huevo del Bosque (⚡ 100): Brotecillo, Seta Saltarina, Zorrito de Brasa
--- 2. Huevo de Musgo (⚡ 750): Zorro de Musgo, Zorrito de Cuarzo, Búho Lunar
--- 3. Huevo Ancestral (⚡ 4,000): Tortuga Cristalina, Cervatillo Esmeralda, Dragón de Amatista
+-- Jardín de mascotas (el antiguo Jardín de los Huevos): mismo sitio y mismos pedestales,
+-- pero cada pedestal vende una mascota concreta por dinero. Ya no hay huevos ni azar.
+-- Las mascotas también se consiguen de los jefes (EnemyConfig, PetReward), del premio
+-- diario y de los códigos (RewardConfig) y por Robux (el Haxigator del altar).
 
 local EggConfig = {
-	MaxPurchaseDistance = 20,
+	MaxPurchaseDistance = 20, -- studs del jugador al pedestal para comprar
 	PurchaseCooldown = 1.2,
-	UnlockUpgradeId = "GeneratorPower",
 
 	Gardens = {
 		Forest = {
@@ -30,6 +29,8 @@ local EggConfig = {
 			FeaturedPet = "Haxigator",
 			FeaturedPetScale = 2.5,
 			FeaturedPetYaw = 0,
+			-- Mascota a la venta en el pedestal arcoíris (RainbowOffset), la más cara del jardín
+			RainbowPet = { PetId = "EmeraldFawn", Price = 150000 },
 			Style = "Terrace",
 		},
 		CrystalValley = {
@@ -50,121 +51,51 @@ local EggConfig = {
 		},
 	},
 
-	Eggs = {
+	-- Pedestales del jardín: cada uno vende UNA mascota fija por dinero (compra directa, sin
+	-- azar ni incubar; PetService.buyPet). Se conservan los ids y StandOffset de los antiguos
+	-- huevos: el jardín y lo que reserva sitio en el mapa (LandscapeLayout) no se mueven.
+	-- Enabled = false: el pedestal no se construye (Valle y Caldera no tienen jardín).
+	Stands = {
 		ForestEgg = {
-			DisplayName = "COMÚN",
-			RarityTitle = "COMÚN",
-			TitleColor = Color3.fromRGB(235, 242, 255),
 			Enabled = true,
 			Order = 1,
-			Cost = 50,
-			RequiredLevel = 0,
-			Chances = {
-				{ PetId = "Sproutling", Chance = 55 },
-				{ PetId = "MushroomHopper", Chance = 35 },
-				{ PetId = "EmberFox", Chance = 10 },
-			},
+			PetId = "MushroomHopper",
+			Price = 1500,
 			StandOffset = Vector2.new(35.9, 73.2),
 			Pedestal = "Comun", -- pedestal de pedestales-huevos.glb (EggGardenData)
-			Look = {
-				Style = "Clean",
-				Shell = Color3.fromRGB(238, 236, 242),
-				Spots = Color3.fromRGB(220, 220, 230),
-				Accent = Color3.fromRGB(45, 215, 255),
-				BaseColor = Color3.fromRGB(42, 86, 148),
-			},
+			Look = { Accent = Color3.fromRGB(45, 215, 255) },
 		},
-
 		MossEgg = {
-			DisplayName = "NO COMÚN",
-			RarityTitle = "NO COMÚN",
-			TitleColor = Color3.fromRGB(85, 248, 42),
 			Enabled = true,
 			Order = 2,
-			Cost = 500,
-			RequiredLevel = 0,
-			Chances = {
-				{ PetId = "MossFox", Chance = 55 },
-				{ PetId = "QuartzFox", Chance = 33 },
-				{ PetId = "MoonOwl", Chance = 12 },
-			},
+			PetId = "MossFox",
+			Price = 6000,
 			StandOffset = Vector2.new(45.7, 75.8),
 			Pedestal = "NoComun",
-			Look = {
-				Style = "Clean",
-				Shell = Color3.fromRGB(52, 235, 28),
-				Spots = Color3.fromRGB(95, 255, 70),
-				Accent = Color3.fromRGB(45, 215, 255),
-				BaseColor = Color3.fromRGB(42, 86, 148),
-			},
+			Look = { Accent = Color3.fromRGB(85, 248, 42) },
 		},
-
 		AncientEgg = {
-			DisplayName = "RARO",
-			RarityTitle = "RARO",
-			TitleColor = Color3.fromRGB(48, 214, 255),
 			Enabled = true,
 			Order = 3,
-			Cost = 4000,
-			RequiredLevel = 0,
-			Chances = {
-				{ PetId = "CrystalTurtle", Chance = 55 },
-				{ PetId = "EmeraldFawn", Chance = 33 },
-				{ PetId = "AmethystDragon", Chance = 12 },
-			},
+			PetId = "MoonOwl",
+			Price = 30000,
 			StandOffset = Vector2.new(45.7, 94.2),
 			Pedestal = "Raro",
-			Look = {
-				Style = "Lightning",
-				Shell = Color3.fromRGB(36, 198, 255),
-				Spots = Color3.fromRGB(165, 240, 255),
-				Accent = Color3.fromRGB(45, 215, 255),
-				BaseColor = Color3.fromRGB(42, 86, 148),
-			},
+			Look = { Accent = Color3.fromRGB(48, 214, 255) },
 		},
-
 		CrystalEgg = {
-			DisplayName = "Huevo de Cristal",
 			Enabled = false,
 			Order = 4,
-			Cost = 5000,
-			RequiredLevel = 0,
 			Zone = "CrystalValley",
-			RequiredZone = "CrystalValley",
-			Chances = {
-				{ PetId = "QuartzFox", Chance = 65 },
-				{ PetId = "CrystalTurtle", Chance = 30 },
-				{ PetId = "AmethystDragon", Chance = 5 },
-			},
 			StandOffset = Vector2.new(18, 8),
-			Look = {
-				Style = "Crystalline",
-				Shell = Color3.fromRGB(176, 214, 236),
-				Spots = Color3.fromRGB(176, 120, 236),
-				Accent = Color3.fromRGB(150, 196, 255),
-			},
+			Look = { Accent = Color3.fromRGB(150, 196, 255) },
 		},
-
 		MagmaEgg = {
-			DisplayName = "Huevo de Magma",
 			Enabled = false,
 			Order = 5,
-			Cost = 60000,
-			RequiredLevel = 0,
 			Zone = "EmberCaldera",
-			RequiredZone = "EmberCaldera",
-			Chances = {
-				{ PetId = "AshFox", Chance = 62 },
-				{ PetId = "ObsidianTurtle", Chance = 30 },
-				{ PetId = "MagmaDragon", Chance = 8 },
-			},
 			StandOffset = Vector2.new(24, 10),
-			Look = {
-				Style = "Runic",
-				Shell = Color3.fromRGB(62, 50, 50),
-				Spots = Color3.fromRGB(255, 132, 50),
-				Accent = Color3.fromRGB(255, 170, 70),
-			},
+			Look = { Accent = Color3.fromRGB(255, 170, 70) },
 		},
 	},
 }

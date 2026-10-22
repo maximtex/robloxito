@@ -5,7 +5,7 @@
 local GeneratorAnimator = require(script.Controllers.GeneratorAnimator)
 local CrystalAppearance = require(script.Controllers.CrystalAppearance)
 local CoreShrineController = require(script.Controllers.CoreShrineController)
-local EggShrineAnimator = require(script.Controllers.EggShrineAnimator)
+local PetStandDisplay = require(script.Controllers.PetStandDisplay)
 local HudController = require(script.Controllers.HudController)
 local PetFollower = require(script.Controllers.PetFollower)
 local PetController = require(script.Controllers.PetController)
@@ -30,7 +30,7 @@ local LeaderboardController = require(script.Controllers.LeaderboardController)
 GeneratorAnimator.start()
 CrystalAppearance.start()
 CoreShrineController.start()
-EggShrineAnimator.start() -- los huevos de los santuarios flotan y giran
+PetStandDisplay.start() -- las mascotas a la venta giran sobre los pedestales del jardín
 PetFollower.start()
 task.spawn(PetController.start)
 task.spawn(PortalController.start)

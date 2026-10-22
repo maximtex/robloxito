@@ -1,6 +1,6 @@
--- Coordina los paneles modales (inventario, huevo, ...):
+-- Coordina los paneles modales (inventario, Armería, ...):
 -- - Solo uno abierto a la vez: abrir uno cierra el anterior.
--- - Un panel puede negarse a cerrarse (CanClose), p. ej. el huevo durante la incubación.
+-- - Un panel puede negarse a cerrarse (CanClose).
 -- - Escape (y B en mando) cierra el panel abierto mientras haya uno.
 -- - Transición corta de apertura y cierre que no bloquea la interacción.
 -- - Changed avisa a otros controladores (el HUD aparta la tarjeta de mejora).

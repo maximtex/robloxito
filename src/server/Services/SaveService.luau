@@ -277,6 +277,11 @@ local function sanitize(raw: any): PetData
 	if type(raw) ~= "table" then
 		return result
 	end
+	-- Las mascotas son solo las guardadas: la inicial de los datos vacíos no se añade aquí
+	-- (si no tiene ninguna, PlayerDataService le da la inicial al cargar).
+	result.Pets = {}
+	result.Equipped = {}
+	result.NextPetUid = 1
 
 	-- Renacimiento primero: sus ventajas deciden cuántas mascotas puede haber equipadas. El
 	-- pase «Más mascotas» aún no se conoce al cargar (lo consulta ShopService a Roblox): se

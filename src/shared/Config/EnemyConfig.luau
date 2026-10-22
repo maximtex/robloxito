@@ -73,6 +73,8 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 1200,
 			EnergyReward = 1500, -- ⚡ extra para cada jugador que lo derrota (BossRewardService)
+			PetReward = "QuartzFox", -- mascota de combate: la primera vez seguro y luego PetDropChance
+			PetDropChance = 0.1,
 			RespawnSeconds = 12,
 			-- IA de jefe (EnemyService.updateBoss): vigila su arena, persigue con rutas
 			-- (PathfindingService) dentro de su territorio, avisa cada ataque y descansa tras él.
@@ -130,6 +132,8 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 4000,
 			EnergyReward = 6000, -- ⚡ extra para cada jugador que lo derrota (BossRewardService)
+			PetReward = "CrystalTurtle", -- mascota de combate: la primera vez seguro y luego PetDropChance
+			PetDropChance = 0.1,
 			RespawnSeconds = 12,
 			Brain = { DetectRange = 24, Territory = 40, LockSeconds = 4, RecoverSeconds = 0.8 },
 			-- Identidad: embestidas en línea recta (se esquivan apartándose de la franja roja)
@@ -185,6 +189,8 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 12000,
 			EnergyReward = 20000, -- ⚡ extra para cada jugador que lo derrota (BossRewardService)
+			PetReward = "AmethystDragon", -- mascota de combate: la primera vez seguro y luego PetDropChance
+			PetDropChance = 0.1,
 			RespawnSeconds = 15,
 			Brain = { DetectRange = 26, Territory = 42, LockSeconds = 4, RecoverSeconds = 0.8 },
 			-- Identidad: saltos que caen donde estabas y ráfagas de bolas de fuego

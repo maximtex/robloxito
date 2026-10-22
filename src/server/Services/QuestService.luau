@@ -68,8 +68,13 @@ local function contextOf(profile: PlayerDataService.Profile): QuestLogic.Context
 			combatPets += 1
 		end
 	end
+	local weaponLevel = 0
+	for _, level in profile.PetData.Weapons.Levels do
+		weaponLevel = math.max(weaponLevel, level)
+	end
 	return {
 		UpgradeLevel = profile.UpgradeLevels[QuestConfig.RewardUpgradeId] or 0,
+		WeaponLevel = weaponLevel,
 		PetsOwned = #profile.PetData.Pets + #profile.PetData.Archived,
 		PetsEquipped = #profile.PetData.Equipped,
 		CombatPetsOwned = combatPets,
@@ -203,16 +208,12 @@ function QuestService.start()
 	PetCombatService.onAbilityHit(function(player)
 		record(player, { Type = "PetAbility" })
 	end)
-	-- Diarias de "mejora el cristal" y "abre huevos".
+	-- Diaria de "mejora el cristal".
 	GameEvents.on("UpgradePurchased", function(player, upgradeId)
 		if upgradeId == QuestConfig.RewardUpgradeId then
 			record(player, { Type = "Upgrade" })
 			update(player, false)
 		end
-	end)
-	GameEvents.on("EggOpened", function(player)
-		record(player, { Type = "Egg" })
-		update(player, false)
 	end)
 	-- Cada segundo (con la producción): energía, cambio de día y misiones de estado.
 	EnergyService.onProduced(function(player, amount)

@@ -15,7 +15,6 @@ local MonetizationLogic = require(Shared.MonetizationLogic)
 local PetModelBuilder = require(script.Parent.Parent.Pets.PetModelBuilder)
 local PetLayout = require(script.Parent.Parent.Pets.PetLayout)
 local PetAnimator = require(script.Parent.Parent.Pets.PetAnimator)
-local RevealGate = require(script.Parent.Parent.Pets.RevealGate)
 
 local MAX_SHOWN = MonetizationLogic.maxEquippedCap(PetConfig.MaxEquipped)
 
@@ -102,9 +101,6 @@ end
 local function rebuild(player: Player)
 	local tracker = trackers[player]
 	if not tracker then
-		return
-	end
-	if player == Players.LocalPlayer and RevealGate.isHeld() then
 		return
 	end
 	local value = player:GetAttribute(Constants.Attributes.EquippedPets)
@@ -301,9 +297,6 @@ function PetFollower.start()
 	end
 
 	RunService.Heartbeat:Connect(update)
-	RevealGate.Released:Connect(function()
-		rebuild(Players.LocalPlayer)
-	end)
 end
 
 return PetFollower

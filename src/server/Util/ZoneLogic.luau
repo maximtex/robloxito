@@ -4,7 +4,7 @@
 
 local ZoneLogic = {}
 
-export type ProfileLike = { Energy: number, PetData: { UnlockedZones: { string } } }
+export type ProfileLike = { Energy: number, PetData: { UnlockedZones: { string }, Bosses: { [string]: number }? } }
 export type Codes = { [string]: string }
 
 function ZoneLogic.isUnlocked(profile: ProfileLike, zoneConfig, zoneId: string): boolean
@@ -25,8 +25,20 @@ function ZoneLogic.requiredRebirths(zoneConfig, zoneId: string): number
 	return if type(required) == "number" and required > 0 then math.floor(required) else 0
 end
 
+-- ¿Ha derrotado ya al jefe que pide la zona (RequiredBoss)? true si no pide ninguno.
+function ZoneLogic.bossDefeated(profile: ProfileLike, zoneConfig, zoneId: string): boolean
+	local zone = zoneConfig.Zones[zoneId]
+	local boss = zone and zone.RequiredBoss
+	if not boss then
+		return true
+	end
+	local bosses = profile.PetData.Bosses
+	return type(bosses) == "table" and (bosses[boss] or 0) > 0
+end
+
 -- Desbloquea una zona cobrando su precio UNA vez. Si ya estaba desbloqueada no cobra
 -- (AlreadyUnlocked), de modo que repetir la solicitud nunca cobra dos veces.
+-- Sin derrotar al jefe de la anterior: BossLocked, sin cobrar.
 -- `rebirths`: renacimientos del jugador (algunas zonas los piden: RebirthLocked, sin cobrar).
 -- Devuelve el código y, si falta energía, cuánta falta (o cuántos renacimientos faltan).
 function ZoneLogic.unlock(profile: ProfileLike, zoneConfig, zoneId: string, codes: Codes, rebirths: number?): (string, number?)
@@ -41,6 +53,9 @@ function ZoneLogic.unlock(profile: ProfileLike, zoneConfig, zoneId: string, code
 	local have = if type(rebirths) == "number" and rebirths == rebirths then math.max(0, math.floor(rebirths)) else 0
 	if have < required then
 		return codes.RebirthLocked, required - have
+	end
+	if not ZoneLogic.bossDefeated(profile, zoneConfig, zoneId) then
+		return codes.BossLocked, nil
 	end
 	local cost = zone.UnlockCost
 	if profile.Energy < cost then

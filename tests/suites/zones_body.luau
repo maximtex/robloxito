@@ -11,8 +11,9 @@ local function check(name, ok)
 end
 
 local Codes = Constants.PurchaseCodes
-local function profile(energy, zones)
-	return { Energy = energy, PetData = { UnlockedZones = zones or {} } }
+-- Por defecto con los jefes ya derrotados (el requisito del jefe se prueba aparte)
+local function profile(energy, zones, bosses)
+	return { Energy = energy, PetData = { UnlockedZones = zones or {}, Bosses = bosses or { ForestWarden = 1, AmethystColossus = 1 } } }
 end
 
 print("-- 1. Desbloqueo")
@@ -40,6 +41,13 @@ check("zona inventada: InvalidRequest", code == Codes.InvalidRequest)
 local valley = profile(5000)
 code = ZoneLogic.unlock(valley, ZoneConfig, "CrystalValley", Codes)
 check("el Valle sigue igual sin renacimientos", code == Codes.Success and valley.Energy == 5000 - ZoneConfig.Zones.CrystalValley.UnlockCost)
+local noBoss = profile(1e9, nil, {})
+code = ZoneLogic.unlock(noBoss, ZoneConfig, "CrystalValley", Codes)
+check("sin derrotar al Guardián del Bosque: BossLocked y no cobra", ZoneConfig.Zones.CrystalValley.RequiredBoss == "ForestWarden" and code == Codes.BossLocked and noBoss.Energy == 1e9 and #noBoss.PetData.UnlockedZones == 0)
+noBoss.PetData.Bosses.ForestWarden = 1
+check("tras derrotarlo ya se abre", ZoneLogic.unlock(noBoss, ZoneConfig, "CrystalValley", Codes) == Codes.Success)
+check("la Caldera pide al Coloso de Amatista", ZoneConfig.Zones.EmberCaldera.RequiredBoss == "AmethystColossus" and ZoneLogic.bossDefeated(profile(0, nil, { ForestWarden = 3 }), ZoneConfig, "EmberCaldera") == false)
+check("una partida antigua sin jefes guardados: bloqueada, nunca error", ZoneLogic.unlock({ Energy = 1e9, PetData = { UnlockedZones = {} } }, ZoneConfig, "CrystalValley", Codes) == Codes.BossLocked)
 
 print("-- 2. Mapa y portales")
 local zoneIds = {}

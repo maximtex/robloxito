@@ -238,6 +238,14 @@ function PlayerDataService.replicate(player: Player)
 	end
 	setIfChanged(player, attributes.EquippedPets, table.concat(PlayerDataService.getEquippedPetIds(profile), ","))
 	setIfChanged(player, attributes.UnlockedZones, table.concat(profile.PetData.UnlockedZones, ","))
+	local bosses = {}
+	for typeId, kills in profile.PetData.Bosses do
+		if kills > 0 then
+			table.insert(bosses, typeId)
+		end
+	end
+	table.sort(bosses)
+	setIfChanged(player, attributes.BossesDefeated, table.concat(bosses, ","))
 	setIfChanged(player, attributes.DataStatus, profile.DataState)
 	setIfChanged(player, attributes.SaveError, profile.SaveError)
 	-- Núcleos (para los altares y el panel): desbloqueados en el orden de CoreConfig.

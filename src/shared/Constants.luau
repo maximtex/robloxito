@@ -150,6 +150,8 @@ local Constants = {
 		Weapons = "Weapons",
 		-- true si su arma dispara sola al enemigo más cercano (PetCombatService).
 		AutoFire = "AutoFire",
+		-- Jefes que ha derrotado alguna vez, separados por comas (portales y tutorial).
+		BossesDefeated = "BossesDefeated",
 		ProductionPerSecond = "ProductionPerSecond",
 		PlayerDamage = "PlayerDamage",
 		DamagePerSecond = "DamagePerSecond",
@@ -218,6 +220,7 @@ local Constants = {
 		Locked = "Locked", -- el huevo requiere más nivel de mejora
 		ZoneLocked = "ZoneLocked", -- la zona (o el huevo de esa zona) no está desbloqueada
 		RebirthLocked = "RebirthLocked", -- la zona pide más renacimientos
+		BossLocked = "BossLocked", -- la zona pide derrotar antes al jefe de la anterior
 		AlreadyUnlocked = "AlreadyUnlocked",
 		Busy = "Busy", -- ya hay un viaje en curso
 		-- Misiones

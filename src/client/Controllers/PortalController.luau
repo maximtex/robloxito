@@ -13,6 +13,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
+local EnemyConfig = require(Shared.Config.EnemyConfig)
 local DayNight = require(Shared.DayNight)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -36,6 +37,7 @@ local MESSAGES = {
 	[Codes.NotReady] = "Cargando tus datos, inténtalo de nuevo",
 	[Codes.ZoneLocked] = "Esta zona aún está bloqueada",
 	[Codes.RebirthLocked] = "Necesitas más renacimientos",
+	[Codes.BossLocked] = "Primero derrota al jefe de esta zona",
 	[Codes.Busy] = "Ya estás viajando",
 	[Codes.InvalidRequest] = "Solicitud no válida",
 }
@@ -201,6 +203,19 @@ function PortalController.start()
 		return if typeof(value) == "number" then value else 0
 	end
 
+	-- Jefe que pide la zona y aún no ha derrotado (su definición), o nil
+	local function missingBoss(zone)
+		local bossId = zone.RequiredBoss
+		if not bossId then
+			return nil
+		end
+		local defeated = player:GetAttribute(Constants.Attributes.BossesDefeated)
+		if typeof(defeated) == "string" and table.find(string.split(defeated, ","), bossId) then
+			return nil
+		end
+		return EnemyConfig.Types[bossId]
+	end
+
 	-- Actualiza las barreras físicas en el puente según las zonas desbloqueadas por el jugador.
 	local function refreshGates()
 		local folder = Workspace:FindFirstChild("ZonePortals")
@@ -257,6 +272,17 @@ function PortalController.start()
 			local haveRebirths = rebirths()
 			ui.Status.Text = "🔒 Zona Bloqueada"
 			ui.Status.TextColor3 = THEME.Gold
+			local boss = missingBoss(target)
+			if boss then
+				ui.CostLine.Text = ("Requiere derrotar al 🏆 %s"):format(boss.DisplayName)
+				ui.MissingLine.Text = ("Y además ⚡ %s de energía"):format(formatNumber(cost))
+				ui.MissingLine.TextColor3 = THEME.Muted
+				ui.Action.Text = "🔒 Derrota primero al jefe"
+				ui.Action.BackgroundColor3 = THEME.Disabled
+				ui.Action.TextColor3 = THEME.Muted
+				UiKit.setDisabled(ui.Action, true)
+				return
+			end
 			if needRebirths > haveRebirths then
 				ui.CostLine.Text = ("Requiere 🔄 %d renacimientos   ·   Tienes 🔄 %d"):format(needRebirths, haveRebirths)
 				ui.MissingLine.Text = ("Y además ⚡ %s de energía"):format(formatNumber(cost))
@@ -324,7 +350,7 @@ function PortalController.start()
 			end
 			if ui.Action:GetAttribute("Disabled") then
 				local zone = ZoneConfig.Zones[zoneId]
-				local code = if (zone.RequiredRebirths or 0) > rebirths() then Codes.RebirthLocked else Codes.InsufficientEnergy
+				local code = if missingBoss(zone) then Codes.BossLocked elseif (zone.RequiredRebirths or 0) > rebirths() then Codes.RebirthLocked else Codes.InsufficientEnergy
 				showMessage(ui.Feedback, MESSAGES[code], THEME.Error)
 				return
 			end
@@ -369,7 +395,7 @@ function PortalController.start()
 			render()
 		end
 	end)
-	for _, attribute in { Constants.Attributes.UnlockedZones, Constants.Attributes.Rebirths } do
+	for _, attribute in { Constants.Attributes.UnlockedZones, Constants.Attributes.Rebirths, Constants.Attributes.BossesDefeated } do
 		player:GetAttributeChangedSignal(attribute):Connect(function()
 			refreshGates()
 			if PanelManager.isOpen("Portal") then

@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
+local EnemyConfig = require(Shared.Config.EnemyConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local RebirthLogic = require(Shared.RebirthLogic)
 local formatNumber = require(Shared.Util.FormatNumber)
@@ -179,7 +180,11 @@ local function buildPortal(parent: Instance, portalId: string)
 	sign.MaxDistance = 220
 	sign.Parent = barrier
 	gateLabel(sign, "ZoneTitle", target.DisplayName, style.Title, 17, 7)
+	local boss = target.RequiredBoss and EnemyConfig.Types[target.RequiredBoss]
 	gateLabel(sign, "ZoneCost", "🔒 ⚡ " .. formatNumber(cost) .. " Energía", Color3.fromRGB(255, 230, 80), 11, 4.5)
+	if boss then
+		gateLabel(sign, "ZoneBoss", "🏆 Derrota al " .. boss.DisplayName, Color3.fromRGB(255, 160, 140), 6.5, 3.2)
+	end
 
 	-- Interacción para desbloquear, a la altura del jugador en medio del paso
 	local promptAt = Instance.new("Attachment")

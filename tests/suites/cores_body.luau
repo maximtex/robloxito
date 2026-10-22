@@ -364,6 +364,18 @@ for _, time in { 0.5, 0.999 } do
 end
 check("tiempo en (0, 1) -> InvalidRequest sin cambios; lastSeen en (0, 1) -> sin recompensa offline" .. subSecondFail, subSecondOK)
 
+-- corrections: qué valores conocidos corrigió sanitize (para archivarlos antes).
+local function correctionsOf(raw) return CoreLogic.corrections(raw, CoreLogic.sanitize(raw)) end
+check("corrections: partida sin Cores, datos vacíos o ya válidos -> nada que archivar", correctionsOf(nil) == nil and correctionsOf({}) == nil and correctionsOf(CoreLogic.empty()) == nil and correctionsOf(deep(all)) == nil)
+local nanChanges = correctionsOf({ LastSwitchAt = NAN, Elements = { Water = { Level = INF, Mastery = 2.5 } } })
+check("corrections: los valores no guardables se describen como texto; lo válido no aparece",
+	nanChanges ~= nil and type(nanChanges.LastSwitchAt) == "string" and nanChanges.LastSwitchAt:find("number", 1, true) ~= nil
+		and type(nanChanges["Elements.Water.Level"]) == "string" and nanChanges["Elements.Water.Mastery"] == nil)
+check("corrections: Cores que no es una tabla se archiva entero", same(correctionsOf("roto"), { Cores = "roto" }))
+-- Un Level en Naturaleza se conserva copiado (no se usa): aunque sea una tabla, no es una
+-- corrección (si lo fuera, se archivaría otra vez en cada carga).
+check("corrections: un valor conservado como copia (Naturaleza.Level tabla) no se anota", correctionsOf({ Elements = { Nature = { Unlocked = true, Level = { Old = 3 } } } }) == nil)
+
 print("-- 9. Recompensa offline (cálculo puro: no concede ni guarda)")
 local cap, eff = CoreConfig.Offline.CapSeconds, CoreConfig.Offline.Efficiency
 check(("configuración aprobada: tope %d s (4 h), eficiencia %.0f %%, con mascotas"):format(cap, eff * 100), cap == 4 * 3600 and eff == 0.5 and CoreConfig.Offline.IncludePetMultiplier == true)

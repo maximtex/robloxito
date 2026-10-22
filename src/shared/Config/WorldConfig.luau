@@ -10,21 +10,68 @@
 local WorldConfig = {
 	ModelName = "MeadowWorld",
 
+	-- Estilo simulador colorido (como el juego de referencia): luz clara y pareja de primera
+	-- hora de la tarde, ambiente neutro (no azul) para que los colores se vean pastel y tal
+	-- cual son, sin saturación ni contraste extra, y poca bruma. WorldService la aplica al
+	-- arrancar y DayNightController usa Ambient y OutdoorAmbient como luz de día.
 	Lighting = {
 		Enabled = true,
-		ClockTime = 15.5, -- tarde luminosa: colores cálidos y sombras suaves
-		Ambient = Color3.fromRGB(78, 86, 74),
-		OutdoorAmbient = Color3.fromRGB(132, 142, 122),
-		-- Se crea solo si el place no tiene ya un Atmosphere propio.
+		ClockTime = 14,
+		Brightness = 2,
+		Ambient = Color3.fromRGB(128, 128, 136),
+		OutdoorAmbient = Color3.fromRGB(150, 150, 158),
+		-- Se crea (o ajusta el de la plantilla de Roblox) salvo que el place tenga uno propio.
 		Atmosphere = {
 			Name = "RebirthAtmosphere",
-			Density = 0.3,
-			Offset = 0.08,
-			Color = Color3.fromRGB(200, 224, 214),
-			Decay = Color3.fromRGB(112, 142, 120),
-			Glare = 0.15,
-			Haze = 1.2,
+			Density = 0.2,
+			Offset = 0.15,
+			Color = Color3.fromRGB(214, 232, 255),
+			Decay = Color3.fromRGB(176, 206, 240),
+			Glare = 0,
+			Haze = 0.4,
 		},
+		-- Reflejos del entorno (poco brillo: el plástico de los bloques no debe relucir).
+		EnvironmentDiffuseScale = 1,
+		EnvironmentSpecularScale = 0.2,
+		-- Posprocesado y nubes dinámicas (sin recursos externos). Si el place ya tiene un
+		-- efecto de esa clase con otro nombre, se respeta el suyo; los que vienen con la
+		-- plantilla de Roblox (Bloom, SunRays...) se ajustan a estos valores.
+		Effects = {
+			Bloom = { Name = "RebirthBloom", Intensity = 0.35, Size = 24, Threshold = 1.7 },
+			ColorCorrection = {
+				Name = "RebirthColor",
+				Brightness = 0.02,
+				Contrast = 0,
+				Saturation = 0,
+				TintColor = Color3.fromRGB(255, 253, 250),
+			},
+			SunRays = { Name = "RebirthSunRays", Intensity = 0.045, Spread = 0.6 },
+			Clouds = { Name = "RebirthClouds", Cover = 0.52, Density = 0.55, Color = Color3.fromRGB(255, 252, 246) },
+		},
+	},
+
+	-- Ciclo de día y noche (lo aplica cada cliente: DayNightController, con DayNight). La
+	-- hora sale de la del servidor, así que todos ven la misma. Día largo, atardecer y
+	-- amanecer cortos y una noche suave (luz de luna azulada: se sigue viendo bien).
+	-- Keys: { fracción del ciclo, hora de Roblox (ClockTime) } en orden; la última hora es la
+	-- primera + 24 (vuelta completa). La Caldera tiene su atardecer fijo (PortalController).
+	DayNight = {
+		Enabled = true,
+		CycleMinutes = 24,
+		Keys = { { 0, 7 }, { 0.6, 17 }, { 0.7, 19.4 }, { 0.88, 28.6 }, { 1, 31 } },
+		-- Luna suave: apenas azulada y clara, para que los colores no se vuelvan morados de noche.
+		NightOutdoorAmbient = Color3.fromRGB(136, 140, 164),
+		NightAmbient = Color3.fromRGB(110, 112, 132),
+		NightExposure = 0.5, -- más exposición de noche (se ve sin forzar la vista)
+		FixedZones = { EmberCaldera = true },
+	},
+
+	-- Partículas ambientales (Ambience): polvo mágico en el claro, luciérnagas en las
+	-- setas luminosas y polvo turquesa que cae de la copa del árbol ancestral.
+	Ambience = {
+		Motes = { Size = Vector3.new(118, 12, 118), Height = 6, Rate = 14, Color = Color3.fromRGB(255, 244, 200), Second = Color3.fromRGB(190, 255, 230) },
+		Fireflies = { Size = Vector3.new(7, 3, 7), Height = 1.8, Rate = 1.2, Color = Color3.fromRGB(214, 255, 150) },
+		Canopy = { Size = Vector3.new(34, 4, 34), Height = 30, Rate = 4, Color = Color3.fromRGB(88, 186, 160), Second = Color3.fromRGB(210, 255, 240) },
 	},
 
 	Terrain = {
@@ -32,37 +79,46 @@ local WorldConfig = {
 		Thickness = 8,
 		PlazaRadius = 13, -- círculo de adoquines alrededor del cristal
 		PathWidth = 6, -- camino de tierra desde el spawn
-		PathEndZ = 52, -- pasa el spawn y llega al portal del Valle (ZoneConfig)
+		PathEndZ = 46, -- pasa el spawn y llega al arco del pueblo (la calle sigue en VillageConfig)
+		-- Suelo de la pradera: LeafyGrass (liso, sin las hojas altas que la decoración del
+		-- terreno pone sobre Grass y que tapaban todo).
+		GroundMaterial = "LeafyGrass",
 		MaterialColors = {
-			Grass = Color3.fromRGB(96, 164, 72),
-			Ground = Color3.fromRGB(128, 100, 68),
-			Cobblestone = Color3.fromRGB(150, 148, 132),
-			Rock = Color3.fromRGB(122, 126, 112),
-			LeafyGrass = Color3.fromRGB(78, 140, 62),
+			Grass = Color3.fromRGB(122, 198, 88),
+			Ground = Color3.fromRGB(196, 162, 116),
+			Cobblestone = Color3.fromRGB(204, 194, 172),
+			Rock = Color3.fromRGB(150, 156, 172),
+			LeafyGrass = Color3.fromRGB(122, 198, 88),
 		},
+		-- Agua del terreno (río, lago, poza y estanques): turquesa clara, transparente y con
+		-- poco reflejo (de noche el reflejo del cielo la volvía negra).
+		Water = { Color = Color3.fromRGB(64, 170, 196), Transparency = 0.55, Reflectance = 0.35, WaveSize = 0.12, WaveSpeed = 8 },
 		-- Colinas que dan profundidad y cierran el horizonte. (X, Z, radio)
 		Hills = {
-			Vector3.new(-120, -150, 55),
-			Vector3.new(-40, -190, 70),
-			Vector3.new(70, -175, 60),
-			Vector3.new(150, -100, 50),
-			Vector3.new(170, 10, 55),
-			Vector3.new(140, 120, 50),
-			Vector3.new(30, 170, 55),
+			Vector3.new(-105.4, -121.9, 55),
+			Vector3.new(-40.7, -169, 70),
+			Vector3.new(62, -152, 48),
+			Vector3.new(128, -86, 40),
+			Vector3.new(138, 8, 45),
+			Vector3.new(116, 100, 44),
+			Vector3.new(36, 184, 55), -- detrás del portal del Valle, sin taparle la tarima
 			Vector3.new(-80, 160, 60),
-			Vector3.new(-170, 60, 55),
-			Vector3.new(-165, -45, 50),
-			Vector3.new(-230, -200, 70),
-			Vector3.new(230, -220, 70),
+			Vector3.new(-150, 50, 44),
+			Vector3.new(-134, -36.5, 41),
+			Vector3.new(-196, -170, 60),
+			Vector3.new(198, -189, 60),
+			-- Lomas suaves en el interior (praderas y alrededores de la arboleda de setas).
+			Vector3.new(66.9, 95.7, 26),
+			Vector3.new(-123.4, -75.8, 28),
 		},
 		-- Afloramientos de roca medio enterrados. (X, Z, radio)
 		Rocks = {
 			Vector3.new(-52, -8, 5),
-			Vector3.new(48, -40, 6),
-			Vector3.new(-30, 52, 4),
-			Vector3.new(62, 38, 5),
-			Vector3.new(-90, -70, 8),
-			Vector3.new(95, -60, 7),
+			Vector3.new(47.4, -39.5, 6),
+			Vector3.new(-35, 47, 4), -- (movida para dejar sitio a la primera casa del pueblo)
+			Vector3.new(58.9, 36.1, 5),
+			Vector3.new(-74, -54, 8),
+			Vector3.new(82.2, -51.9, 7),
 		},
 	},
 
@@ -108,11 +164,9 @@ local WorldConfig = {
 		Vector3.new(-46, 8, 0.9),
 		Vector3.new(-36, 34, 1.1),
 		Vector3.new(38, -24, 1.0),
-		Vector3.new(48, 30, 0.85),
+		Vector3.new(56, 18, 0.85),
 		Vector3.new(-62, -48, 1.3),
 		Vector3.new(60, -50, 1.2),
-		Vector3.new(-22, 50, 0.9),
-		Vector3.new(26, 54, 1.0),
 		Vector3.new(-72, 22, 1.2),
 		Vector3.new(74, 4, 1.1),
 		Vector3.new(-26, -64, 1.1),
@@ -170,11 +224,11 @@ local WorldConfig = {
 	-- Zonas donde no se colocan flores. (X, Z, radio)
 	KeepClear = {
 		Vector3.new(0, 25, 9), -- spawn
-		Vector3.new(-20, 12, 7), -- santuario del Huevo del Bosque
-		Vector3.new(-28, 0, 7), -- santuario del Huevo de Musgo
-		Vector3.new(24, 10, 7), -- santuario del Huevo Ancestral
-		Vector3.new(0, 56, 12), -- portal al Valle Cristalino
+		Vector3.new(38, 85, 18), -- Jardín de los Huevos (EggConfig.Gardens.Forest)
+		Vector3.new(0, 131, 16), -- portal al Valle Cristalino (al final de la calle del pueblo)
 		Vector3.new(0, 17, 8), -- arco
+		Vector3.new(-15, -11, 9), -- tabla de clasificación (LeaderboardConfig)
+		Vector3.new(15, -11, 9), -- tabla de clasificación
 	},
 }
 

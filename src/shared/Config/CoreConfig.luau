@@ -1,6 +1,8 @@
 -- Los ocho núcleos elementales. Solo datos: la lógica está en CoreLogic (servidor).
--- FASE 1: todavía no está conectado a ningún servicio (ni producción, ni guardado, ni
--- interfaz). Nada de esto cambia la economía actual.
+-- FASE 2: conectado. CoreService (servidor) desbloquea, mejora y elige núcleos; todos los
+-- desbloqueados producen energía (PlayerDataService) y al entrar se concede la producción
+-- offline. Mientras solo esté Naturaleza, la economía es exactamente la de siempre.
+-- El elemento seleccionado da su habilidad de combate (AbilityConfig / AbilityService).
 --
 -- DECISIONES APROBADAS
 -- - Ocho elementos, en este orden: Naturaleza, Agua, Fuego, Viento, Rayo, Hielo, Sombra
@@ -87,6 +89,15 @@ local CoreConfig = {
 		CapSeconds = 4 * 60 * 60, -- APROBADO: 4 horas
 		Efficiency = 0.5, -- APROBADO: 50 %
 		IncludePetMultiplier = true, -- APROBADO: las mascotas cuentan (una sola vez)
+	},
+
+	-- Afinidad: además de su habilidad (AbilityConfig), el núcleo SELECCIONADO produce extra:
+	--   producción del núcleo seleccionado · (1 + Bonus)
+	-- [PROVISIONAL] +25 %. Naturaleza no recibe afinidad (es el cristal: la economía de
+	-- siempre no cambia); empieza al elegir otro núcleo pagando el cambio (Switch). La
+	-- producción offline usa la producción base, sin afinidad (como se aprobó).
+	Affinity = {
+		Bonus = 0.25,
 	},
 
 	-- Topes de seguridad para datos guardados y entradas.

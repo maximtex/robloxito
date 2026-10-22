@@ -113,7 +113,7 @@ check("plataforma de 30 studs de diámetro", dais.Size.Y == 30 and dais.Size.Z =
 local daisTop = dais.CFrame.Position.Y + dais.Size.X / 2 - origin.Y
 local lipTop = lip.CFrame.Position.Y + lip.Size.X / 2 - origin.Y
 check(("se sube andando: escalones de %.2f y %.2f studs (<= 1)"):format(lipTop, daisTop - lipTop), lipTop <= 1 and daisTop - lipTop <= 1)
--- Zonas que deben quedar libres (WorldConfig.KeepClear: spawn, santuarios, portal, arco)
+-- Zonas que deben quedar libres (WorldConfig.KeepClear: spawn, jardín de huevos, portal, arco)
 local invaded = {}
 local lipRadius = lip.Size.Y / 2
 for _, zone in WorldConfig.KeepClear do
@@ -135,11 +135,14 @@ for _, zone in WorldConfig.KeepClear do
 		end
 	end
 end
-check("no invade el spawn, los santuarios de huevos, el portal ni el arco", #invaded == 0)
+check("no invade el spawn, el jardín de huevos, el portal ni el arco", #invaded == 0)
 if #invaded > 0 then print("   ", table.concat(invaded, ", ", 1, math.min(#invaded, 8))) end
--- Accesos: desde el centro hacia el spawn, los tres santuarios y el árbol, sin pilares
+-- Accesos: desde el centro hacia el spawn (de ahí sale el sendero al Jardín de los Huevos,
+-- EggConfig.Gardens) y hacia el árbol, sin pilares.
 local blocked = {}
-local targets = { { "spawn", 0, 25 }, { "Huevo del Bosque", -20, 12 }, { "Huevo de Musgo", -28, 0 }, { "Huevo Ancestral", 24, 10 }, { "árbol ancestral", 0, -52 } }
+local garden = EggConfig.Gardens.Forest
+check("el Jardín de los Huevos queda fuera de la plataforma", math.sqrt(garden.Center.X ^ 2 + garden.Center.Y ^ 2) - garden.Radius > dais.Size.Y / 2 + 5)
+local targets = { { "spawn", 0, 25 }, { "árbol ancestral", 0, -52 } }
 for _, target in targets do
 	local dir = Vector3.new(target[2], 0, target[3]).Unit
 	for _, p in solids do
@@ -151,7 +154,7 @@ for _, target in targets do
 		end
 	end
 end
-check("accesos abiertos hacia el spawn, los tres santuarios y el árbol ancestral", #blocked == 0)
+check("accesos abiertos hacia el spawn (y su sendero al jardín de huevos) y el árbol ancestral", #blocked == 0)
 if #blocked > 0 then print("   ", table.concat(blocked, ", ")) end
 
 print("-- 5. Cristal flotante")

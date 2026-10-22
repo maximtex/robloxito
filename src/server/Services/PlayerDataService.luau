@@ -1,5 +1,15 @@
--- Estado de cada jugador. Energía, mejoras, mascotas, zonas y misiones se cargan y
--- guardan con SaveService (un único DataStore).
+-- Estado de cada jugador. Energía, dinero, mejoras, mascotas, zonas, misiones y núcleos se
+-- cargan y guardan con SaveService (un único DataStore).
+-- Producción: todos los núcleos desbloqueados (Naturaleza = el cristal) más la afinidad
+-- del seleccionado, por el multiplicador de mascotas (CoreLogic.effectiveProduction) y por
+-- el de renacimiento (RebirthLogic.energyMultiplier, aparte para no chocar con el tope de
+-- mascotas) y por el de las aventuras (amuletos y bendiciones activas,
+-- AdventureLogic.productionMultiplier). Al cargar se concede la producción offline desde
+-- el último guardado (CoreLogic), también con el multiplicador de renacimiento, sus horas
+-- extra y los amuletos (las bendiciones son solo para jugar).
+-- Pases de la tienda (profile.Passes, los rellena ShopService al consultar a Roblox): el
+-- de «Energía ×2» multiplica la producción y la offline (para la offline se espera unos
+-- segundos a saber qué pases tiene).
 -- Replica valores al cliente mediante atributos del Player, que el cliente
 -- no puede modificar en el servidor.
 --
@@ -23,18 +33,27 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
+local CombatConfig = require(Shared.Config.CombatConfig)
+local CombatMath = require(Shared.CombatMath)
 local Constants = require(Shared.Constants)
 local Economy = require(Shared.Economy)
 local PetMath = require(Shared.PetMath)
+local RebirthLogic = require(Shared.RebirthLogic)
+local AdventureLogic = require(Shared.AdventureLogic)
+local MonetizationLogic = require(Shared.MonetizationLogic)
+local PetConfig = require(Shared.Config.PetConfig)
 local SaveService = require(script.Parent.SaveService)
+local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
 local DevConfig = require(script.Parent.Parent.DevConfig)
 
 local AUTOSAVE_INTERVAL = 90
+local PASSES_WAIT = 8 -- segundos como mucho esperando a saber los pases (producción offline)
 
 export type DataState = "Loading" | "Loaded" | "Unavailable" | "Failed"
 
 export type Profile = {
 	Energy: number,
+	Money: number, -- lo sueltan los enemigos (EnemyService); paga la Tienda de Láser
 	ProductionPerSecond: number,
 	UpgradeLevels: { [string]: number },
 	PetMultiplier: number,
@@ -44,12 +63,21 @@ export type Profile = {
 	SavedEconomy: string?, -- firma de energía y mejoras del último guardado correcto
 	SaveError: boolean, -- el último intento de guardado falló (se reintentará)
 	Sandbox: boolean, -- perfil temporal del modo prueba: nunca se carga ni se guarda
+	Passes: MonetizationLogic.Passes, -- pases de la tienda (ShopService; no se guardan)
+	PassesChecked: boolean, -- ya se consultaron a Roblox
 }
 
 local PlayerDataService = {}
 
 local profiles: { [Player]: Profile } = {}
 local readyListeners: { (Player) -> () } = {}
+local expectPasses = false -- hay una tienda que consulta los pases (ShopService.start)
+
+-- La tienda avisa de que consultará los pases de cada jugador: la producción offline espera
+-- (poco) a saber si tiene «Energía ×2».
+function PlayerDataService.expectPasses()
+	expectPasses = true
+end
 
 local function createProfile(): Profile
 	local upgradeLevels = {}
@@ -59,6 +87,7 @@ local function createProfile(): Profile
 
 	return {
 		Energy = EconomyConfig.StartingEnergy,
+		Money = EconomyConfig.StartingMoney,
 		ProductionPerSecond = Economy.getProductionPerSecond(upgradeLevels),
 		UpgradeLevels = upgradeLevels,
 		PetMultiplier = 1,
@@ -68,6 +97,8 @@ local function createProfile(): Profile
 		SavedEconomy = nil,
 		SaveError = false,
 		Sandbox = false,
+		Passes = {},
+		PassesChecked = false,
 	}
 end
 
@@ -104,7 +135,12 @@ function PlayerDataService.recalculateProduction(player: Player)
 	local profile = profiles[player]
 	if profile then
 		profile.PetMultiplier = PetMath.getTotalMultiplier(PlayerDataService.getEquippedPetIds(profile))
-		profile.ProductionPerSecond = Economy.getProductionPerSecond(profile.UpgradeLevels) * profile.PetMultiplier
+		-- Con solo Naturaleza y sin renacer es exactamente Economy · mascotas, como antes.
+		local base = CoreLogic.effectiveProduction(profile.PetData.Cores, profile.UpgradeLevels, profile.PetMultiplier)
+		profile.ProductionPerSecond = base
+			* RebirthLogic.energyMultiplier(profile.PetData.Rebirth)
+			* AdventureLogic.productionMultiplier(profile.PetData.Adventure, os.time())
+			* MonetizationLogic.energyMultiplier(profile.Passes)
 	end
 end
 
@@ -122,20 +158,88 @@ function PlayerDataService.replicate(player: Player)
 
 	local attributes = Constants.Attributes
 	player:SetAttribute(attributes.Energy, math.floor(profile.Energy))
+	setIfChanged(player, attributes.Money, math.floor(profile.Money))
 	setIfChanged(player, attributes.ProductionPerSecond, profile.ProductionPerSecond)
 	for upgradeId, level in profile.UpgradeLevels do
 		setIfChanged(player, attributes.UpgradeLevelPrefix .. upgradeId, level)
 	end
+	local speedLevel = profile.UpgradeLevels.WalkSpeed or 0
+	local amuletMult = AdventureLogic.walkSpeedMultiplier(profile.PetData.Adventure)
+	local baseSpeed = (28 + speedLevel * 2.5) * amuletMult
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
+		humanoid.WalkSpeed = baseSpeed
+	end
 	setIfChanged(player, attributes.PetMultiplier, profile.PetMultiplier)
+
+	local powerLevel = profile.UpgradeLevels[CombatConfig.DamageUpgradeId] or 0
+	local dmg = CombatMath.withBonus(
+		CombatMath.playerDamage(powerLevel, profile.PetMultiplier),
+		RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile))
+			* AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
+	)
+	local dps = math.floor((dmg * CombatConfig.ShotDamageScale / CombatConfig.AttackCooldown) * 10 + 0.5) / 10
+	setIfChanged(player, attributes.PlayerDamage, dmg)
+	setIfChanged(player, attributes.DamagePerSecond, dps)
+
+	-- Dinero en la lista de jugadores
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if not leaderstats then
+		local folder = Instance.new("Folder")
+		folder.Name = "leaderstats"
+		folder.Parent = player
+		leaderstats = folder
+	end
+	local moneyStat = leaderstats:FindFirstChild("Dinero")
+	if not moneyStat then
+		local stat = Instance.new("NumberValue")
+		stat.Name = "Dinero"
+		stat.Parent = leaderstats
+		moneyStat = stat
+	end
+	local money = math.floor(profile.Money)
+	if (moneyStat :: NumberValue).Value ~= money then
+		(moneyStat :: NumberValue).Value = money
+	end
 	setIfChanged(player, attributes.EquippedPets, table.concat(PlayerDataService.getEquippedPetIds(profile), ","))
 	setIfChanged(player, attributes.UnlockedZones, table.concat(profile.PetData.UnlockedZones, ","))
 	setIfChanged(player, attributes.DataStatus, profile.DataState)
 	setIfChanged(player, attributes.SaveError, profile.SaveError)
+	-- Núcleos (para los altares y el panel): desbloqueados en el orden de CoreConfig.
+	local cores = profile.PetData.Cores
+	local unlocked = {}
+	for _, elementId in CoreLogic.Order do
+		if CoreLogic.isUnlocked(cores, elementId) then
+			table.insert(unlocked, elementId)
+		end
+	end
+	setIfChanged(player, attributes.UnlockedCores, table.concat(unlocked, ","))
+	setIfChanged(player, attributes.SelectedCore, cores.Selected)
+	-- Secundario (tecla R): "" si no hay.
+	setIfChanged(player, attributes.SecondaryCore, CoreLogic.secondaryOf(cores) or "")
+	-- Renacimiento (RebirthController y la tienda de fichas).
+	local rebirth = profile.PetData.Rebirth
+	setIfChanged(player, attributes.Rebirths, RebirthLogic.count(rebirth))
+	setIfChanged(player, attributes.RebirthTokens, if type(rebirth) == "table" then rebirth.Tokens or 0 else 0)
+	setIfChanged(player, attributes.RebirthShop, RebirthLogic.shopText(rebirth))
+	setIfChanged(player, attributes.RebirthBestLevel, if type(rebirth) == "table" then rebirth.BestLevel or 0 else 0)
+	setIfChanged(player, attributes.MaxEquipped, MonetizationLogic.maxEquipped(rebirth, profile.Passes, PetConfig.MaxEquipped))
+	-- Energía generada en total (clasificaciones; la cuenta QuestService).
+	local quests = profile.PetData.Quests
+	local earned = if type(quests) == "table" and type(quests.Stats) == "table" then quests.Stats.EnergyEarned else 0
+	setIfChanged(player, attributes.TotalEnergy, math.floor(if type(earned) == "number" and earned == earned then earned else 0))
+	-- Tienda
+	setIfChanged(player, attributes.Passes, MonetizationLogic.passesText(profile.Passes))
+	setIfChanged(player, attributes.MaxInventory, MonetizationLogic.maxInventory(profile.Passes, PetConfig.MaxInventory))
+	local shop = profile.PetData.Shop
+	setIfChanged(player, attributes.AutoUpgrade, MonetizationLogic.owns(profile.Passes, "AutoUpgrade") and type(shop) == "table" and shop.AutoUpgrade == true)
 end
 
 -- Firma de la economía (para saber si hay algo nuevo que guardar).
 local function economySignature(profile: Profile): string
-	local parts = { ("%.4f"):format(profile.Energy) }
+	local parts = { ("%.4f"):format(profile.Energy), ("money=%.4f"):format(profile.Money) }
 	for upgradeId, level in profile.UpgradeLevels do
 		table.insert(parts, upgradeId .. "=" .. level)
 	end
@@ -188,6 +292,32 @@ local function startSandbox(player: Player, profile: Profile)
 	notifyReady(player)
 end
 
+-- Producción offline desde el último guardado correcto (CoreLogic.offlineReward: base de
+-- los núcleos · mascotas · 50 %, máximo 4 h más las del renacimiento) por el multiplicador
+-- de renacimiento. Se suma directamente, sin pasar por
+-- EnergyService, así que NO cuenta para las misiones de "generar energía". Se guarda en
+-- seguida para que LastSeen avance y la misma ausencia no se pueda cobrar dos veces.
+local function grantOfflineReward(player: Player, profile: Profile)
+	-- El pase «Energía ×2» también vale offline: se espera (poco) a saber si lo tiene.
+	local deadline = os.clock() + PASSES_WAIT
+	while expectPasses and not profile.PassesChecked and os.clock() < deadline and profiles[player] == profile do
+		task.wait(0.25)
+	end
+	if profiles[player] ~= profile then
+		return
+	end
+	local data = profile.PetData
+	local rawReward, seconds = CoreLogic.offlineReward(data.Cores, profile.UpgradeLevels, profile.PetMultiplier, data.LastSeen, os.time(), RebirthLogic.offlineBonusSeconds(data.Rebirth))
+	local reward = math.floor(rawReward * RebirthLogic.energyMultiplier(data.Rebirth) * AdventureLogic.offlineMultiplier(data.Adventure) * MonetizationLogic.energyMultiplier(profile.Passes))
+	if reward <= 0 then
+		return
+	end
+	profile.Energy += reward
+	data.LastSeen = os.time() -- ya cobrada (el próximo guardado escribe la hora real)
+	player:SetAttribute(Constants.Attributes.OfflineReward, ("%.0f,%.0f"):format(reward, seconds))
+	PlayerDataService.saveNow(player)
+end
+
 local function loadPetData(player: Player, profile: Profile)
 	if sandboxActive() then
 		startSandbox(player, profile)
@@ -209,12 +339,20 @@ local function loadPetData(player: Player, profile: Profile)
 		-- carga no se puede gastar, así que la diferencia nunca es negativa.
 		local gainedWhileLoading = math.max(0, profile.Energy - EconomyConfig.StartingEnergy)
 		profile.Energy = data.Energy + gainedWhileLoading
+		profile.Money = data.Money + math.max(0, profile.Money - EconomyConfig.StartingMoney)
 		local levels = {}
 		for upgradeId in EconomyConfig.Upgrades do
 			levels[upgradeId] = data.UpgradeLevels[upgradeId] or 0
 		end
 		profile.UpgradeLevels = levels
 		profile.PetData = data
+		if #profile.PetData.Pets == 0 then
+			table.insert(profile.PetData.Pets, { Uid = "p1", PetId = "Sproutling" })
+			table.insert(profile.PetData.Equipped, "p1")
+			profile.PetData.NextPetUid = math.max(profile.PetData.NextPetUid or 1, 2)
+		elseif #profile.PetData.Equipped == 0 then
+			table.insert(profile.PetData.Equipped, profile.PetData.Pets[1].Uid)
+		end
 	elseif status == "Unavailable" then
 		warn("[PlayerDataService] DataStore no disponible: las mascotas no se guardarán en esta sesión. "
 			.. "En Studio activa Game Settings > Security > Enable Studio Access to API Services.")
@@ -223,6 +361,10 @@ local function loadPetData(player: Player, profile: Profile)
 	end
 
 	PlayerDataService.recalculateProduction(player)
+	if status == "Loaded" and data then
+		-- En su propio hilo: si espera a saber los pases, los datos ya están listos mientras.
+		task.spawn(grantOfflineReward, player, profile)
+	end
 	PlayerDataService.replicate(player)
 	if PlayerDataService.isPetDataReady(profile) then
 		notifyReady(player)
@@ -232,15 +374,16 @@ end
 -- Guardados en curso; BindToClose espera a que terminen todos.
 local activeSaves = 0
 
-local function saveProfile(player: Player, profile: Profile, release: boolean)
+local function saveProfile(player: Player, profile: Profile, release: boolean): boolean
 	if profile.DataState ~= "Loaded" or profile.Sandbox then
-		return -- sin datos cargados (o perfil de prueba) nunca se guarda
+		return false -- sin datos cargados (o perfil de prueba) nunca se guarda
 	end
 	activeSaves += 1
 	profile.Dirty = false
 	-- La economía se copia ahora; lo que cambie durante la espera se guardará la próxima vez.
 	local signature = economySignature(profile)
 	profile.PetData.Energy = profile.Energy
+	profile.PetData.Money = profile.Money
 	profile.PetData.UpgradeLevels = table.clone(profile.UpgradeLevels)
 	local ok, saved = pcall(SaveService.save, player.UserId, profile.PetData, release)
 	if ok and saved then
@@ -257,6 +400,7 @@ local function saveProfile(player: Player, profile: Profile, release: boolean)
 		PlayerDataService.replicate(player)
 	end
 	activeSaves -= 1
+	return ok and saved == true
 end
 
 local function needsSave(profile: Profile): boolean
@@ -272,20 +416,50 @@ function PlayerDataService.saveNow(player: Player)
 	end
 end
 
+-- Guarda ya y espera el resultado (compras de Robux: solo se confirman a Roblox cuando la
+-- compra quedó guardada). true si se guardó.
+function PlayerDataService.saveAndWait(player: Player): boolean
+	local profile = profiles[player]
+	if not profile or profile.DataState ~= "Loaded" or profile.Sandbox then
+		return false
+	end
+	return saveProfile(player, profile, false)
+end
+
 local function onPlayerAdded(player: Player)
 	if profiles[player] then
 		return
 	end
 	local profile = createProfile()
 	profiles[player] = profile
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:WaitForChild("Humanoid", 5) :: Humanoid?
+		local currentProfile = profiles[player]
+		if humanoid and currentProfile then
+			local speedLvl = currentProfile.UpgradeLevels.WalkSpeed or 0
+			local amuletMult = AdventureLogic.walkSpeedMultiplier(currentProfile.PetData.Adventure)
+			local baseSpeed = (28 + speedLvl * 2.5) * amuletMult
+			humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
+			humanoid.WalkSpeed = baseSpeed
+		end
+	end)
 	PlayerDataService.replicate(player)
 	task.spawn(loadPetData, player, profile)
+end
+
+-- Avisos de salida (antes de soltar el perfil): reciben el jugador y su perfil.
+local leavingListeners: { (Player, Profile) -> () } = {}
+function PlayerDataService.onLeaving(callback: (Player, Profile) -> ())
+	table.insert(leavingListeners, callback)
 end
 
 local function onPlayerRemoving(player: Player)
 	local profile = profiles[player]
 	profiles[player] = nil
 	if profile then
+		for _, callback in leavingListeners do
+			task.spawn(callback, player, profile)
+		end
 		saveProfile(player, profile, true)
 	end
 end

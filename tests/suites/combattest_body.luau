@@ -16,6 +16,26 @@ check("nivel 16 con x2 = 63", CombatMath.playerDamage(16, 2) == 63)
 check("cada nivel de mejora suma daño (nivel 5 > nivel 4)", CombatMath.playerDamage(5, 1) > CombatMath.playerDamage(4, 1))
 check("multiplicador < 1 o nivel negativo no bajan de la base", CombatMath.playerDamage(-3, 0.5) == 10)
 
+print("-- Dinero y Tienda de Láser")
+local laserUpgrade = EconomyConfig.Upgrades[CombatConfig.DamageUpgradeId]
+check("el daño del láser sale de la Potencia del Láser, que se paga con dinero", CombatConfig.DamageUpgradeId == "LaserPower" and laserUpgrade ~= nil and laserUpgrade.Currency == "Money")
+local shopMoney = true
+for _, upgradeId in { "LaserPower", "WalkSpeed", "PetPower", "LaserSpeed" } do
+	local def = EconomyConfig.Upgrades[upgradeId]
+	if not (def and def.Currency == "Money" and def.ProductionPerLevel == 0) then
+		shopMoney = false
+	end
+end
+check("las cuatro mejoras de la Tienda de Láser cuestan dinero y no producen energía", shopMoney)
+check("la Resonancia del Cristal (renacer, huevos) sigue costando energía", EconomyConfig.Upgrades.GeneratorPower.Currency == nil and EconomyConfig.Upgrades.GeneratorPower.ProductionPerLevel > 0)
+local allHit = true
+for _, def in EnemyConfig.Types do
+	if not (def.Damage > 0 and def.Reward > 0) then
+		allHit = false
+	end
+end
+check("todos los enemigos hacen daño y sueltan dinero", allHit)
+
 print("-- Daño y muerte")
 local e = newEnemy(40)
 local dealt, killed = EnemyLogic.applyDamage(e, 1, 25)
@@ -67,7 +87,9 @@ local cands = {
 	{ Id = "frente", X = 0, Z = -6, Radius = 1.2, Alive = true },
 	{ Id = "jefe", X = 0, Z = -12, Radius = 4.5, Alive = true },
 }
-local hits = EnemyLogic.selectTargets(0, 0, 0, -1, cands, CombatConfig.AttackRange, CombatConfig.AttackArcDot, 10)
+-- Golpe en arco (lo usan las habilidades): alcance 9, ~100° a cada lado del frente
+local ARC_RANGE, ARC_DOT, ARC_MAX_TARGETS = 9, -0.2, 3
+local hits = EnemyLogic.selectTargets(0, 0, 0, -1, cands, ARC_RANGE, ARC_DOT, 10)
 local set = {}
 for _, id in hits do
 	set[id] = (set[id] or 0) + 1
@@ -79,7 +101,7 @@ check("sí al que está pegado aunque esté detrás", set.pegado_detras == 1)
 check("nunca a un enemigo muerto", set.muerto == nil)
 check("cada enemigo como mucho una vez por golpe", set.frente == 1)
 check("los enemigos grandes se miden hasta su borde", set.jefe == 1)
-check("máximo de objetivos por golpe respetado", #EnemyLogic.selectTargets(0, 0, 0, -1, cands, 50, -1, CombatConfig.MaxTargetsPerSwing) == CombatConfig.MaxTargetsPerSwing)
+check("máximo de objetivos por golpe respetado", #EnemyLogic.selectTargets(0, 0, 0, -1, cands, 50, -1, ARC_MAX_TARGETS) == ARC_MAX_TARGETS)
 
 print("-- Configuración de enemigos y zonas")
 for typeId, def in EnemyConfig.Types do
@@ -101,6 +123,14 @@ for zoneId, zone in EnemyConfig.Zones do
 				check(("%s: %s en (%d,%d) demasiado cerca de una zona protegida"):format(zoneId, spawn.Type, spawn.Offset.X, spawn.Offset.Y), false)
 			end
 		end
+		-- Fuera de las zonas sin monstruos y con margen para que al pasear no entren
+		for _, area in zone.SafeAreas or {} do
+			local dx = math.max(area.Min.X - spawn.Offset.X, 0, spawn.Offset.X - area.Max.X)
+			local dz = math.max(area.Min.Y - spawn.Offset.Y, 0, spawn.Offset.Y - area.Max.Y)
+			if math.sqrt(dx * dx + dz * dz) < 6 then
+				check(("%s: %s en (%d,%d) dentro o al borde de una zona sin monstruos"):format(zoneId, spawn.Type, spawn.Offset.X, spawn.Offset.Y), false)
+			end
+		end
 	end
 	local bossDef = EnemyConfig.Types[zone.Boss.Type]
 	kinds[bossDef.Kind] = true
@@ -113,6 +143,18 @@ for zoneId, zone in EnemyConfig.Zones do
 	check(zoneId .. ": arena dentro de la zona", math.sqrt(a.Center.X ^ 2 + a.Center.Y ^ 2) + a.Radius < ZoneConfig.Zones[zoneId].Radius)
 	check(zoneId .. ": jefe con dos ataques (golpe + área) y furia", bossDef.Slam ~= nil and bossDef.Enrage ~= nil)
 end
+-- El centro del pueblo (spawn, plaza y Jardín de los Huevos) es zona sin monstruos
+local function inForestArea(offset)
+	for _, area in EnemyConfig.Zones.Forest.SafeAreas or {} do
+		if offset.X >= area.Min.X and offset.X <= area.Max.X and offset.Y >= area.Min.Y and offset.Y <= area.Max.Y then
+			return true
+		end
+	end
+	return false
+end
+check("Bosque: el spawn, la plaza y el Jardín de los Huevos son zona sin monstruos",
+	-- spawn (0, 43), centro de la plaza (0, 25) y Jardín de los Huevos (EggConfig.Gardens.Forest.Center)
+	inForestArea(Vector2.new(0, 43)) and inForestArea(Vector2.new(0, 25)) and inForestArea(Vector2.new(38, 85)))
 check("Valle más poderoso que el bosque", EnemyConfig.Types.Shardling.MaxHealth > EnemyConfig.Types.Thornling.MaxHealth and EnemyConfig.Types.GeodeGolem.Damage > EnemyConfig.Types.Barkbrute.Damage)
 local function cost(n)
 	return math.floor(10 * 1.5 ^ n)

@@ -8,9 +8,10 @@ local SpawnConfig = {
 	-- Roblox hace aparecer al personaje con la orientación del spawn.
 	FaceGenerator = true,
 
-	PadColor = Color3.fromRGB(122, 128, 110),
+	PadColor = Color3.fromRGB(206, 196, 176),
 	PadMaterial = Enum.Material.Slate,
 	DecalTint = Color3.fromRGB(246, 216, 140), -- tiñe el logo del spawn de dorado
+	HideDecal = true, -- el logo de Roblox se veía como una mancha negra en el suelo
 
 	-- Runas doradas en el borde superior del spawn.
 	TrimInset = 0.4,

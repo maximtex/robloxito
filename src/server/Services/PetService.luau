@@ -1,12 +1,7 @@
--- Huevos y mascotas. Todo se decide en el servidor:
--- - Comprar/abrir huevo: tipo de argumento, huevo existente y activo, datos listos,
---   distancia al santuario, nivel requerido, inventario con espacio, saldo y límite de
---   frecuencia. La mascota se sortea aquí con las probabilidades de EggConfig
---   (lógica pura en Util/EggLogic).
--- - Cada compra lleva un requestId: el resultado se decide UNA vez y se recuerda, de modo
---   que un reenvío devuelve lo mismo sin volver a cobrar ni a sortear.
--- - Equipar/desequipar: la mascota debe pertenecer al jugador y respetar MaxEquipped.
--- El cliente solo pide; nunca envía mascotas, rarezas ni multiplicadores.
+-- Huevos, inventario y evolución de mascotas:
+-- - Comprar/abrir huevo (3 huevos, 3 mascotas por huevo).
+-- - Equipar/desequipar mascotas.
+-- - Evolucionar mascotas (EvolvePet): fusiona 3 mascotas iguales en su versión ★ Evo (doble multiplicador).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,6 +16,10 @@ local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local EggLogic = require(script.Parent.Parent.Util.EggLogic)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
+local RebirthLogic = require(Shared.RebirthLogic)
+local MonetizationLogic = require(Shared.MonetizationLogic)
+local PetMath = require(Shared.PetMath)
 
 local Codes = Constants.PurchaseCodes
 local MAX_ID_LENGTH = 64
@@ -43,7 +42,6 @@ function PetService.getStandPosition(eggId: string): Vector3?
 	if not egg then
 		return nil
 	end
-	-- StandOffset es relativo al centro de la zona del huevo (por defecto, el bosque).
 	local zone = ZoneConfig.Zones[egg.Zone or ZoneConfig.DefaultZone]
 	local center = if zone then zone.Center else Vector2.zero
 	local base = GeneratorConfig.Position
@@ -58,8 +56,24 @@ local function isNearStand(player: Player, eggId: string): boolean
 		return false
 	end
 	local offset = root.Position - standPosition
-	-- Distancia en horizontal; la altura del personaje no cuenta.
 	return Vector2.new(offset.X, offset.Z).Magnitude <= EggConfig.MaxPurchaseDistance
+end
+
+local function maxEquippedOf(profile: any): number
+	return MonetizationLogic.maxEquipped(RebirthLogic.ofProfile(profile), profile.Passes, PetConfig.MaxEquipped)
+end
+
+local function maxInventoryOf(profile: any): number
+	return MonetizationLogic.maxInventory(profile.Passes, PetConfig.MaxInventory)
+end
+
+local function limitsOf(profile: any): EggLogic.Limits
+	return {
+		MaxInventory = maxInventoryOf(profile),
+		MaxEquipped = maxEquippedOf(profile),
+		UnlockUpgradeId = EggConfig.UnlockUpgradeId,
+		UnlockLevel = RebirthLogic.unlockLevel(RebirthLogic.ofProfile(profile), profile.UpgradeLevels[EggConfig.UnlockUpgradeId] or 0),
+	}
 end
 
 local function isValidId(value: any): boolean
@@ -80,8 +94,8 @@ local function buildSnapshot(player: Player)
 		Saving = profile.DataState == "Loaded",
 		Pets = pets,
 		Equipped = table.clone(profile.PetData.Equipped),
-		MaxEquipped = PetConfig.MaxEquipped,
-		MaxInventory = PetConfig.MaxInventory,
+		MaxEquipped = maxEquippedOf(profile),
+		MaxInventory = maxInventoryOf(profile),
 	}
 end
 
@@ -100,7 +114,7 @@ end
 
 -- Acciones --------------------------------------------------------------------
 
-local function purchaseEgg(player: Player, eggId: any): (string, EggLogic.Grant?)
+local function purchaseEgg(player: Player, eggId: any, requestedCount: any): (string, { EggLogic.Grant }?)
 	if not isValidId(eggId) then
 		return Codes.InvalidRequest, nil
 	end
@@ -120,15 +134,70 @@ local function purchaseEgg(player: Player, eggId: any): (string, EggLogic.Grant?
 		return Codes.TooFar, nil
 	end
 
-	local code, grant = EggLogic.purchase(profile, egg, random:NextNumber(0, 100), {
-		MaxInventory = PetConfig.MaxInventory,
-		MaxEquipped = PetConfig.MaxEquipped,
-		UnlockUpgradeId = EggConfig.UnlockUpgradeId,
-	}, Codes)
+	local count = MonetizationLogic.hatchCount(profile.Passes, requestedCount)
+	local rolls = {}
+	for index = 1, count do
+		rolls[index] = random:NextNumber(0, 100)
+	end
+	local code, grants = EggLogic.purchaseMany(profile, egg, rolls, limitsOf(profile), Codes)
+	if code == Codes.Success and grants then
+		table.sort(grants, function(a, b)
+			return PetMath.getPetMultiplier(a.PetId) > PetMath.getPetMultiplier(b.PetId)
+		end)
+		applyPetChange(player)
+		for _ in grants do
+			GameEvents.fire("EggOpened", player, eggId)
+		end
+	end
+	return code, grants
+end
+
+function PetService.grantFreePet(player: Player): (string, EggLogic.Grant?, string?)
+	local profile = PlayerDataService.get(player)
+	if not profile or not PlayerDataService.isPetDataReady(profile) then
+		return Codes.NotReady, nil, nil
+	end
+	local limits = limitsOf(profile)
+	local eggId = EggLogic.bestEgg(profile, EggConfig, limits, Codes)
+	local egg = eggId and EggConfig.Eggs[eggId]
+	if not egg then
+		return Codes.Unavailable, nil, nil
+	end
+	local code, grant = EggLogic.grantFree(profile, egg, random:NextNumber(0, 100), limits, Codes)
 	if code == Codes.Success then
 		applyPetChange(player)
 	end
-	return code, grant
+	return code, grant, eggId
+end
+
+-- Mascota exclusiva comprada con Robux (la concede ShopService al procesar la compra).
+function PetService.grantPet(player: Player, petId: string): (string, EggLogic.Grant?)
+	local profile = PlayerDataService.get(player)
+	if not profile or not PlayerDataService.isPetDataReady(profile) then
+		return Codes.NotReady, nil
+	end
+	if not PetConfig.Pets[petId] then
+		return Codes.InvalidRequest, nil
+	end
+	local grant = EggLogic.grantPet(profile.PetData, petId, maxEquippedOf(profile))
+	applyPetChange(player)
+	return Codes.Success, grant
+end
+
+function PetService.enforceEquipLimit(player: Player)
+	local profile = PlayerDataService.get(player)
+	if not profile or not PlayerDataService.isPetDataReady(profile) then
+		return
+	end
+	local equipped = profile.PetData.Equipped
+	local limit = maxEquippedOf(profile)
+	if #equipped <= limit then
+		return
+	end
+	while #equipped > limit do
+		table.remove(equipped)
+	end
+	applyPetChange(player)
 end
 
 local function setEquipped(player: Player, uid: any, equip: any): string
@@ -157,7 +226,7 @@ local function setEquipped(player: Player, uid: any, equip: any): string
 		if index then
 			return Codes.Success
 		end
-		if #petData.Equipped >= PetConfig.MaxEquipped then
+		if #petData.Equipped >= maxEquippedOf(profile) then
 			return Codes.EquipLimit
 		end
 		table.insert(petData.Equipped, uid)
@@ -172,6 +241,92 @@ local function setEquipped(player: Player, uid: any, equip: any): string
 	return Codes.Success
 end
 
+-- Evolucionar 3 mascotas iguales en 1 versión ★ Evo
+local function evolvePet(player: Player, petId: any): (string, string?)
+	if not isValidId(petId) then
+		return Codes.InvalidRequest, nil
+	end
+	local baseDef = PetConfig.Pets[petId]
+	local targetPetId = baseDef and baseDef.EvolvesInto
+	if not (targetPetId and PetConfig.Pets[targetPetId]) then
+		return Codes.InvalidRequest, nil
+	end
+
+	local profile = PlayerDataService.get(player)
+	if not profile or not PlayerDataService.isPetDataReady(profile) then
+		return Codes.NotReady, nil
+	end
+
+	local petData = profile.PetData
+	local needed = PetConfig.EvolutionCopiesRequired or 3
+
+	-- Priorizar copias NO equipadas primero, y luego equipadas si hace falta
+	local equippedSet: { [string]: boolean } = {}
+	for _, uid in petData.Equipped do
+		equippedSet[uid] = true
+	end
+
+	local unequippedMatches = {}
+	local equippedMatches = {}
+	for _, entry in petData.Pets do
+		if entry.PetId == petId then
+			if equippedSet[entry.Uid] then
+				table.insert(equippedMatches, entry.Uid)
+			else
+				table.insert(unequippedMatches, entry.Uid)
+			end
+		end
+	end
+
+	if #unequippedMatches + #equippedMatches < needed then
+		return Codes.NotOwned, nil
+	end
+
+	local consumeSet: { [string]: boolean } = {}
+	local picked = 0
+	for _, uid in unequippedMatches do
+		if picked < needed then
+			consumeSet[uid] = true
+			picked += 1
+		end
+	end
+	for _, uid in equippedMatches do
+		if picked < needed then
+			consumeSet[uid] = true
+			picked += 1
+		end
+	end
+
+	-- Quitar las 3 mascotas consumidas del inventario y de equipadas
+	local remainingPets = {}
+	for _, entry in petData.Pets do
+		if not consumeSet[entry.Uid] then
+			table.insert(remainingPets, entry)
+		end
+	end
+	petData.Pets = remainingPets
+
+	local remainingEquipped = {}
+	for _, uid in petData.Equipped do
+		if not consumeSet[uid] then
+			table.insert(remainingEquipped, uid)
+		end
+	end
+	petData.Equipped = remainingEquipped
+
+	-- Otorgar la mascota evolucionada ★ Evo y equiparla si hay hueco
+	local newUid = tostring(petData.NextPetUid)
+	petData.NextPetUid += 1
+	table.insert(petData.Pets, { Uid = newUid, PetId = targetPetId })
+	if #petData.Equipped < maxEquippedOf(profile) then
+		table.insert(petData.Equipped, newUid)
+	end
+
+	applyPetChange(player)
+	PlayerDataService.saveNow(player)
+	return Codes.Success, targetPetId
+end
+
 function PetService.start()
 	disabledReason = EggLogic.validate(PetConfig, EggConfig)
 	if disabledReason then
@@ -181,7 +336,7 @@ function PetService.start()
 	local eggResult = RemoteService.get(Constants.Remotes.EggResult)
 	local actionResult = RemoteService.get(Constants.Remotes.PetActionResult)
 
-	RemoteService.get(Constants.Remotes.PurchaseEgg).OnServerEvent:Connect(function(player: Player, eggId: any, requestId: any)
+	RemoteService.get(Constants.Remotes.PurchaseEgg).OnServerEvent:Connect(function(player: Player, eggId: any, requestId: any, count: any)
 		local rate = eggLimiter:check(player)
 		if rate == "flood" then
 			return
@@ -189,7 +344,6 @@ function PetService.start()
 		local safeEggId = if isValidId(eggId) then eggId else nil
 		local safeRequestId = if isValidId(requestId) then requestId else nil
 
-		-- Reenvío de una compra ya resuelta: devolver el mismo resultado, sin cobrar.
 		local ledger = ledgers[player]
 		if not ledger then
 			ledger = EggLogic.newLedger(LEDGER_CAPACITY)
@@ -197,7 +351,7 @@ function PetService.start()
 		end
 		local previous = if safeRequestId then ledger:get(safeRequestId) else nil
 		if previous then
-			eggResult:FireClient(player, table.unpack(previous, 1, 7))
+			eggResult:FireClient(player, table.unpack(previous, 1, 8))
 			return
 		end
 
@@ -206,7 +360,15 @@ function PetService.start()
 			return
 		end
 
-		local code, grant = purchaseEgg(player, eggId)
+		local code, grants = purchaseEgg(player, eggId, count)
+		local grant = grants and grants[1]
+		local extras = nil
+		if grants and #grants > 1 then
+			extras = {}
+			for index = 2, #grants do
+				table.insert(extras, { PetId = grants[index].PetId, Uid = grants[index].Uid, AutoEquipped = grants[index].AutoEquipped })
+			end
+		end
 		local result = {
 			code == Codes.Success,
 			code,
@@ -215,12 +377,12 @@ function PetService.start()
 			if grant then grant.Uid else nil,
 			if grant then grant.AutoEquipped else nil,
 			safeRequestId,
+			extras,
 		}
-		-- Solo se recuerdan las compras realizadas; un rechazo puede reintentarse.
 		if safeRequestId and code == Codes.Success then
 			ledger:put(safeRequestId, result)
 		end
-		eggResult:FireClient(player, table.unpack(result, 1, 7))
+		eggResult:FireClient(player, table.unpack(result, 1, 8))
 	end)
 
 	RemoteService.get(Constants.Remotes.EquipPet).OnServerEvent:Connect(function(player: Player, uid: any, equip: any)
@@ -236,6 +398,20 @@ function PetService.start()
 
 		local code = setEquipped(player, uid, equip)
 		actionResult:FireClient(player, code == Codes.Success, code, safeUid, if typeof(equip) == "boolean" then equip else nil)
+	end)
+
+	RemoteService.get(Constants.Remotes.EvolvePet).OnServerEvent:Connect(function(player: Player, petId: any)
+		local rate = equipLimiter:check(player)
+		if rate == "flood" then
+			return
+		end
+		local safePetId = if isValidId(petId) then petId else nil
+		if rate == "cooldown" then
+			actionResult:FireClient(player, false, Codes.TooFast, safePetId)
+			return
+		end
+		local code, evolvedPetId = evolvePet(player, petId)
+		actionResult:FireClient(player, code == Codes.Success, code, evolvedPetId or safePetId, "Evolve")
 	end)
 
 	RemoteService.get(Constants.Remotes.RequestPetInventory).OnServerEvent:Connect(function(player: Player)

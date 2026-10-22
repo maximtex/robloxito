@@ -7,7 +7,9 @@ local EggLogic = {}
 export type PetEntry = { Uid: string, PetId: string }
 export type PetData = { Pets: { PetEntry }, Equipped: { string }, NextPetUid: number, UnlockedZones: { string }? }
 export type ProfileLike = { Energy: number, UpgradeLevels: { [string]: number }, PetData: PetData }
-export type Limits = { MaxInventory: number, MaxEquipped: number, UnlockUpgradeId: string }
+-- UnlockLevel (opcional): nivel que cuenta para RequiredLevel si no es el actual de la
+-- mejora (con renacimientos, el mejor nivel con el que se renació).
+export type Limits = { MaxInventory: number, MaxEquipped: number, UnlockUpgradeId: string, UnlockLevel: number? }
 export type Grant = { PetId: string, Uid: string, AutoEquipped: boolean }
 export type Codes = { [string]: string }
 
@@ -70,42 +72,101 @@ function EggLogic.roll(egg, roll: number): string
 	return egg.Chances[#egg.Chances].PetId
 end
 
--- Comprueba requisitos, cobra UNA vez, sortea y concede la mascota.
--- No modifica nada si devuelve un código distinto de Success.
-function EggLogic.purchase(profile: ProfileLike, egg, rollValue: number, limits: Limits, codes: Codes): (string, Grant?)
+-- Requisitos del huevo (zona desbloqueada y nivel). nil si se cumplen; si no, el código.
+local function requirementCode(profile: ProfileLike, egg, limits: Limits, codes: Codes): string?
 	-- Huevo de una zona que se compra: la zona debe estar desbloqueada en los datos del
 	-- servidor (nunca se confía en el cliente ni en dónde dice estar).
 	if egg.RequiredZone then
 		local unlocked = profile.PetData.UnlockedZones or {}
 		if not table.find(unlocked, egg.RequiredZone) then
-			return codes.ZoneLocked, nil
+			return codes.ZoneLocked
 		end
 	end
-	local level = profile.UpgradeLevels[limits.UnlockUpgradeId] or 0
+	local level = limits.UnlockLevel or profile.UpgradeLevels[limits.UnlockUpgradeId] or 0
 	if level < (egg.RequiredLevel or 0) then
-		return codes.Locked, nil
+		return codes.Locked
 	end
-	local petData = profile.PetData
-	if #petData.Pets >= limits.MaxInventory then
-		return codes.InventoryFull, nil
-	end
-	if profile.Energy < egg.Cost then
-		return codes.InsufficientEnergy, nil
-	end
+	return nil
+end
 
-	profile.Energy -= egg.Cost
-	local petId = EggLogic.roll(egg, rollValue)
+-- Concede una mascota ya sorteada (sin cobrar: quien llama ya comprobó todo).
+local function grant(petData: PetData, petId: string, maxEquipped: number): Grant
 	local uid = tostring(petData.NextPetUid)
 	petData.NextPetUid += 1
 	table.insert(petData.Pets, { Uid = uid, PetId = petId })
-
 	-- Si hay hueco, la mascota nueva se equipa sola.
-	local autoEquipped = #petData.Equipped < limits.MaxEquipped
+	local autoEquipped = #petData.Equipped < maxEquipped
 	if autoEquipped then
 		table.insert(petData.Equipped, uid)
 	end
+	return { PetId = petId, Uid = uid, AutoEquipped = autoEquipped }
+end
 
-	return codes.Success, { PetId = petId, Uid = uid, AutoEquipped = autoEquipped }
+-- Comprueba requisitos, cobra UNA vez, sortea y concede la mascota.
+-- No modifica nada si devuelve un código distinto de Success.
+function EggLogic.purchase(profile: ProfileLike, egg, rollValue: number, limits: Limits, codes: Codes): (string, Grant?)
+	local code, grants = EggLogic.purchaseMany(profile, egg, { rollValue }, limits, codes)
+	return code, if grants then grants[1] else nil
+end
+
+-- Abre varios huevos de una vez (pase «Abrir ×3»): todo o nada. Hace falta energía para
+-- todos y sitio para todas las mascotas; si no, no cobra ni concede nada.
+function EggLogic.purchaseMany(profile: ProfileLike, egg, rolls: { number }, limits: Limits, codes: Codes): (string, { Grant }?)
+	local count = #rolls
+	if count < 1 then
+		return codes.InvalidRequest or "InvalidRequest", nil
+	end
+	local blocked = requirementCode(profile, egg, limits, codes)
+	if blocked then
+		return blocked, nil
+	end
+	local petData = profile.PetData
+	if #petData.Pets + count > limits.MaxInventory then
+		return codes.InventoryFull, nil
+	end
+	local total = egg.Cost * count
+	if profile.Energy < total then
+		return codes.InsufficientEnergy, nil
+	end
+
+	profile.Energy -= total
+	local grants = {}
+	for _, rollValue in rolls do
+		table.insert(grants, grant(petData, EggLogic.roll(egg, rollValue), limits.MaxEquipped))
+	end
+	return codes.Success, grants
+end
+
+-- Mascota de regalo (premio diario, códigos): del huevo indicado, sin cobrar. Respeta los
+-- requisitos del huevo y el espacio del inventario.
+function EggLogic.grantFree(profile: ProfileLike, egg, rollValue: number, limits: Limits, codes: Codes): (string, Grant?)
+	local blocked = requirementCode(profile, egg, limits, codes)
+	if blocked then
+		return blocked, nil
+	end
+	if #profile.PetData.Pets >= limits.MaxInventory then
+		return codes.InventoryFull, nil
+	end
+	return codes.Success, grant(profile.PetData, EggLogic.roll(egg, rollValue), limits.MaxEquipped)
+end
+
+-- Mascota concreta ya pagada con Robux (MonetizationConfig.PetProducts): sin huevo ni sorteo
+-- y aunque el inventario esté lleno, porque lo pagado se entrega siempre.
+function EggLogic.grantPet(petData: PetData, petId: string, maxEquipped: number): Grant
+	return grant(petData, petId, maxEquipped)
+end
+
+-- El mejor huevo (el más caro) que el jugador ya puede abrir, o nil.
+function EggLogic.bestEgg(profile: ProfileLike, eggConfig, limits: Limits, codes: Codes): string?
+	local bestId, bestCost = nil, -1
+	for eggId, egg in eggConfig.Eggs do
+		if egg.Enabled ~= false and type(egg.Cost) == "number" and not requirementCode(profile, egg, limits, codes) then
+			if egg.Cost > bestCost or (egg.Cost == bestCost and bestId and eggId < bestId) then
+				bestId, bestCost = eggId, egg.Cost
+			end
+		end
+	end
+	return bestId
 end
 
 -- Registro de compras ya resueltas por jugador, para que reenviar la misma solicitud

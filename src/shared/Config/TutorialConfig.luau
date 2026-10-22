@@ -34,7 +34,7 @@ local TutorialConfig = {
 		{
 			Id = "Pet",
 			Title = "Consigue una mascota",
-			Text = "Ve al santuario del Huevo del Bosque y ábrelo (100 ⚡).",
+			Text = "Ve al 🥚 Jardín de los Huevos (a la derecha del spawn) y abre el Huevo del Bosque (100 ⚡).",
 			Goal = { Source = "State", Key = "PetsOwned" },
 			Target = 1,
 			Guide = "Egg:ForestEgg",

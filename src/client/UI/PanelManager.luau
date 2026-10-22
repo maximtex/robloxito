@@ -102,6 +102,12 @@ function PanelManager.isOpen(name: string): boolean
 	return current == name
 end
 
+-- Marco de un panel registrado (para que otras piezas del HUD eviten taparlo).
+function PanelManager.frame(name: string): GuiObject?
+	local panel = panels[name]
+	return panel and panel.Frame
+end
+
 local function hide(name: string)
 	local panel = panels[name]
 	play(panel, offset(panel.BasePosition), Theme.Layout.TransitionSeconds * 0.75, function()

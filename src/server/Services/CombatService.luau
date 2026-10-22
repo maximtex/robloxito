@@ -1,8 +1,9 @@
--- Ataque del jugador. El cliente solo pide "atacar": el servidor comprueba el ritmo,
--- calcula el daño con CombatMath (nivel de mejora y mascotas del perfil del servidor) y
--- elige los objetivos desde la posición y orientación reales del personaje. Cada golpe
--- alcanza a cada enemigo como mucho una vez. Nunca acepta daño, objetivos ni
--- recompensas del cliente.
+-- Disparo del jugador (uno por clic). El cliente solo pide "disparar" y, con clic o toque,
+-- propone el modelo del enemigo al que apunta: el servidor comprueba el ritmo, que ese
+-- enemigo exista, esté vivo y a tiro desde la posición real del personaje (si no, el disparo
+-- se pierde; sin enemigo propuesto, con F o el botón, elige el más cercano a tiro) y calcula
+-- el daño con CombatMath (nivel de mejora y mascotas del perfil del servidor). Nunca acepta
+-- daño ni recompensas del cliente.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +12,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CombatConfig = require(Shared.Config.CombatConfig)
 local CombatMath = require(Shared.CombatMath)
+local RebirthLogic = require(Shared.RebirthLogic)
+local AdventureLogic = require(Shared.AdventureLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
@@ -25,10 +28,23 @@ function CombatService.onPlayerHit(listener: (Player, any) -> ())
 	table.insert(hitListeners, listener)
 end
 
+-- Otro servicio del servidor (AbilityService) avisa de que el jugador ha dañado a este
+-- enemigo con una habilidad: sus mascotas se unen igual que tras un golpe normal.
+function CombatService.reportHit(player: Player, enemy: any)
+	for _, listener in hitListeners do
+		task.spawn(listener, player, enemy)
+	end
+end
+
 -- Pequeña tolerancia sobre el cooldown por la latencia; ráfagas abusivas se ignoran.
 local attackLimiter = RateLimiter.new(CombatConfig.AttackCooldown * 0.85, 3, 10)
 
-local function handleAttack(player: Player)
+local function inRange(root: BasePart, enemy: any): boolean
+	local offset = enemy.Root.Position - root.Position
+	return Vector2.new(offset.X, offset.Z).Magnitude - enemy.Radius <= CombatConfig.ShotRange
+end
+
+local function handleAttack(player: Player, aimed: any)
 	local rate = attackLimiter:check(player)
 	if rate ~= "ok" then
 		return -- demasiado pronto o ráfaga: se ignora sin efectos
@@ -45,24 +61,35 @@ local function handleAttack(player: Player)
 	end
 
 	local level = profile.UpgradeLevels[CombatConfig.DamageUpgradeId] or 0
-	local damage = CombatMath.playerDamage(level, profile.PetMultiplier)
-	local targets = EnemyService.findTargets(root.Position, root.CFrame.LookVector, CombatConfig.AttackRange, CombatConfig.AttackArcDot, CombatConfig.MaxTargetsPerSwing)
+	local damage = CombatMath.withBonus(CombatMath.playerDamage(level, profile.PetMultiplier), RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time()))
+		* CombatConfig.ShotDamageScale
+
+	-- Con clic o toque llega el enemigo apuntado: solo él, si está vivo y a tiro (si no, el
+	-- disparo se pierde; nunca va a otro). Sin apuntar (F, botón): el más cercano a tiro.
+	local target = nil
+	if aimed == nil then
+		target = EnemyService.findNearest(root.Position, CombatConfig.ShotRange)
+	elseif typeof(aimed) == "Instance" then
+		local enemy = EnemyService.fromModel(aimed)
+		if enemy and EnemyService.isAlive(enemy) and inRange(root, enemy) then
+			target = enemy
+		end
+	end
 
 	local hits = {}
-	for _, enemy in targets do
-		local position = enemy.Root.Position
-		local dealt, killed = EnemyService.damage(enemy, player, damage)
+	if target then
+		local position = target.Root.Position
+		local dealt, killed, earnedCoins = EnemyService.damage(target, player, damage)
 		if dealt > 0 then
 			-- Model solo sirve para el destello visual en el cliente; no se acepta de vuelta.
-			table.insert(hits, { Position = position, Damage = dealt, Killed = killed, Kind = enemy.Kind, Model = enemy.Model })
+			table.insert(hits, { Position = position, Damage = dealt, Coins = earnedCoins or 0, Killed = killed, Kind = target.Kind, Model = target.Model })
 		end
 	end
 	RemoteService.get(Constants.Remotes.AttackResult):FireClient(player, hits)
-	-- El primer enemigo alcanzado pasa a ser el objetivo de sus mascotas.
-	local first = targets[1]
-	if first and #hits > 0 then
+	-- El enemigo alcanzado pasa a ser el objetivo de sus mascotas.
+	if target and #hits > 0 then
 		for _, listener in hitListeners do
-			task.spawn(listener, player, first)
+			task.spawn(listener, player, target)
 		end
 	end
 end

@@ -1,423 +1,705 @@
--- Construye el claro mágico alrededor del cristal:
--- - Terrain: pradera, colinas, rocas, plaza de adoquines y camino de tierra.
--- - Piezas ancladas: árbol ancestral con raíces gigantes, árboles, arco y columnas
---   en ruinas, piedras del camino, setas luminosas, cristales y flores.
--- - Iluminación de tarde con atmósfera.
--- Es solo decorativo. No añade luces dinámicas: las setas y cristales usan neón.
+-- Construye el mapa estilo simulador clásico y simple:
+-- - Suelo 100% plano con patrón cuadriculado (damero verde claro / verde oscuro con studs).
+-- - Muros perimetrales rectos con patrón cuadriculado marrón y borde superior verde.
+-- - Corrales / parcelas con cercas de madera marrón a los lados del pasillo central y
+--   medallón circular flotante con el avatar y nombre de cada jugador.
+-- - Letrero de "ZONA SEGURA" en el suelo e iluminación de día soleado y cielo azul limpio.
 
 local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local WorldConfig = require(Shared.Config.WorldConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
+local ChestConfig = require(Shared.Config.ChestConfig)
+local EggConfig = require(Shared.Config.EggConfig)
+local AdventureConfig = require(Shared.Config.AdventureConfig)
+local LeaderboardConfig = require(Shared.Config.LeaderboardConfig)
+local VillageConfig = require(Shared.Config.VillageConfig)
+local SeasonConfig = require(Shared.Config.SeasonConfig)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
-
-local Colors = WorldConfig.Colors
-local TerrainConfig = WorldConfig.Terrain
+local StudWorld = require(script.Parent.Parent.Util.StudWorld)
+local ChristmasDecor = require(script.Parent.Parent.Util.ChristmasDecor)
+local ChristmasData = require(script.Parent.Parent.Util.ChristmasData)
+local StudFloor = require(Shared.Util.StudFloor)
 
 local WorldService = {}
 
--- Origen: el cristal a nivel del suelo; GROUND es la altura de la superficie.
 local ORIGIN = Vector3.new(GeneratorConfig.Position.X, 0, GeneratorConfig.Position.Z)
 local GROUND = GeneratorConfig.Position.Y
+local FOREST = StudFloor.Zones.Forest
+local FOREST_TREES = 18 -- árboles sueltos por el Bosque (al azar, sin hileras)
+
+-- Colores estilo simulador limpio (inspirado en la referencia)
+local GRASS_A = Color3.fromRGB(106, 218, 46)
+local PATH_A = Color3.fromRGB(98, 210, 42)
+local WALL_TOP = Color3.fromRGB(102, 214, 44)
+local FENCE_WOOD = Color3.fromRGB(156, 92, 44)
+local FENCE_DARK = Color3.fromRGB(124, 70, 30)
 
 local function world(x: number, y: number, z: number): Vector3
 	return ORIGIN + Vector3.new(x, y, z)
 end
 
-local function segment(parent: Instance, name: string, from: Vector3, to: Vector3, diameter: number, color: Color3, material: Enum.Material)
-	local direction = to - from
-	return PartFactory.part(parent, name, {
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(direction.Magnitude, diameter, diameter),
-		CFrame = CFrame.lookAt((from + to) / 2, to) * CFrame.Angles(0, math.rad(90), 0),
-		Color = color,
-		Material = material,
-	})
+-- Terreno plano de base (para que cualquier raycast hacia Workspace.Terrain encuentre suelo en GROUND)
+local function buildFlatTerrain()
+	pcall(function()
+		local FILL = GROUND - GeneratorConfig.TerrainFillOffset
+		local terrain = workspace.Terrain
+		pcall(function()
+			terrain:Clear()
+		end)
+		pcall(function()
+			terrain.Decoration = false
+		end)
+		if WorldConfig.Terrain and WorldConfig.Terrain.MaterialColors then
+			for materialName, color in WorldConfig.Terrain.MaterialColors do
+				pcall(function()
+					terrain:SetMaterialColor((Enum.Material :: any)[materialName], color)
+				end)
+			end
+		end
+		pcall(function()
+			terrain:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(86, 175, 58))
+		end)
+		pcall(function()
+			terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(86, 175, 58))
+		end)
+
+		local size = (WorldConfig.Terrain and WorldConfig.Terrain.Size) or 620
+		local thickness = (WorldConfig.Terrain and WorldConfig.Terrain.Thickness) or 8
+		-- Pradera fuera de los muros (se ve por encima de ellos), no tierra oscura
+		local groundMaterial = (Enum.Material :: any)[(WorldConfig.Terrain and WorldConfig.Terrain.GroundMaterial) or "Grass"]
+		pcall(function()
+			terrain:FillBlock(
+				CFrame.new(world(0, FILL - thickness / 2, 0)),
+				Vector3.new(size, thickness, size),
+				groundMaterial
+			)
+		end)
+	end)
 end
 
-local function ball(parent: Instance, name: string, center: Vector3, diameter: number, color: Color3, material: Enum.Material, solid: boolean?)
-	return PartFactory.part(parent, name, {
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.one * diameter,
-		CFrame = CFrame.new(center),
-		Color = color,
-		Material = material,
-		Solid = solid,
-	})
-end
-
--- Elipsoide nativo (SpecialMesh de tipo esfera, sin recursos externos).
-local function ellipsoid(parent: Instance, name: string, cframe: CFrame, size: Vector3, color: Color3, material: Enum.Material)
-	local part = PartFactory.part(parent, name, {
-		Size = size,
-		CFrame = cframe,
-		Color = color,
-		Material = material,
-		Solid = false,
-	})
-	local mesh = Instance.new("SpecialMesh")
-	mesh.MeshType = Enum.MeshType.Sphere
-	mesh.Parent = part
+local function allStuds(part: BasePart): BasePart
+	part.Material = Enum.Material.Plastic
+	part.TopSurface = Enum.SurfaceType.Studs
+	part.BottomSurface = Enum.SurfaceType.Studs
+	part.FrontSurface = Enum.SurfaceType.Studs
+	part.BackSurface = Enum.SurfaceType.Studs
+	part.LeftSurface = Enum.SurfaceType.Studs
+	part.RightSurface = Enum.SurfaceType.Studs
 	return part
 end
 
--- Terreno -------------------------------------------------------------------
+-- Suelo del Bosque (StudFloor.Zones.Forest): damero verde con los cuadritos del diseño,
+-- caminos y plazas con borde (StudWorld.buildFloor) y el spawn sobre la plaza del pueblo.
+local function buildStudFloor(parent: Instance)
+	StudWorld.buildFloor(parent, FOREST)
 
-local function buildTerrain()
-	local terrain = workspace.Terrain
-	for materialName, color in TerrainConfig.MaterialColors do
-		terrain:SetMaterialColor((Enum.Material :: any)[materialName], color)
+	-- SpawnLocation centrado sobre el camino sur
+	local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
+	if not spawn then
+		spawn = Instance.new("SpawnLocation")
+		spawn.Name = "SpawnLocation"
+		spawn.Size = Vector3.new(6, 0.4, 6)
+		spawn.Anchored = true
+		spawn.CanCollide = true
+		spawn.Transparency = 1
+		spawn.Parent = workspace
 	end
-
-	local size = TerrainConfig.Size
-	local thickness = TerrainConfig.Thickness
-	terrain:FillBlock(CFrame.new(world(0, GROUND - thickness / 2, 0)), Vector3.new(size, thickness, size), Enum.Material.Grass)
-
-	for _, hill in TerrainConfig.Hills do
-		local radius = hill.Z
-		terrain:FillBall(world(hill.X, GROUND - radius * 0.6, hill.Y), radius, Enum.Material.Grass)
-	end
-	for _, rock in TerrainConfig.Rocks do
-		local radius = rock.Z
-		terrain:FillBall(world(rock.X, GROUND - radius * 0.45, rock.Y), radius, Enum.Material.Rock)
-	end
-
-	-- Plaza y camino: se pinta la capa superficial (misma altura que la pradera).
-	local paintDepth = 4
-	terrain:FillCylinder(CFrame.new(world(0, GROUND - paintDepth / 2, 0)), paintDepth, TerrainConfig.PlazaRadius, Enum.Material.Cobblestone)
-
-	local pathStart = TerrainConfig.PlazaRadius - 1
-	local pathLength = TerrainConfig.PathEndZ - pathStart
-	terrain:FillBlock(
-		CFrame.new(world(0, GROUND - paintDepth / 2, pathStart + pathLength / 2)),
-		Vector3.new(TerrainConfig.PathWidth, paintDepth, pathLength),
-		Enum.Material.Ground
-	)
+	local spawnY = GROUND + 0.5 + StudFloor.raiseAt(0, 18) -- en la plaza, que sobresale del damero
+	spawn.CFrame = CFrame.lookAt(Vector3.new(0, spawnY, 18), Vector3.new(0, spawnY, 0))
 end
 
--- Árboles ---------------------------------------------------------------------
+local function buildFenceSegment(parent: Instance, fromPos: Vector3, toPos: Vector3)
+	local diff = toPos - fromPos
+	local length = diff.Magnitude
+	local bays = math.max(1, math.floor(length / 7))
+	local bayLen = length / bays
+	local dir = diff.Unit
 
-local function buildTree(parent: Instance, name: string, x: number, z: number, scale: number, random: Random)
-	local model = Instance.new("Model")
-	model.Name = name
-
-	local base = world(x, GROUND - 0.5, z)
-	local trunkHeight = 9 * scale
-	local trunkDiameter = 1.6 * scale
-	-- Tronco ligeramente inclinado en dos tramos
-	local lean = Vector3.new(random:NextNumber(-0.8, 0.8), 0, random:NextNumber(-0.8, 0.8)) * scale
-	local middle = base + Vector3.new(0, trunkHeight * 0.55, 0) + lean * 0.5
-	local top = base + Vector3.new(0, trunkHeight, 0) + lean
-	segment(model, "TrunkLower", base, middle, trunkDiameter, Colors.Bark, Enum.Material.Wood)
-	segment(model, "TrunkUpper", middle, top, trunkDiameter * 0.8, Colors.Bark, Enum.Material.Wood)
-
-	-- Copa: varias esferas de follaje
-	local canopy = {
-		{ Vector3.new(0, 1.5, 0), 8 },
-		{ Vector3.new(2.6, 0.4, 1.2), 6 },
-		{ Vector3.new(-2.4, 0.6, -1.4), 6.4 },
-		{ Vector3.new(0.6, 3.6, -0.8), 5.4 },
-	}
-	for index, blob in canopy do
-		local color = Colors.Leaves[random:NextInteger(1, #Colors.Leaves)]
-		local foliage = ball(model, "Leaves" .. index, top + blob[1] * scale, blob[2] * scale, color, Enum.Material.LeafyGrass, false)
-		foliage.CastShadow = true
-	end
-
-	model.Parent = parent
-end
-
-local function buildAncientTree(parent: Instance)
-	local config = WorldConfig.AncientTree
-	local model = Instance.new("Model")
-	model.Name = "AncientTree"
-
-	local base = world(config.Position.X, GROUND - 1, config.Position.Y)
-	local diameter = config.TrunkDiameter
-	local height = config.TrunkHeight
-
-	-- Tronco en tres tramos que se estrechan
-	local p1 = base + Vector3.new(0, height * 0.4, 0)
-	local p2 = base + Vector3.new(1.2, height * 0.75, -0.6)
-	local p3 = base + Vector3.new(0.4, height, -1.2)
-	segment(model, "Trunk1", base, p1, diameter, Colors.DarkBark, Enum.Material.Wood)
-	ball(model, "TrunkKnot1", p1, diameter * 0.92, Colors.DarkBark, Enum.Material.Wood)
-	segment(model, "Trunk2", p1, p2, diameter * 0.85, Colors.DarkBark, Enum.Material.Wood)
-	ball(model, "TrunkKnot2", p2, diameter * 0.78, Colors.DarkBark, Enum.Material.Wood)
-	segment(model, "Trunk3", p2, p3, diameter * 0.7, Colors.DarkBark, Enum.Material.Wood)
-
-	-- Ramas principales
-	for index, branch in { Vector3.new(10, 5, -2), Vector3.new(-9, 6, 1), Vector3.new(2, 7, -9), Vector3.new(-3, 4, 8) } do
-		segment(model, "Branch" .. index, p2, p2 + branch, diameter * 0.32, Colors.DarkBark, Enum.Material.Wood)
-	end
-
-	-- Copa amplia con follaje turquesa mágico mezclado
-	local canopy = {
-		{ Vector3.new(0, 4, 0), 22, Colors.Leaves[2] },
-		{ Vector3.new(10, 1, -3), 15, Colors.Leaves[1] },
-		{ Vector3.new(-10, 2, 2), 16, Colors.Leaves[3] },
-		{ Vector3.new(2, 1, -10), 14, Colors.Leaves[1] },
-		{ Vector3.new(-3, 0, 9), 13, Colors.MagicLeaves },
-		{ Vector3.new(5, 9, 3), 12, Colors.MagicLeaves },
-	}
-	for index, blob in canopy do
-		local foliage = ball(model, "Canopy" .. index, p3 + blob[1], blob[2], blob[3], Enum.Material.LeafyGrass, false)
-		foliage.CastShadow = true
-	end
-
-	-- Raíces gigantes que se extienden por el suelo (arqueadas, se puede pasar por debajo de las altas)
-	local roots = Instance.new("Model")
-	roots.Name = "GiantRoots"
-	roots.Parent = model
-	for rootIndex = 1, config.RootCount do
-		local angle = (rootIndex - 0.5) / config.RootCount * math.pi * 2
-		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		local reach = config.RootReach * (if rootIndex % 2 == 0 then 1 else 0.75)
-		local points = {
-			base + direction * (diameter * 0.35) + Vector3.new(0, 4, 0),
-			base + direction * (reach * 0.35) + Vector3.new(0, 3.2, 0),
-			base + direction * (reach * 0.7) + Vector3.new(0, 1.4, 0),
-			base + direction * reach + Vector3.new(0, -0.6, 0),
-		}
-		local thickness = { 3, 2.3, 1.5 }
-		for step = 1, 3 do
-			segment(roots, "Root" .. rootIndex .. "_" .. step, points[step], points[step + 1], thickness[step], Colors.DarkBark, Enum.Material.Wood)
-			ball(roots, "Knot" .. rootIndex .. "_" .. step, points[step], thickness[step], Colors.DarkBark, Enum.Material.Wood)
+	for i = 0, bays do
+		local postPos = fromPos + dir * (i * bayLen)
+		PartFactory.part(parent, "Post", {
+			Size = Vector3.new(0.65, 3.6, 0.65),
+			CFrame = CFrame.new(postPos + Vector3.new(0, 1.8, 0)),
+			Color = FENCE_DARK,
+			Material = Enum.Material.Wood,
+			Solid = true,
+		})
+		if i < bays then
+			local segStart = postPos
+			local segEnd = fromPos + dir * ((i + 1) * bayLen)
+			local segMid = (segStart + segEnd) / 2
+			local segCF = CFrame.lookAt(segMid, segEnd)
+			-- Dos travesaños horizontales
+			for _, h in { 1.0, 2.7 } do
+				PartFactory.part(parent, "Rail", {
+					Size = Vector3.new(0.3, 0.32, bayLen),
+					CFrame = segCF * CFrame.new(0, h, 0),
+					Color = FENCE_WOOD,
+					Material = Enum.Material.Wood,
+					Solid = true,
+				})
+			end
+			-- Diagonal de granja
+			PartFactory.segment(
+				parent,
+				"Diag",
+				segStart + Vector3.new(0, 1.05, 0),
+				segEnd + Vector3.new(0, 2.65, 0),
+				0.24,
+				FENCE_WOOD,
+				Enum.Material.Wood,
+				false
+			)
 		end
 	end
-
-	model.Parent = parent
 end
 
--- Ruinas ----------------------------------------------------------------------
-
-local function buildColumn(parent: Instance, name: string, x: number, z: number, height: number, random: Random)
-	local model = Instance.new("Model")
-	model.Name = name
-	local diameter = 2
-
-	if height > 0 then
-		local base = world(x, GROUND, z)
-		PartFactory.part(model, "Plinth", {
-			Size = Vector3.new(2.8, 0.6, 2.8),
-			CFrame = CFrame.new(base + Vector3.new(0, 0.3, 0)),
-			Color = Colors.RuinStone,
-			Material = Enum.Material.Cobblestone,
-		})
-		PartFactory.verticalCylinder(model, "Shaft", base + Vector3.new(0, 0.6 + height / 2, 0), height, diameter, Colors.RuinStone, Enum.Material.Slate, true)
-		-- Musgo en la parte superior rota
-		PartFactory.verticalCylinder(model, "Moss", base + Vector3.new(0, 0.6 + height + 0.1, 0), 0.25, diameter + 0.15, Colors.Moss, Enum.Material.LeafyGrass, false)
-	else
-		-- Columna caída, tumbada sobre la hierba
-		local yaw = random:NextNumber(0, math.pi)
-		PartFactory.part(model, "Fallen", {
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(6, diameter, diameter),
-			CFrame = CFrame.new(world(x, GROUND + diameter / 2 - 0.3, z)) * CFrame.Angles(0, yaw, 0),
-			Color = Colors.RuinStone,
-			Material = Enum.Material.Slate,
-		})
-	end
-
-	model.Parent = parent
-end
-
-local function buildArch(parent: Instance)
-	local arch = WorldConfig.RuinArch
-	local model = Instance.new("Model")
-	model.Name = "RuinArch"
-
-	local pillar = arch.PillarSize
-	local halfWidth = arch.Width / 2
-	for index, side in { -1, 1 } do
-		local x = side * halfWidth
-		PartFactory.part(model, "Pillar" .. index, {
-			Size = Vector3.new(pillar, arch.Height, pillar),
-			CFrame = CFrame.new(world(x, GROUND + arch.Height / 2, arch.Z)),
-			Color = Colors.RuinStone,
-			Material = Enum.Material.Cobblestone,
-		})
-		-- Hiedra colgando de la cara interior
-		PartFactory.part(model, "Ivy" .. index, {
-			Size = Vector3.new(0.2, arch.Height * 0.55, 1.2),
-			CFrame = CFrame.new(world(x - side * (pillar / 2 + 0.05), GROUND + arch.Height * 0.68, arch.Z)),
-			Color = Colors.Moss,
-			Material = Enum.Material.LeafyGrass,
-			Solid = false,
-		})
-	end
-	PartFactory.part(model, "Lintel", {
-		Size = Vector3.new(arch.Width + pillar + 1, 1.6, pillar + 0.4),
-		CFrame = CFrame.new(world(0, GROUND + arch.Height + 0.8, arch.Z)) * CFrame.Angles(0, 0, math.rad(2)),
-		Color = Colors.RuinStone,
-		Material = Enum.Material.Slate,
-	})
-	PartFactory.part(model, "LintelMoss", {
-		Size = Vector3.new(arch.Width * 0.6, 0.3, pillar + 0.5),
-		CFrame = CFrame.new(world(-1.5, GROUND + arch.Height + 1.75, arch.Z)),
-		Color = Colors.Moss,
-		Material = Enum.Material.LeafyGrass,
+-- Medallón circular con la foto de avatar del jugador y su nombre debajo (estilo simulador)
+local function createPlotBadge(parent: Instance, position: Vector3, slotIndex: number, defaultName: string)
+	local anchor = PartFactory.part(parent, "BadgeAnchor" .. slotIndex, {
+		Size = Vector3.one * 0.5,
+		CFrame = CFrame.new(position),
+		Color = GRASS_A,
+		Material = Enum.Material.SmoothPlastic,
 		Solid = false,
 	})
+	anchor.Transparency = 1
 
-	model.Parent = parent
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PlotBadge"
+	billboard.Size = UDim2.new(9, 0, 10.5, 0)
+	billboard.StudsOffset = Vector3.new(0, 4, 0)
+	billboard.AlwaysOnTop = false
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 180
+	billboard.Adornee = anchor
+
+	local circle = Instance.new("Frame")
+	circle.Name = "Circle"
+	circle.AnchorPoint = Vector2.new(0.5, 0)
+	circle.Position = UDim2.fromScale(0.5, 0.04)
+	circle.Size = UDim2.fromScale(0.68, 0.68)
+	circle.BackgroundColor3 = Color3.fromRGB(58, 58, 64)
+	circle.BackgroundTransparency = 0.1
+	circle.Parent = billboard
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = circle
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(20, 20, 24)
+	stroke.Thickness = 4
+	stroke.Parent = circle
+
+	local avatar = Instance.new("ImageLabel")
+	avatar.Name = "Avatar"
+	avatar.AnchorPoint = Vector2.new(0.5, 0.5)
+	avatar.Position = UDim2.fromScale(0.5, 0.5)
+	avatar.Size = UDim2.fromScale(0.92, 0.92)
+	avatar.BackgroundTransparency = 1
+	avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+	avatar.Parent = circle
+
+	local avatarCorner = Instance.new("UICorner")
+	avatarCorner.CornerRadius = UDim.new(0.5, 0)
+	avatarCorner.Parent = avatar
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Name = "PlayerName"
+	nameLabel.AnchorPoint = Vector2.new(0.5, 1)
+	nameLabel.Position = UDim2.fromScale(0.5, 0.98)
+	nameLabel.Size = UDim2.fromScale(1, 0.24)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Font = Enum.Font.FredokaOne
+	nameLabel.TextScaled = true
+	nameLabel.TextColor3 = Color3.new(1, 1, 1)
+	nameLabel.TextStrokeColor3 = Color3.fromRGB(20, 20, 24)
+	nameLabel.TextStrokeTransparency = 0
+	nameLabel.Text = defaultName
+	nameLabel.Parent = billboard
+
+	billboard.Parent = anchor
+
+	local function refreshPlayers()
+		local list = Players:GetPlayers()
+		local p = list[slotIndex]
+		if p then
+			nameLabel.Text = p.DisplayName or p.Name
+			task.spawn(function()
+				local ok, content = pcall(function()
+					return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size180x180)
+				end)
+				if ok and content then
+					avatar.Image = content
+				end
+			end)
+		else
+			nameLabel.Text = defaultName
+		end
+	end
+
+	Players.PlayerAdded:Connect(refreshPlayers)
+	Players.PlayerRemoving:Connect(refreshPlayers)
+	refreshPlayers()
 end
 
-local function buildSteppingStones(parent: Instance)
-	local folder = PartFactory.folder(parent, "SteppingStones")
-	local plazaEdge = TerrainConfig.PlazaRadius
-	local index = 0
-	local z = plazaEdge + 1.5
-	while z < TerrainConfig.PathEndZ - 1 do
-		index += 1
-		local offset = if index % 2 == 0 then 0.7 else -0.7
-		PartFactory.verticalCylinder(folder, "Stone" .. index, world(offset, GROUND + 0.05, z), 0.3, 2.6 + (index % 3) * 0.3, Colors.StepStone, Enum.Material.Slate, false)
-		z += 3.2
+-- Corrales de madera (parcelas a ambos lados del camino de spawn)
+local function buildPlayerCorrals(parent: Instance)
+	local folder = PartFactory.folder(parent, "PlayerPlots")
+	local plots = {
+		{ X = -22, Z = 56, W = 26, D = 24, Side = "Left", Label = "Tu Parcela" },
+		{ X = 22, Z = 56, W = 26, D = 24, Side = "Right", Label = "Parcela 2" },
+		{ X = -22, Z = 84, W = 26, D = 24, Side = "Left", Label = "Parcela 3" },
+		{ X = 22, Z = 84, W = 26, D = 24, Side = "Right", Label = "Parcela 4" },
+	}
+
+	for index, spec in plots do
+		local plotModel = Instance.new("Model")
+		plotModel.Name = "Plot" .. index
+		local x0 = spec.X - spec.W / 2
+		local x1 = spec.X + spec.W / 2
+		local z0 = spec.Z - spec.D / 2
+		local z1 = spec.Z + spec.D / 2
+
+		local nw = world(x0, GROUND, z0)
+		local ne = world(x1, GROUND, z0)
+		local sw = world(x0, GROUND, z1)
+		local se = world(x1, GROUND, z1)
+
+		-- Norte y Sur completos
+		buildFenceSegment(plotModel, nw, ne)
+		buildFenceSegment(plotModel, sw, se)
+
+		-- Lado exterior cerrado, lado interior hacia el pasillo con puerta abierta en el medio
+		if spec.Side == "Left" then
+			buildFenceSegment(plotModel, nw, sw)
+			buildFenceSegment(plotModel, ne, world(x1, GROUND, spec.Z - 4.5))
+			buildFenceSegment(plotModel, world(x1, GROUND, spec.Z + 4.5), se)
+		else
+			buildFenceSegment(plotModel, ne, se)
+			buildFenceSegment(plotModel, nw, world(x0, GROUND, spec.Z - 4.5))
+			buildFenceSegment(plotModel, world(x0, GROUND, spec.Z + 4.5), sw)
+		end
+
+		createPlotBadge(plotModel, world(spec.X, GROUND + 7, spec.Z), index, spec.Label)
+		plotModel.Parent = folder
 	end
 end
 
--- Flora mágica -----------------------------------------------------------------
+-- Arroyo de agua azul con rocas grises y nenúfares junto a la puerta sur (Z = 148)
+local function buildWaterBorder(parent: Instance)
+	local folder = PartFactory.folder(parent, "RiverBorder")
+	local rockColor = Color3.fromRGB(122, 128, 154)
+	local rockDark = Color3.fromRGB(98, 104, 130)
+	local waterColor = Color3.fromRGB(58, 178, 250)
+	local lilyColor = Color3.fromRGB(78, 198, 44)
 
-local function buildMushrooms(parent: Instance, random: Random)
-	local folder = PartFactory.folder(parent, "GlowMushrooms")
-	for clusterIndex, cluster in WorldConfig.MushroomClusters do
-		local capColor = Colors.MushroomCaps[(clusterIndex - 1) % #Colors.MushroomCaps + 1]
-		for index = 1, cluster.Z do
-			local offset = Vector3.new(random:NextNumber(-1.4, 1.4), 0, random:NextNumber(-1.4, 1.4))
-			local height = random:NextNumber(0.6, 1.5)
-			local stemDiameter = height * 0.35
-			local base = world(cluster.X, GROUND, cluster.Y) + offset
-			local name = "Mushroom" .. clusterIndex .. "_" .. index
-			PartFactory.verticalCylinder(folder, name .. "Stem", base + Vector3.new(0, height / 2, 0), height, stemDiameter, Colors.MushroomStem, Enum.Material.SmoothPlastic, false)
-			local capWidth = stemDiameter * 3.2
-			ellipsoid(folder, name .. "Cap", CFrame.new(base + Vector3.new(0, height, 0)), Vector3.new(capWidth, capWidth * 0.5, capWidth), capColor, Enum.Material.Neon)
+	local sideW = 66 -- de 14 a 80
+	for _, side in { -1, 1 } do
+		local centerX = side * (14 + sideW / 2)
+		local water = PartFactory.part(folder, "StreamWater", {
+			Size = Vector3.new(sideW, 0.28, 12),
+			CFrame = CFrame.new(world(centerX, GROUND + 0.08, 148)),
+			Color = waterColor,
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		water.Reflectance = 0.15
+
+		-- Rocas grises escalonadas a ambos lados del arroyo
+		for i = 0, 10 do
+			local rx = (side * 17) + side * (i * 5.8)
+			for _, rz in { 141.5, 154.5 } do
+				local h = 1.4 + ((i * 3) % 3) * 0.75
+				local rock = PartFactory.part(folder, "RiverRock", {
+					Size = Vector3.new(5.2, h, 4.4),
+					CFrame = CFrame.new(world(rx, GROUND + h / 2, rz)),
+					Color = if i % 2 == 0 then rockColor else rockDark,
+					Material = Enum.Material.SmoothPlastic,
+					Solid = true,
+				})
+				allStuds(rock)
+			end
+		end
+
+		-- Nenúfares verdes
+		for _, lx in { side * 28, side * 48, side * 68 } do
+			PartFactory.verticalCylinder(folder, "LilyPad", world(lx, GROUND + 0.24, 148), 0.1, 2.8, lilyColor, Enum.Material.SmoothPlastic, false)
 		end
 	end
 end
 
-local function buildCrystals(parent: Instance, random: Random)
-	local folder = PartFactory.folder(parent, "SmallCrystals")
-	for clusterIndex, cluster in WorldConfig.CrystalClusters do
-		for index = 1, cluster.Z do
-			local height = random:NextNumber(1.2, 2.6)
-			local base = world(cluster.X, GROUND, cluster.Y) + Vector3.new(random:NextNumber(-0.8, 0.8), 0, random:NextNumber(-0.8, 0.8))
-			local cframe = CFrame.new(base)
-				* CFrame.Angles(random:NextNumber(-0.35, 0.35), random:NextNumber(0, math.pi), random:NextNumber(-0.35, 0.35))
-				* CFrame.new(0, height / 2 - 0.2, 0)
-			local shard = PartFactory.part(folder, "Crystal" .. clusterIndex .. "_" .. index, {
-				Size = Vector3.new(0.55, height, 0.55),
-				CFrame = cframe,
-				Color = Colors.Crystal,
-				-- Uno de cada racimo brilla; el resto es vidrio.
-				Material = if index == 1 then Enum.Material.Neon else Enum.Material.Glass,
+-- Detalles decorativos del mapa (capturas 1, 2, 3 y 4):
+-- Espantapájaros con cabeza de calabaza brillante, calabazas talladas, setas, matitas de pasto y flores
+local function buildForestDetails(parent: Instance)
+	local folder = PartFactory.folder(parent, "MapDetails")
+
+	-- Helper: Calabaza luminosa (Jack-o'-lantern)
+	local function buildGlowingPumpkin(pos: Vector3, scale: number, yawDeg: number)
+		local m = Instance.new("Model")
+		m.Name = "GlowingPumpkin"
+		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
+		local r = 2.4 * scale
+
+		PartFactory.ball(m, "PumpkinBody", (cf * CFrame.new(0, r * 0.44, 0)).Position, r, Color3.fromRGB(252, 118, 18), Enum.Material.SmoothPlastic, false)
+		PartFactory.ball(m, "InnerGlow", (cf * CFrame.new(0, r * 0.44, -r * 0.12)).Position, r * 0.86, Color3.fromRGB(255, 224, 48), Enum.Material.Neon, false)
+
+		-- Ojos y sonrisa luminosos amarillos
+		for _, sx in { -0.22, 0.22 } do
+			PartFactory.part(m, "EyeGlow", {
+				Size = Vector3.new(0.28 * r, 0.26 * r, 0.18 * r),
+				CFrame = cf * CFrame.new(sx * r, r * 0.56, -r * 0.44) * CFrame.Angles(0, 0, math.rad(sx * 24)),
+				Color = Color3.fromRGB(255, 238, 60),
+				Material = Enum.Material.Neon,
 				Solid = false,
 			})
-			if index ~= 1 then
-				shard.Transparency = 0.2
+		end
+		PartFactory.part(m, "MouthGlow", {
+			Size = Vector3.new(0.58 * r, 0.18 * r, 0.18 * r),
+			CFrame = cf * CFrame.new(0, r * 0.30, -r * 0.45),
+			Color = Color3.fromRGB(255, 234, 52),
+			Material = Enum.Material.Neon,
+			Solid = false,
+		})
+		-- Tallo verde curvado
+		PartFactory.part(m, "Stem", {
+			Size = Vector3.new(0.22 * r, 0.42 * r, 0.22 * r),
+			CFrame = cf * CFrame.new(0, r * 0.92, 0) * CFrame.Angles(math.rad(16), 0, math.rad(12)),
+			Color = Color3.fromRGB(68, 124, 38),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		m.Parent = folder
+	end
+
+	-- Helper: Grupo de calabazas pequeñas + hojas de otoño (captura 1 y 2)
+	local function buildPumpkinPatch(pos: Vector3, yawDeg: number)
+		local m = Instance.new("Model")
+		m.Name = "PumpkinPatch"
+		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
+		buildGlowingPumpkin((cf * CFrame.new(0, 0, 0)).Position, 0.9, yawDeg)
+		PartFactory.ball(m, "WhiteGourd", (cf * CFrame.new(-1.4, 0.9, 1.1)).Position, 1.6, Color3.fromRGB(244, 228, 214), Enum.Material.SmoothPlastic, false)
+		PartFactory.ball(m, "MiniPumpkin", (cf * CFrame.new(1.5, 0.65, 0.8)).Position, 1.2, Color3.fromRGB(255, 140, 28), Enum.Material.SmoothPlastic, false)
+		-- Hojas de otoño rojas y amarillas en el suelo
+		for i, leafCol in {
+			Color3.fromRGB(232, 54, 36),
+			Color3.fromRGB(250, 178, 32),
+			Color3.fromRGB(110, 198, 38),
+			Color3.fromRGB(240, 96, 28),
+		} do
+			local angle = math.rad(i * 90 + 25)
+			PartFactory.part(m, "Leaf" .. i, {
+				Size = Vector3.new(0.9, 0.12, 0.6),
+				CFrame = cf * CFrame.new(math.cos(angle) * 2.1, 0.08, math.sin(angle) * 2.1) * CFrame.Angles(0, angle, 0),
+				Color = leafCol,
+				Material = Enum.Material.SmoothPlastic,
+				Solid = false,
+			})
+		end
+		m.Parent = folder
+	end
+
+	-- Helper: Espantapájaros con cabeza de calabaza luminosa y sombrero (como en la captura 1)
+	local function buildScarecrow(pos: Vector3, yawDeg: number)
+		local m = Instance.new("Model")
+		m.Name = "Scarecrow"
+		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
+
+		-- Base morada de roca + calabaza pequeña a los pies
+		PartFactory.part(m, "BaseStone", {
+			Size = Vector3.new(4.2, 0.45, 3.6),
+			CFrame = cf * CFrame.new(0, 0.22, 0),
+			Color = Color3.fromRGB(116, 68, 128),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		PartFactory.ball(m, "FootPumpkin", (cf * CFrame.new(1.3, 0.75, -0.8)).Position, 1.3, Color3.fromRGB(252, 124, 20), Enum.Material.SmoothPlastic, false)
+
+		-- Poste de madera y brazos extendidos
+		PartFactory.part(m, "WoodPole", {
+			Size = Vector3.new(0.65, 6.6, 0.65),
+			CFrame = cf * CFrame.new(0, 3.3, 0),
+			Color = Color3.fromRGB(142, 88, 44),
+			Material = Enum.Material.Wood,
+			Solid = true,
+		})
+		PartFactory.part(m, "CrossArms", {
+			Size = Vector3.new(6.2, 0.55, 0.55),
+			CFrame = cf * CFrame.new(0, 4.9, 0) * CFrame.Angles(0, 0, math.rad(6)),
+			Color = Color3.fromRGB(142, 88, 44),
+			Material = Enum.Material.Wood,
+			Solid = false,
+		})
+
+		-- Túnica naranja y mangas
+		PartFactory.part(m, "Tunic", {
+			Size = Vector3.new(2.5, 3.2, 1.6),
+			CFrame = cf * CFrame.new(0, 3.9, 0),
+			Color = Color3.fromRGB(238, 134, 48),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		PartFactory.part(m, "Sleeves", {
+			Size = Vector3.new(4.8, 0.95, 1.1),
+			CFrame = cf * CFrame.new(0, 4.85, 0) * CFrame.Angles(0, 0, math.rad(6)),
+			Color = Color3.fromRGB(238, 134, 48),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		-- Cinturón de cuerda blanca
+		PartFactory.part(m, "RopeBelt", {
+			Size = Vector3.new(2.65, 0.32, 1.75),
+			CFrame = cf * CFrame.new(0, 3.35, 0),
+			Color = Color3.fromRGB(245, 232, 212),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+
+		-- Cabeza de calabaza luminosa + sombrero de paja
+		buildGlowingPumpkin((cf * CFrame.new(0, 5.4, 0)).Position, 1.15, yawDeg)
+		PartFactory.part(m, "HatBrim", {
+			Size = Vector3.new(4.2, 0.35, 4.2),
+			CFrame = cf * CFrame.new(0, 7.65, 0) * CFrame.Angles(math.rad(-8), 0, math.rad(5)),
+			Color = Color3.fromRGB(244, 178, 52),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		PartFactory.part(m, "HatBand", {
+			Size = Vector3.new(2.45, 0.38, 2.45),
+			CFrame = cf * CFrame.new(0, 7.95, 0) * CFrame.Angles(math.rad(-8), 0, math.rad(5)),
+			Color = Color3.fromRGB(142, 62, 168),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		PartFactory.part(m, "HatTop", {
+			Size = Vector3.new(2.1, 1.35, 2.1),
+			CFrame = cf * CFrame.new(0, 8.65, 0) * CFrame.Angles(math.rad(-8), 0, math.rad(5)),
+			Color = Color3.fromRGB(244, 178, 52),
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+
+		m.Parent = folder
+	end
+
+	-- Helper: Seta pequeña (roja o azul con pintas, como en las capturas 1 y 2)
+	local function buildMushroom(pos: Vector3, isBlue: boolean)
+		local m = Instance.new("Model")
+		m.Name = "Mushroom"
+		PartFactory.verticalCylinder(m, "Stem", pos + Vector3.new(0, 0.4, 0), 0.8, 0.55, Color3.fromRGB(238, 224, 198), Enum.Material.SmoothPlastic, false)
+		local capColor = if isBlue then Color3.fromRGB(36, 152, 255) else Color3.fromRGB(248, 42, 42)
+		local spotColor = if isBlue then Color3.fromRGB(132, 226, 255) else Color3.fromRGB(252, 248, 238)
+		PartFactory.part(m, "Cap", {
+			Size = Vector3.new(1.5, 0.65, 1.5),
+			CFrame = CFrame.new(pos + Vector3.new(0, 0.92, 0)),
+			Color = capColor,
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+		for _, offset in { Vector3.new(0.35, 1.26, 0.25), Vector3.new(-0.35, 1.26, -0.25) } do
+			PartFactory.part(m, "Spot", {
+				Size = Vector3.new(0.36, 0.08, 0.36),
+				CFrame = CFrame.new(pos + offset),
+				Color = spotColor,
+				Material = Enum.Material.SmoothPlastic,
+				Solid = false,
+			})
+		end
+		m.Parent = folder
+	end
+
+	-- Helper: Matita de pasto verde oscuro y florecitas rosas/rojas (capturas 1, 3 y 4)
+	local function buildGrassTuft(pos: Vector3, withFlowers: boolean)
+		local m = Instance.new("Model")
+		m.Name = "GrassTuft"
+		local bladeColor = Color3.fromRGB(38, 148, 36)
+		for i = -1, 1 do
+			PartFactory.part(m, "Blade" .. i, {
+				Size = Vector3.new(0.28, 1.25, 0.28),
+				CFrame = CFrame.new(pos + Vector3.new(i * 0.28, 0.58, 0)) * CFrame.Angles(0, 0, math.rad(-i * 22)),
+				Color = bladeColor,
+				Material = Enum.Material.SmoothPlastic,
+				Solid = false,
+			})
+		end
+		if withFlowers then
+			for _, fOff in { Vector3.new(-0.32, 1.22, 0.12), Vector3.new(0.28, 1.18, -0.14) } do
+				PartFactory.ball(m, "Flower", pos + fOff, 0.42, Color3.fromRGB(255, 68, 148), Enum.Material.SmoothPlastic, false)
+			end
+		end
+		m.Parent = folder
+	end
+
+	-- Reparto con semilla fija sobre el damero verde: nada encima de los caminos, los enemigos,
+	-- el Círculo del Guardián, el Jardín de los Huevos, las tablas de clasificación, los cofres
+	-- escondidos ni lo de las aventuras (posiciones relativas al cristal).
+	local keepOut: { { number } } = {}
+	for _, chest in ChestConfig.Chests do
+		table.insert(keepOut, { ORIGIN.X + chest.Position.X, ORIGIN.Z + chest.Position.Y, 8 })
+	end
+	local garden = EggConfig.Gardens.Forest
+	table.insert(keepOut, { ORIGIN.X + garden.Center.X, ORIGIN.Z + garden.Center.Y, garden.Radius + 4 })
+	-- Tablas de clasificación (con sitio delante para leerlas)
+	for _, board in LeaderboardConfig.Boards do
+		table.insert(keepOut, { ORIGIN.X + board.Position.X, ORIGIN.Z + board.Position.Y, LeaderboardConfig.Footprint + 4 })
+	end
+	-- Cofre «RECLAMAR» con su círculo y la Máquina de Evolución (en coordenadas del mundo)
+	local claimChest = VillageConfig.ClaimChest.Position
+	table.insert(keepOut, { claimChest.X, claimChest.Y, 8 })
+	local machine = VillageConfig.EvolutionMachine.Position
+	table.insert(keepOut, { machine.X, machine.Y, 10 })
+	-- Adornos de Navidad (en coordenadas del mundo)
+	if SeasonConfig.Christmas then
+		for _, item in SeasonConfig.ForestDecor do
+			table.insert(keepOut, { item.Position.X, item.Position.Y, (ChristmasData.Radius :: any)[item.Model] or 6 })
+		end
+	end
+	-- Personajes de las aventuras y sus objetos perdidos
+	for _, group in { AdventureConfig.Npcs, AdventureConfig.Items } do
+		for _, entry in group do
+			if entry.Zone == "Forest" then
+				table.insert(keepOut, { ORIGIN.X + entry.Position.X, ORIGIN.Z + entry.Position.Y, 6 })
 			end
 		end
 	end
-end
+	local decor = StudWorld.newDecor(FOREST, "Forest", keepOut)
+	local rng = decor.Rng
 
-local function isClear(x: number, z: number): boolean
-	for _, zone in WorldConfig.KeepClear do
-		if (Vector2.new(x, z) - Vector2.new(zone.X, zone.Y)).Magnitude < zone.Z then
-			return false
+	-- Pocos árboles sueltos al azar por las praderas, sin hileras (en Navidad, el árbol navideño
+	-- del diseño); calabazas y espantapájaros junto a los caminos, setas y matas
+	decor.scatter(FOREST_TREES, 9, math.huge, 26, function(pos, yaw)
+		if SeasonConfig.Christmas then
+			ChristmasDecor.tree(folder, pos, yaw, rng:NextNumber(0.85, 1.1))
+		else
+			StudWorld.buildBlockyTree(folder, pos, yaw, rng:NextNumber(0.9, 1.2))
 		end
-	end
-	-- Camino de tierra
-	if math.abs(x) < TerrainConfig.PathWidth / 2 + 1 and z > 0 and z < TerrainConfig.PathEndZ then
-		return false
-	end
-	return true
+	end)
+	decor.scatter(4, 3, 9, 14, buildScarecrow)
+	decor.scatter(6, 2, 10, 7, buildPumpkinPatch)
+	decor.scatter(10, 2, 12, 6, function(pos, yaw)
+		buildGlowingPumpkin(pos, rng:NextNumber(0.9, 1.2), yaw)
+	end)
+	decor.scatter(16, 2, math.huge, 4, function(pos)
+		buildMushroom(pos, rng:NextNumber() < 0.5)
+	end)
+	decor.scatter(50, 1.5, math.huge, 3, function(pos)
+		buildGrassTuft(pos, rng:NextNumber() < 0.45)
+	end)
 end
 
-local function buildFlowers(parent: Instance)
-	local settings = WorldConfig.Flowers
-	local random = Random.new(settings.Seed)
-	local folder = PartFactory.folder(parent, "Flowers")
-
-	local placed = 0
-	local attempts = 0
-	while placed < settings.Clusters and attempts < settings.Clusters * 10 do
-		attempts += 1
-		local angle = random:NextNumber(0, math.pi * 2)
-		local radius = random:NextNumber(settings.MinRadius, settings.MaxRadius)
-		local x, z = math.cos(angle) * radius, math.sin(angle) * radius
-		if isClear(x, z) then
-			placed += 1
-			local magic = random:NextNumber() < settings.MagicChance
-			local color = if magic then Colors.MagicFlower else Colors.Flowers[random:NextInteger(1, #Colors.Flowers)]
-			for index = 1, 3 do
-				local position = world(x + random:NextNumber(-1, 1), GROUND + 0.3, z + random:NextNumber(-1, 1))
-				ball(folder, "Flower" .. placed .. "_" .. index, position, random:NextNumber(0.4, 0.6), color, if magic then Enum.Material.Neon else Enum.Material.SmoothPlastic, false)
-			end
-		end
-	end
-end
-
--- Iluminación ---------------------------------------------------------------
-
+-- Luz del juego desde WorldConfig.Lighting: la misma que DayNightController usa de día, así
+-- el servidor y el ciclo de día y noche no se contradicen.
 local function applyLighting()
 	local settings = WorldConfig.Lighting
-	if not settings.Enabled then
+	if settings.Enabled == false then
 		return
 	end
-
+	pcall(function()
+		Lighting.Technology = Enum.Technology.Future
+	end)
+	Lighting.GlobalShadows = true
+	Lighting.ShadowSoftness = 0.2
 	Lighting.ClockTime = settings.ClockTime
+	Lighting.Brightness = settings.Brightness
 	Lighting.Ambient = settings.Ambient
 	Lighting.OutdoorAmbient = settings.OutdoorAmbient
+	Lighting.EnvironmentDiffuseScale = settings.EnvironmentDiffuseScale
+	Lighting.EnvironmentSpecularScale = settings.EnvironmentSpecularScale
 
-	-- Respeta un Atmosphere que ya exista en el place; solo crea el nuestro si no hay ninguno.
-	local atmosphereSettings = settings.Atmosphere
-	local existing = Lighting:FindFirstChildOfClass("Atmosphere")
-	if existing and existing.Name ~= atmosphereSettings.Name then
-		return
+	-- El efecto de esa clase que ya haya (o uno nuevo con su nombre), con los valores de la tabla
+	local function effect(className: string, values: { [string]: any })
+		local instance = Lighting:FindFirstChildOfClass(className)
+		if not instance then
+			instance = Instance.new(className)
+			instance.Name = values.Name
+			instance.Parent = Lighting
+		end
+		for key, value in values do
+			if key ~= "Name" then
+				(instance :: any)[key] = value
+			end
+		end
 	end
-	local atmosphere = existing or Instance.new("Atmosphere")
-	atmosphere.Name = atmosphereSettings.Name
-	atmosphere.Density = atmosphereSettings.Density
-	atmosphere.Offset = atmosphereSettings.Offset
-	atmosphere.Color = atmosphereSettings.Color
-	atmosphere.Decay = atmosphereSettings.Decay
-	atmosphere.Glare = atmosphereSettings.Glare
-	atmosphere.Haze = atmosphereSettings.Haze
-	atmosphere.Parent = Lighting
+
+	-- Atmósfera con un poco de bruma al horizonte
+	effect("Atmosphere", settings.Atmosphere)
+
+	-- Cielo despejado y luminoso
+	local sky = Lighting:FindFirstChildOfClass("Sky")
+	if not sky then
+		sky = Instance.new("Sky")
+		sky.Name = "RebirthSky"
+		sky.CelestialBodiesShown = true
+		sky.Parent = Lighting
+	end
+
+	-- Corrección de color (neutra: los colores tal cual), bloom suave para neones y gemas y
+	-- rayos de sol
+	effect("ColorCorrectionEffect", settings.Effects.ColorCorrection)
+	effect("BloomEffect", settings.Effects.Bloom)
+	effect("SunRaysEffect", settings.Effects.SunRays)
 end
 
 function WorldService.start()
+	print("[WorldService] Iniciando construcción del mundo...")
 	PartFactory.removeExisting(workspace, WorldConfig.ModelName)
 
-	buildTerrain()
+	-- Limpiar cualquier modelo o mesh huérfano en Workspace
+	pcall(function()
+		for _, name in { "AuxScene", "BossBanana", "jefe_banana", "banana", "BananaMesh", "BananaBoss", "CofreReclamar", "evolucionador", "Evolucionador" } do
+			local old = workspace:FindFirstChild(name)
+			if old then
+				old:Destroy()
+			end
+		end
+		for _, child in workspace:GetChildren() do
+			if child:IsA("Model") or child:IsA("BasePart") or child:IsA("MeshPart") then
+				local lName = child.Name:lower()
+				if (lName:find("banana") or lName:find("aux") or lName:find("evolucion")) and child.Name ~= WorldConfig.ModelName then
+					child:Destroy()
+				end
+			end
+		end
+	end)
 
-	-- Semilla fija: el mundo es igual en cada partida.
-	local random = Random.new(7)
+	buildFlatTerrain()
+
 	local model = Instance.new("Model")
 	model.Name = WorldConfig.ModelName
 
-	local trees = PartFactory.folder(model, "Trees")
-	buildAncientTree(trees)
-	for index, tree in WorldConfig.Trees do
-		buildTree(trees, "Tree" .. index, tree.X, tree.Y, tree.Z, random)
+	-- Suelo con caminos, muros de damero y decoración, en ese orden (la decoración evita los caminos)
+	for _, step in {
+		{ "buildStudFloor", buildStudFloor },
+		{
+			"buildCheckerWalls",
+			function(parent)
+				StudWorld.buildWalls(parent, FOREST)
+			end,
+		},
+		{ "buildForestDetails", buildForestDetails },
+		{
+			"buildChristmasDecor",
+			function(parent)
+				if SeasonConfig.Christmas then
+					ChristmasDecor.forest(parent)
+				end
+			end,
+		},
+	} do
+		local ok, err = pcall(step[2], model)
+		if not ok then
+			warn("[WorldService ERROR en " .. step[1] .. "]:", err)
+		end
 	end
-
-	local ruins = PartFactory.folder(model, "Ruins")
-	buildArch(ruins)
-	for index, column in WorldConfig.RuinColumns do
-		buildColumn(ruins, "Column" .. index, column.X, column.Y, column.Z, random)
-	end
-
-	buildSteppingStones(model)
-
-	local flora = PartFactory.folder(model, "Flora")
-	buildMushrooms(flora, random)
-	buildCrystals(flora, random)
-	buildFlowers(flora)
 
 	model.Parent = workspace
-	applyLighting()
+	pcall(applyLighting)
+	print("[WorldService] Construcción del mundo completada con éxito.")
 end
 
 return WorldService

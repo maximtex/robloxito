@@ -1,12 +1,11 @@
--- Zonas del mundo y portales entre ellas. Configuración centralizada del precio de
+-- Zonas del mundo y puertas de energía entre ellas. Configuración centralizada del precio de
 -- desbloqueo, puntos de llegada y límites de cada zona.
 --
--- Posiciones RELATIVAS al Cristal del Renacimiento (GeneratorConfig.Position), en X/Z.
--- Cada zona tiene un centro; sus puntos (llegada, portales) son relativos a ese centro.
---
--- Precio del Valle (2 500): con las fórmulas actuales (mejora N = 10·1.5^N, producción
--- 1 + N), un jugador llega al nivel 10 hacia el minuto 3 y reúne 2 500 en ~3 min más
--- (~13/s con dos mascotas comunes). Es un objetivo de progresión sin espera excesiva.
+-- Los 3 mapas son cuadrados de 320×320 (halfSpan = 160) pegados de forma continua en +Z
+-- sin puentes intermedios:
+--   1. Forest:        Z = -160 .. +160 (Center Z = 0)
+--   2. CrystalValley: Z = +160 .. +480 (Center Z = 320)
+--   3. EmberCaldera:  Z = +480 .. +800 (Center Z = 640)
 
 local ZoneConfig = {
 	DefaultZone = "Forest",
@@ -16,40 +15,52 @@ local ZoneConfig = {
 			DisplayName = "Bosque Inicial",
 			Center = Vector2.new(0, 0),
 			UnlockCost = 0, -- siempre disponible
-			-- Llegada al volver: junto al portal del bosque, mirando al cristal (-Z).
-			Arrival = Vector3.new(0, 0, 44),
+			Arrival = Vector3.new(0, 0, 125),
 			ArrivalFacing = Vector3.new(0, 0, -1),
-			Radius = 320, -- radio horizontal que ocupa la zona
+			Radius = 160,
 		},
 		CrystalValley = {
-			DisplayName = "Valle Cristalino",
-			-- Lejos del bosque (su terreno acaba en ±310) para que no se vean ni se solapen.
-			Center = Vector2.new(1400, 0),
+			DisplayName = "Valle Morado",
+			-- Pegado directamente tras el Bosque (Z = 160..480, centro en Z = 320).
+			Center = Vector2.new(0, 320),
 			UnlockCost = 2500,
-			Arrival = Vector3.new(0, 0, 44),
-			ArrivalFacing = Vector3.new(0, 0, -1),
-			Radius = 260,
+			Arrival = Vector3.new(0, 0, -132),
+			ArrivalFacing = Vector3.new(0, 0, 1),
+			Radius = 160,
+		},
+		EmberCaldera = {
+			DisplayName = "Caldera de Brasas",
+			-- Pegada directamente tras el Valle Morado (Z = 480..800, centro en Z = 640).
+			Center = Vector2.new(0, 640),
+			UnlockCost = 25000,
+			RequiredRebirths = 0,
+			Arrival = Vector3.new(0, 0, -132),
+			ArrivalFacing = Vector3.new(0, 0, 1),
+			Radius = 160,
 		},
 	},
 
-	-- Portales: dónde están (zona + desplazamiento) y a qué zona llevan.
+	-- Puertas de energía: situadas exactamente en el paso abierto del muro divisorio entre mapas.
 	Portals = {
 		ForestPortal = {
 			Zone = "Forest",
-			Offset = Vector2.new(0, 56), -- al final del camino, detrás del spawn
+			Offset = Vector2.new(0, 160), -- justo en la frontera Z = 160 entre Bosque y Valle Morado
 			Target = "CrystalValley",
 			Style = "Ancient",
 		},
-		ValleyPortal = {
+		CalderaPortal = {
 			Zone = "CrystalValley",
-			Offset = Vector2.new(0, 58),
-			Target = "Forest",
-			Style = "Return",
+			Offset = Vector2.new(0, 160), -- justo en la frontera Z = 480 (320 + 160) entre Valle y Caldera
+			Target = "EmberCaldera",
+			Style = "Ember",
 		},
 	},
 
-	-- Distancia máxima (horizontal) a un portal para desbloquear o viajar.
-	InteractDistance = 18,
+	PortalScale = 3.2,
+	PortalRadius = 15.5,
+
+	-- Distancia máxima (horizontal) a una puerta para desbloquear o viajar.
+	InteractDistance = 28,
 	-- Segundos mínimos entre viajes y entre intentos de desbloqueo de un jugador.
 	TravelCooldown = 2,
 	UnlockCooldown = 1,

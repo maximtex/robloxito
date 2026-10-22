@@ -1,9 +1,9 @@
 -- Tutorial inicial en el cliente (solo presentación; el servidor marca los pasos):
 -- - Lee TutorialStatus / TutorialStep (atributos del servidor). Sin atributos (datos no
 --   cargados o carga fallida) no se muestra nada.
--- - Tarjeta compacta arriba a la derecha (lejos del chat, del combate y de los controles
---   táctiles): paso actual, explicación y progreso orientativo. Se puede plegar (–) y
---   omitir (dos pulsaciones: "Omitir" -> "¿Seguro?"), que es lo único que se envía.
+-- - Tarjeta compacta en la columna derecha del HUD (HudDock: bajo el aviso de datos y sobre
+--   el seguimiento de misiones): paso actual, explicación y progreso orientativo. Se puede
+--   plegar (–) y omitir (dos pulsaciones: "Omitir" -> "¿Seguro?"), lo único que se envía.
 -- - Guía: en el mundo, un rayo y una flecha hacia el cristal, el santuario o el portal
 --   (desaparecen al llegar); en la interfaz, un marco que parpadea sobre el botón a usar.
 -- - Al completarlo se felicita una vez y desaparece. Nunca da recompensas.
@@ -22,6 +22,8 @@ local ZoneConfig = require(Shared.Config.ZoneConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
+local HudDock = require(script.Parent.Parent.UI.HudDock)
+local MenuBar = require(script.Parent.Parent.UI.MenuBar)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
@@ -73,11 +75,12 @@ local function guideButton(guide: string): GuiObject?
 	if not playerGui then
 		return nil
 	end
+	if guide == "PetsButton" then
+		return MenuBar.tile("Pets") -- azulejo "Mascotas" de la barra del menú
+	end
 	local hudName, buttonName = nil, nil
 	if guide == "UpgradeButton" then
 		hudName, buttonName = "EnergyHud", "UpgradeButton"
-	elseif guide == "PetsButton" then
-		hudName, buttonName = "PetsHud", "PetsButton"
 	end
 	local hud = hudName and playerGui:FindFirstChild(hudName)
 	local button = hud and hud:FindFirstChild(buttonName :: string, true)
@@ -97,73 +100,97 @@ local function buildGui()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
 
-	local card, cardScale = UiKit.panel(screenGui, "Card", CARD_SIZE, Vector2.new(1, 0), UDim2.new(1, -16, 0, 12))
-	card.Visible = false
-	local header = UiKit.text(card, "Header", {
-		Position = UDim2.fromOffset(16, 10),
-		Size = UDim2.new(1, -110, 0, 18),
-		Font = FONTS.Light,
-		TextSize = 14,
-		TextColor3 = GUIDE_COLOR,
-	})
-	local title = UiKit.text(card, "Title", {
-		Position = UDim2.fromOffset(16, 28),
-		Size = UDim2.new(1, -32, 0, 24),
-		Font = FONTS.Display,
-		TextSize = 20,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-	})
-	local body = UiKit.text(card, "Body", {
-		Position = UDim2.fromOffset(16, 54),
-		Size = UDim2.new(1, -32, 0, 36),
-		Font = FONTS.Light,
-		TextSize = 14,
-		TextColor3 = THEME.Muted,
-		TextWrapped = true,
-		TextYAlignment = Enum.TextYAlignment.Top,
-	})
-	local track = UiKit.create("Frame", {
-		Name = "Track",
-		Position = UDim2.new(0, 16, 1, -26),
-		Size = UDim2.new(1, -110, 0, 10),
-		BackgroundColor3 = THEME.Inset,
+	-- Banner amarillo estilo simulador arriba en el centro (como en las capturas 1 y 2)
+	local card = UiKit.create("Frame", {
+		Name = "Card",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 16),
+		Size = UDim2.fromOffset(520, 58),
+		BackgroundColor3 = Color3.fromRGB(255, 204, 54),
+		Visible = false,
+	}, screenGui)
+	local cardScale = UiKit.create("UIScale", {}, card)
+	UiKit.corner(card, 10)
+	UiKit.stroke(card, Color3.fromRGB(20, 20, 24), 3, 0)
+
+	-- Patrón sutil de cuadros estilo studs dentro del banner amarillo
+	local studsHolder = UiKit.create("Frame", {
+		Name = "StudsPattern",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
 	}, card)
-	UiKit.corner(track, 5)
+	for col = 0, 14 do
+		for row = 0, 1 do
+			local stud = UiKit.create("Frame", {
+				Position = UDim2.fromOffset(8 + col * 35, 6 + row * 25),
+				Size = UDim2.fromOffset(26, 20),
+				BackgroundColor3 = Color3.fromRGB(238, 182, 36),
+				BackgroundTransparency = 0.55,
+			}, studsHolder)
+			UiKit.corner(stud, 4)
+		end
+	end
+
 	local fill = UiKit.create("Frame", {
 		Name = "Fill",
 		Size = UDim2.fromScale(0, 1),
-		BackgroundColor3 = GUIDE_COLOR,
-	}, track)
-	UiKit.corner(fill, 5)
+		BackgroundColor3 = Color3.fromRGB(255, 224, 82),
+		BackgroundTransparency = 0.55,
+		ZIndex = 2,
+	}, card)
+	UiKit.corner(fill, 10)
+
+	local header = UiKit.text(card, "Header", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0, -2),
+		Size = UDim2.fromOffset(180, 24),
+		Font = FONTS.Display,
+		TextSize = 20,
+		TextColor3 = Color3.fromRGB(255, 226, 56),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "Tutorial",
+		ZIndex = 5,
+	})
+	UiKit.outline(header, 2.5)
+
+	local title = UiKit.text(card, "Title", {
+		Position = UDim2.fromOffset(16, 4),
+		Size = UDim2.new(1, -32, 1, -8),
+		Font = FONTS.Display,
+		TextSize = 28,
+		TextColor3 = Color3.new(1, 1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = 4,
+	})
+	UiKit.outline(title, 3)
+
+	local body = UiKit.text(card, "Body", {
+		Visible = false,
+		Size = UDim2.fromOffset(0, 0),
+	})
 	local progressText = UiKit.text(card, "Progress", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 1, -32),
-		Size = UDim2.fromOffset(86, 20),
-		Font = FONTS.Body,
-		TextSize = 13,
-		TextColor3 = THEME.Muted,
-		TextXAlignment = Enum.TextXAlignment.Right,
+		Visible = false,
+		Size = UDim2.fromOffset(0, 0),
 	})
 	local skip = UiKit.button(card, "Skip", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -48, 0, 8),
-		Size = UDim2.fromOffset(78, 26),
-		BackgroundColor3 = THEME.Secondary,
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -8, 0.5, 0),
+		Size = UDim2.fromOffset(58, 24),
+		BackgroundColor3 = Color3.fromRGB(40, 44, 54),
 		Font = FONTS.Body,
-		TextSize = 13,
+		TextSize = 11,
 		Text = "Omitir",
+		ZIndex = 6,
 	})
 	local collapse = UiKit.button(card, "Collapse", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 8),
-		Size = UDim2.fromOffset(32, 26),
-		BackgroundColor3 = THEME.Inset,
-		TextSize = 18,
-		Text = "–",
+		Visible = false,
+		Size = UDim2.fromOffset(0, 0),
 	})
 
 	-- Versión plegada: una píldora que vuelve a abrir la tarjeta.
-	local pill, pillScale = UiKit.panel(screenGui, "Pill", Vector2.new(170, 40), Vector2.new(1, 0), UDim2.new(1, -16, 0, 12))
+	local pill, pillScale = UiKit.panel(screenGui, "Pill", Vector2.new(170, 40), Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, 12))
 	pill.Visible = false
 	local pillButton = UiKit.create("TextButton", {
 		Name = "Button",
@@ -248,15 +275,48 @@ function TutorialController.start()
 	TweenService:Create(arrow, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { StudsOffset = Vector3.new(0, 1.2, 0) }):Play()
 	local beam = Instance.new("Beam")
 	beam.Attachment1 = targetAttachment
-	beam.Color = ColorSequence.new(GUIDE_COLOR)
-	beam.Transparency = NumberSequence.new(0.35, 0.85)
-	beam.Width0 = 0.3
-	beam.Width1 = 0.3
+	beam.Color = ColorSequence.new(Color3.new(1, 1, 1))
+	beam.Transparency = NumberSequence.new(1)
+	beam.Width0 = 0.2
+	beam.Width1 = 0.2
 	beam.FaceCamera = true
 	beam.LightEmission = 1
 	beam.Segments = 1
 	beam.Parent = anchor
 	local sourceAttachment: Attachment? = nil
+
+	-- Flechas blancas con borde negro en el suelo (como en las capturas 1, 2 y 4)
+	local MAX_CHEVRONS = 9
+	local chevrons: { Part } = {}
+	for i = 1, MAX_CHEVRONS do
+		local p = Instance.new("Part")
+		p.Name = "Chevron_" .. i
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Transparency = 1
+		p.Size = Vector3.new(2.6, 0.1, 2.6)
+		p.Parent = guideFolder
+
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.new(2.4, 0, 2.4, 0)
+		bb.AlwaysOnTop = true
+		bb.LightInfluence = 0
+		bb.Adornee = p
+		bb.Parent = p
+
+		local lbl = UiKit.text(bb, "ArrowGlyph", {
+			Size = UDim2.fromScale(1, 1),
+			Font = FONTS.Display,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(246, 250, 255),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Text = "➤",
+		})
+		UiKit.outline(lbl, 3)
+		table.insert(chevrons, p)
+	end
 
 	local function currentStep(): (any, number)
 		local status = player:GetAttribute(Attributes.TutorialStatus)
@@ -283,6 +343,28 @@ function TutorialController.start()
 			attachment.Name = "TutorialGuideSource"
 			attachment.Parent = root
 			sourceAttachment = attachment
+		end
+		if root and root:IsA("BasePart") then
+			local startPos = Vector3.new(root.Position.X, GeneratorConfig.Position.Y + 0.85, root.Position.Z)
+			local endPos = Vector3.new(target.X, GeneratorConfig.Position.Y + 0.85, target.Z)
+			local diff = endPos - startPos
+			local dist = diff.Magnitude
+			local dir = if dist > 0.1 then diff.Unit else Vector3.new(0, 0, -1)
+			for i, chev in chevrons do
+				local stepDist = i * 3.1
+				if stepDist < dist - 2 then
+					chev.CFrame = CFrame.lookAt(startPos + dir * stepDist, endPos)
+					local bb = chev:FindFirstChildOfClass("BillboardGui")
+					if bb then
+						bb.Enabled = true
+					end
+				else
+					local bb = chev:FindFirstChildOfClass("BillboardGui")
+					if bb then
+						bb.Enabled = false
+					end
+				end
+			end
 		end
 		beam.Attachment0 = sourceAttachment
 		guideFolder.Parent = Workspace
@@ -314,19 +396,6 @@ function TutorialController.start()
 		place()
 	end
 
-	-- La tarjeta baja si el aviso de estado de datos ocupa la esquina.
-	local function placeCard()
-		local status = player:FindFirstChildOfClass("PlayerGui")
-		local dataHud = status and status:FindFirstChild("DataStatusHud")
-		local dataCard = dataHud and dataHud:FindFirstChild("Card")
-		local offset = 12
-		if dataCard and dataCard:IsA("GuiObject") and dataCard.Visible then
-			offset = 12 + math.ceil(dataCard.AbsoluteSize.Y) + 8
-		end
-		ui.Card.Position = UDim2.new(1, -16, 0, offset)
-		ui.Pill.Position = UDim2.new(1, -16, 0, offset)
-	end
-
 	-- Progreso orientativo con los datos que ya ve el cliente (no decide nada).
 	local function progressFor(step): (number, string)
 		local energy = player:GetAttribute(Attributes.Energy)
@@ -353,7 +422,7 @@ function TutorialController.start()
 				ui.Pill.Visible = false
 				ui.Card.Visible = true
 				ui.Header.Text = "Tutorial"
-				ui.Title.Text = "¡Tutorial completado! ✦"
+				ui.Title.Text = "¡Tutorial completado! ★"
 				ui.Body.Text = "Sigue avanzando con las 📜 Misiones (tecla M)."
 				ui.Fill.Size = UDim2.fromScale(1, 1)
 				ui.Progress.Text = ""
@@ -372,13 +441,15 @@ function TutorialController.start()
 			return
 		end
 		wasActive = true
-		placeCard()
 		ui.Skip.Visible = true
-		ui.Collapse.Visible = true
-		ui.Header.Text = ("Tutorial · paso %d de %d"):format(index, #STEPS)
-		ui.Title.Text = step.Title
-		ui.Body.Text = step.Text
+		ui.Collapse.Visible = false
+		ui.Header.Text = "Tutorial"
 		local ratio, label = progressFor(step)
+		local cleanProgress = label:gsub("%s*⚡", "")
+		ui.Title.Text = if cleanProgress ~= ""
+			then string.upper(step.Title) .. " (" .. cleanProgress .. ")"
+			else string.upper(step.Title)
+		ui.Body.Text = step.Text
 		ui.Fill.Size = UDim2.fromScale(ratio, 1)
 		ui.Progress.Text = label
 		ui.PillButton.Text = ("📖 Tutorial %d/%d"):format(index, #STEPS)

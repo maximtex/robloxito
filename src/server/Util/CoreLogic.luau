@@ -1,9 +1,12 @@
 -- Lógica pura de los ocho núcleos elementales (sin APIs de Roblox), para probarla fuera
--- de Studio. FASE 1: no está conectada a ningún servicio todavía.
+-- de Studio. FASE 2: la usan SaveService (guardado), PlayerDataService (producción y
+-- recompensa offline) y CoreService (desbloquear, mejorar y elegir).
 --
 -- Datos de un jugador (futuro campo "Cores" del registro guardado):
 --   {
 --     Selected = "Nature",          -- elemento activo (siempre uno desbloqueado)
+--     Secondary = "Water",          -- elemento secundario (tecla R), opcional: nil si no
+--                                   -- hay; siempre desbloqueado y distinto de Selected
 --     LastSwitchAt = 0,             -- os.time() del servidor del último cambio
 --     Elements = {
 --       Nature = { Unlocked = true, Mastery = 0 },                     -- SIN Level
@@ -13,9 +16,12 @@
 --   }
 -- - El nivel de Naturaleza es UpgradeLevels.GeneratorPower (no se duplica aquí); su
 --   producción y su coste salen de Economy, igual que hoy.
--- - sanitize conserva los campos y elementos que no conoce (copiados, no compartidos).
--- - unlock y selectElement modifican los datos y DEVUELVEN el coste: quien los llame
---   (el servicio de una fase futura) debe restar esa energía en el mismo paso, sin pausas.
+-- - sanitize conserva los campos y elementos que no conoce (copiados, no compartidos), y
+--   corrections dice qué valores conocidos corrigió (para archivarlos antes).
+-- - unlock, upgrade y selectElement modifican los datos y DEVUELVEN el coste: quien los
+--   llame (CoreService) debe restar esa energía en el mismo paso, sin pausas.
+-- - Afinidad: el núcleo seleccionado (si no es Naturaleza) produce +Affinity.Bonus;
+--   effectiveProduction la incluye, totalProduction y offlineReward no.
 -- - offlineReward solo calcula: no concede nada.
 -- - El multiplicador de mascotas se aplica UNA vez, sobre la suma de producciones base;
 --   switchCost y offlineReward calculan la producción desde los datos (nunca la reciben).
@@ -29,10 +35,10 @@ local Economy: any
 local EconomyConfig: any
 
 export type ElementData = { Unlocked: boolean, Level: number?, Mastery: number, UnlockedAt: number? }
-export type CoreData = { Selected: string, LastSwitchAt: number, Elements: { [string]: any } }
+export type CoreData = { Selected: string, Secondary: string?, LastSwitchAt: number, Elements: { [string]: any } }
 
 -- Campos que sanitize interpreta; cualquier otro se conserva tal cual.
-local KNOWN_TOP = { Selected = true, LastSwitchAt = true, Elements = true }
+local KNOWN_TOP = { Selected = true, Secondary = true, LastSwitchAt = true, Elements = true }
 local KNOWN_ELEMENT = { Unlocked = true, Level = true, Mastery = true, UnlockedAt = true }
 local MAX_TIME = 1e10 -- os.time() razonable (año ~2286)
 local MAX_EXACT = 2 ^ 53 -- mayor entero exacto en un número de Luau
@@ -147,6 +153,13 @@ function CoreLogic.validateConfig(config: any, economyConfig: any): (boolean, { 
 	end
 	positive(config, "MaxMastery", 0, true)
 	positive(config, "MaxPetMultiplier", 1, false)
+	-- Afinidad: opcional (sin ella no hay bonificación).
+	if config.Affinity ~= nil then
+		local bonus = type(config.Affinity) == "table" and config.Affinity.Bonus
+		if not (isFiniteNumber(bonus) and bonus >= 0 and bonus <= 10) then
+			fail("Affinity.Bonus debe ser un número entre 0 y 10")
+		end
+	end
 
 	-- Los valores extremos que produce la configuración deben ser enteros exactos
 	-- (< 2^53): ni infinitos ni tan grandes que pierdan precisión al sumar energía.
@@ -164,7 +177,7 @@ function CoreLogic.validateConfig(config: any, economyConfig: any): (boolean, { 
 		local extremes = {
 			{ "coste de desbloqueo máximo", unlock.BaseCost * unlock.Growth ^ (count - 2) },
 			{ "coste de mejora máximo", upgrade.BaseUpgradeCost * upgrade.TierMultiplier ^ (count - 1) * upgrade.CostGrowth ^ (upgrade.MaxLevel - 1) },
-			{ "producción máxima con mascotas", productionMax * config.MaxPetMultiplier },
+			{ "producción máxima con mascotas", productionMax * config.MaxPetMultiplier * (1 + (if type(config.Affinity) == "table" then config.Affinity.Bonus else 0)) },
 			{ "recompensa offline máxima", offline.CapSeconds * productionMax * config.MaxPetMultiplier * offline.Efficiency },
 		}
 		for _, extreme in extremes do
@@ -282,7 +295,69 @@ function CoreLogic.sanitize(raw: any): CoreData
 	if CoreLogic.isUnlocked(data, selected) then
 		data.Selected = selected
 	end
+	-- El secundario (si hay) también: desbloqueado y distinto del principal.
+	local secondary = raw.Secondary
+	if CoreLogic.isUnlocked(data, secondary) and secondary ~= data.Selected then
+		data.Secondary = secondary
+	end
 	return data
+end
+
+-- Copia profunda con solo datos válidos y guardables (la misma que usa sanitize).
+CoreLogic.storableCopy = deepCopy
+
+-- Un valor original tal cual si es guardable; si no (NaN, infinito, función...), su
+-- descripción en texto, para que el archivo conserve qué había.
+local function describe(value: any): any
+	local copy = deepCopy(value)
+	if copy == nil then
+		return ("<%s: %s>"):format(typeof(value), tostring(value))
+	end
+	return copy
+end
+
+-- Valores conocidos que sanitize ha corregido: { [ruta] = valor original }, o nil si no
+-- corrigió nada. Sirve para archivarlos ANTES de normalizar. Un campo ausente (partidas
+-- antiguas) no es una corrección. Los campos y elementos desconocidos no aparecen: los
+-- conserva sanitize.
+function CoreLogic.corrections(raw: any, clean: CoreData): { [string]: any }?
+	if raw == nil then
+		return nil
+	end
+	local changes = {}
+	local found = false
+	local function note(path: string, original: any, fixed: any)
+		-- NaN ~= NaN: también se anota. Un valor corregido nunca es una tabla: si `fixed` lo
+		-- es, sanitize conservó una copia (Level de Naturaleza) y no se perdió nada.
+		if original ~= nil and original ~= fixed and type(fixed) ~= "table" then
+			changes[path] = describe(original)
+			found = true
+		end
+	end
+	if type(raw) ~= "table" then
+		note("Cores", raw, nil)
+		return changes
+	end
+	note("Selected", raw.Selected, clean.Selected)
+	note("Secondary", raw.Secondary, clean.Secondary)
+	note("LastSwitchAt", raw.LastSwitchAt, clean.LastSwitchAt)
+	local elements = raw.Elements
+	if type(elements) ~= "table" then
+		note("Elements", elements, nil)
+	else
+		for _, id in Config.Order do
+			local entry = elements[id]
+			if type(entry) ~= "table" then
+				note("Elements." .. id, entry, nil)
+			else
+				local fixed = clean.Elements[id]
+				for field in KNOWN_ELEMENT do
+					note(("Elements.%s.%s"):format(id, field), entry[field], fixed[field])
+				end
+			end
+		end
+	end
+	return if found then changes else nil
 end
 
 function CoreLogic.isUnlocked(data: CoreData, elementId: any): boolean
@@ -291,6 +366,18 @@ function CoreLogic.isUnlocked(data: CoreData, elementId: any): boolean
 	end
 	local entry = data.Elements[elementId]
 	return type(entry) == "table" and entry.Unlocked == true
+end
+
+-- Elemento secundario válido (desbloqueado y distinto del principal) o nil.
+function CoreLogic.secondaryOf(data: CoreData): string?
+	if type(data) ~= "table" then
+		return nil
+	end
+	local secondary = data.Secondary
+	if CoreLogic.isUnlocked(data, secondary) and secondary ~= data.Selected then
+		return secondary
+	end
+	return nil
 end
 
 -- Nivel de un núcleo, SIEMPRE un entero en [0, nivel máximo] aunque los datos estén mal
@@ -347,20 +434,31 @@ end
 
 -- Producción ----------------------------------------------------------------------------
 
+-- Producción BASE (sin mascotas) que tendría un núcleo a un nivel dado, esté o no
+-- desbloqueado (para mostrar lo que dará al despertarlo o mejorarlo). 0 si el elemento
+-- no existe; el nivel se valida (entero en [0, máximo]).
+function CoreLogic.productionAt(elementId: any, level: any): number
+	local index = CoreLogic.indexOf(elementId)
+	if not index then
+		return 0
+	end
+	local maxLevel = if index == 1 then EconomyConfig.Upgrades[defaultUpgradeId()].MaxLevel else Config.Upgrade.MaxLevel
+	local clean = if isFiniteNumber(level) and level > 0 then math.min(math.floor(level), maxLevel) else 0
+	if index == 1 then
+		-- Naturaleza = la producción actual del cristal, con la fórmula de Economy sin
+		-- cambios, pero con el nivel ya validado (Economy no recibe NaN ni negativos).
+		return Economy.getProductionPerSecond({ [defaultUpgradeId()] = clean })
+	end
+	local upgrade = Config.Upgrade
+	return upgrade.BaseProduction * upgrade.TierMultiplier ^ (index - 1) * (1 + clean)
+end
+
 -- Producción BASE (sin mascotas) de un núcleo desbloqueado; 0 si está bloqueado.
 function CoreLogic.coreProduction(data: CoreData, upgradeLevels: { [string]: number }?, elementId: string): number
 	if not CoreLogic.isUnlocked(data, elementId) then
 		return 0
 	end
-	local level = CoreLogic.level(data, upgradeLevels, elementId)
-	if CoreLogic.isDefault(elementId) then
-		-- Naturaleza = la producción actual del cristal, con la fórmula de Economy sin
-		-- cambios, pero con el nivel ya validado (Economy no recibe NaN ni negativos).
-		return Economy.getProductionPerSecond({ [defaultUpgradeId()] = level })
-	end
-	local index = CoreLogic.indexOf(elementId) :: number
-	local upgrade = Config.Upgrade
-	return upgrade.BaseProduction * upgrade.TierMultiplier ^ (index - 1) * (1 + level)
+	return CoreLogic.productionAt(elementId, CoreLogic.level(data, upgradeLevels, elementId))
 end
 
 -- Suma de producciones BASE de los núcleos desbloqueados (sin mascotas).
@@ -381,6 +479,28 @@ end
 -- Producción total: (Σ producción base) · multiplicador de mascotas, aplicado UNA vez.
 function CoreLogic.totalProduction(data: CoreData, upgradeLevels: { [string]: number }?, petMultiplier: number?): number
 	return CoreLogic.baseProduction(data, upgradeLevels) * cleanMultiplier(petMultiplier)
+end
+
+-- Fracción de afinidad configurada (0 si no hay).
+function CoreLogic.affinityRate(): number
+	local affinity = Config.Affinity
+	return if type(affinity) == "table" and isFiniteNumber(affinity.Bonus) then affinity.Bonus else 0
+end
+
+-- Producción extra (base, sin mascotas) del núcleo seleccionado. 0 con Naturaleza
+-- seleccionada, con un núcleo bloqueado o con datos mal formados.
+function CoreLogic.affinityBonus(data: CoreData, upgradeLevels: { [string]: number }?): number
+	local selected = if type(data) == "table" then data.Selected else nil
+	if not CoreLogic.indexOf(selected) or CoreLogic.isDefault(selected) then
+		return 0
+	end
+	return CoreLogic.coreProduction(data, upgradeLevels, selected) * CoreLogic.affinityRate()
+end
+
+-- Producción con la que juega el jugador: (Σ base + afinidad) · mascotas (una vez).
+-- Solo con Naturaleza es exactamente la producción de siempre (Economy · mascotas).
+function CoreLogic.effectiveProduction(data: CoreData, upgradeLevels: { [string]: number }?, petMultiplier: number?): number
+	return (CoreLogic.baseProduction(data, upgradeLevels) + CoreLogic.affinityBonus(data, upgradeLevels)) * cleanMultiplier(petMultiplier)
 end
 
 -- Acciones (modifican los datos y devuelven el coste; el llamador resta la energía) ----
@@ -431,6 +551,31 @@ function CoreLogic.unlock(data: CoreData, elementId: any, energy: number, now: n
 	return "Success", cost
 end
 
+-- Devuelve (código, coste). Sube un nivel un núcleo distinto de Naturaleza (Naturaleza se
+-- mejora con la Resonancia del Cristal, en UpgradeService). Códigos: Success,
+-- InvalidRequest (elemento desconocido, Naturaleza o datos sin estructura), Locked
+-- (bloqueado), MaxLevel, InsufficientEnergy. Cualquier rechazo deja los datos sin tocar.
+function CoreLogic.upgrade(data: CoreData, elementId: any, energy: number): (string, number)
+	local index = CoreLogic.indexOf(elementId)
+	if not index or index == 1 or not validStructure(data) then
+		return "InvalidRequest", 0
+	end
+	local entry = data.Elements[elementId]
+	if type(entry) ~= "table" or not CoreLogic.isUnlocked(data, elementId) then
+		return "Locked", 0
+	end
+	local level = CoreLogic.level(data, nil, elementId)
+	local cost = CoreLogic.upgradeCost(elementId, level)
+	if not cost then
+		return "MaxLevel", 0
+	end
+	if not isFiniteNumber(energy) or energy < cost then
+		return "InsufficientEnergy", cost
+	end
+	entry.Level = level + 1
+	return "Success", cost
+end
+
 -- Coste de cambiar de elemento, calculado con la producción BASE de los datos (sin
 -- mascotas): quien llama no puede pasar una producción equivocada.
 function CoreLogic.switchCost(data: CoreData, upgradeLevels: { [string]: number }?): number
@@ -460,7 +605,44 @@ function CoreLogic.selectElement(data: CoreData, upgradeLevels: { [string]: numb
 	if not isFiniteNumber(energy) or energy < cost then
 		return "InsufficientEnergy", cost
 	end
+	-- Si era el secundario, se intercambian (el principal anterior pasa a la R).
+	if data.Secondary == elementId then
+		data.Secondary = data.Selected
+	end
 	data.Selected = elementId
+	data.LastSwitchAt = clock
+	return "Success", cost
+end
+
+-- Elemento secundario (tecla R). Mismo coste y enfriamiento que cambiar el principal
+-- (comparten LastSwitchAt). Elegir el principal actual como secundario los intercambia
+-- (solo si ya había secundario; si no, el principal se quedaría vacío: AlreadySelected).
+-- Devuelve (código, coste). Códigos: Success, InvalidRequest, Locked, AlreadySelected,
+-- TooFast, InsufficientEnergy. Cualquier rechazo deja los datos sin tocar.
+function CoreLogic.selectSecondary(data: CoreData, upgradeLevels: { [string]: number }?, elementId: any, energy: number, now: number): (string, number)
+	if not CoreLogic.indexOf(elementId) or not validNow(now) or not validStructure(data) then
+		return "InvalidRequest", 0
+	end
+	if not CoreLogic.isUnlocked(data, elementId) then
+		return "Locked", 0
+	end
+	local current = if CoreLogic.isUnlocked(data, data.Secondary) and data.Secondary ~= data.Selected then data.Secondary else nil
+	if current == elementId or (data.Selected == elementId and current == nil) then
+		return "AlreadySelected", 0
+	end
+	local clock = math.floor(now)
+	local lastSwitch = cleanTime(data.LastSwitchAt)
+	if lastSwitch > 0 and clock - lastSwitch < Config.Switch.CooldownSeconds then
+		return "TooFast", 0
+	end
+	local cost = CoreLogic.switchCost(data, upgradeLevels)
+	if not isFiniteNumber(energy) or energy < cost then
+		return "InsufficientEnergy", cost
+	end
+	if data.Selected == elementId then
+		data.Selected = current :: string -- intercambio
+	end
+	data.Secondary = elementId
 	data.LastSwitchAt = clock
 	return "Success", cost
 end
@@ -468,11 +650,14 @@ end
 -- Producción offline (solo cálculo; NO concede energía ni escribe nada) ------------------
 
 -- Devuelve (energía, segundos computados) para una ausencia de `now - lastSeen`:
---   floor(min(ausencia, CapSeconds) · producción base total · mascotas · Efficiency)
+--   floor(min(ausencia, CapSeconds + extra) · producción base total · mascotas · Efficiency)
 -- La producción se calcula aquí, desde los datos, con el multiplicador de mascotas
 -- aplicado UNA sola vez. Sin `lastSeen` válido (> 0, partidas antiguas), con ausencia
 -- cero o negativa, o con tiempos no válidos, devuelve 0. No modifica `data`.
-function CoreLogic.offlineReward(data: CoreData, upgradeLevels: { [string]: number }?, petMultiplier: any, lastSeen: any, now: any): (number, number)
+-- `extraSeconds` (opcional): horas extra del tope (ventaja "Sueño profundo" del
+-- renacimiento); se ignora si no es válido y nunca pasa de una semana.
+local MAX_EXTRA_OFFLINE = 7 * 24 * 60 * 60
+function CoreLogic.offlineReward(data: CoreData, upgradeLevels: { [string]: number }?, petMultiplier: any, lastSeen: any, now: any, extraSeconds: any?): (number, number)
 	if not (validNow(lastSeen) and validNow(now)) then
 		return 0, 0
 	end
@@ -480,7 +665,8 @@ function CoreLogic.offlineReward(data: CoreData, upgradeLevels: { [string]: numb
 	if elapsed <= 0 then
 		return 0, 0
 	end
-	local seconds = math.min(elapsed, Config.Offline.CapSeconds)
+	local extra = if isFiniteNumber(extraSeconds) and (extraSeconds :: number) > 0 then math.min(extraSeconds :: number, MAX_EXTRA_OFFLINE) else 0
+	local seconds = math.min(elapsed, Config.Offline.CapSeconds + extra)
 	local production = if Config.Offline.IncludePetMultiplier
 		then CoreLogic.totalProduction(data, upgradeLevels, petMultiplier)
 		else CoreLogic.baseProduction(data, upgradeLevels)

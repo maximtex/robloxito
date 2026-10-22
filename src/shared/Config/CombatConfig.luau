@@ -2,30 +2,35 @@
 -- CombatMath; el cliente solo usa estos valores para la interfaz.
 --
 -- Fórmula del daño (CombatMath.playerDamage):
---   daño = (BaseDamage + DamagePerLevel · nivel de "Resonancia del Cristal")
+--   daño = (BaseDamage + DamagePerLevel · nivel de "Potencia del Láser")
 --          · (1 + PetDamageShare · (multiplicador de mascotas - 1))
--- Las mejoras siguen siendo la vía principal: cada nivel suma daño además de producción.
+-- La Potencia del Láser se compra con el dinero que sueltan los enemigos (Tienda de Láser).
 -- Las mascotas aportan la mitad de su bonificación al daño (ej. ×1.35 -> +17.5 %).
 -- Ejemplos: nivel 0 sin mascotas = 10; nivel 10 con ×1.35 = 35.25; nivel 16 con ×2 = 63.
 
 local CombatConfig = {
 	BaseDamage = 10,
 	DamagePerLevel = 2,
-	DamageUpgradeId = "GeneratorPower",
+	DamageUpgradeId = "LaserPower",
 	PetDamageShare = 0.5,
 
-	AttackCooldown = 0.5, -- segundos entre golpes
-	AttackRange = 9, -- studs desde el jugador hasta el borde del enemigo
-	AttackArcDot = -0.2, -- ~100° a cada lado del frente; muy cerca (<4) golpea en cualquier dirección
-	MaxTargetsPerSwing = 3, -- un golpe puede alcanzar a varios enemigos, cada uno una sola vez
+	-- Disparo por clic (clic, toque, F o el botón): un rayo al enemigo apuntado, el más
+	-- cercano a la línea del cursor o del toque, o, si no se apunta a ninguno, al más
+	-- cercano a tiro. Cada disparo hace ShotDamageScale del daño de arriba: con el doble de
+	-- ritmo que el antiguo tajo (0.5 s), el daño por segundo es el mismo.
+	AttackCooldown = 0.25, -- segundos entre disparos
+	ShotRange = 60, -- studs desde el jugador hasta el borde del enemigo
+	ShotDamageScale = 0.5,
+	AimRadius = 1, -- margen (studs) alrededor del cuerpo del enemigo para darlo por apuntado con el cursor
 
 	-- Animación de ataque. Orden de preferencia:
 	-- 1. AttackAnimationId: un rbxassetid://... propio (sin configurar).
 	-- 2. UseAvatarSlashAnimation: reutiliza la animación "toolslash" que trae el script
 	--    Animate del propio personaje (no se inventa ningún Id ni se cambia el avatar).
-	-- 3. Sin animación: el ataque funciona igual, solo con el efecto del tajo.
+	-- 3. Sin animación: el ataque funciona igual, solo con el efecto del disparo.
+	-- El disparo no usa la de tajo: un mandoble por cada clic no casa con un rayo.
 	AttackAnimationId = nil :: string?,
-	UseAvatarSlashAnimation = true,
+	UseAvatarSlashAnimation = false,
 
 	-- Sonidos del contenido integrado de Roblox. Solo se usan archivos verificados en las
 	-- instalaciones de Studio y Player (content/sounds). nil = sin sonido.

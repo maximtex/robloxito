@@ -41,14 +41,22 @@ do
 		end
 	end
 	check("misiones y diarias no comparten Id (se reclaman por Id)", not dup)
-	-- Equilibrio: peor caso real del día = diarias fijas + las de mayor tope del resto
-	local worst, others = 0, {}
-	for _, def in QuestConfig.Daily do
-		if table.find(QuestConfig.DailyAlways, def.Id) then worst += def.Reward.Max else table.insert(others, def.Reward.Max) end
+	-- Equilibrio: peor caso real del día = diarias fijas + las de mayor tope del resto.
+	-- Antes de la Caldera de Brasas (sin sus diarias) sigue siendo ~1,5 Colosos; con ella,
+	-- como mucho ~1 Titán de la Caldera con la energía de 3 renacimientos.
+	local function worstDay(includeCaldera)
+		local worst, others = 0, {}
+		for _, def in QuestConfig.Daily do
+			if includeCaldera or def.RequiresZone ~= "EmberCaldera" then
+				if table.find(QuestConfig.DailyAlways, def.Id) then worst += def.Reward.Max else table.insert(others, def.Reward.Max) end
+			end
+		end
+		table.sort(others, function(a, b) return a > b end)
+		for i = 1, QuestConfig.DailyCount - #QuestConfig.DailyAlways do worst += others[i] or 0 end
+		return worst
 	end
-	table.sort(others, function(a, b) return a > b end)
-	for i = 1, QuestConfig.DailyCount - #QuestConfig.DailyAlways do worst += others[i] or 0 end
-	check(("peor día posible con las diarias: %d de energía (<= 6000, ~1,5 Colosos)"):format(worst), worst <= 6000)
+	check(("peor día sin la Caldera: %d de energía (<= 6000, ~1,5 Colosos)"):format(worstDay(false)), worstDay(false) <= 6000)
+	check(("peor día con la Caldera: %d de energía (<= 30000, ~1 Titán con 3 renacimientos)"):format(worstDay(true)), worstDay(true) <= 30000)
 end
 
 print("-- 1. Progreso de objetivos")
@@ -261,6 +269,26 @@ clock += 1
 fireServer("ClaimQuest", alice, "DefeatFive")
 check("si el guardado falla, la reclamación sigue marcada en memoria (no se repite)", okSave == false and results(alice)[#results(alice)][2] == "AlreadyClaimed")
 storeFailNext = 0
+-- Diarias de mejoras y huevos: llegan del UpgradeService / PetService por GameEvents.
+do
+	local q = profile.PetData.Quests
+	q.Daily.Ids = { "DailyUpgrade", "DailyEggs", "DailyHunt" }
+	q.Daily.Progress = {}
+	q.Daily.Claimed = {}
+	q.Daily.Notified = {}
+	local kills = q.Stats.Kills
+	for _ = 1, 12 do
+		GameEvents.fire("UpgradePurchased", alice, "GeneratorPower")
+	end
+	GameEvents.fire("UpgradePurchased", alice, "OtraMejora") -- solo cuenta la Resonancia del Cristal
+	GameEvents.fire("EggOpened", alice, "ForestEgg")
+	check("diaria de mejoras: 10/10 (con tope); huevos: 1/3", q.Daily.Progress.DailyUpgrade == 10 and q.Daily.Progress.DailyEggs == 1)
+	check("esos eventos no tocan otras diarias ni las estadísticas", (q.Daily.Progress.DailyHunt or 0) == 0 and q.Stats.Kills == kills)
+	GameEvents.fire("EggOpened", bob, "ForestEgg")
+	check("con los datos cargando no cuenta", profiles[bob].PetData.Quests.Daily.Progress.DailyEggs == nil)
+	local data = QuestLogic.empty()
+	check("evento sin diarias activas: válido y sin progreso", QuestLogic.record(data, { Type = "Egg" }) and next(data.Daily.Progress) == nil)
+end
 -- Jugador antiguo cargado de un registro sin Quests
 storeData["player_99"] = { Version = 1, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = {}, NextPetUid = 2 }
 local st, oldData = SaveService.load(99)

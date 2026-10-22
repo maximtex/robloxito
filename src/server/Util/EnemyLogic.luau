@@ -1,5 +1,6 @@
 -- Lógica pura de enemigos (sin APIs de Roblox), para poder probarla fuera de Studio.
--- La usa EnemyService para el daño, la muerte y el reparto de recompensas, y
+-- La usa EnemyService para el daño, la muerte, el reparto de recompensas y los estados
+-- de control de las habilidades (ralentizar, inmovilizar, aturdir, marcar), y
 -- CombatService para elegir los objetivos de un golpe.
 
 local EnemyLogic = {}
@@ -98,6 +99,118 @@ function EnemyLogic.selectTargets(originX: number, originZ: number, lookX: numbe
 		result[index] = hits[index].Id
 	end
 	return result
+end
+
+-- Estados de control (habilidades elementales) -------------------------------------
+-- Tiempos en os.clock(). Cada estado dura hasta su "Until"; uno nuevo nunca acorta el
+-- que ya hay y, si coinciden, se queda la ralentización más fuerte y el bonus mayor.
+
+export type Control = {
+	SlowUntil: number,
+	SlowFactor: number, -- multiplicador de velocidad y ritmo de ataque (0.1..1)
+	RootUntil: number, -- no anda (sí ataca si te tiene a su alcance)
+	StunUntil: number, -- ni anda ni ataca
+	VulnerableUntil: number,
+	VulnerableBonus: number, -- daño recibido extra (0..1)
+	AuraElement: string?, -- marca elemental para los combos (nil si no hay)
+	AuraUntil: number,
+}
+
+function EnemyLogic.newControl(): Control
+	return { SlowUntil = 0, SlowFactor = 1, RootUntil = 0, StunUntil = 0, VulnerableUntil = 0, VulnerableBonus = 0, AuraElement = nil, AuraUntil = 0 }
+end
+
+function EnemyLogic.clearControl(control: Control)
+	control.SlowUntil, control.SlowFactor = 0, 1
+	control.RootUntil, control.StunUntil = 0, 0
+	control.VulnerableUntil, control.VulnerableBonus = 0, 0
+	control.AuraElement, control.AuraUntil = nil, 0
+end
+
+local function validSeconds(value: any): boolean
+	return type(value) == "number" and value == value and value > 0 and value < math.huge
+end
+
+-- Marca elemental (combos): la pone o la quita (element = nil). Nunca dura más de maxSeconds.
+function EnemyLogic.setAura(control: Control, element: string?, now: number, seconds: number?, maxSeconds: number)
+	if element == nil or not validSeconds(seconds) then
+		control.AuraElement, control.AuraUntil = nil, 0
+		return
+	end
+	control.AuraElement = element
+	control.AuraUntil = now + math.min(seconds :: number, maxSeconds)
+end
+
+-- Marca activa o nil.
+function EnemyLogic.auraOf(control: Control, now: number): string?
+	if control.AuraElement ~= nil and now < control.AuraUntil then
+		return control.AuraElement
+	end
+	return nil
+end
+
+-- Aplica un estado. kind: "Slow" (factor = velocidad), "Root", "Stun" o "Vulnerable"
+-- (factor = daño extra). Devuelve true si se ha aplicado.
+function EnemyLogic.applyControl(control: Control, kind: string, now: number, seconds: number, factor: number?, maxSeconds: number): boolean
+	if not validSeconds(seconds) then
+		return false
+	end
+	local untilTime = now + math.min(seconds, maxSeconds)
+	if kind == "Slow" then
+		if type(factor) ~= "number" or factor ~= factor then
+			return false
+		end
+		local clean = math.clamp(factor, 0.1, 1)
+		local active = now < control.SlowUntil
+		control.SlowFactor = if active then math.min(control.SlowFactor, clean) else clean
+		control.SlowUntil = math.max(control.SlowUntil, untilTime)
+	elseif kind == "Root" then
+		control.RootUntil = math.max(control.RootUntil, untilTime)
+	elseif kind == "Stun" then
+		control.StunUntil = math.max(control.StunUntil, untilTime)
+	elseif kind == "Vulnerable" then
+		if type(factor) ~= "number" or factor ~= factor then
+			return false
+		end
+		local clean = math.clamp(factor, 0, 1)
+		local active = now < control.VulnerableUntil
+		control.VulnerableBonus = if active then math.max(control.VulnerableBonus, clean) else clean
+		control.VulnerableUntil = math.max(control.VulnerableUntil, untilTime)
+	else
+		return false
+	end
+	return true
+end
+
+function EnemyLogic.isStunned(control: Control, now: number): boolean
+	return now < control.StunUntil
+end
+
+-- Velocidad al andar con los estados actuales (base = ya con la furia aplicada).
+function EnemyLogic.speed(base: number, control: Control, now: number): number
+	if now < control.RootUntil or now < control.StunUntil then
+		return 0
+	end
+	if now < control.SlowUntil then
+		return base * control.SlowFactor
+	end
+	return base
+end
+
+-- Tiempo hasta el siguiente golpe: más largo mientras está ralentizado.
+function EnemyLogic.attackCooldown(cooldown: number, control: Control, now: number): number
+	if now < control.SlowUntil and control.SlowFactor > 0 then
+		return cooldown / control.SlowFactor
+	end
+	return cooldown
+end
+
+-- Daño que recibe con los estados actuales (marcado: más daño).
+function EnemyLogic.damageTaken(amount: number, control: Control, now: number): number
+	if now < control.VulnerableUntil then
+		return amount * (1 + control.VulnerableBonus)
+	end
+	return amount
 end
 
 -- Objetivos de un área: vivos, con su borde dentro del radio alrededor del centro, sin

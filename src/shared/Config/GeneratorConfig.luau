@@ -13,6 +13,13 @@ local GeneratorConfig = {
 	-- colocan respecto a él): no se mueve. Y = 0.5 es la superficie del terreno.
 	Position = Vector3.new(0, 0.5, -25),
 
+	-- El terreno de Roblox (vóxeles de 4 studs) deja la superficie ~2 studs POR ENCIMA
+	-- del borde superior de cada FillBlock/FillCylinder/FillBall (medido en Studio:
+	-- tope 0.5 -> superficie 2.5; tope -1.5 -> superficie 0.5). WorldService,
+	-- ValleyService y las arenas bajan sus rellenos esta cantidad para que la superficie
+	-- quede en Position.Y y nada (plataforma, huevos, altares, flores) quede enterrado.
+	TerrainFillOffset = 2,
+
 	Colors = {
 		-- Paleta del santuario
 		Turquoise = Color3.fromRGB(32, 229, 209), -- #20E5D1 energía principal
@@ -31,8 +38,8 @@ local GeneratorConfig = {
 		Gold = Color3.fromRGB(244, 204, 110),
 	},
 
-	-- Santuario (medidas en studs). 30 de diámetro: lo máximo que cabe sin invadir el
-	-- santuario del Huevo del Bosque (-20, 12) ni el arco en ruinas (Z = 17).
+	-- Santuario (medidas en studs). 30 de diámetro: deja libre el arco en ruinas (Z = 17)
+	-- y el paso entre la plataforma y los altares del Círculo Elemental.
 	PlatformDiameter = 30,
 	PlatformHeight = 0.8, -- se sube andando (sin saltar)
 	PillarRadius = 12.3, -- cuatro pilares bajos en diagonal: accesos libres

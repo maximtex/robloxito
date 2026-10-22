@@ -60,13 +60,31 @@ def check_no_require(source):
 BASE = [
     ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
     ("Economy", "src/shared/Economy.luau"),
+    ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
+    ("RebirthLogic", "src/shared/RebirthLogic.luau"),
+    ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+    ("AdventureLogic", "src/shared/AdventureLogic.luau"),
     ("PetConfig", "src/shared/Config/PetConfig.luau"),
     ("PetMath", "src/shared/PetMath.luau"),
     ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
     ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
     ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
     ("QuestConfig", "src/shared/Config/QuestConfig.luau"),
+    ("GameEvents", "src/server/Util/GameEvents.luau"),
+] + [
+    # Premios, tienda y semana (campos Rewards, Shop y Weekly del guardado v6).
+    ("RewardConfig", "src/shared/Config/RewardConfig.luau"),
+    ("RewardLogic", "src/server/Util/RewardLogic.luau"),
+    ("MonetizationConfig", "src/shared/Config/MonetizationConfig.luau"),
+    ("MonetizationLogic", "src/shared/MonetizationLogic.luau"),
+    ("LeaderboardLogic", "src/server/Util/LeaderboardLogic.luau"),
 ]
+# Núcleos: SaveService los sanea y los guarda (necesita CoreLogic inicializado).
+CORE = [
+    ("CoreConfig", "src/shared/Config/CoreConfig.luau"),
+    ("CoreLogic", "src/server/Util/CoreLogic.luau"),
+]
+CORE_INIT = "CoreLogic.init(CoreConfig, Economy, EconomyConfig)\n"
 SERVICES_AFTER_GLUE = [
     ("EnergyService", "src/server/Services/EnergyService.luau"),
     ("UpgradeService", "src/server/Services/UpgradeService.luau"),
@@ -89,8 +107,8 @@ def services_suite(prelude, with_dev_config, body):
         ("TutorialLogic", "src/server/Util/TutorialLogic.luau"),
     ]
     out = list(prelude)
-    out += [mod(n, p) for n, p in order]
-    out.append("QuestLogic.init(QuestConfig, EnemyConfig, Economy)\nTutorialLogic.init(TutorialConfig)\n")
+    out += [mod(n, p) for n, p in order + CORE]
+    out.append("QuestLogic.init(QuestConfig, EnemyConfig, Economy)\nTutorialLogic.init(TutorialConfig)\n" + CORE_INIT)
     out += [mod("SaveService", "src/server/Services/SaveService.luau"), mod("PlayerDataService", "src/server/Services/PlayerDataService.luau")]
     out.append(harness("tutorial_glue.luau"))
     out += [mod(n, p) for n, p in SERVICES_AFTER_GLUE]
@@ -100,7 +118,7 @@ def services_suite(prelude, with_dev_config, body):
 
 # Recetas de cada batería -------------------------------------------------------------
 
-def build_persist():
+def persist_suite(body, extra=(), after_glue=()):
     order = BASE + [
         ("Constants", "src/shared/Constants.luau"),
         ("DevConfig", "src/server/DevConfig.luau"),
@@ -108,7 +126,9 @@ def build_persist():
         ("QuestLogic", "src/server/Util/QuestLogic.luau"),
         ("TutorialConfig", "src/shared/Config/TutorialConfig.luau"),
         ("TutorialLogic", "src/server/Util/TutorialLogic.luau"),
+    ] + CORE + [
         ("SaveService", "src/server/Services/SaveService.luau"),
+    ] + list(extra) + [
         ("PlayerDataService", "src/server/Services/PlayerDataService.luau"),
     ]
     out = [harness("persist_stubs.luau")]
@@ -116,17 +136,80 @@ def build_persist():
         out.append(mod(n, p))
         if n == "TutorialLogic":
             out.append("TutorialLogic.init(TutorialConfig)\n")
+        if n == "CoreLogic":
+            out.append(CORE_INIT)
     out.append(harness("persist_glue.luau"))
     out.append(mod("UpgradeService", "src/server/Services/UpgradeService.luau"))
     out.append(mod("QuestService", "src/server/Services/QuestService.luau"))
-    out.append(suite("persist_body.luau"))
+    out += [mod(n, p) for n, p in after_glue]
+    out.append(suite(body))
     return "\n".join(out)
+
+
+def build_persist():
+    return persist_suite("persist_body.luau")
+
+
+def build_persist_cores():
+    # Con el SaveService v2 congelado (tests/fixtures) para probar la vuelta atrás.
+    return persist_suite("persist_cores_body.luau", [("SaveServiceV2", "tests/fixtures/SaveService_v2.luau")])
+
+
+def build_core_service():
+    # Fase 2 de los núcleos: CoreService real sobre la persistencia real.
+    return persist_suite("core_service_body.luau", after_glue=[
+        ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
+        ("CombatMath", "src/shared/CombatMath.luau"),
+        ("AbilityConfig", "src/shared/Config/AbilityConfig.luau"),
+        ("AbilityLogic", "src/shared/AbilityLogic.luau"),
+        ("CoreService", "src/server/Services/CoreService.luau"),
+    ])
+
+
+def build_rebirth():
+    # RebirthService real sobre la persistencia real; PetService simulado (rebirth_glue).
+    return persist_suite("rebirth_body.luau", after_glue=[
+        ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
+        ("CombatMath", "src/shared/CombatMath.luau"),
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
+        ("EggLogic", "src/server/Util/EggLogic.luau"),
+        ("PetService", "tests/harness/rebirth_glue.luau"),
+        ("RebirthService", "src/server/Services/RebirthService.luau"),
+    ])
+
+
+def build_adventure():
+    # AdventureService real sobre la persistencia real; posiciones del mundo simuladas.
+    return persist_suite("adventure_body.luau", after_glue=[
+        ("AdventureService", "src/server/Services/AdventureService.luau"),
+    ])
+
+
+def build_shop():
+    # Premios (RewardService) y tienda (ShopService) reales sobre la persistencia real;
+    # Roblox (pases y recibos) y PetService simulados (shop_glue, con EggLogic real).
+    return persist_suite("shop_body.luau", after_glue=[
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
+        ("EggLogic", "src/server/Util/EggLogic.luau"),
+        ("AdventureService", "src/server/Services/AdventureService.luau"),
+        ("PetService", "tests/harness/shop_glue.luau"),
+        ("CodesConfig", "src/server/CodesConfig.luau"),
+        ("RewardService", "src/server/Services/RewardService.luau"),
+        ("ShopService", "src/server/Services/ShopService.luau"),
+        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
+        ("ChestConfig", "src/shared/Config/ChestConfig.luau"),
+        ("ChestService", "src/server/Services/ChestService.luau"),
+    ])
 
 
 def build_quest():
     order = [
         ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
         ("Economy", "src/shared/Economy.luau"),
+        ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
+        ("RebirthLogic", "src/shared/RebirthLogic.luau"),
+        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+        ("AdventureLogic", "src/shared/AdventureLogic.luau"),
         ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
         ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
         ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
@@ -137,6 +220,13 @@ def build_quest():
         ("QuestLogic", "src/server/Util/QuestLogic.luau"),
         ("TutorialConfig", "src/shared/Config/TutorialConfig.luau"),
         ("TutorialLogic", "src/server/Util/TutorialLogic.luau"),
+        ("GameEvents", "src/server/Util/GameEvents.luau"),
+        ("RewardConfig", "src/shared/Config/RewardConfig.luau"),
+        ("RewardLogic", "src/server/Util/RewardLogic.luau"),
+        ("MonetizationConfig", "src/shared/Config/MonetizationConfig.luau"),
+        ("MonetizationLogic", "src/shared/MonetizationLogic.luau"),
+        ("LeaderboardLogic", "src/server/Util/LeaderboardLogic.luau"),
+    ] + CORE + [
         ("SaveService", "src/server/Services/SaveService.luau"),
     ]
     out = [harness("questtest_stubs.luau"), "services.ReplicatedStorage = { WaitForChild = function() return {} end }\n"]
@@ -144,6 +234,8 @@ def build_quest():
         out.append(mod(n, p))
         if n == "TutorialLogic":
             out.append("TutorialLogic.init(TutorialConfig)\n")
+        if n == "CoreLogic":
+            out.append(CORE_INIT)
     out.append(harness("questtest_glue.luau"))
     out.append(mod("QuestService", "src/server/Services/QuestService.luau"))
     out.append(suite("questtest_body.luau"))
@@ -167,12 +259,31 @@ def build_sanctuary():
     for n, p in [
         ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
         ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
         ("PartFactory", "src/server/Util/PartFactory.luau"),
         ("GeneratorService", "src/server/Services/GeneratorService.luau"),
         ("GeneratorAnimator", "src/client/Controllers/GeneratorAnimator.luau"),
     ]:
         out.append(mod(n, p))
     out.append(suite("sanctuary_body.luau"))
+    return "\n".join(out)
+
+
+def build_shrines():
+    out = [harness("sanctuary_stubs.luau")]
+    for n, p in [
+        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
+        ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
+        ("CoreConfig", "src/shared/Config/CoreConfig.luau"),
+        ("CoreShrineConfig", "src/shared/Config/CoreShrineConfig.luau"),
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("PartFactory", "src/server/Util/PartFactory.luau"),
+        ("CoreShrineService", "src/server/Services/CoreShrineService.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("shrines_body.luau"))
     return "\n".join(out)
 
 
@@ -186,6 +297,7 @@ def build_combat():
         ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
         ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
         ("CombatMath", "src/shared/CombatMath.luau"),
+        ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
         ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
         ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
         ("EnemyLogic", "src/server/Util/EnemyLogic.luau"),
@@ -205,6 +317,8 @@ PET_COMBAT_REQUIRES = [
     "local CombatConfig = require(Shared.Config.CombatConfig)",
     "local PetCombatConfig = require(Shared.Config.PetCombatConfig)",
     "local CombatMath = require(Shared.CombatMath)",
+    "local RebirthLogic = require(Shared.RebirthLogic)",
+    "local AdventureLogic = require(Shared.AdventureLogic)",
     "local PlayerDataService = require(script.Parent.PlayerDataService)",
     "local RemoteService = require(script.Parent.RemoteService)",
     "local EnemyService = require(script.Parent.EnemyService)",
@@ -219,6 +333,11 @@ def build_petcombat():
         ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
         ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
         ("CombatMath", "src/shared/CombatMath.luau"),
+        ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
+        ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
+        ("RebirthLogic", "src/shared/RebirthLogic.luau"),
+        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+        ("AdventureLogic", "src/shared/AdventureLogic.luau"),
         ("EnemyLogic", "src/server/Util/EnemyLogic.luau"),
     ]:
         out.append(mod(n, p))
@@ -228,6 +347,59 @@ def build_petcombat():
         assert line in source, line
         source = source.replace(line + "\n", "")
     out.append(suite("petcombat_body.luau").replace("PETCOMBAT_SOURCE_HERE", source))
+    return "\n".join(out)
+
+
+def build_abilities():
+    # AbilityService real con EnemyLogic, CoreLogic, CombatMath y AbilityLogic reales.
+    out = [harness("abilities_stubs.luau")]
+    for n, p in [
+        ("Constants", "src/shared/Constants.luau"),
+        ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
+        ("Economy", "src/shared/Economy.luau"),
+        ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
+        ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
+        ("CombatMath", "src/shared/CombatMath.luau"),
+        ("CoreConfig", "src/shared/Config/CoreConfig.luau"),
+        ("CoreLogic", "src/server/Util/CoreLogic.luau"),
+        ("AbilityConfig", "src/shared/Config/AbilityConfig.luau"),
+        ("AbilityLogic", "src/shared/AbilityLogic.luau"),
+        ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
+        ("RebirthLogic", "src/shared/RebirthLogic.luau"),
+        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+        ("AdventureLogic", "src/shared/AdventureLogic.luau"),
+        ("EnemyLogic", "src/server/Util/EnemyLogic.luau"),
+        ("RateLimiter", "src/server/Util/RateLimiter.luau"),
+    ]:
+        out.append(mod(n, p))
+        if n == "CoreLogic":
+            out.append(CORE_INIT)
+    out.append(harness("abilities_enemies.luau"))
+    out.append(mod("AbilityService", "src/server/Services/AbilityService.luau"))
+    out.append(suite("abilities_body.luau"))
+    return "\n".join(out)
+
+
+def build_landscape():
+    # Distribución del paisaje (pura) con las configuraciones reales de todas las zonas.
+    out = [harness("landscape_stubs.luau")]
+    for n, p in [
+        ("LandscapeConfig", "src/shared/Config/LandscapeConfig.luau"),
+        ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
+        ("ValleyConfig", "src/shared/Config/ValleyConfig.luau"),
+        ("CalderaConfig", "src/shared/Config/CalderaConfig.luau"),
+        ("CoreShrineConfig", "src/shared/Config/CoreShrineConfig.luau"),
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+        ("VillageConfig", "src/shared/Config/VillageConfig.luau"),
+        ("WildsConfig", "src/shared/Config/WildsConfig.luau"),
+        ("ChestConfig", "src/shared/Config/ChestConfig.luau"),
+        ("LandscapeLayout", "src/server/Util/LandscapeLayout.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("landscape_body.luau"))
     return "\n".join(out)
 
 
@@ -266,18 +438,116 @@ def build_cores():
     return "\n".join(out)
 
 
+def build_zones():
+    # Zonas: ZoneLogic (desbloqueo con renacimientos) y coherencia de todas las
+    # configuraciones que dependen de las zonas (enemigos, huevos, aventuras, misiones).
+    out = [harness("zones_stubs.luau")]
+    out += [mod(n, p) for n, p in [
+        ("Constants", "src/shared/Constants.luau"),
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("ZoneLogic", "src/server/Util/ZoneLogic.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("PetConfig", "src/shared/Config/PetConfig.luau"),
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
+        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+        ("QuestConfig", "src/shared/Config/QuestConfig.luau"),
+        ("LandscapeConfig", "src/shared/Config/LandscapeConfig.luau"),
+        ("CalderaConfig", "src/shared/Config/CalderaConfig.luau"),
+        ("PortalDesign", "src/server/Util/PortalDesign.luau"),
+    ]]
+    out.append(suite("zones_body.luau"))
+    return "\n".join(out)
+
+
+def build_leaderboard():
+    # Clasificación (pura) y sitio de los monolitos en el bosque (con el paisaje real).
+    out = [harness("landscape_stubs.luau")]
+    for n, p in [
+        ("LandscapeConfig", "src/shared/Config/LandscapeConfig.luau"),
+        ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
+        ("ValleyConfig", "src/shared/Config/ValleyConfig.luau"),
+        ("CalderaConfig", "src/shared/Config/CalderaConfig.luau"),
+        ("CoreShrineConfig", "src/shared/Config/CoreShrineConfig.luau"),
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+        ("VillageConfig", "src/shared/Config/VillageConfig.luau"),
+        ("WildsConfig", "src/shared/Config/WildsConfig.luau"),
+        ("ChestConfig", "src/shared/Config/ChestConfig.luau"),
+        ("LandscapeLayout", "src/server/Util/LandscapeLayout.luau"),
+        ("LeaderboardConfig", "src/shared/Config/LeaderboardConfig.luau"),
+        ("LeaderboardLogic", "src/server/Util/LeaderboardLogic.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("leaderboard_body.luau"))
+    return "\n".join(out)
+
+
+def build_world():
+    # Mundo vivo (puro): ciclo de día y noche, cofres escondidos (lógica y configuración)
+    # y cauce del río.
+    out = [harness("world_stubs.luau")]
+    for n, p in [
+        ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
+        ("DayNight", "src/shared/DayNight.luau"),
+        ("RewardConfig", "src/shared/Config/RewardConfig.luau"),
+        ("RewardLogic", "src/server/Util/RewardLogic.luau"),
+        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
+        ("ChestConfig", "src/shared/Config/ChestConfig.luau"),
+        ("WildsConfig", "src/shared/Config/WildsConfig.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("world_body.luau"))
+    return "\n".join(out)
+
+
+def build_weapons():
+    # Armas (WeaponConfig + WeaponLogic, puras) con los enemigos y zonas reales.
+    out = [harness("combat_header.luau")]
+    for n, p in [
+        ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
+        ("WeaponConfig", "src/shared/Config/WeaponConfig.luau"),
+        ("WeaponLogic", "src/shared/WeaponLogic.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("weapons_body.luau"))
+    return "\n".join(out)
+
+
+def build_hudlayout():
+    # Diseño del HUD del cliente (cálculo puro): Vector2 mínimo simulado.
+    stub = "local Vector2 = { new = function(x, y) return { X = x, Y = y } end }\n"
+    return stub + mod("HudLayout", "src/client/UI/HudLayout.luau") + suite("hudlayout_body.luau")
+
+
 SUITES = [
     ("sanctuary", "Santuario del Núcleo Cósmico (geometría y animación)", build_sanctuary),
+    ("shrines", "Círculo Elemental: altares de los núcleos (contrato y mapa)", build_shrines),
     ("sandbox", "Modo prueba del tutorial", build_sandbox),
     ("sandbox_early", "Modo prueba con el jugador antes del arranque", build_sandbox_early),
     ("tutorial", "Tutorial inicial", build_tutorial),
     ("persist", "Persistencia de energía y mejoras", build_persist),
+    ("persist_cores", "Persistencia v3: núcleos, migración y vuelta atrás", build_persist_cores),
     ("quest", "Misiones, diarias y logros", build_quest),
     ("combat", "Combate (daño, muertes, recompensas, objetivos)", build_combat),
+    ("weapons", "Armas: comprar, mejorar, equipar, daño y guardado", build_weapons),
     ("petcombat", "Combate de mascotas", build_petcombat),
     ("anim", "Animación de enemigos", build_anim),
     ("pose", "Articulaciones de los enemigos", build_pose),
-    ("cores", "Ocho núcleos: configuración y lógica pura (fase 1)", build_cores),
+    ("cores", "Ocho núcleos: configuración y lógica pura", build_cores),
+    ("core_service", "Núcleos fase 2: despertar, mejorar, elegir y producción offline", build_core_service),
+    ("abilities", "Habilidades elementales (fórmulas, estados y servicio)", build_abilities),
+    ("landscape", "Paisaje: caminos, bosque, puntos de referencia y límites", build_landscape),
+    ("rebirth", "Renacimiento: requisito, reinicio, fichas, tienda y multiplicadores", build_rebirth),
+    ("adventure", "Aventuras: personajes, misiones, amuletos y bendiciones", build_adventure),
+    ("zones", "Zonas: desbloqueo con renacimientos y coherencia de la Caldera", build_zones),
+    ("leaderboard", "Monolitos de clasificación: orden y sitio junto al spawn", build_leaderboard),
+    ("shop", "Premio diario, códigos, pases, compras sueltas y mejora automática", build_shop),
+    ("hudlayout", "Interfaz: menú, avisos y columnas sin solaparse en muchas pantallas", build_hudlayout),
+    ("world", "Mundo vivo: día y noche, cofres escondidos y río", build_world),
 ]
 LEGACY = ["pettest", "eggtest", "zonetest", "savetest", "layouttest", "stagetest"]
 

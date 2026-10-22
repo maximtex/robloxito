@@ -1,5 +1,6 @@
 -- Interfaz de mascotas:
--- - Botón "Mascotas" (o tecla P) que abre el inventario para equipar y desequipar.
+-- - Azulejo "Mascotas" en la barra del menú (o tecla P) que abre el inventario para equipar
+--   y desequipar. Lleva un "!" si hay un hueco libre y mascotas sin equipar.
 -- - Panel del huevo al usar un santuario: precio, requisito, probabilidades reales y
 --   apertura en tres tiempos (incubación con temblor, brillo y grietas; destello;
 --   revelación con el modelo de la mascota, su rareza y su bonificación).
@@ -24,12 +25,16 @@ local EggConfig = require(Shared.Config.EggConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local PetMath = require(Shared.PetMath)
+local MonetizationLogic = require(Shared.MonetizationLogic)
+local MonetizationConfig = require(Shared.Config.MonetizationConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local RevealGate = require(script.Parent.Parent.Pets.RevealGate)
 local PetModelBuilder = require(script.Parent.Parent.Pets.PetModelBuilder)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
+local MenuBar = require(script.Parent.Parent.UI.MenuBar)
+local Juice = require(script.Parent.Parent.UI.Juice)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
@@ -100,19 +105,6 @@ local function buildGui()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
 
-	-- Botón lateral
-	local openButtonFrame, openScale = UiKit.panel(screenGui, "PetsButton", Vector2.new(Theme.Layout.SideButtonWidth, 58), Vector2.new(0, 0.5), UDim2.new(0, 16, 0.5, 0))
-	local openButton = UiKit.create("TextButton", {
-		Name = "Button",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Font = FONTS.Display,
-		TextSize = 21,
-		TextColor3 = THEME.Text,
-		Text = "🐾 Mascotas",
-	}, openButtonFrame)
-	UiKit.addStates(openButton)
-
 	-- Inventario ---------------------------------------------------------------
 	local inventory, inventoryScale = UiKit.panel(screenGui, "Inventory", INVENTORY_SIZE, Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0.2))
 	UiKit.text(inventory, "Title", {
@@ -134,7 +126,7 @@ local function buildGui()
 		Position = UDim2.new(1, -14, 0, 14),
 		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = THEME.Inset,
-		Text = "✕",
+		Text = "×",
 	})
 	-- Huecos de equipamiento: qué hay equipado y cuánta capacidad queda.
 	local slotsRow = UiKit.create("Frame", {
@@ -200,7 +192,7 @@ local function buildGui()
 		Position = UDim2.new(1, -14, 0, 14),
 		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = THEME.Inset,
-		Text = "✕",
+		Text = "×",
 	})
 	UiKit.text(eggPanel, "OddsTitle", {
 		Position = UDim2.fromOffset(22, 90),
@@ -221,6 +213,14 @@ local function buildGui()
 		Position = UDim2.new(0, 22, 1, -96),
 		Size = UDim2.new(1, -44, 0, 56),
 		TextSize = 23,
+	})
+	-- Pase «Abrir ×3»: segundo botón a la derecha (solo se ve con el pase).
+	local tripleButton = UiKit.button(eggPanel, "Triple", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -22, 1, -96),
+		Size = UDim2.new(0.5, -28, 0, 56),
+		TextSize = 21,
+		Visible = false,
 	})
 	local eggFeedback = UiKit.text(eggPanel, "Feedback", {
 		Position = UDim2.new(0, 22, 1, -34),
@@ -372,15 +372,69 @@ local function buildGui()
 		ZIndex = 10,
 	})
 
+	-- Máquina de Evolución (3 iguales -> 1 ★ Evo) --------------------------------
+	local evoPanel, evoScale = UiKit.panel(screenGui, "EvolutionPanel", INVENTORY_SIZE, Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0.2))
+	UiKit.text(evoPanel, "Title", {
+		Position = UDim2.fromOffset(22, 14),
+		Size = UDim2.new(1, -90, 0, 32),
+		Font = FONTS.Display,
+		TextSize = 28,
+		Text = "🌟 Máquina de Evolución",
+	})
+	UiKit.text(evoPanel, "Subtitle", {
+		Position = UDim2.fromOffset(22, 48),
+		Size = UDim2.new(1, -90, 0, 20),
+		Font = FONTS.Light,
+		TextSize = 16,
+		TextColor3 = THEME.Muted,
+		Text = "Combina 3 mascotas iguales para evolucionarlas a su versión ★ Evo (¡doble poder!).",
+	})
+	local evoClose = UiKit.button(evoPanel, "Close", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 14),
+		Size = UDim2.fromOffset(40, 40),
+		BackgroundColor3 = THEME.Inset,
+		Text = "×",
+	})
+	local evoList = UiKit.create("ScrollingFrame", {
+		Name = "EvoList",
+		Position = UDim2.fromOffset(22, 82),
+		Size = UDim2.new(1, -44, 1, -128),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = THEME.Stroke,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+	}, evoPanel)
+	UiKit.create("UIListLayout", {
+		Padding = UDim.new(0, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, evoList)
+	local evoEmpty = UiKit.text(evoPanel, "Empty", {
+		Position = UDim2.fromOffset(22, 150),
+		Size = UDim2.new(1, -44, 0, 60),
+		Font = FONTS.Light,
+		TextSize = 17,
+		TextColor3 = THEME.Muted,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextWrapped = true,
+		Text = "Abre huevos para conseguir mascotas y fusionar 3 iguales aquí.",
+	})
+	local evoFeedback = UiKit.text(evoPanel, "Feedback", {
+		Position = UDim2.new(0, 22, 1, -36),
+		Size = UDim2.new(1, -44, 0, 24),
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Center,
+	})
+
 	screenGui.Parent = playerGui
-	UiKit.bindScale(screenGui, { openScale })
 
 	return {
 		ScreenGui = screenGui,
-		OpenButton = openButton,
-		OpenButtonStroke = openButtonFrame:FindFirstChildOfClass("UIStroke"),
 		InventoryScale = inventoryScale,
 		EggScale = eggScale,
+		EvoScale = evoScale,
 		SlotsRow = slotsRow,
 		Inventory = inventory,
 		InventorySubtitle = inventorySubtitle,
@@ -388,12 +442,18 @@ local function buildGui()
 		List = list,
 		EmptyLabel = emptyLabel,
 		InventoryFeedback = inventoryFeedback,
+		EvoPanel = evoPanel,
+		EvoClose = evoClose,
+		EvoList = evoList,
+		EvoEmpty = evoEmpty,
+		EvoFeedback = evoFeedback,
 		EggPanel = eggPanel,
 		EggTitle = eggTitle,
 		EggCost = eggCost,
 		EggClose = eggClose,
 		Odds = odds,
 		IncubateButton = incubateButton,
+		TripleButton = tripleButton,
 		EggFeedback = eggFeedback,
 		Hatch = hatch,
 		Glow = glow,
@@ -419,11 +479,24 @@ function PetController.start()
 	local purchaseEggRemote = remotes:WaitForChild(Constants.Remotes.PurchaseEgg) :: RemoteEvent
 	local eggResultRemote = remotes:WaitForChild(Constants.Remotes.EggResult) :: RemoteEvent
 	local equipRemote = remotes:WaitForChild(Constants.Remotes.EquipPet) :: RemoteEvent
+	local evolveRemote = remotes:WaitForChild(Constants.Remotes.EvolvePet) :: RemoteEvent
 	local actionResultRemote = remotes:WaitForChild(Constants.Remotes.PetActionResult) :: RemoteEvent
 	local requestInventoryRemote = remotes:WaitForChild(Constants.Remotes.RequestPetInventory) :: RemoteEvent
 	local inventoryRemote = remotes:WaitForChild(Constants.Remotes.PetInventory) :: RemoteEvent
 
 	local ui = buildGui()
+	local menuEntry = MenuBar.add({
+		Id = "Pets",
+		Order = 1,
+		Icon = "🐾",
+		Label = "Mascotas",
+		Key = "P",
+		Color = Color3.fromRGB(120, 214, 130),
+		Panels = { "Inventory" },
+		OnActivate = function()
+			PanelManager.toggle("Inventory")
+		end,
+	})
 	local feedbackTokens: { [TextLabel]: number } = {}
 
 	local function showFeedback(label: TextLabel, text: string, color: Color3)
@@ -515,7 +588,8 @@ function PetController.start()
 			end
 		end
 		local slotsFull = #snapshot.Equipped >= snapshot.MaxEquipped
-		ui.OpenButton.Text = if #snapshot.Pets > 0 then ("🐾 Mascotas (%d)"):format(#snapshot.Pets) else "🐾 Mascotas"
+		-- "!" en el menú: hay un hueco libre y alguna mascota sin equipar.
+		menuEntry.setBadge(if snapshot.Ready and not slotsFull and #snapshot.Pets > #snapshot.Equipped then "!" else nil)
 
 		for _, child in ui.List:GetChildren() do
 			if child:IsA("Frame") then
@@ -634,26 +708,117 @@ function PetController.start()
 		PanelManager.setBasePosition("Inventory", position)
 	end)
 
-	ui.OpenButton.Activated:Connect(function()
-		PanelManager.toggle("Inventory")
-	end)
 	ui.InventoryClose.Activated:Connect(function()
 		PanelManager.close("Inventory")
+	end)
+
+	-- Máquina de Evolución -------------------------------------------------------
+	local neededForEvo = PetConfig.EvolutionCopiesRequired or 3
+	local function renderEvolution()
+		for _, child in ui.EvoList:GetChildren() do
+			if child:IsA("Frame") then
+				child:Destroy()
+			end
+		end
+		local counts: { [string]: number } = {}
+		local speciesList = {}
+		for _, entry in snapshot.Pets do
+			local def = PetConfig.Pets[entry.PetId]
+			if def and def.EvolvesInto and PetConfig.Pets[def.EvolvesInto] then
+				if not counts[entry.PetId] then
+					counts[entry.PetId] = 0
+					table.insert(speciesList, entry.PetId)
+				end
+				counts[entry.PetId] += 1
+			end
+		end
+		table.sort(speciesList, function(a, b)
+			local aReady = (counts[a] or 0) >= neededForEvo
+			local bReady = (counts[b] or 0) >= neededForEvo
+			if aReady ~= bReady then
+				return aReady
+			end
+			return PetMath.getPetMultiplier(a) > PetMath.getPetMultiplier(b)
+		end)
+
+		ui.EvoEmpty.Visible = #speciesList == 0
+
+		for order, petId in speciesList do
+			local baseDef = PetConfig.Pets[petId]
+			local evoDef = PetConfig.Pets[baseDef.EvolvesInto]
+			local count = counts[petId] or 0
+			local canEvolve = count >= neededForEvo
+			local rarity = rarityOf(petId)
+
+			local row = UiKit.create("Frame", {
+				Name = "Evo_" .. petId,
+				Size = UDim2.new(1, -8, 0, 72),
+				BackgroundColor3 = THEME.Inset,
+				LayoutOrder = order,
+			}, ui.EvoList)
+			UiKit.corner(row, 12)
+			UiKit.stroke(row, if canEvolve then THEME.Gold else rarity.Color, if canEvolve then 2 else 1.2, 0.2)
+
+			UiKit.text(row, "Title", {
+				Position = UDim2.fromOffset(14, 10),
+				Size = UDim2.new(1, -210, 0, 26),
+				Font = FONTS.Display,
+				TextSize = 19,
+				TextColor3 = rarity.Color,
+				Text = ("%s  →  %s"):format(baseDef.DisplayName, evoDef.DisplayName),
+			})
+			UiKit.text(row, "Detail", {
+				Position = UDim2.fromOffset(14, 38),
+				Size = UDim2.new(1, -210, 0, 22),
+				Font = FONTS.Light,
+				TextSize = 15,
+				TextColor3 = if canEvolve then THEME.BuyHighlight else THEME.Muted,
+				Text = ("Tienes: %d/%d   ·   Poder: %s → %s"):format(
+					count,
+					neededForEvo,
+					bonusText(PetMath.getPetMultiplier(petId)),
+					bonusText(PetMath.getPetMultiplier(baseDef.EvolvesInto))
+				),
+			})
+
+			local evoBtn = UiKit.button(row, "EvolveButton", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -12, 0.5, 0),
+				Size = UDim2.fromOffset(176, 46),
+				BackgroundColor3 = if canEvolve then THEME.Buy else THEME.Disabled,
+				TextColor3 = if canEvolve then THEME.Text else THEME.Muted,
+				TextSize = 16,
+				Text = if canEvolve then "🌟 Evolucionar (3→1)" else ("Faltan %d"):format(neededForEvo - count),
+			})
+			UiKit.setDisabled(evoBtn, not canEvolve)
+			evoBtn.Activated:Connect(function()
+				if equipPending or not snapshot.Ready then
+					return
+				end
+				if not canEvolve then
+					showFeedback(ui.EvoFeedback, ("Necesitas %d %s para evolucionar"):format(neededForEvo, baseDef.DisplayName), THEME.Error)
+					return
+				end
+				equipPending = true
+				evolveRemote:FireServer(petId)
+				task.delay(2, function()
+					equipPending = false
+				end)
+			end)
+		end
+	end
+
+	PanelManager.register("Evolution", ui.EvoPanel, { OnOpen = renderEvolution })
+	UiKit.bindModalLayout(ui.ScreenGui, ui.EvoScale, INVENTORY_SIZE, function(position)
+		PanelManager.setBasePosition("Evolution", position)
+	end)
+	ui.EvoClose.Activated:Connect(function()
+		PanelManager.close("Evolution")
 	end)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.KeyCode == Enum.KeyCode.P then
 			-- Si hay un huevo abriéndose, el PanelManager no deja cambiar de panel.
 			PanelManager.toggle("Inventory")
-		end
-	end)
-	-- Resaltar el botón lateral mientras el inventario está abierto.
-	PanelManager.Changed:Connect(function(openPanel: string?)
-		local stroke = ui.OpenButtonStroke
-		if stroke then
-			local active = openPanel == "Inventory"
-			stroke.Color = if active then THEME.Gold else THEME.Stroke
-			stroke.Thickness = if active then 2.5 else 1.5
-			stroke.Transparency = if active then 0 else THEME.StrokeTransparency
 		end
 	end)
 
@@ -669,19 +834,27 @@ function PetController.start()
 		end
 		snapshot = data
 		renderInventory()
+		renderEvolution()
 	end)
 	RevealGate.Released:Connect(function()
 		if pendingSnapshot then
 			snapshot = pendingSnapshot
 			pendingSnapshot = nil
 			renderInventory()
+			renderEvolution()
 		end
 	end)
 
-	actionResultRemote.OnClientEvent:Connect(function(success: boolean, code: string)
+	actionResultRemote.OnClientEvent:Connect(function(success: boolean, code: string, targetId: any, extra: any)
 		equipPending = false
 		if not success then
 			showFeedback(ui.InventoryFeedback, messageFor(code), THEME.Error)
+			showFeedback(ui.EvoFeedback, messageFor(code), THEME.Error)
+		elseif extra == "Evolve" then
+			local evoPet = typeof(targetId) == "string" and PetConfig.Pets[targetId]
+			local msg = if evoPet then "¡Obtuviste " .. evoPet.DisplayName .. "!" else "¡Mascota evolucionada!"
+			showFeedback(ui.EvoFeedback, msg, THEME.BuyHighlight)
+			Juice.sound(Juice.Sounds.Upgrade, 1.15)
 		end
 	end)
 
@@ -706,38 +879,70 @@ function PetController.start()
 	-- Comprobación previa en el cliente (solo para la interfaz; el servidor la repite).
 	-- Devuelve: bloqueado, asequible y si el bloqueo es por zona.
 	local function eggState(egg): (boolean, boolean, boolean)
-		local level = player:GetAttribute(levelAttribute)
+		-- Tras renacer cuenta el mejor nivel con el que se renació (huevos ya abiertos).
+		local rawLevel = player:GetAttribute(levelAttribute)
+		local best = player:GetAttribute(Constants.Attributes.RebirthBestLevel)
+		local level = math.max(if typeof(rawLevel) == "number" then rawLevel else 0, if typeof(best) == "number" then best else 0)
 		local energy = player:GetAttribute(Constants.Attributes.Energy)
 		local zoneLocked = egg.RequiredZone ~= nil and not zoneUnlocked(egg.RequiredZone)
-		local locked = zoneLocked or (if typeof(level) == "number" then level else 0) < (egg.RequiredLevel or 0)
+		local locked = zoneLocked or level < (egg.RequiredLevel or 0)
 		local affordable = typeof(energy) == "number" and energy >= egg.Cost
 		return locked, affordable, zoneLocked
 	end
 
-	local function styleButton(button: TextButton, egg, label: string)
+	-- Destello en los botones de compra mientras se pueden pagar.
+	local shimmers: { [GuiObject]: (boolean) -> () } = {}
+	local function setShimmer(button: GuiObject, active: boolean)
+		local setter = shimmers[button]
+		if not setter then
+			setter = UiKit.shimmer(button, 10)
+			shimmers[button] = setter
+		end
+		setter(active)
+	end
+
+	local function hasTriple(): boolean
+		return MonetizationLogic.owns(MonetizationLogic.parsePasses(player:GetAttribute(Constants.Attributes.Passes)), "TripleHatch")
+	end
+
+	local function styleButton(button: TextButton, egg, label: string, count: number?)
+		local amount = count or 1
 		local locked, affordable, zoneLocked = eggState(egg)
+		if amount > 1 then
+			local energy = player:GetAttribute(Constants.Attributes.Energy)
+			affordable = typeof(energy) == "number" and energy >= egg.Cost * amount
+		end
 		if zoneLocked then
 			local zone = ZoneConfig.Zones[egg.RequiredZone]
 			button.Text = "🔒 Requiere " .. (if zone then zone.DisplayName else egg.RequiredZone)
 		elseif locked then
 			button.Text = ("🔒 %s nivel %d"):format(unlockUpgradeName, egg.RequiredLevel)
 		else
-			button.Text = label .. "  ·  ⚡ " .. formatNumber(egg.Cost)
+			button.Text = label .. "  ·  ⚡ " .. formatNumber(egg.Cost * amount)
 		end
 		local enabled = not locked and affordable
 		button.BackgroundColor3 = if enabled then THEME.Buy else THEME.Disabled
 		button.TextColor3 = if enabled then THEME.Text else THEME.Muted
 		UiKit.setDisabled(button, not enabled)
+		setShimmer(button, enabled)
 	end
 
+	local lastCount = 1 -- huevos de la última apertura («Otro» repite lo mismo)
 	local function refreshEggButton()
 		local egg = currentEggId and EggConfig.Eggs[currentEggId]
 		if not egg then
 			return
 		end
-		styleButton(ui.IncubateButton, egg, "INCUBAR")
+		local triple = hasTriple()
+		ui.TripleButton.Visible = triple
+		ui.IncubateButton.Size = if triple then UDim2.new(0.5, -28, 0, 56) else UDim2.new(1, -44, 0, 56)
+		styleButton(ui.IncubateButton, egg, if triple then "×1" else "INCUBAR")
+		if triple then
+			styleButton(ui.TripleButton, egg, "×" .. MonetizationConfig.TripleCount, MonetizationConfig.TripleCount)
+		end
 		if phase == "revealed" then
-			styleButton(ui.AgainButton, egg, "Otro")
+			local again = if triple then lastCount else 1
+			styleButton(ui.AgainButton, egg, if again > 1 then "Otros ×" .. again else "Otro", again)
 		end
 	end
 
@@ -795,7 +1000,13 @@ function PetController.start()
 		ui.EggShape.Size = UDim2.fromOffset(EGG_SIZE.X, EGG_SIZE.Y)
 	end
 
+	-- Cada grieta nueva suena (cada vez más aguda) mientras se incuba.
+	local shownCracks = 0
 	local function setCracks(count: number)
+		if count > shownCracks then
+			Juice.sound(Juice.Sounds.Crack, 1 + count * 0.12)
+		end
+		shownCracks = count
 		for index, crack in ui.Cracks do
 			crack.Visible = index <= count
 		end
@@ -915,6 +1126,7 @@ function PetController.start()
 		incubating = false
 		local petId = result[4] :: string
 		local autoEquipped = result[6] == true
+		local extras = if typeof(result[8]) == "table" then result[8] else {}
 		local pet = PetConfig.Pets[petId]
 		local rarity = rarityOf(petId)
 
@@ -932,12 +1144,36 @@ function PetController.start()
 
 		ui.Viewport.Visible = true
 		showPetModel(petId)
+		-- Estallido de estrellas del color de la rareza y sonido según lo rara que es.
+		local order = rarity.Order or 1
+		Juice.burst(ui.Viewport, rarity.Color, 8 + order * 5, 130 + order * 20)
+		Juice.sound(Juice.Sounds.Hatch)
+		if order >= 4 then
+			Juice.sound(Juice.Sounds.HatchEpic)
+		elseif order >= 3 then
+			Juice.sound(Juice.Sounds.HatchRare)
+		end
 		ui.HatchStatus.Text = "¡Ha nacido!"
 		ui.HatchStatus.TextColor3 = THEME.Gold
 		ui.RevealName.Text = if pet then pet.DisplayName else petId
 		ui.RevealName.TextColor3 = rarity.Color
 		ui.RevealDetails.Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(petId)) .. " de producción"
 		ui.RevealEquip.Text = if autoEquipped then "✓ Equipada automáticamente" else "Guardada en tu inventario (ya tienes el máximo equipado)"
+		-- Apertura ×3: las otras dos mascotas, con el color de su rareza, debajo.
+		if #extras > 0 then
+			local names = {}
+			for _, extra in extras do
+				if typeof(extra) == "table" and typeof(extra.PetId) == "string" then
+					local other = PetConfig.Pets[extra.PetId]
+					local color = rarityOf(extra.PetId).Color
+					table.insert(names, ('<font color="#%s">%s</font>'):format(color:ToHex(), if other then other.DisplayName else extra.PetId))
+				end
+			end
+			ui.RevealEquip.RichText = true
+			ui.RevealEquip.Text = "También: " .. table.concat(names, "  ·  ")
+		else
+			ui.RevealEquip.RichText = false
+		end
 		ui.AgainButton.Visible = true
 		ui.BackButton.Visible = true
 		ui.EggClose.Visible = true
@@ -949,10 +1185,10 @@ function PetController.start()
 
 	-- Fase de incubación: temblor creciente, brillo y grietas. Si al terminar aún no ha
 	-- llegado el resultado, el huevo sigue temblando (sin revelar nada) hasta que llegue.
-	local function runIncubation(token: number, eggId: string, requestId: string)
+	local function runIncubation(token: number, eggId: string, requestId: string, count: number)
 		local startedAt = os.clock()
 		local resent = false
-		ui.HatchStatus.Text = "Incubando…"
+		ui.HatchStatus.Text = if count > 1 then ("Incubando %d huevos…"):format(count) else "Incubando…"
 		ui.HatchStatus.TextColor3 = THEME.Text
 		animationConnection = RunService.RenderStepped:Connect(function()
 			if sequenceToken ~= token then
@@ -983,18 +1219,23 @@ function PetController.start()
 				resent = true
 				ui.HatchStatus.Text = "Esperando al bosque…"
 				-- Mismo requestId: el servidor no vuelve a cobrar ni a sortear.
-				purchaseEggRemote:FireServer(eggId, requestId)
+				purchaseEggRemote:FireServer(eggId, requestId, count)
 			end
 		end)
 	end
 
-	local function startPurchase()
+	local function startPurchase(count: number?)
 		if incubating or not currentEggId then
 			return
 		end
+		local amount = if count and count > 1 and hasTriple() then MonetizationConfig.TripleCount else 1
 		local eggId = currentEggId :: string
 		local egg = EggConfig.Eggs[eggId]
 		local locked, affordable, zoneLocked = eggState(egg)
+		if amount > 1 then
+			local energy = player:GetAttribute(Constants.Attributes.Energy)
+			affordable = typeof(energy) == "number" and energy >= egg.Cost * amount
+		end
 		if locked then
 			showFeedback(ui.EggFeedback, messageFor(if zoneLocked then Codes.ZoneLocked else Codes.Locked), THEME.Error)
 			return
@@ -1003,6 +1244,7 @@ function PetController.start()
 			showFeedback(ui.EggFeedback, messageFor(Codes.InsufficientEnergy), THEME.Error)
 			return
 		end
+		lastCount = amount
 
 		resetHatch() -- limpia una revelación anterior ("Abrir otro")
 		local token = sequenceToken
@@ -1013,12 +1255,19 @@ function PetController.start()
 		RevealGate.hold()
 		ui.Hatch.Visible = true
 		ui.EggClose.Visible = false -- no se cierra a mitad de la apertura
-		runIncubation(token, eggId, requestId)
-		purchaseEggRemote:FireServer(eggId, requestId)
+		runIncubation(token, eggId, requestId, amount)
+		purchaseEggRemote:FireServer(eggId, requestId, amount)
 	end
 
-	ui.IncubateButton.Activated:Connect(startPurchase)
-	ui.AgainButton.Activated:Connect(startPurchase)
+	ui.IncubateButton.Activated:Connect(function()
+		startPurchase(1)
+	end)
+	ui.TripleButton.Activated:Connect(function()
+		startPurchase(MonetizationConfig.TripleCount)
+	end)
+	ui.AgainButton.Activated:Connect(function()
+		startPurchase(lastCount)
+	end)
 	ui.BackButton.Activated:Connect(closeEggPanel)
 	ui.EggClose.Activated:Connect(closeEggPanel)
 
@@ -1039,6 +1288,7 @@ function PetController.start()
 	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(refreshEggButton)
 	player:GetAttributeChangedSignal(levelAttribute):Connect(refreshEggButton)
 	player:GetAttributeChangedSignal(Constants.Attributes.UnlockedZones):Connect(refreshEggButton)
+	player:GetAttributeChangedSignal(Constants.Attributes.Passes):Connect(refreshEggButton)
 
 	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
 		local eggId = prompt:GetAttribute("EggId")

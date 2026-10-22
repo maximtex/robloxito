@@ -14,6 +14,16 @@ function CombatMath.playerDamage(upgradeLevel: number, petMultiplier: number): n
 	return math.floor(damage * 100 + 0.5) / 100
 end
 
+-- Daño con una bonificación multiplicativa (renacimiento y "Golpe renacido"), con el mismo
+-- redondeo a centésimas. Un multiplicador no válido (NaN, negativo, infinito) no cambia nada.
+function CombatMath.withBonus(damage: number, multiplier: any): number
+	local valid = type(multiplier) == "number" and multiplier == multiplier and multiplier >= 0 and multiplier < math.huge
+	if not valid then
+		return damage
+	end
+	return math.floor(damage * multiplier * 100 + 0.5) / 100
+end
+
 -- Daño de una habilidad de mascota: fracción del daño actual del jugador.
 function CombatMath.petAbilityDamage(ratio: number, playerDamage: number): number
 	return math.floor(math.max(0, ratio) * math.max(0, playerDamage) * 100 + 0.5) / 100

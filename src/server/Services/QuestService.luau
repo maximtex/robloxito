@@ -20,6 +20,7 @@ local Constants = require(Shared.Constants)
 local QuestConfig = require(Shared.Config.QuestConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local PetCombatConfig = require(Shared.Config.PetCombatConfig)
+local RebirthLogic = require(Shared.RebirthLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
@@ -27,6 +28,7 @@ local EnergyService = require(script.Parent.EnergyService)
 local PetCombatService = require(script.Parent.PetCombatService)
 local QuestLogic = require(script.Parent.Parent.Util.QuestLogic)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 
 local Codes = Constants.PurchaseCodes
 
@@ -73,6 +75,7 @@ local function contextOf(profile: PlayerDataService.Profile): QuestLogic.Context
 		CombatPetsOwned = combatPets,
 		ZonesUnlocked = purchased,
 		UnlockedZones = unlocked,
+		Rebirths = RebirthLogic.count(profile.PetData.Rebirth),
 	}
 end
 
@@ -80,7 +83,7 @@ end
 QuestService.contextOf = contextOf
 
 local function signatureOf(ctx: QuestLogic.Context): string
-	return ("%d|%d|%d|%d|%d"):format(ctx.UpgradeLevel, ctx.PetsOwned, ctx.PetsEquipped, ctx.CombatPetsOwned, ctx.ZonesUnlocked)
+	return ("%d|%d|%d|%d|%d|%d"):format(ctx.UpgradeLevel, ctx.PetsOwned, ctx.PetsEquipped, ctx.CombatPetsOwned, ctx.ZonesUnlocked, ctx.Rebirths or 0)
 end
 
 local function readyProfile(player: Player): PlayerDataService.Profile?
@@ -201,6 +204,17 @@ function QuestService.start()
 	end)
 	PetCombatService.onAbilityHit(function(player)
 		record(player, { Type = "PetAbility" })
+	end)
+	-- Diarias de "mejora el cristal" y "abre huevos".
+	GameEvents.on("UpgradePurchased", function(player, upgradeId)
+		if upgradeId == QuestConfig.RewardUpgradeId then
+			record(player, { Type = "Upgrade" })
+			update(player, false)
+		end
+	end)
+	GameEvents.on("EggOpened", function(player)
+		record(player, { Type = "Egg" })
+		update(player, false)
 	end)
 	-- Cada segundo (con la producción): energía, cambio de día y misiones de estado.
 	EnergyService.onProduced(function(player, amount)

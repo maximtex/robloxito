@@ -1,6 +1,6 @@
 -- Valle Cristalino: entorno de la segunda zona. Solo decorativo.
 -- Posiciones RELATIVAS al centro de la zona (ZoneConfig.Zones.CrystalValley.Center), en X/Z.
--- Referencias: llegada (0, 44) mirando a -Z, portal de vuelta (0, 58), santuario del
+-- Referencias: llegada (0, 44) mirando a -Z, portal de vuelta (0, 62), santuario del
 -- Huevo de Cristal (18, 8), estanque y cascada (-42, 22), gran geoda al fondo (0, -62).
 
 local ValleyConfig = {
@@ -14,9 +14,10 @@ local ValleyConfig = {
 		Mountain = "Limestone",
 		Cliff = "Slate",
 		Path = "Pavement",
+		-- Montañas lavanda (con la bruma de la atmósfera, un tono claro se veía blanco).
 		MaterialColors = {
-			Limestone = Color3.fromRGB(198, 192, 214),
-			Slate = Color3.fromRGB(96, 102, 130),
+			Limestone = Color3.fromRGB(150, 138, 200),
+			Slate = Color3.fromRGB(118, 110, 160),
 			Pavement = Color3.fromRGB(176, 176, 188),
 		},
 		-- Montañas que rodean el valle. (ángulo en grados, distancia, radio)
@@ -32,7 +33,7 @@ local ValleyConfig = {
 		},
 		-- Caminos de piedra. (X, Z inicio) -> (X, Z fin), anchura
 		Paths = {
-			{ From = Vector2.new(0, 60), To = Vector2.new(0, -40), Width = 6 }, -- portal -> geoda
+			{ From = Vector2.new(0, 48), To = Vector2.new(0, -40), Width = 6 }, -- escalón del portal -> geoda
 			{ From = Vector2.new(0, 8), To = Vector2.new(16, 8), Width = 5 }, -- ramal al santuario
 			{ From = Vector2.new(0, 18), To = Vector2.new(-26, 22), Width = 5 }, -- ramal al estanque
 		},
@@ -41,8 +42,23 @@ local ValleyConfig = {
 	Pond = {
 		Center = Vector2.new(-42, 22),
 		Radius = 13,
-		-- Acantilado detrás del estanque, de donde cae la cascada.
-		Cliff = { Center = Vector2.new(-42, 41), Size = Vector3.new(34, 26, 12) },
+		-- Acantilado detrás del estanque, de donde cae la cascada. Sin modelos de roca es un
+		-- bloque de pizarra del terreno (Size); con ellos, una formación de rocas (Rocks:
+		-- posición relativa al centro del acantilado, altura, variante y giro en grados) y la
+		-- cascada cae desde FallHeight.
+		Cliff = {
+			Center = Vector2.new(-42, 41),
+			Size = Vector3.new(34, 26, 12),
+			FallHeight = 17,
+			Rocks = {
+				{ X = -9, Z = 6, Height = 27, Variant = 4, Yaw = 30 },
+				{ X = 9, Z = 7, Height = 24, Variant = 4, Yaw = 160 },
+				{ X = 19, Z = 1, Height = 16, Variant = 5, Yaw = 200 },
+				{ X = -19, Z = 2, Height = 19, Variant = 9, Yaw = 20 },
+				{ X = -23, Z = -5, Height = 5, Variant = 7, Yaw = 10 },
+				{ X = 24, Z = -5, Height = 4, Variant = 1, Yaw = 80 },
+			},
+		},
 	},
 
 	Colors = {
@@ -60,6 +76,14 @@ local ValleyConfig = {
 		Ruin = Color3.fromRGB(190, 186, 200),
 		Moss = Color3.fromRGB(96, 150, 96),
 		Water = Color3.fromRGB(150, 210, 240),
+	},
+
+	-- Partículas ambientales (Ambience): destellos de cristal por el valle, brillo
+	-- alrededor de la geoda y bruma al pie de la cascada.
+	Ambience = {
+		Motes = { Size = Vector3.new(116, 14, 116), Height = 6, Rate = 12, Color = Color3.fromRGB(176, 200, 255), Second = Color3.fromRGB(220, 180, 255) },
+		Geode = { Size = Vector3.new(30, 18, 24), Height = 12, Rate = 6, Color = Color3.fromRGB(196, 150, 255), Second = Color3.fromRGB(150, 220, 255) },
+		Mist = { Size = Vector3.new(14, 1, 6), Rate = 3, Color = Color3.fromRGB(235, 245, 255) },
 	},
 
 	-- Gran geoda: silueta reconocible al fondo, vista desde la llegada.
@@ -91,8 +115,9 @@ local ValleyConfig = {
 
 	-- Zonas despejadas (sin flores): llegada, portal, santuario, estanque y caminos. (X, Z, radio)
 	KeepClear = {
-		Vector3.new(0, 44, 9), Vector3.new(0, 58, 12), Vector3.new(18, 8, 8),
+		Vector3.new(0, 44, 9), Vector3.new(0, 62, 16), Vector3.new(18, 8, 10),
 		Vector3.new(-42, 22, 16), Vector3.new(-42, 41, 20), Vector3.new(0, -62, 22),
+		Vector3.new(36, 46, 16), -- portal a la Caldera de Brasas
 	},
 }
 

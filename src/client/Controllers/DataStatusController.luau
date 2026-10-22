@@ -1,33 +1,37 @@
--- Aviso del estado de los datos guardados (solo presentación; lo decide el servidor con los
--- atributos DataStatus y SaveError). Una tarjeta pequeña arriba a la derecha que solo
--- aparece cuando hay algo que contar:
--- - Carga lenta (más de 6 s): "Cargando tus datos…".
--- - Sin DataStore (p. ej. Studio sin acceso a la API): esta sesión no se guardará.
--- - Carga fallida: los datos guardados están a salvo, pero esta sesión no se guardará.
--- - Guardado fallido: se reintenta solo; al conseguirlo, "Progreso guardado" un momento.
--- - Modo prueba del tutorial (atributo TestMode, solo Studio): siempre visible.
--- Se puede cerrar (✕) salvo mientras carga y en el modo prueba.
+-- Barra superior del HUD (`HUD Rediseño (standalone).html`):
+-- - Arriba en el centro: Pastilla amarilla compacta `.warn-pill` con icono `!` para avisos de
+--   estado de datos ("Modo sin guardado · el progreso de esta sesión no se guardará", etc.).
+-- - Arriba a la derecha: Cabecera de zona `.zone-card` ("Bosque" / "ZONA 1 · PLAZA DEL CRISTAL").
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Constants = require(ReplicatedStorage:WaitForChild("Shared").Constants)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
+local HudLayout = require(script.Parent.Parent.UI.HudLayout)
 
-local THEME = Theme.Colors
 local FONTS = Theme.Fonts
-local CARD_SIZE = Vector2.new(330, 76)
+local INK = Color3.fromRGB(43, 29, 63) -- #2B1D3F
+local WARN_YELLOW = Color3.fromRGB(255, 201, 60) -- #FFC93C
+local CREAM = Color3.fromRGB(255, 246, 224) -- #FFF6E0
+local GOLD_SUB = Color3.fromRGB(255, 231, 168) -- #FFE7A8
 local SLOW_LOAD_SECONDS = 6
 
 local MESSAGES = {
-	-- Tall: título en dos líneas (el texto completo debe verse siempre).
-	TestMode = { Title = "🧪 Modo prueba del tutorial: el progreso no se guarda", Body = "Perfil temporal de Studio. Tu partida real no se lee ni se modifica.", Color = THEME.Gold, Tall = true },
-	Loading = { Title = "Cargando tus datos…", Body = "Tu progreso aparecerá en unos segundos.", Color = THEME.Muted },
-	Unavailable = { Title = "Modo sin guardado", Body = "El guardado no está disponible: el progreso de esta sesión no se guardará.", Color = THEME.Gold },
-	Failed = { Title = "No se pudieron cargar tus datos", Body = "Tu progreso guardado está a salvo, pero esta sesión no se guardará. Vuelve a entrar más tarde.", Color = THEME.Error },
-	SaveError = { Title = "No se pudo guardar", Body = "Se reintentará automáticamente. No salgas todavía si puedes.", Color = THEME.Error },
-	Saved = { Title = "Progreso guardado ✓", Body = "", Color = THEME.BuyHighlight },
+	TestMode = { Text = "Modo prueba del tutorial · el progreso no se guarda", Bg = WARN_YELLOW },
+	Loading = { Text = "Cargando tus datos · tu progreso aparecerá en unos segundos…", Bg = WARN_YELLOW },
+	Unavailable = { Text = "Modo sin guardado · el progreso de esta sesión no se guardará", Bg = WARN_YELLOW },
+	Failed = { Text = "No se pudieron cargar tus datos · esta sesión no se guardará", Bg = Color3.fromRGB(255, 130, 130) },
+	SaveError = { Text = "No se pudo guardar · reintentando automáticamente…", Bg = Color3.fromRGB(255, 130, 130) },
+	Saved = { Text = "Progreso guardado ✓", Bg = Color3.fromRGB(156, 236, 140) },
+}
+
+local ZONE_HEADERS: { [string]: { Title: string, Sub: string } } = {
+	Forest = { Title = "Bosque", Sub = "ZONA 1 · PLAZA DEL CRISTAL" },
+	CrystalValley = { Title = "Valle Morado", Sub = "ZONA 2 · VALLE CRISTALINO" },
+	EmberCaldera = { Title = "Caldera", Sub = "ZONA 3 · CALDERA DE BRASAS" },
 }
 
 local DataStatusController = {}
@@ -39,42 +43,144 @@ function DataStatusController.start()
 	if existing then
 		existing:Destroy()
 	end
+
 	local screenGui = UiKit.create("ScreenGui", {
 		Name = "DataStatusHud",
 		ResetOnSpawn = false,
-		DisplayOrder = 4, -- por encima del HUD de combate, por debajo de los paneles
+		DisplayOrder = 4,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
-	local card, cardScale = UiKit.panel(screenGui, "Card", CARD_SIZE, Vector2.new(1, 0), UDim2.new(1, -16, 0, 12))
-	card.Visible = false
-	local stroke = card:FindFirstChildOfClass("UIStroke")
-	local title = UiKit.text(card, "Title", {
-		Position = UDim2.fromOffset(16, 10),
-		Size = UDim2.new(1, -60, 0, 22),
+
+	-- Pastilla amarilla superior central (.warn-pill)
+	local pill = UiKit.create("Frame", {
+		Name = "WarnPill",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 12),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 34),
+		BackgroundColor3 = WARN_YELLOW,
+		Visible = false,
+	}, screenGui)
+	local pillScale = UiKit.create("UIScale", {}, pill)
+	UiKit.corner(pill, 17)
+	UiKit.create("UIStroke", {
+		Color = INK,
+		Thickness = 3,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, pill)
+	UiKit.create("UIPadding", {
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 12),
+	}, pill)
+	UiKit.create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 8),
+	}, pill)
+
+	local bangCircle = UiKit.create("Frame", {
+		Name = "Bang",
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = INK,
+		LayoutOrder = 1,
+	}, pill)
+	UiKit.corner(bangCircle, 10)
+	local bangLabel = UiKit.text(bangCircle, "BangText", {
+		Size = UDim2.fromScale(1, 1),
 		Font = FONTS.Display,
-		TextSize = 18,
-		TextWrapped = true,
-		TextYAlignment = Enum.TextYAlignment.Top,
+		TextSize = 13,
+		TextColor3 = WARN_YELLOW,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "!",
 	})
-	local body = UiKit.text(card, "Body", {
-		Position = UDim2.fromOffset(16, 34),
-		Size = UDim2.new(1, -32, 0, 34),
-		Font = FONTS.Light,
+
+	local title = UiKit.text(pill, "Title", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 24),
+		Font = FONTS.Display,
 		TextSize = 14,
-		TextColor3 = THEME.Muted,
-		TextWrapped = true,
-		TextYAlignment = Enum.TextYAlignment.Top,
+		TextColor3 = INK,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = 2,
 	})
-	local close = UiKit.button(card, "Close", {
+
+	local close = UiKit.create("TextButton", {
+		Name = "Close",
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = INK,
+		BackgroundTransparency = 0.82,
+		Font = FONTS.Display,
+		TextSize = 14,
+		TextColor3 = INK,
+		Text = "×",
+		LayoutOrder = 3,
+	}, pill)
+	UiKit.corner(close, 10)
+
+	-- Cabecera de zona arriba a la derecha (.zone-card)
+	local zoneCard = UiKit.create("Frame", {
+		Name = "ZoneCard",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 10),
-		Size = UDim2.fromOffset(30, 30),
-		BackgroundColor3 = THEME.Inset,
-		TextSize = 15,
-		Text = "✕",
+		Position = UDim2.new(1, -20, 0, 10),
+		Size = UDim2.fromOffset(240, 48),
+		BackgroundTransparency = 1,
+	}, screenGui)
+	local zoneScale = UiKit.create("UIScale", {}, zoneCard)
+
+	local zoneTitle = UiKit.text(zoneCard, "ZoneTitle", {
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(1, 0, 0, 28),
+		Font = FONTS.Display,
+		TextSize = 26,
+		TextColor3 = CREAM,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "Bosque",
 	})
+	UiKit.create("UIStroke", {
+		Color = INK,
+		Thickness = 3.2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	}, zoneTitle)
+
+	local zoneSub = UiKit.text(zoneCard, "ZoneSub", {
+		Position = UDim2.fromOffset(0, 28),
+		Size = UDim2.new(1, 0, 0, 16),
+		Font = FONTS.Display,
+		TextSize = 12,
+		TextColor3 = GOLD_SUB,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Text = "ZONA 1 · PLAZA DEL CRISTAL",
+	})
+	UiKit.create("UIStroke", {
+		Color = INK,
+		Thickness = 2.2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	}, zoneSub)
+
 	screenGui.Parent = playerGui
-	UiKit.bindScale(screenGui, { cardScale })
+
+	local function applyScale()
+		local size = screenGui.AbsoluteSize
+		if size.X <= 0 or size.Y <= 0 then
+			return
+		end
+		local isTouch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+		local s = HudLayout.scale(size, isTouch)
+		pillScale.Scale = s
+		zoneScale.Scale = s
+	end
+	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
+	applyScale()
+
+	local function refreshZone()
+		local z = player:GetAttribute(Constants.Attributes.CurrentZone)
+		local info = (typeof(z) == "string" and ZONE_HEADERS[z]) or ZONE_HEADERS.Forest
+		zoneTitle.Text = info.Title
+		zoneSub.Text = info.Sub
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.CurrentZone):Connect(refreshZone)
+	refreshZone()
 
 	local dismissed: { [string]: boolean } = {}
 	local shownKey: string? = nil
@@ -86,28 +192,17 @@ function DataStatusController.start()
 		shownKey = key
 		local message = key and MESSAGES[key]
 		if not message or dismissed[key :: string] then
-			card.Visible = false
+			pill.Visible = false
 			return
 		end
-		title.Text = message.Title
-		title.TextColor3 = message.Color
-		body.Text = message.Body
-		body.Visible = message.Body ~= ""
-		-- Mensajes altos: título en dos líneas a todo el ancho y el texto debajo.
-		local extra = if message.Tall then 24 else 0
-		title.Size = if message.Tall then UDim2.new(1, -32, 0, 46) else UDim2.new(1, -60, 0, 22)
-		body.Position = UDim2.fromOffset(16, 34 + extra)
-		card.Size = UDim2.fromOffset(CARD_SIZE.X, (if message.Body ~= "" then CARD_SIZE.Y else 42) + extra)
-		if stroke then
-			stroke.Color = message.Color
-		end
+		title.Text = message.Text
+		pill.BackgroundColor3 = message.Bg
+		bangLabel.TextColor3 = message.Bg
 		close.Visible = key ~= "Loading" and key ~= "TestMode"
-		card.Visible = true
+		pill.Visible = true
 	end
 
 	local function refresh()
-		-- El modo prueba se muestra siempre (y no se puede cerrar): nunca debe confundirse
-		-- con la partida real.
 		if player:GetAttribute(Constants.Attributes.TestMode) == true then
 			dismissed.TestMode = nil
 			show("TestMode")
@@ -117,10 +212,9 @@ function DataStatusController.start()
 		local saveError = player:GetAttribute(Constants.Attributes.SaveError) == true
 		if saveError then
 			hadSaveError = true
-			dismissed.SaveError = nil -- un fallo nuevo se vuelve a mostrar
+			dismissed.SaveError = nil
 			show("SaveError")
 		elseif hadSaveError and status == "Loaded" then
-			-- Recuperado: confirmarlo un momento.
 			hadSaveError = false
 			savedToken += 1
 			local token = savedToken
@@ -148,7 +242,6 @@ function DataStatusController.start()
 	player:GetAttributeChangedSignal(Constants.Attributes.DataStatus):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.SaveError):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.TestMode):Connect(refresh)
-	-- Si la carga tarda, se avisa a los SLOW_LOAD_SECONDS (una sola comprobación diferida).
 	task.delay(SLOW_LOAD_SECONDS, refresh)
 	refresh()
 end

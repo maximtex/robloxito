@@ -39,7 +39,7 @@
           "Locked": true,
           "Position": [
             0,
-            -10,
+            -30,
             0
           ],
           "Size": [
@@ -60,7 +60,7 @@
         "Brightness": 2,
         "GlobalShadows": true,
         "Outlines": false,
-        "Technology": "Voxel"
+        "Technology": "Future"
       }
     },
     "SoundService": {

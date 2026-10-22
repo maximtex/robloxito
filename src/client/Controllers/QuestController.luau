@@ -1,6 +1,7 @@
 -- Interfaz de misiones y logros (solo presentación; el servidor decide todo):
--- - Botón lateral "Misiones" bajo el de Mascotas, con el número de recompensas listas.
--- - Debajo, una línea discreta con la diaria más avanzada sin completar.
+-- - Azulejo "Misiones" en la barra del menú, con el número de recompensas listas.
+-- - Bajo el menú, una línea de estado con la diaria más avanzada sin completar.
+-- - Avisos (misión completada, logro, energía recibida) en la pila común (Toasts).
 -- - Panel (PanelManager) con pestañas Diarias / Misiones / Logros: progreso 3/5,
 --   recompensa, botón "Reclamar" solo si el servidor la marca lista, "Completada" al
 --   reclamar y logros bloqueados/desbloqueados.
@@ -10,7 +11,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
@@ -21,13 +21,13 @@ local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
+local MenuBar = require(script.Parent.Parent.UI.MenuBar)
+local Toasts = require(script.Parent.Parent.UI.Toasts)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
-local LAYOUT = Theme.Layout
 local PANEL_NAME = "Quests"
 local PANEL_SIZE = Vector2.new(600, 440)
-local BUTTON_SIZE = Vector2.new(LAYOUT.SideButtonWidth, 58)
 local TURQUOISE = Color3.fromRGB(110, 236, 220)
 local VIOLET = Color3.fromRGB(190, 120, 255)
 
@@ -64,69 +64,6 @@ local function buildGui()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
 
-	-- Botón lateral (debajo del de Mascotas; se recoloca al cambiar la escala)
-	local buttonFrame, buttonScale = UiKit.panel(screenGui, "QuestsButton", BUTTON_SIZE, Vector2.new(0, 0), UDim2.new(0, 16, 0.5, 40))
-	local buttonStroke = buttonFrame:FindFirstChildOfClass("UIStroke")
-	local openButton = UiKit.create("TextButton", {
-		Name = "Button",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Font = FONTS.Display,
-		TextSize = 21,
-		TextColor3 = THEME.Text,
-		Text = "📜 Misiones",
-	}, buttonFrame)
-	UiKit.addStates(openButton)
-	local badge = UiKit.create("Frame", {
-		Name = "Badge",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(1, -4, 0, 4),
-		Size = UDim2.fromOffset(26, 26),
-		BackgroundColor3 = THEME.Gold,
-		Visible = false,
-		ZIndex = 4,
-	}, buttonFrame)
-	UiKit.corner(badge, 13)
-	local badgeText = UiKit.text(badge, "Count", {
-		Size = UDim2.fromScale(1, 1),
-		Font = FONTS.Display,
-		TextSize = 16,
-		TextColor3 = THEME.Panel,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		ZIndex = 5,
-	})
-	-- Seguimiento discreto de la diaria activa
-	local tracker = UiKit.text(buttonFrame, "Tracker", {
-		Position = UDim2.new(0, 2, 1, 6),
-		Size = UDim2.new(1, 60, 0, 18),
-		Font = FONTS.Light,
-		TextSize = 14,
-		TextColor3 = THEME.Muted,
-		TextStrokeTransparency = 0.5,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-	})
-
-	-- Aviso breve (a la derecha del botón)
-	local notice = UiKit.create("Frame", {
-		Name = "Notice",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(1, 12, 0.5, 0),
-		Size = UDim2.fromOffset(330, 52),
-		BackgroundColor3 = THEME.Panel,
-		BackgroundTransparency = 1,
-		Visible = false,
-	}, buttonFrame)
-	UiKit.corner(notice, 12)
-	local noticeStroke = UiKit.stroke(notice, TURQUOISE, 1.5, 1)
-	local noticeText = UiKit.text(notice, "Text", {
-		Position = UDim2.fromOffset(14, 0),
-		Size = UDim2.new(1, -24, 1, 0),
-		Font = FONTS.Body,
-		TextSize = 16,
-		TextWrapped = true,
-		TextTransparency = 1,
-	})
-
 	-- Panel ------------------------------------------------------------------------
 	local panel, panelScale = UiKit.panel(screenGui, "QuestPanel", PANEL_SIZE, Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0.2))
 	UiKit.text(panel, "Title", {
@@ -148,7 +85,7 @@ local function buildGui()
 		Position = UDim2.new(1, -14, 0, 14),
 		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = THEME.Inset,
-		Text = "✕",
+		Text = "×",
 	})
 	local tabsRow = UiKit.create("Frame", {
 		Name = "Tabs",
@@ -197,16 +134,6 @@ local function buildGui()
 	screenGui.Parent = playerGui
 	return {
 		ScreenGui = screenGui,
-		ButtonFrame = buttonFrame,
-		ButtonScale = buttonScale,
-		ButtonStroke = buttonStroke,
-		OpenButton = openButton,
-		Badge = badge,
-		BadgeText = badgeText,
-		Tracker = tracker,
-		Notice = notice,
-		NoticeStroke = noticeStroke,
-		NoticeText = noticeText,
 		Panel = panel,
 		PanelScale = panelScale,
 		Subtitle = subtitle,
@@ -239,7 +166,7 @@ local function buildRow(parent: Instance, order: number, entry: any, isAchieveme
 	if done then
 		UiKit.stroke(row, if isAchievement then VIOLET else THEME.Gold, 1.5, 0.35)
 	end
-	local icon = if isAchievement then (if done then "🏆" else "🔒") elseif locked then "🔒" elseif status == "Claimed" then "✓" else "✦"
+	local icon = if isAchievement then (if done then "🏆" else "🔒") elseif locked then "🔒" elseif status == "Claimed" then "✓" else "★"
 	UiKit.text(row, "Title", {
 		Position = UDim2.fromOffset(14, 8),
 		Size = UDim2.new(1, -170, 0, 22),
@@ -319,6 +246,7 @@ local function buildRow(parent: Instance, order: number, entry: any, isAchieveme
 			Text = if pending[entry.Id] then "…" else "Reclamar",
 		})
 		UiKit.setDisabled(claimButton, pending[entry.Id] == true)
+		UiKit.shimmer(claimButton, 10)(pending[entry.Id] ~= true)
 		claimButton.Activated:Connect(function()
 			onClaim(entry.Id, claimButton)
 		end)
@@ -348,54 +276,21 @@ function QuestController.start()
 	local tab = "Daily"
 	local pending: { [string]: boolean } = {}
 
-	-- Escala del botón y posición bajo el de Mascotas (mismo tamaño y margen).
-	local function placeButton()
-		local size = ui.ScreenGui.AbsoluteSize
-		if size.X <= 0 or size.Y <= 0 then
-			return
-		end
-		local scale = UiKit.computeScale(size)
-		ui.ButtonScale.Scale = scale
-		ui.ButtonFrame.Position = UDim2.new(0, 16, 0.5, math.floor((BUTTON_SIZE.Y / 2 + 10) * scale))
-	end
-	ui.ScreenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeButton)
-	placeButton()
-
-	-- Aviso breve ---------------------------------------------------------------------
-	local noticeQueue: { { Text: string, Color: Color3 } } = {}
-	local showingNotice = false
-	local function nextNotice()
-		local item = table.remove(noticeQueue, 1)
-		if not item then
-			showingNotice = false
-			ui.Notice.Visible = false
-			return
-		end
-		showingNotice = true
-		ui.NoticeText.Text = item.Text
-		ui.NoticeStroke.Color = item.Color
-		ui.Notice.Visible = true
-		local fadeIn = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		TweenService:Create(ui.Notice, fadeIn, { BackgroundTransparency = THEME.PanelTransparency }):Play()
-		TweenService:Create(ui.NoticeText, fadeIn, { TextTransparency = 0 }):Play()
-		TweenService:Create(ui.NoticeStroke, fadeIn, { Transparency = 0.2 }):Play()
-		task.delay(2.6, function()
-			local fadeOut = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-			TweenService:Create(ui.Notice, fadeOut, { BackgroundTransparency = 1 }):Play()
-			TweenService:Create(ui.NoticeStroke, fadeOut, { Transparency = 1 }):Play()
-			local tween = TweenService:Create(ui.NoticeText, fadeOut, { TextTransparency = 1 })
-			tween.Completed:Once(nextNotice)
-			tween:Play()
-		end)
-	end
+	local menuEntry = MenuBar.add({
+		Id = "Quests",
+		Order = 2,
+		Icon = "📜",
+		Label = "Misiones",
+		Key = "M",
+		Color = Color3.fromRGB(236, 200, 120),
+		Panels = { PANEL_NAME },
+		OnActivate = function()
+			PanelManager.toggle(PANEL_NAME)
+		end,
+	})
+	local statusLine = MenuBar.status("Quests", 1)
 	local function notify(text: string, color: Color3)
-		if #noticeQueue >= 4 then
-			table.remove(noticeQueue, 1) -- nunca una cola larga de avisos
-		end
-		table.insert(noticeQueue, { Text = text, Color = color })
-		if not showingNotice then
-			nextNotice()
-		end
+		Toasts.show(text, { Color = color })
 	end
 
 	local feedbackToken = 0
@@ -475,8 +370,7 @@ function QuestController.start()
 				end
 			end
 		end
-		ui.Badge.Visible = ready > 0
-		ui.BadgeText.Text = tostring(ready)
+		menuEntry.setBadge(if ready > 0 then tostring(ready) else nil)
 		-- Diaria más avanzada aún en curso (o la siguiente misión) en una sola línea.
 		local best, bestRatio = nil, -1
 		for _, entry in state.Daily or {} do
@@ -486,11 +380,13 @@ function QuestController.start()
 			end
 		end
 		if best and definitions[best.Id] then
-			ui.Tracker.Text = ("%s  %s/%s"):format(definitions[best.Id].Title, formatNumber(math.floor(best.Progress)), formatNumber(best.Target))
+			statusLine.Text = ("📜 %s  %s/%s"):format(definitions[best.Id].Title, formatNumber(math.floor(best.Progress)), formatNumber(best.Target))
+			statusLine.TextColor3 = THEME.Text
 		elseif ready > 0 then
-			ui.Tracker.Text = "¡Recompensas listas!"
+			statusLine.Text = "📜 ¡Recompensas listas!"
+			statusLine.TextColor3 = THEME.Gold
 		else
-			ui.Tracker.Text = ""
+			statusLine.Text = ""
 		end
 	end
 
@@ -517,9 +413,9 @@ function QuestController.start()
 						local reward = if typeof(notice.Reward) == "number" and notice.Reward > 0 then ("  +%s ⚡"):format(formatNumber(notice.Reward)) else ""
 						notify("🏆 Logro: " .. def.Title .. reward, VIOLET)
 					elseif notice.Type == "Daily" then
-						notify("✦ Diaria completada: " .. def.Title .. " — ¡reclámala!", TURQUOISE)
+						notify("★ Diaria completada: " .. def.Title .. " — ¡reclámala!", TURQUOISE)
 					else
-						notify("✦ Misión completada: " .. def.Title .. " — ¡reclámala!", TURQUOISE)
+						notify("★ Misión completada: " .. def.Title .. " — ¡reclámala!", TURQUOISE)
 					end
 				end
 			end
@@ -578,24 +474,12 @@ function QuestController.start()
 			renderList()
 		end)
 	end
-	ui.OpenButton.Activated:Connect(function()
-		PanelManager.toggle(PANEL_NAME)
-	end)
 	ui.Close.Activated:Connect(function()
 		PanelManager.close(PANEL_NAME)
 	end)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.KeyCode == Enum.KeyCode.M then
 			PanelManager.toggle(PANEL_NAME)
-		end
-	end)
-	PanelManager.Changed:Connect(function(openPanel: string?)
-		local stroke = ui.ButtonStroke
-		if stroke then
-			local active = openPanel == PANEL_NAME
-			stroke.Color = if active then THEME.Gold else THEME.Stroke
-			stroke.Thickness = if active then 2.5 else 1.5
-			stroke.Transparency = if active then 0 else THEME.StrokeTransparency
 		end
 	end)
 

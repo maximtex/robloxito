@@ -4,10 +4,32 @@
 --
 -- Campos del registro (los nombres coinciden con los del perfil en PlayerDataService):
 --   Energy: number                      energía actual (>= 0)
+--   Money: number                       dinero actual (>= 0; lo sueltan los enemigos)
 --   UpgradeLevels: { [id]: number }     niveles de mejora (enteros en [0, MaxLevel])
 --   Tutorial: { Status, Step }          estado del tutorial inicial
 --   Pets, Equipped, NextPetUid, UnlockedZones, Quests, Session, Version
--- Los registros antiguos sin Energy/UpgradeLevels cargan con los valores iniciales.
+--   Cores: { Selected, LastSwitchAt, Elements }  los ocho núcleos (CoreLogic): producen
+--                                       energía y los gestiona CoreService.
+--   CoresArchive: { entrada }           valores de Cores corregidos al sanear, guardados
+--                                       ANTES de normalizar. Nunca se borra ni se reescribe.
+--   LastSeen: number                    os.time() del último guardado correcto: base de la
+--                                       recompensa offline (PlayerDataService).
+--   Rebirth: { Count, Tokens, Shop, BestLevel, LastAt }  renacimientos, fichas y ventajas
+--                                       de la tienda (RebirthLogic; los gestiona RebirthService).
+--   Adventure: { Npcs, Amulets, Equipped, Blessings, Active }  historias de los personajes,
+--                                       amuletos y bendiciones (AdventureLogic; los gestiona
+--                                       AdventureService).
+--   Rewards: { Streak, LastDay, Claims, Codes }  premio diario y códigos canjeados
+--                                       (RewardLogic; RewardService).
+--   Shop: { Receipts, AutoUpgrade }     compras sueltas ya concedidas y el interruptor de la
+--                                       mejora automática (MonetizationLogic; ShopService).
+--   Weekly: { Week, Energy }            energía generada esta semana (LeaderboardLogic;
+--                                       clasificación semanal).
+-- Los registros antiguos sin Energy/UpgradeLevels cargan con los valores iniciales, los
+-- que no tienen Cores (v2) empiezan con Naturaleza desbloqueada y seleccionada, y los que
+-- no tienen Rebirth (v3) empiezan sin renacimientos, los que no tienen Adventure (v4)
+-- empiezan sin historias, amuletos ni bendiciones y los que no tienen Rewards/Shop/Weekly
+-- (v5) empiezan sin racha, sin compras y con la semana a cero.
 --
 -- Seguridad de datos:
 -- - Siempre UpdateAsync (nunca SetAsync a ciegas).
@@ -16,6 +38,8 @@
 -- - Si la carga falla, el perfil NO se guarda, para no pisar datos buenos con datos vacíos.
 -- - Al cargar se sanean los datos; las mascotas de especies que ya no existen en
 --   PetConfig se conservan archivadas en lugar de borrarse.
+-- - Al guardar se escribe sobre el registro existente: los campos que este código no
+--   conoce se conservan (así, volver a la versión anterior no borra Cores ni LastSeen).
 --
 -- En Studio hace falta activar Game Settings > Security > "Enable Studio Access to
 -- API Services". Si no está activado, el juego funciona pero sin guardar.
@@ -27,9 +51,18 @@ local PetConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.PetCon
 local EconomyConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.EconomyConfig)
 local QuestLogic = require(script.Parent.Parent.Util.QuestLogic)
 local TutorialLogic = require(script.Parent.Parent.Util.TutorialLogic)
+local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
+local RebirthLogic = require(ReplicatedStorage:WaitForChild("Shared").RebirthLogic)
+local AdventureLogic = require(ReplicatedStorage:WaitForChild("Shared").AdventureLogic)
+local MonetizationLogic = require(ReplicatedStorage:WaitForChild("Shared").MonetizationLogic)
+local RewardLogic = require(script.Parent.Parent.Util.RewardLogic)
+local LeaderboardLogic = require(script.Parent.Parent.Util.LeaderboardLogic)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
-local SCHEMA_VERSION = 2 -- 2: añade Energy y UpgradeLevels (los registros v1 siguen cargando)
+-- 2: añade Energy y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
+-- 5: añade Adventure. 6: añade Rewards, Shop y Weekly. 7: añade Money. Los registros v1 a v6
+-- siguen cargando (sin Money empiezan con el dinero inicial).
+local SCHEMA_VERSION = 7
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -38,6 +71,7 @@ local SAVE_RETRY_DELAY = 2
 local MAX_STORED_PETS = 1000 -- tope de seguridad contra datos corruptos
 local MAX_ENERGY = 1e15 -- tope de seguridad (muy por encima de cualquier partida real)
 local MAX_ARCHIVED_UPGRADES = 50
+local MAX_CORES_ARCHIVE = 20 -- entradas nuevas como máximo (las existentes nunca se borran)
 
 export type PetEntry = { Uid: string, PetId: string }
 
@@ -51,9 +85,20 @@ export type PetData = {
 	-- Copia de la economía del perfil para guardar (PlayerDataService la rellena justo antes
 	-- de guardar; durante la sesión manda profile.Energy / profile.UpgradeLevels).
 	Energy: number,
+	Money: number,
 	UpgradeLevels: { [string]: number },
 	ArchivedUpgrades: { [string]: number }, -- mejoras que ya no existen: se conservan tal cual
 	Tutorial: TutorialLogic.TutorialData, -- tutorial inicial (activo en partidas antiguas)
+	Cores: CoreLogic.CoreData, -- núcleos (producen energía; ver CoreService)
+	CoresArchive: { any }, -- valores de núcleos corregidos al sanear (ver sanitizeCores)
+	-- os.time() del último guardado correcto (0 si no hay: partidas antiguas o nuevas).
+	-- Solo se lee al cargar (recompensa offline); al guardar se escribe la hora actual.
+	LastSeen: number,
+	Rebirth: RebirthLogic.RebirthData, -- renacimientos, fichas y tienda (ver RebirthService)
+	Adventure: AdventureLogic.AdventureData, -- historias, amuletos y bendiciones (AdventureService)
+	Rewards: RewardLogic.RewardData, -- premio diario y códigos (RewardService)
+	Shop: MonetizationLogic.ShopData, -- compras sueltas concedidas y mejora automática (ShopService)
+	Weekly: LeaderboardLogic.Weekly, -- energía generada esta semana (clasificación semanal)
 }
 
 -- "Loaded": datos cargados y bloqueados para esta sesión.
@@ -67,6 +112,7 @@ local store: DataStore? = nil
 
 local function isUnavailableError(message: string): boolean
 	return message:find("StudioAccessToApisNotAllowed", 1, true) ~= nil
+		or message:find("Studio access to APIs is not allowed", 1, true) ~= nil
 		or message:find("403", 1, true) ~= nil
 		or message:find("publish", 1, true) ~= nil
 end
@@ -107,16 +153,25 @@ end
 
 function SaveService.emptyData(): PetData
 	return {
-		Pets = {},
+		Pets = { { Uid = "p1", PetId = "Sproutling" } },
 		Archived = {},
-		Equipped = {},
-		NextPetUid = 1,
+		Equipped = { "p1" },
+		NextPetUid = 2,
 		UnlockedZones = {},
 		Quests = QuestLogic.empty(),
 		Energy = EconomyConfig.StartingEnergy,
+		Money = EconomyConfig.StartingMoney,
 		UpgradeLevels = startingUpgrades(),
 		ArchivedUpgrades = {},
 		Tutorial = TutorialLogic.empty(),
+		Cores = CoreLogic.empty(),
+		CoresArchive = {},
+		LastSeen = 0,
+		Rebirth = RebirthLogic.empty(),
+		Adventure = AdventureLogic.empty(),
+		Rewards = RewardLogic.empty(),
+		Shop = MonetizationLogic.empty(),
+		Weekly = LeaderboardLogic.emptyWeekly(),
 	}
 end
 
@@ -135,6 +190,16 @@ local function sanitizeEconomy(raw: { [string]: any }, result: PetData)
 	else
 		warn("[SaveService] Energía guardada no válida (" .. tostring(energy) .. "); se usa el valor inicial.")
 		result.Energy = EconomyConfig.StartingEnergy
+	end
+
+	local money = raw.Money
+	if money == nil then
+		result.Money = EconomyConfig.StartingMoney
+	elseif isFiniteNumber(money) and money >= 0 then
+		result.Money = math.min(money, MAX_ENERGY)
+	else
+		warn("[SaveService] Dinero guardado no válido (" .. tostring(money) .. "); se usa el valor inicial.")
+		result.Money = EconomyConfig.StartingMoney
 	end
 
 	if type(raw.UpgradeLevels) ~= "table" then
@@ -156,11 +221,57 @@ local function sanitizeEconomy(raw: { [string]: any }, result: PetData)
 	end
 end
 
+-- Núcleos guardados -> estructura válida. Antes de normalizar, los valores conocidos que
+-- haya que corregir se añaden a CoresArchive con su valor original (y se escriben en el
+-- mismo guardado que la corrección). El archivo existente se conserva entero; si no es
+-- una lista, se conserva dentro de una entrada nueva.
+local function sanitizeCores(raw: { [string]: any }, result: PetData)
+	local rawArchive = raw.CoresArchive
+	local copy = CoreLogic.storableCopy(rawArchive)
+	local isList = type(copy) == "table"
+	if isList then
+		local count = 0
+		for _ in copy do
+			count += 1
+		end
+		isList = count == #copy
+	end
+	local archive = if isList then copy else {}
+	local function append(changes: { [string]: any })
+		if #archive >= MAX_CORES_ARCHIVE then
+			warn("[SaveService] CoresArchive lleno: no se archivan más correcciones (se conservan las existentes).")
+			return
+		end
+		table.insert(archive, {
+			At = os.time(),
+			Version = if isFiniteNumber(raw.Version) then raw.Version else nil,
+			Changes = changes,
+		})
+	end
+	if rawArchive ~= nil and not isList then
+		append({ CoresArchive = if copy ~= nil then copy else tostring(rawArchive) })
+	end
+
+	result.Cores = CoreLogic.sanitize(raw.Cores)
+	local changes = CoreLogic.corrections(raw.Cores, result.Cores)
+	if changes then
+		warn("[SaveService] Datos de núcleos no válidos: se corrigen y los originales se guardan en CoresArchive.")
+		append(changes)
+	end
+	result.CoresArchive = archive
+end
+
 local function sanitize(raw: any): PetData
 	local result = SaveService.emptyData()
 	if type(raw) ~= "table" then
 		return result
 	end
+
+	-- Renacimiento primero: sus ventajas deciden cuántas mascotas puede haber equipadas. El
+	-- pase «Más mascotas» aún no se conoce al cargar (lo consulta ShopService a Roblox): se
+	-- conservan hasta las que permitiría y ShopService quita las de más si no lo tiene.
+	result.Rebirth = RebirthLogic.sanitize(raw.Rebirth)
+	local maxEquipped = RebirthLogic.maxEquipped(result.Rebirth, PetConfig.MaxEquipped) + MonetizationLogic.petSlotBonus({ PetSpace = true })
 
 	local seen: { [string]: boolean } = {}
 	if type(raw.Pets) == "table" then
@@ -186,7 +297,7 @@ local function sanitize(raw: any): PetData
 	end
 	if type(raw.Equipped) == "table" then
 		for _, uid in raw.Equipped do
-			if type(uid) == "string" and valid[uid] and not table.find(result.Equipped, uid) and #result.Equipped < PetConfig.MaxEquipped then
+			if type(uid) == "string" and valid[uid] and not table.find(result.Equipped, uid) and #result.Equipped < maxEquipped then
 				table.insert(result.Equipped, uid)
 			end
 		end
@@ -217,6 +328,18 @@ local function sanitize(raw: any): PetData
 	sanitizeEconomy(raw, result)
 	-- Tutorial: sin el campo empieza activo; el servidor lo completa solo si ya se cumplió.
 	result.Tutorial = TutorialLogic.sanitize(raw.Tutorial)
+	-- Núcleos: las partidas v2 no los tienen y empiezan solo con Naturaleza.
+	sanitizeCores(raw, result)
+	-- Último guardado (base de la producción offline). Sin él (o no válido): 0, nada
+	-- retroactivo.
+	local lastSeen = raw.LastSeen
+	result.LastSeen = if isFiniteNumber(lastSeen) and lastSeen > 0 and lastSeen <= 1e10 then math.floor(lastSeen) else 0
+	-- Aventuras: las partidas v4 (o anteriores) no las tienen y empiezan vacías.
+	result.Adventure = AdventureLogic.sanitize(raw.Adventure)
+	-- Premios, tienda y semana: las partidas v5 (o anteriores) no los tienen.
+	result.Rewards = RewardLogic.sanitize(raw.Rewards)
+	result.Shop = MonetizationLogic.sanitize(raw.Shop)
+	result.Weekly = LeaderboardLogic.sanitizeWeekly(raw.Weekly)
 
 	return result
 end
@@ -289,10 +412,18 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	-- Copias tomadas ANTES de esperar al DataStore: lo que cambie mientras tanto queda en el
 	-- perfil y se guarda la próxima vez.
 	local energy = if isFiniteNumber(data.Energy) and data.Energy >= 0 then math.min(data.Energy, MAX_ENERGY) else nil
+	local money = if isFiniteNumber(data.Money) and data.Money >= 0 then math.min(data.Money, MAX_ENERGY) else nil
 	local upgradeLevels = table.clone(data.ArchivedUpgrades)
 	for upgradeId, level in data.UpgradeLevels do
 		upgradeLevels[upgradeId] = level
 	end
+	local cores = CoreLogic.sanitize(data.Cores) -- copia nueva (y siempre válida)
+	local coresArchive = CoreLogic.storableCopy(data.CoresArchive) or {}
+	local rebirth = RebirthLogic.serialize(data.Rebirth)
+	local adventure = AdventureLogic.serialize(data.Adventure)
+	local rewards = RewardLogic.serialize(data.Rewards)
+	local shop = MonetizationLogic.serialize(data.Shop)
+	local weekly = LeaderboardLogic.serializeWeekly(data.Weekly)
 	local key = keyFor(userId)
 
 	for attempt = 1, SAVE_ATTEMPTS do
@@ -316,7 +447,20 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				if energy ~= nil then
 					stored.Energy = energy -- nunca se escribe un valor no válido
 				end
+				if money ~= nil then
+					stored.Money = money
+				end
 				stored.UpgradeLevels = upgradeLevels
+				stored.Cores = cores
+				if next(coresArchive) ~= nil then
+					stored.CoresArchive = coresArchive
+				end
+				stored.LastSeen = os.time()
+				stored.Rebirth = rebirth
+				stored.Adventure = adventure
+				stored.Rewards = rewards
+				stored.Shop = shop
+				stored.Weekly = weekly
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)

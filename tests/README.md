@@ -31,14 +31,27 @@ las de guardado usan un DataStore simulado en memoria.
 | Batería | Qué comprueba |
 |---|---|
 | `sanctuary` | Santuario del Núcleo Cósmico: contrato de nombres, colisiones, zonas libres del mapa, flotación, órbitas sin cruces, animación |
+| `shrines` | Círculo Elemental (altares de los núcleos): contrato con el cliente, estado dormido, colisiones, respeto del mapa (huevos, camino, árboles, enemigos) y alturas |
 | `sandbox`, `sandbox_early` | Modo prueba del tutorial: ninguna llamada al DataStore, perfil temporal, nunca se guarda |
 | `tutorial` | Pasos, omitir, veteranos, carga fallida, dos jugadores |
 | `persist` | Guardado y carga de energía y mejoras, fallos de carga y de guardado, perfiles antiguos |
-| `quest` | Misiones, diarias y logros: reclamar una sola vez, reinicio diario, validación |
+| `quest` | Misiones, diarias y logros: reclamar una sola vez, reinicio diario, validación; diarias de mejorar el cristal y abrir huevos (avisos de `GameEvents`, solo la Resonancia cuenta) |
 | `combat` | Daño, muerte única, reparto de recompensas, objetivos |
 | `petcombat` | Habilidades de mascotas |
 | `anim` | Animación de enemigos |
 | `pose` | Articulaciones de los modelos de enemigos |
+| `cores` | Núcleos: configuración y lógica pura (costes, producción, afinidad, offline) |
+| `persist_cores` | Guardado v3 de los núcleos: migración, correcciones archivadas, vuelta atrás a v2 |
+| `core_service` | Núcleos fase 2: despertar, mejorar, elegir (afinidad), cobro, atributos, guardado y producción offline al cargar |
+| `abilities` | Habilidades elementales: configuración de los 8 elementos, fórmulas (maestría, cadena, jefes), estados de control, segundo elemento (Q + R), recarga por elemento, combos (marcas, reacciones, Remolino) y AbilityService (objetivos, curación, quemadura, velocidad, retroceso, oleadas, remote) |
+| `rebirth` | Renacimiento: requisito, reinicio en el mismo paso, fichas y tienda, multiplicadores (producción, offline, botín, daño), espacios de mascota, huevos ya desbloqueados, guardado y aviso social |
+| `landscape` | Paisaje: azar determinista, caminos, faroles, bosque y decoración fuera de las zonas de juego, lo construido a mano, límite invisible y montañas; jardines de huevos (santuarios dentro, separados y mirando al centro, mobiliario sin estorbar, entrada libre y conectada, zona segura); personajes de las aventuras y objetos perdidos en sitios despejados; pueblo (casas, plaza y puestos sin solaparse, calle hasta el portal, zona segura); naturaleza del norte (río fuera de las zonas de enemigos, caminos que solo cruzan el agua por el puente, piedras de la cascada a saltos cortos, praderas y lomas fuera de las zonas de juego) y cofres en sitios despejados |
+| `adventure` | Aventuras: configuración (5 historias de 3 misiones; la 2.ª ranura de amuleto sigue pidiendo las 4 primeras), saneado, aceptar / progreso / entregar (derrotas, objetos perdidos y entregas entre personajes), amuletos y ranuras, bendiciones (activar, alargar, tope y caducidad), pasivas (producción, offline, daño, botín, velocidad) y AdventureService real (distancias, recogida al pasar, límites de frecuencia, guardado v5 y registros v4) |
+| `zones` | Zonas: desbloqueo con energía y renacimientos (la Caldera pide 3, sin cobrar si faltan, NaN cuenta como 0), zonas separadas, portales de ida y de vuelta, enemigos fuera de zonas seguras, huevos y mascotas de cada zona, aventuras y misiones que solo nombran zonas que existen, volcán y lago de lava de la Caldera |
+| `leaderboard` | Monolitos de clasificación: orden por valor, desempate (renacimientos por energía generada, luego nombre), valores no válidos ignorados, tope de filas, páginas (servidor, global y semana) bien definidas y sitios libres junto al spawn |
+| `hudlayout` | Interfaz: menú agrupado, columnas, tarjetas, botones de combate y pila de avisos sin solaparse ni salirse en muchas pantallas de escritorio y táctiles; con un panel abierto los avisos bajan, se ponen a su lado o esperan (nunca encima del panel) |
+| `world` | Mundo vivo: ciclo de día y noche (horas de cada tramo, sin saltos, día más largo que la noche, luz de luna, Caldera fija), cofres escondidos (saneado del guardado, abrir y esperar, reloj adelantado, estado para el cliente, premios que existen) y cauce del río (cortes, ancho, de la poza de la cascada al lago) |
+| `shop` | Premio diario y códigos (racha, día perdido, reloj atrasado, códigos caducados o con renacimientos, límite de intentos, premios concedidos y guardados), tienda (pases desde Roblox y comprados en la partida, Energía ×2 también offline, Más mascotas que quita las de más si no se tiene, recibos que no se conceden dos veces y que solo se confirman guardados, mejora automática con su interruptor), huevos ×3 todo o nada, mascota de regalo, mejor huevo, la semana de la clasificación y los cofres escondidos de verdad (energía y bendición, espera guardada al momento, sin abrir dos veces, estado al cliente) |
 
 ## Pruebas heredadas (`legacy/`)
 

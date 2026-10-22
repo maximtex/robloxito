@@ -13,8 +13,13 @@
 -- En el repositorio se guarda SIEMPRE con TutorialSandbox = false. Para probar en local:
 -- cámbialo a true (Rojo lo sincroniza), pulsa Play en Studio y vuelve a dejarlo en false
 -- antes de hacer commit. `python tests/run_tests.py` avisa si se ha quedado en true.
+--
+-- StudioPasses = true: en Studio, el jugador tiene todos los pases de la tienda (Energía ×2,
+-- Mejora automática, Abrir ×3, Más mascotas) sin comprarlos, para probarlos. Fuera de
+-- Studio se ignora. En el repositorio, false.
 
 return {
 	TutorialSandbox = false,
 	SandboxStartingEnergy = 3000,
+	StudioPasses = false,
 }

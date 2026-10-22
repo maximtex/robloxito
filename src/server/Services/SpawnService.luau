@@ -55,6 +55,9 @@ local function restyle(spawnLocation: SpawnLocation)
 	for _, child in spawnLocation:GetChildren() do
 		if child:IsA("Decal") then
 			child.Color3 = SpawnConfig.DecalTint
+			if SpawnConfig.HideDecal then
+				child.Transparency = 1
+			end
 		end
 	end
 end

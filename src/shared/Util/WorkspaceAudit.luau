@@ -9,6 +9,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+local StudFloor = require(script.Parent.StudFloor)
+
 local WorkspaceAudit = {}
 
 local HUGE_SIZE = 120 -- ninguna pieza del juego mide tanto
@@ -49,15 +51,29 @@ function WorkspaceAudit.run(where: string)
 		return false
 	end
 
+	-- Modelos del mapa colocados por MapAssets (Creator Store, guardados en el place):
+	-- llevan el atributo "MapAsset" y son contenido legítimo.
+	local function fromMapAssets(item: Instance): boolean
+		local model = item:FindFirstAncestorWhichIsA("Model")
+		return model ~= nil and model:GetAttribute("MapAsset") ~= nil
+	end
+
 	local findings = {}
+	local skippedAssets = 0
 	for _, item in Workspace:GetDescendants() do
 		if item:IsA("Terrain") or item:IsA("Camera") or inCharacter(item) then
+			continue
+		end
+		if (item:IsA("MeshPart") or item:IsA("SurfaceAppearance") or item:IsA("SpecialMesh")) and fromMapAssets(item) then
+			skippedAssets += 1
 			continue
 		end
 		if item:IsA("BasePart") then
 			local size = item.Size
 			local largest = math.max(size.X, size.Y, size.Z)
-			if largest > HUGE_SIZE and not (item.Name == PROJECT_BASEPLATE and item.Parent == Workspace) then
+			-- Los caminos del suelo de bloques (StudWorld) se juntan en tramos largos a propósito
+			local floorPiece = item.Parent ~= nil and item.Parent.Name == StudFloor.FolderName
+			if largest > HUGE_SIZE and not (item.Name == PROJECT_BASEPLATE and item.Parent == Workspace) and not floorPiece then
 				table.insert(findings, ("Pieza enorme %s (%s) tamaño %s en %s"):format(item:GetFullName(), item.ClassName, tostring(size), tostring(item.Position)))
 			end
 			if item:IsA("MeshPart") and item.MeshId ~= "" then
@@ -65,13 +81,21 @@ function WorkspaceAudit.run(where: string)
 			end
 		elseif item:IsA("SpecialMesh") and (item.MeshId ~= "" or item.TextureId ~= "") then
 			table.insert(findings, ("Malla externa %s (malla %s, textura %s, escala %s)"):format(item:GetFullName(), item.MeshId, item.TextureId, tostring(item.Scale)))
-		elseif (item:IsA("Decal") or item:IsA("Texture")) and not (item.Parent and item.Parent:IsA("SpawnLocation")) then
+		elseif
+			(item:IsA("Decal") or item:IsA("Texture"))
+			and not (item.Parent and item.Parent:IsA("SpawnLocation"))
+			-- Las texturas del suelo de bloques (StudWorld) las pone el juego en cada bloque
+			and not (item.Parent and item.Parent.Parent and item.Parent.Parent.Name == StudFloor.FolderName)
+		then
 			table.insert(findings, ("%s %s (%s)"):format(item.ClassName, item:GetFullName(), item.Texture))
 		elseif item:IsA("SurfaceAppearance") then
 			table.insert(findings, ("SurfaceAppearance %s"):format(item:GetFullName()))
 		elseif item:IsA("Script") or item:IsA("LocalScript") then
 			table.insert(findings, ("Script suelto %s"):format(item:GetFullName()))
 		end
+	end
+	if skippedAssets > 0 then
+		print(("[WorkspaceAudit:%s] %d pieza(s) de los modelos del mapa (MapAssets) no se revisan."):format(where, skippedAssets))
 	end
 	report(where, findings)
 end

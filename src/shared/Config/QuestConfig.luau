@@ -9,8 +9,9 @@
 --   { Source = "BossTypes" }   jefes distintos derrotados al menos una vez.
 --   { Source = "State", Key = ... }   estado actual del perfil: UpgradeLevel, PetsOwned,
 --       PetsEquipped, CombatPetsOwned, ZonesUnlocked (zonas compradas).
---   { Source = "Daily", Event = "Kill" | "Energy" | "PetAbility", Kind?, Zone? }
---       contador del día (solo para misiones diarias).
+--   { Source = "Daily", Event = "Kill" | "Energy" | "PetAbility" | "Upgrade" | "Egg", Kind?, Zone? }
+--       contador del día (solo para misiones diarias). Upgrade: mejoras de la Resonancia
+--       del Cristal compradas; Egg: huevos abiertos.
 -- RequiresZone: no se muestra como alcanzable (ni se ofrece como diaria) sin esa zona.
 -- RequiresCombatPet: solo se ofrece como diaria si el jugador tiene una mascota de combate.
 --
@@ -20,7 +21,8 @@
 --   mejora 5 = 75, 8 = 256, 10 = 576, 12 = 1 297, 15 = 4 378; Valle = 2 500;
 --   Guardián del Bosque = 1 200 cada 3 min; Coloso = 4 000 cada 4 min.
 -- Las tres diarias juntas dan como mucho 6 000 al día (el peor caso: Patrulla + Valle +
--- Jefe con los topes): ~1,5 Colosos, muy por debajo de una sesión normal de juego.
+-- Jefe con los topes): ~1,5 Colosos, muy por debajo de una sesión normal de juego. Con la
+-- Caldera de Brasas (tras 3 renacimientos) su diaria sube el tope a ~25 000: ~1 Titán.
 -- Los logros que coinciden con una misión (primer enemigo, primer jefe, primera mascota,
 -- primera zona) no dan energía: la misma acción nunca se premia dos veces.
 
@@ -55,7 +57,7 @@ local QuestConfig = {
 		{
 			Id = "FirstPet",
 			Title = "Un nuevo amigo",
-			Description = "Consigue tu primera mascota en un santuario de huevos.",
+			Description = "Consigue tu primera mascota en el Jardín de los Huevos.",
 			Goal = { Source = "State", Key = "PetsOwned" },
 			Target = 1,
 			Reward = { Min = 60, Share = 1, Max = 500 },
@@ -109,6 +111,23 @@ local QuestConfig = {
 			RequiresZone = "CrystalValley",
 			Reward = { Min = 600, Share = 1, Max = 3000 },
 		},
+		{
+			Id = "UnlockCaldera",
+			Title = "Corazón de fuego",
+			Description = "Desbloquea la Caldera de Brasas (pide 3 renacimientos).",
+			Goal = { Source = "State", Key = "ZonesUnlocked" },
+			Target = 2,
+			Reward = { Min = 3000, Share = 1, Max = 25000 },
+		},
+		{
+			Id = "CalderaHunter",
+			Title = "Apagafuegos",
+			Description = "Derrota a 15 enemigos de la Caldera de Brasas.",
+			Goal = { Source = "ZoneKills", Zone = "EmberCaldera" },
+			Target = 15,
+			RequiresZone = "EmberCaldera",
+			Reward = { Min = 5000, Share = 1, Max = 30000 },
+		},
 	},
 
 	-- Diarias: cada día se eligen DailyCount entre las que el jugador puede hacer.
@@ -138,6 +157,22 @@ local QuestConfig = {
 			Reward = { Min = 120, Share = 0.8, Max = 1200 },
 		},
 		{
+			Id = "DailyUpgrade",
+			Title = "Pulir el cristal",
+			Description = "Mejora la Resonancia del Cristal 10 veces.",
+			Goal = { Source = "Daily", Event = "Upgrade" },
+			Target = 10,
+			Reward = { Min = 120, Share = 1, Max = 1500 },
+		},
+		{
+			Id = "DailyEggs",
+			Title = "Incubadora",
+			Description = "Abre 3 huevos.",
+			Goal = { Source = "Daily", Event = "Egg" },
+			Target = 3,
+			Reward = { Min = 150, Share = 1, Max = 1500 },
+		},
+		{
 			Id = "DailyPets",
 			Title = "Trabajo en equipo",
 			Description = "Tus mascotas de combate aciertan 30 habilidades.",
@@ -164,6 +199,15 @@ local QuestConfig = {
 			RequiresZone = "CrystalValley", -- a partir de la etapa media
 			Reward = { Min = 400, Share = 1.5, Max = 2500 },
 		},
+		{
+			Id = "DailyCaldera",
+			Title = "Ronda por la Caldera",
+			Description = "Derrota a 12 enemigos de la Caldera de Brasas.",
+			Goal = { Source = "Daily", Event = "Kill", Zone = "EmberCaldera" },
+			Target = 12,
+			RequiresZone = "EmberCaldera",
+			Reward = { Min = 3000, Share = 1, Max = 20000 },
+		},
 	},
 
 	-- Logros permanentes: se desbloquean solos (una vez) al cumplirse.
@@ -174,11 +218,14 @@ local QuestConfig = {
 		{ Id = "FirstBoss", Title = "Primer jefe", Description = "Derrota a un jefe.", Goal = { Source = "Stat", Key = "BossKills" }, Target = 1 },
 		{ Id = "BossHunter", Title = "Cazajefes", Description = "Derrota a 5 jefes.", Goal = { Source = "Stat", Key = "BossKills" }, Target = 5, Reward = { Min = 1000, Share = 2, Max = 8000 } },
 		{ Id = "BothBosses", Title = "Domador de colosos", Description = "Derrota al Guardián del Bosque y al Coloso de Amatista.", Goal = { Source = "BossTypes" }, Target = 2, Reward = { Min = 1500, Share = 2, Max = 8000 } },
+		{ Id = "AllBosses", Title = "Señor de los titanes", Description = "Derrota a los tres jefes: Guardián, Coloso y Titán de la Caldera.", Goal = { Source = "BossTypes" }, Target = 3, Reward = { Min = 5000, Share = 2, Max = 30000 } },
 		{ Id = "FirstPet", Title = "Primera mascota", Description = "Consigue una mascota.", Goal = { Source = "State", Key = "PetsOwned" }, Target = 1 },
 		{ Id = "Collector", Title = "Coleccionista", Description = "Ten 10 mascotas.", Goal = { Source = "State", Key = "PetsOwned" }, Target = 10, Reward = { Min = 500, Share = 1, Max = 4000 } },
 		{ Id = "CombatPet", Title = "Guardián de cristal", Description = "Consigue una mascota de combate.", Goal = { Source = "State", Key = "CombatPetsOwned" }, Target = 1, Reward = { Min = 500, Share = 1, Max = 4000 } },
 		{ Id = "NewHorizon", Title = "Nuevo horizonte", Description = "Desbloquea una zona nueva.", Goal = { Source = "State", Key = "ZonesUnlocked" }, Target = 1 },
 		{ Id = "Resonance10", Title = "Resonancia plena", Description = "Lleva la Resonancia del Cristal al nivel 10.", Goal = { Source = "State", Key = "UpgradeLevel" }, Target = 10, Reward = { Min = 300, Share = 0.5, Max = 1000 } },
+		{ Id = "FirstRebirth", Title = "Renacido", Description = "Renace por primera vez en el Cristal del Renacimiento.", Goal = { Source = "State", Key = "Rebirths" }, Target = 1, Reward = { Min = 500, Share = 1, Max = 4000 } },
+		{ Id = "Reborn5", Title = "Ciclo eterno", Description = "Renace 5 veces.", Goal = { Source = "State", Key = "Rebirths" }, Target = 5, Reward = { Min = 2000, Share = 2, Max = 20000 } },
 	},
 }
 

@@ -1,7 +1,11 @@
--- HUD de energía: tarjeta de saldo arriba, tarjeta de mejora abajo.
--- Solo envía solicitudes; el servidor decide si la compra es válida.
--- Mientras hay un panel modal abierto (PanelManager), la tarjeta de mejora se aparta
--- hacia abajo para no quedar tapada; la de energía siempre queda visible.
+-- HUD de Monedas estilo `HUD Rediseño (standalone).html` + Panel de la Tienda de Mejoras y Láser:
+-- - A la izquierda: pila vertical limpia con:
+--     1. Icono 3D de Rayo + cantidad de Energía en crema con borde oscuro + botón cuadrado verde `+`.
+--     2. Pastilla naranja `×1.1` + texto `"Multiplicador"`.
+--     3. Icono 3D de Cristal / Tokens de Renacimiento + cantidad en lavanda con borde oscuro,
+--        y a su lado 💰 Dinero (lo sueltan los enemigos) en dorado.
+-- - Panel "LaserShop" (abierto en el puesto Mejorar Láser del pueblo): sus mejoras se pagan
+--   con dinero.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,36 +16,81 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local Constants = require(Shared.Constants)
 local Economy = require(Shared.Economy)
+local CombatMath = require(Shared.CombatMath)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local UiKit = require(script.Parent.Parent.UI.UiKit)
+local Icons = require(script.Parent.Parent.UI.Icons)
 local RevealGate = require(script.Parent.Parent.Pets.RevealGate)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
+local HudLayout = require(script.Parent.Parent.UI.HudLayout)
+local Juice = require(script.Parent.Parent.UI.Juice)
 
-local UPGRADE_ID = "GeneratorPower"
 local PENDING_TIMEOUT = 2
 local FEEDBACK_SECONDS = 2.5
-
--- El HUD se diseña para una ventana de 1280x720. ScreenGui.AbsoluteSize ya descuenta
--- la barra superior de Roblox (~58 px), así que la altura de referencia es 660:
--- a 1280x720 reales la escala es 1.
-local REFERENCE_SIZE = Vector2.new(1280, 660)
--- En escritorio no se reduce por debajo de 0.9 aunque el visor de Studio sea pequeño.
--- En pantallas táctiles se permite más reducción para dejar sitio al joystick y al salto.
-local MIN_SCALE_DESKTOP = 0.9
-local MIN_SCALE_TOUCH = 0.6
-local MAX_SCALE = 1.5
+local LASER_PANEL_SIZE = Vector2.new(540, 430)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
-local LAYOUT = Theme.Layout
+local INK = Color3.fromRGB(43, 29, 63) -- #2B1D3F
+local CREAM = Color3.fromRGB(255, 246, 224) -- #FFF6E0
+local MULT_GOLD = Color3.fromRGB(255, 231, 168) -- #FFE7A8
+local TOKENS_LAVENDER = Color3.fromRGB(231, 216, 255) -- #E7D8FF
+local MONEY_GOLD = Color3.fromRGB(255, 218, 92)
 
 local RESULT_MESSAGES = {
 	[Constants.PurchaseCodes.Success] = "¡Mejora comprada!",
 	[Constants.PurchaseCodes.InsufficientEnergy] = "Energía insuficiente",
+	[Constants.PurchaseCodes.InsufficientMoney] = "Dinero insuficiente: derrota enemigos",
 	[Constants.PurchaseCodes.MaxLevel] = "Nivel máximo alcanzado",
 	[Constants.PurchaseCodes.TooFast] = "Demasiado rápido, espera un momento",
 	[Constants.PurchaseCodes.NotReady] = "Cargando datos, inténtalo de nuevo",
 	[Constants.PurchaseCodes.InvalidRequest] = "Solicitud no válida",
+}
+
+local SHOP_UPGRADES = {
+	{
+		Id = "LaserPower",
+		Icon = "⚡",
+		Title = "Potencia del Láser",
+		Color = Color3.fromRGB(70, 235, 255),
+		Describe = function(level: number): string
+			return ("Daño del láser: 💥 %s → %s"):format(formatNumber(CombatMath.playerDamage(level, 1)), formatNumber(CombatMath.playerDamage(level + 1, 1)))
+		end,
+	},
+	{
+		Id = "WalkSpeed",
+		Icon = "👟",
+		Title = "Velocidad de Correr",
+		Color = Color3.fromRGB(110, 245, 130),
+		Describe = function(level: number): string
+			local curSpd = 28 + level * 2.5
+			local nextSpd = 28 + (level + 1) * 2.5
+			return ("Velocidad al correr: 🏃 %.1f → %.1f"):format(curSpd, nextSpd)
+		end,
+	},
+	{
+		Id = "PetPower",
+		Icon = "🐾",
+		Title = "Poder de Mascotas",
+		Color = Color3.fromRGB(255, 205, 75),
+		Describe = function(level: number): string
+			local curPct = 100 + level * 25
+			local nextPct = 100 + (level + 1) * 25
+			return ("Daño de tus mascotas: 🐾 %d%% → %d%%"):format(curPct, nextPct)
+		end,
+	},
+	{
+		Id = "LaserSpeed",
+		Icon = "🔋",
+		Title = "Cadencia del Láser",
+		Color = Color3.fromRGB(205, 115, 255),
+		Describe = function(level: number): string
+			local curInt = math.max(0.2, 0.55 - level * 0.022)
+			local nextInt = math.max(0.2, 0.55 - (level + 1) * 0.022)
+			return ("Velocidad de disparo: ⚡ %.2fs → %.2fs"):format(curInt, nextInt)
+		end,
+	},
 }
 
 local HudController = {}
@@ -49,8 +98,6 @@ local HudController = {}
 export type Callbacks = {
 	onPurchaseSuccess: (() -> ())?,
 }
-
--- Utilidades de construcción ------------------------------------------------
 
 local function create(className: string, properties: { [string]: any }, parent: Instance?): any
 	local instance = Instance.new(className)
@@ -71,8 +118,8 @@ local function createText(parent: Instance, name: string, properties: { [string]
 	local label = create("TextLabel", {
 		Name = name,
 		BackgroundTransparency = 1,
-		Font = FONTS.Body,
-		TextColor3 = THEME.Text,
+		Font = FONTS.Display,
+		TextColor3 = Color3.new(1, 1, 1),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = "",
 	}, nil)
@@ -83,25 +130,13 @@ local function createText(parent: Instance, name: string, properties: { [string]
 	return label
 end
 
--- Tarjeta base con el mismo estilo para todos los paneles.
-local function createCard(parent: Instance, name: string, size: Vector2, anchor: Vector2, position: UDim2)
-	local card = create("Frame", {
-		Name = name,
-		AnchorPoint = anchor,
-		Position = position,
-		Size = UDim2.fromOffset(size.X, size.Y),
-		BackgroundColor3 = THEME.Panel,
-		BackgroundTransparency = THEME.PanelTransparency,
+local function addStroke(parent: Instance, thickness: number, mode: Enum.ApplyStrokeMode?)
+	return create("UIStroke", {
+		Color = INK,
+		Thickness = thickness,
+		ApplyStrokeMode = mode or Enum.ApplyStrokeMode.Contextual,
+		LineJoinMode = Enum.LineJoinMode.Round,
 	}, parent)
-	addCorner(card, 14)
-	local stroke = create("UIStroke", {
-		Color = THEME.Stroke,
-		Thickness = 1.5,
-		Transparency = THEME.StrokeTransparency,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-	}, card)
-	local scale = create("UIScale", {}, card)
-	return card, stroke, scale
 end
 
 local function buildGui(playerGui: PlayerGui)
@@ -113,171 +148,311 @@ local function buildGui(playerGui: PlayerGui)
 	local screenGui = create("ScreenGui", {
 		Name = "EnergyHud",
 		ResetOnSpawn = false,
+		DisplayOrder = 4,
 		IgnoreGuiInset = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
 
-	-- Tamaños en píxeles a escala 1 (ventana de 1280x720). UIScale los ajusta.
+	-- Pila izquierda de monedas (Energía + Multiplicador + Tokens de Renacimiento y Dinero)
+	local energyCard = create("Frame", {
+		Name = "EnergyCard",
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.new(0, 18, 0.30, 0),
+		Size = UDim2.fromOffset(290, 154),
+		BackgroundTransparency = 1,
+	}, screenGui)
+	local energyScale = create("UIScale", {}, energyCard)
 
-	-- Tarjeta de energía (arriba, centrada; el chat está arriba a la izquierda)
-	local energyCard, _, energyScale = createCard(
-		screenGui,
-		"EnergyCard",
-		LAYOUT.EnergyCardSize,
-		Vector2.new(0.5, 0),
-		UDim2.new(0.5, 0, 0, LAYOUT.Margin)
-	)
-	local accentBar = create("Frame", {
-		Name = "AccentBar",
-		Position = UDim2.fromOffset(0, 18),
-		Size = UDim2.new(0, 5, 1, -36),
-		BackgroundColor3 = THEME.Accent,
-		BorderSizePixel = 0,
+	-- Fila 1: Icono de Rayo + Número de Energía + Botón `+` verde
+	local energyRow = create("Frame", {
+		Name = "EnergyRow",
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.fromOffset(290, 62),
+		BackgroundTransparency = 1,
 	}, energyCard)
-	addCorner(accentBar, 3)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 6),
+	}, energyRow)
 
-	createText(energyCard, "Caption", {
-		Position = UDim2.fromOffset(22, 14),
-		Size = UDim2.new(1, -44, 0, 18),
-		TextSize = 15,
-		TextColor3 = THEME.Muted,
-		Text = "ENERGÍA",
+	local boltHolder = Icons.make(energyRow, "energy", {
+		Name = "EnergyIcon",
+		Size = UDim2.fromOffset(60, 60),
+		Rotation = -8,
+		ZIndex = 3,
 	})
-	local energyValue = createText(energyCard, "Value", {
-		Position = UDim2.fromOffset(22, 34),
-		Size = UDim2.new(1, -44, 0, 48),
-		Font = FONTS.Display,
+	boltHolder.LayoutOrder = 1
+
+	local energyValue = createText(energyRow, "Value", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 56),
 		TextSize = 44,
-		Text = "...",
+		TextColor3 = CREAM,
+		Text = "0",
+		LayoutOrder = 2,
+		ZIndex = 3,
 	})
-	local productionValue = createText(energyCard, "Production", {
-		Position = UDim2.fromOffset(22, 88),
-		Size = UDim2.new(1, -44, 0, 24),
-		TextSize = 19,
-		TextColor3 = THEME.Accent,
-	})
+	addStroke(energyValue, 4, Enum.ApplyStrokeMode.Contextual)
+	local energyPop = create("UIScale", { Name = "Pop" }, energyValue)
 
-	-- Tarjeta de mejora (abajo, centrada; entre el joystick y el botón de salto en móvil)
-	local upgradeCard, upgradeStroke, upgradeScale = createCard(
-		screenGui,
-		"UpgradeCard",
-		Vector2.new(420, 212),
-		Vector2.new(0.5, 1),
-		UDim2.new(0.5, 0, 1, -24)
-	)
-
-	local title = createText(upgradeCard, "Title", {
-		Position = UDim2.fromOffset(20, 18),
-		Size = UDim2.new(1, -136, 0, 28),
-		TextSize = 20,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-	})
-
-	local levelBadge = create("Frame", {
-		Name = "LevelBadge",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -20, 0, 17),
-		Size = UDim2.fromOffset(96, 30),
-		BackgroundColor3 = THEME.Inset,
-	}, upgradeCard)
-	addCorner(levelBadge, 15)
-	local levelText = createText(levelBadge, "Text", {
-		Size = UDim2.fromScale(1, 1),
-		TextSize = 17,
-		TextColor3 = THEME.Accent,
-		TextXAlignment = Enum.TextXAlignment.Center,
-	})
-
-	local description = createText(upgradeCard, "Description", {
-		Position = UDim2.fromOffset(20, 50),
-		Size = UDim2.new(1, -40, 0, 22),
-		Font = FONTS.Light,
-		TextSize = 17,
-		TextColor3 = THEME.Muted,
-	})
-
-	local progressTrack = create("Frame", {
-		Name = "ProgressTrack",
-		Position = UDim2.fromOffset(20, 86),
-		Size = UDim2.new(1, -40, 0, 10),
-		BackgroundColor3 = THEME.Inset,
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-	}, upgradeCard)
-	addCorner(progressTrack, 5)
-	local progressFill = create("Frame", {
-		Name = "Fill",
-		Size = UDim2.fromScale(0, 1),
-		BackgroundColor3 = THEME.Accent,
-		BorderSizePixel = 0,
-	}, progressTrack)
-	addCorner(progressFill, 5)
-
-	local progressText = createText(upgradeCard, "ProgressText", {
-		Position = UDim2.fromOffset(20, 100),
-		Size = UDim2.new(1, -40, 0, 20),
-		Font = FONTS.Light,
-		TextSize = 15,
-		TextColor3 = THEME.Muted,
-		TextXAlignment = Enum.TextXAlignment.Right,
-	})
-
-	local button = create("TextButton", {
-		Name = "UpgradeButton",
-		Position = UDim2.new(0, 20, 1, -74),
-		Size = UDim2.new(1, -40, 0, 56),
-		BackgroundColor3 = THEME.Disabled,
+	local plus = create("TextButton", {
+		Name = "PlusButton",
+		Size = UDim2.fromOffset(36, 36),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		AutoButtonColor = false,
 		Font = FONTS.Display,
-		TextSize = 23,
-		TextColor3 = THEME.Text,
-		Text = "Cargando...",
-	}, upgradeCard)
-	addCorner(button, 12)
-	local buttonScale = create("UIScale", {}, button)
-	local buttonFlash = create("Frame", {
-		Name = "Flash",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 1,
-		ZIndex = 2,
-	}, button)
-	addCorner(buttonFlash, 12)
+		TextSize = 26,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "+",
+		LayoutOrder = 3,
+		ZIndex = 4,
+	}, energyRow)
+	addCorner(plus, 11)
+	create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(182, 245, 166)),
+			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(96, 214, 96)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(63, 174, 69)),
+		}),
+	}, plus)
+	addStroke(plus, 3, Enum.ApplyStrokeMode.Border)
+	local plusTextStroke = create("UIStroke", {
+		Color = INK,
+		Thickness = 2.2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	}, plus)
+	local _ = plusTextStroke
+	plus.Activated:Connect(function()
+		PanelManager.open("Shop")
+	end)
 
-	-- Mensaje de resultado, flotando justo encima de la tarjeta de mejora.
-	local feedback = createText(upgradeCard, "Feedback", {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 0, -10),
-		Size = UDim2.new(1, 0, 0, 26),
-		TextSize = 19,
+	-- Fila 2: Pastilla naranja `×1.1` + texto `"Multiplicador"`
+	local multRow = create("Frame", {
+		Name = "MultiplierRow",
+		Position = UDim2.fromOffset(10, 64),
+		Size = UDim2.fromOffset(250, 30),
+		BackgroundTransparency = 1,
+	}, energyCard)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 8),
+	}, multRow)
+
+	local multPill = create("Frame", {
+		Name = "MultPill",
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(54, 26),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		LayoutOrder = 1,
+		ZIndex = 3,
+	}, multRow)
+	addCorner(multPill, 13)
+	create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.fromRGB(255, 210, 122), Color3.fromRGB(242, 154, 58)),
+	}, multPill)
+	addStroke(multPill, 3, Enum.ApplyStrokeMode.Border)
+	create("UIPadding", {
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10),
+	}, multPill)
+
+	local multValue = createText(multPill, "MultValue", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.new(0, 0, 1, 0),
+		TextSize = 15,
+		TextColor3 = Color3.new(1, 1, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextStrokeTransparency = 0.35,
-		TextStrokeColor3 = Color3.new(0, 0, 0),
+		Text = "×1",
+		ZIndex = 4,
+	})
+	addStroke(multValue, 2, Enum.ApplyStrokeMode.Contextual)
+
+	local multLabel = createText(multRow, "MultLabel", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 26),
+		TextSize = 16,
+		TextColor3 = MULT_GOLD,
+		Text = "Multiplicador",
+		LayoutOrder = 2,
+		ZIndex = 3,
+	})
+	addStroke(multLabel, 2.5, Enum.ApplyStrokeMode.Contextual)
+
+	-- Fila 3: Icono de Cristal (Tokens de Renacimiento) + Cantidad en lavanda
+	local tokensRow = create("Frame", {
+		Name = "TokensBar",
+		Position = UDim2.fromOffset(4, 100),
+		Size = UDim2.fromOffset(290, 52),
+		BackgroundTransparency = 1,
+	}, energyCard)
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 8),
+	}, tokensRow)
+
+	local tokensIcon = Icons.make(tokensRow, "tokens", {
+		Name = "TokensIcon",
+		Size = UDim2.fromOffset(48, 48),
+		Rotation = 6,
+		ZIndex = 3,
+	})
+	tokensIcon.LayoutOrder = 1
+
+	local tokensValue = createText(tokensRow, "Tokens", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 48),
+		TextSize = 36,
+		TextColor3 = TOKENS_LAVENDER,
+		Text = "0",
+		LayoutOrder = 2,
+		ZIndex = 3,
+	})
+	addStroke(tokensValue, 3.6, Enum.ApplyStrokeMode.Contextual)
+
+	-- 💰 Dinero (lo sueltan los enemigos) en dorado, en la misma fila que los tokens: debajo
+	-- empieza la columna de avisos y misiones (HudLayout cuenta con una tarjeta baja).
+	local moneyGap = create("Frame", {
+		Name = "MoneyGap",
+		Size = UDim2.fromOffset(6, 10),
+		BackgroundTransparency = 1,
+		LayoutOrder = 3,
+	}, tokensRow)
+	local _ = moneyGap
+	local moneyIcon = Icons.make(tokensRow, "money", {
+		Name = "MoneyIcon",
+		Size = UDim2.fromOffset(42, 42),
+		Rotation = -6,
+		ZIndex = 3,
+	})
+	moneyIcon.LayoutOrder = 4
+
+	local moneyValue = createText(tokensRow, "Money", {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 48),
+		TextSize = 36,
+		TextColor3 = MONEY_GOLD,
+		Text = "0",
+		LayoutOrder = 5,
+		ZIndex = 3,
+	})
+	addStroke(moneyValue, 3.6, Enum.ApplyStrokeMode.Contextual)
+	local moneyPop = create("UIScale", { Name = "Pop" }, moneyValue)
+
+	-- Panel de la Tienda de Láser y Mejoras (abierto desde el puesto ⚡ MEJORAR LÁSER) -------
+	local laserPanel, laserScale = UiKit.panel(screenGui, "LaserShopPanel", LASER_PANEL_SIZE, Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0.18))
+	UiKit.text(laserPanel, "Title", {
+		Position = UDim2.fromOffset(22, 14),
+		Size = UDim2.new(1, -90, 0, 32),
+		Font = FONTS.Display,
+		TextSize = 26,
+		Text = "⚡ Tienda de Láser y Mejoras",
+	})
+	UiKit.text(laserPanel, "Subtitle", {
+		Position = UDim2.fromOffset(22, 48),
+		Size = UDim2.new(1, -44, 0, 20),
+		Font = FONTS.Light,
+		TextSize = 15,
+		TextColor3 = THEME.Muted,
+		Text = "Se paga con el 💰 dinero que sueltan los enemigos.",
+	})
+	local laserClose = UiKit.button(laserPanel, "Close", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 14),
+		Size = UDim2.fromOffset(40, 40),
+		BackgroundColor3 = THEME.Inset,
+		Text = "×",
+	})
+
+	local list = UiKit.create("ScrollingFrame", {
+		Name = "UpgradeList",
+		Position = UDim2.fromOffset(22, 78),
+		Size = UDim2.new(1, -44, 1, -120),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = THEME.Stroke,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+	}, laserPanel)
+	UiKit.create("UIListLayout", {
+		Padding = UDim.new(0, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, list)
+
+	local rows = {}
+	for order, spec in SHOP_UPGRADES do
+		local row = UiKit.create("Frame", {
+			Name = "Row_" .. spec.Id,
+			Size = UDim2.new(1, -8, 0, 68),
+			BackgroundColor3 = THEME.Inset,
+			LayoutOrder = order,
+		}, list)
+		UiKit.corner(row, 12)
+		UiKit.stroke(row, spec.Color, 1.4, 0.25)
+
+		local titleLabel = UiKit.text(row, "Title", {
+			Position = UDim2.fromOffset(14, 8),
+			Size = UDim2.new(1, -200, 0, 24),
+			Font = FONTS.Display,
+			TextSize = 19,
+			TextColor3 = spec.Color,
+			Text = spec.Icon .. "  " .. spec.Title,
+		})
+		local descLabel = UiKit.text(row, "Desc", {
+			Position = UDim2.fromOffset(14, 34),
+			Size = UDim2.new(1, -200, 0, 22),
+			Font = FONTS.Light,
+			TextSize = 14,
+			TextColor3 = THEME.Text,
+		})
+		local buyBtn = UiKit.button(row, "BuyButton", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -12, 0.5, 0),
+			Size = UDim2.fromOffset(170, 44),
+			TextSize = 16,
+		})
+		rows[spec.Id] = {
+			Spec = spec,
+			Title = titleLabel,
+			Desc = descLabel,
+			Button = buyBtn,
+		}
+	end
+
+	local laserFeedback = UiKit.text(laserPanel, "Feedback", {
+		Position = UDim2.new(0, 22, 1, -34),
+		Size = UDim2.new(1, -44, 0, 22),
+		TextSize = 15,
+		TextXAlignment = Enum.TextXAlignment.Center,
 	})
 
 	screenGui.Parent = playerGui
 
 	return {
 		ScreenGui = screenGui,
-		Scales = { energyScale, upgradeScale },
+		Scales = { energyScale },
 		EnergyCard = energyCard,
 		EnergyValue = energyValue,
-		ProductionValue = productionValue,
-		UpgradeCard = upgradeCard,
-		UpgradeStroke = upgradeStroke,
-		Title = title,
-		LevelText = levelText,
-		Description = description,
-		ProgressFill = progressFill,
-		ProgressText = progressText,
-		Button = button,
-		ButtonScale = buttonScale,
-		ButtonFlash = buttonFlash,
-		Feedback = feedback,
+		EnergyPop = energyPop,
+		MultValue = multValue,
+		TokensValue = tokensValue,
+		MoneyValue = moneyValue,
+		MoneyPop = moneyPop,
+		LaserPanel = laserPanel,
+		LaserScale = laserScale,
+		LaserClose = laserClose,
+		Rows = rows,
+		LaserFeedback = laserFeedback,
 	}
 end
-
--- Controlador ---------------------------------------------------------------
 
 function HudController.start(callbacks: Callbacks?)
 	local player = Players.LocalPlayer
@@ -288,30 +463,18 @@ function HudController.start(callbacks: Callbacks?)
 	local resultRemote = remotes:WaitForChild(Constants.Remotes.PurchaseResult) :: RemoteEvent
 
 	local ui = buildGui(playerGui)
-	local definition = EconomyConfig.Upgrades[UPGRADE_ID]
-	local levelAttribute = Constants.Attributes.UpgradeLevelPrefix .. UPGRADE_ID
-
-	ui.Title.Text = definition.DisplayName
-	ui.Description.Text = "+" .. formatNumber(definition.ProductionPerLevel) .. " energía/s por nivel"
 
 	local pendingToken = 0
 	local pending = false
 	local feedbackToken = 0
-	local hovered = false
-	local lastProgress = -1
 
-	local quickTween = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local fadeTween = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
-	-- Escalado según el tamaño de pantalla disponible
 	local function applyScale()
 		local size = ui.ScreenGui.AbsoluteSize
 		if size.X <= 0 or size.Y <= 0 then
 			return
 		end
 		local isTouchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-		local minScale = if isTouchOnly then MIN_SCALE_TOUCH else MIN_SCALE_DESKTOP
-		local scale = math.clamp(math.min(size.X / REFERENCE_SIZE.X, size.Y / REFERENCE_SIZE.Y), minScale, MAX_SCALE)
+		local scale = HudLayout.scale(size, isTouchOnly)
 		for _, uiScale in ui.Scales do
 			uiScale.Scale = scale
 		end
@@ -319,161 +482,123 @@ function HudController.start(callbacks: Callbacks?)
 	ui.ScreenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
 	applyScale()
 
-	local function setProgress(ratio: number)
-		ratio = math.clamp(ratio, 0, 1)
-		if math.abs(ratio - lastProgress) < 0.001 then
-			return
+	local lastEnergy: number? = nil
+	local function popEnergy(energy: number, production: number)
+		local previous = lastEnergy
+		lastEnergy = energy
+		if previous and energy - previous > math.max(production * 2, 1) then
+			ui.EnergyPop.Scale = 1.12
+			TweenService:Create(ui.EnergyPop, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 		end
-		lastProgress = ratio
-		TweenService:Create(ui.ProgressFill, TweenInfo.new(0.25), { Size = UDim2.fromScale(ratio, 1) }):Play()
+	end
+
+	-- El dinero salta un poco cada vez que sube (al cobrar de un enemigo)
+	local lastMoney: number? = nil
+	local function popMoney(money: number)
+		local previous = lastMoney
+		lastMoney = money
+		if previous and money > previous then
+			ui.MoneyPop.Scale = 1.15
+			TweenService:Create(ui.MoneyPop, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		end
 	end
 
 	local function refresh()
 		local energy = player:GetAttribute(Constants.Attributes.Energy)
 		local production = player:GetAttribute(Constants.Attributes.ProductionPerSecond)
-		local level = player:GetAttribute(levelAttribute)
+		local tokens = player:GetAttribute(Constants.Attributes.RebirthTokens)
+		local tokenCount = if typeof(tokens) == "number" and tokens > 0 then tokens else 0
+		ui.TokensValue.Text = formatNumber(tokenCount)
+		local rawMoney = player:GetAttribute(Constants.Attributes.Money)
+		local money = if typeof(rawMoney) == "number" then rawMoney else 0
+		ui.MoneyValue.Text = formatNumber(money)
+		popMoney(money)
 
-		if typeof(energy) ~= "number" or typeof(production) ~= "number" or typeof(level) ~= "number" then
-			ui.EnergyValue.Text = "..."
-			ui.ProductionValue.Text = "Cargando..."
-			ui.LevelText.Text = "Nv. -"
-			ui.ProgressText.Text = ""
-			ui.Button.Text = "Cargando..."
-			ui.Button.BackgroundColor3 = THEME.Disabled
-			ui.Button.TextColor3 = THEME.Muted
-			setProgress(0)
+		if typeof(energy) ~= "number" or typeof(production) ~= "number" then
+			ui.EnergyValue.Text = "0"
 			return
 		end
 
-		ui.EnergyValue.Text = "⚡ " .. formatNumber(energy)
-		-- Mientras se incuba un huevo, la producción no se actualiza para no delatar la
-		-- rareza de la mascota antes de la presentación (RevealGate).
-		if not RevealGate.isHeld() then
-			local productionText = "+" .. formatNumber(production, 2) .. " por segundo"
-			local petMultiplier = player:GetAttribute(Constants.Attributes.PetMultiplier)
-			if typeof(petMultiplier) == "number" and petMultiplier > 1 then
-				productionText ..= "  ·  🐾 ×" .. formatNumber(petMultiplier, 2)
+		ui.EnergyValue.Text = formatNumber(energy)
+		local petMult = player:GetAttribute(Constants.Attributes.PetMultiplier)
+		local multVal = if typeof(petMult) == "number" and petMult > 0 then petMult else 1
+		ui.MultValue.Text = ("×%s"):format(formatNumber(multVal, 1))
+		popEnergy(energy, production)
+
+		for upgradeId, row in ui.Rows do
+			local def = EconomyConfig.Upgrades[upgradeId]
+			local attr = Constants.Attributes.UpgradeLevelPrefix .. upgradeId
+			local level = player:GetAttribute(attr)
+			local lvl = if typeof(level) == "number" then level else 0
+			local maxLvl = if def then def.MaxLevel else 50
+			row.Title.Text = ("%s  %s  (Nv. %d/%d)"):format(row.Spec.Icon, row.Spec.Title, lvl, maxLvl)
+			row.Desc.Text = row.Spec.Describe(lvl)
+
+			if lvl >= maxLvl then
+				row.Button.Text = "MÁXIMO"
+				row.Button.BackgroundColor3 = THEME.Max
+				row.Button.TextColor3 = THEME.Text
+				UiKit.setDisabled(row.Button, true)
+			else
+				local cost = Economy.getUpgradeCost(upgradeId, lvl) or 0
+				local affordable = (if Economy.getUpgradeCurrency(upgradeId) == "Money" then money else energy) >= cost
+				row.Button.Text = ("Mejorar · $%s"):format(formatNumber(cost))
+				row.Button.BackgroundColor3 = if affordable then THEME.Buy else THEME.Disabled
+				row.Button.TextColor3 = if affordable then THEME.Text else THEME.Muted
+				UiKit.setDisabled(row.Button, not affordable)
 			end
-			ui.ProductionValue.Text = productionText
 		end
-
-		if level >= definition.MaxLevel then
-			ui.LevelText.Text = "MÁX"
-			ui.LevelText.TextColor3 = THEME.Gold
-			ui.ProgressText.Text = "Mejora completada"
-			ui.Button.Text = "NIVEL MÁXIMO"
-			ui.Button.BackgroundColor3 = THEME.Max
-			ui.Button.TextColor3 = THEME.Text
-			setProgress(1)
-			return
-		end
-
-		-- Coste mostrado solo como referencia; el servidor lo recalcula.
-		local cost = Economy.getUpgradeCost(UPGRADE_ID, level) or 0
-		local affordable = energy >= cost
-
-		ui.LevelText.Text = "Nv. " .. level
-		ui.LevelText.TextColor3 = THEME.Accent
-		ui.ProgressText.Text = formatNumber(math.min(energy, cost)) .. " / " .. formatNumber(cost)
-		ui.Button.Text = "MEJORAR  ·  ⚡ " .. formatNumber(cost)
-		ui.Button.BackgroundColor3 = if affordable then THEME.Buy else THEME.Disabled
-		ui.Button.TextColor3 = if affordable then THEME.Text else THEME.Muted
-		setProgress(if cost > 0 then energy / cost else 1)
 	end
+
+	PanelManager.register("LaserShop", ui.LaserPanel, { OnOpen = refresh })
+	UiKit.bindModalLayout(ui.ScreenGui, ui.LaserScale, LASER_PANEL_SIZE, function(position)
+		PanelManager.setBasePosition("LaserShop", position)
+	end)
+	ui.LaserClose.Activated:Connect(function()
+		PanelManager.close("LaserShop")
+	end)
 
 	local function showFeedback(text: string, color: Color3)
 		feedbackToken += 1
 		local token = feedbackToken
-		ui.Feedback.Text = text
-		ui.Feedback.TextColor3 = color
-		ui.Feedback.TextTransparency = 0
-		ui.Feedback.TextStrokeTransparency = 0.35
+		ui.LaserFeedback.Text = text
+		ui.LaserFeedback.TextColor3 = color
 		task.delay(FEEDBACK_SECONDS, function()
 			if feedbackToken == token then
-				TweenService:Create(ui.Feedback, fadeTween, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+				ui.LaserFeedback.Text = ""
 			end
 		end)
 	end
 
-	local function flashStroke(color: Color3)
-		ui.UpgradeStroke.Color = color
-		ui.UpgradeStroke.Thickness = 3
-		ui.UpgradeStroke.Transparency = 0
-		TweenService:Create(ui.UpgradeStroke, TweenInfo.new(0.6), {
-			Color = THEME.Stroke,
-			Thickness = 1.5,
-			Transparency = THEME.StrokeTransparency,
-		}):Play()
-	end
-
-	-- Texto "+X/s" que sube y se desvanece desde la tarjeta de energía.
-	local function spawnFloatingGain()
-		local floating = createText(ui.EnergyCard, "FloatingGain", {
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -22, 0, 88),
-			Size = UDim2.fromOffset(140, 24),
-			TextSize = 19,
-			TextColor3 = THEME.BuyHighlight,
-			TextXAlignment = Enum.TextXAlignment.Right,
-			Text = "+" .. formatNumber(definition.ProductionPerLevel) .. "/s",
-		})
-		local tween = TweenService:Create(floating, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = UDim2.new(1, -22, 0, 58),
-			TextTransparency = 1,
-		})
-		tween.Completed:Once(function()
-			floating:Destroy()
-		end)
-		tween:Play()
-	end
-
+	local combo, lastPurchaseAt = 0, 0
 	local function playSuccessEffects()
-		ui.ButtonFlash.BackgroundTransparency = 0.4
-		TweenService:Create(ui.ButtonFlash, fadeTween, { BackgroundTransparency = 1 }):Play()
-		flashStroke(THEME.BuyHighlight)
-		spawnFloatingGain()
+		local now = os.clock()
+		combo = if now - lastPurchaseAt < 1.2 then math.min(combo + 1, 10) else 0
+		lastPurchaseAt = now
+		Juice.sound(Juice.Sounds.Upgrade, 1 + combo * 0.05)
 
 		if callbacks and callbacks.onPurchaseSuccess then
-			-- Un fallo en el efecto del mundo no debe romper el HUD.
-			local ok, err = pcall(callbacks.onPurchaseSuccess)
-			if not ok then
-				warn("[HUD] Error en efecto de compra:", err)
-			end
+			pcall(callbacks.onPurchaseSuccess)
 		end
 	end
 
-	-- Interacción del botón
-	ui.Button.MouseEnter:Connect(function()
-		hovered = true
-		TweenService:Create(ui.ButtonScale, quickTween, { Scale = 1.03 }):Play()
-	end)
-	ui.Button.MouseLeave:Connect(function()
-		hovered = false
-		TweenService:Create(ui.ButtonScale, quickTween, { Scale = 1 }):Play()
-	end)
-	ui.Button.MouseButton1Down:Connect(function()
-		TweenService:Create(ui.ButtonScale, quickTween, { Scale = 0.97 }):Play()
-	end)
-	ui.Button.MouseButton1Up:Connect(function()
-		TweenService:Create(ui.ButtonScale, quickTween, { Scale = if hovered then 1.03 else 1 }):Play()
-	end)
-
-	ui.Button.Activated:Connect(function()
-		-- Antirrebote local para no saturar la red; la protección real está en el servidor.
-		if pending then
-			return
-		end
-		pending = true
-		pendingToken += 1
-		local token = pendingToken
-		purchaseRemote:FireServer(UPGRADE_ID)
-
-		task.delay(PENDING_TIMEOUT, function()
-			if pendingToken == token then
-				pending = false
+	for upgradeId, row in ui.Rows do
+		row.Button.Activated:Connect(function()
+			if pending then
+				return
 			end
+			pending = true
+			pendingToken += 1
+			local token = pendingToken
+			purchaseRemote:FireServer(upgradeId)
+
+			task.delay(PENDING_TIMEOUT, function()
+				if pendingToken == token then
+					pending = false
+				end
+			end)
 		end)
-	end)
+	end
 
 	resultRemote.OnClientEvent:Connect(function(success: boolean, code: string)
 		pending = false
@@ -483,40 +608,20 @@ function HudController.start(callbacks: Callbacks?)
 			playSuccessEffects()
 		else
 			showFeedback(message, THEME.Error)
-			flashStroke(THEME.Error)
 		end
+		refresh()
 	end)
 
 	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.ProductionPerSecond):Connect(refresh)
-	player:GetAttributeChangedSignal(levelAttribute):Connect(refresh)
+	for upgradeId in EconomyConfig.Upgrades do
+		player:GetAttributeChangedSignal(Constants.Attributes.UpgradeLevelPrefix .. upgradeId):Connect(refresh)
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.AutoUpgrade):Connect(refresh)
+	player:GetAttributeChangedSignal(Constants.Attributes.RebirthTokens):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.PetMultiplier):Connect(refresh)
+	player:GetAttributeChangedSignal(Constants.Attributes.Money):Connect(refresh)
 	RevealGate.Released:Connect(refresh)
-
-	-- Apartar la tarjeta de mejora mientras haya un panel modal abierto.
-	local upgradeHome = ui.UpgradeCard.Position
-	local upgradeAway = UDim2.new(0.5, 0, 1, 360) -- fuera de pantalla, por debajo
-	local upgradeTween: Tween? = nil
-	PanelManager.Changed:Connect(function(openPanel: string?)
-		if upgradeTween then
-			upgradeTween:Cancel()
-		end
-		local info = TweenInfo.new(LAYOUT.TransitionSeconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		if openPanel then
-			local tween = TweenService:Create(ui.UpgradeCard, info, { Position = upgradeAway })
-			tween.Completed:Once(function(state)
-				if state == Enum.PlaybackState.Completed then
-					ui.UpgradeCard.Visible = false
-				end
-			end)
-			upgradeTween = tween
-			tween:Play()
-		else
-			ui.UpgradeCard.Visible = true
-			upgradeTween = TweenService:Create(ui.UpgradeCard, info, { Position = upgradeHome })
-			upgradeTween:Play()
-		end
-	end)
 
 	refresh()
 end

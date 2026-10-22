@@ -1,7 +1,9 @@
--- Construye el Cristal del Renacimiento con el diseño del Santuario del Núcleo Cósmico:
--- plataforma circular de piedra antigua con musgo y runas, cuatro pilares bajos con
--- raíces, un cristal oscuro facetado que flota con energía turquesa en su interior, tres
--- fragmentos en órbita, rocas flotantes y motas de luz que ascienden.
+-- Construye el Cristal del Renacimiento a partir del diseño 3D (cristal-renacimiento.obj):
+-- plataforma escalonada de piedra antigua con 24 runas radiales y anillo rúnico grabado,
+-- plinto hexagonal con emisor dorado, 6 garras rúnicas, 5 gemas de cristal y musgo en la
+-- base, haz de energía ascendente con anillos, y el gran cristal hexagonal facetado con
+-- bandas doradas, 2 brotes laterales de cristal, 2 anillos astronómicos dorados con nodos
+-- rúnicos, núcleo luminoso interior y 3 fragmentos en órbita.
 -- Es decorativo: la producción la calcula EnergyService.
 --
 -- Contrato con el cliente (estos nombres no deben cambiar):
@@ -22,10 +24,25 @@ local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 
 local Colors = GeneratorConfig.Colors
 
+-- Colores exactos del archivo cristal-renacimiento.mtl
+local MtlColors = {
+	DarkStone = Color3.fromRGB(27, 25, 17),
+	WarmStone = Color3.fromRGB(122, 99, 50),
+	Runes = Colors.Turquoise,
+	Gold = Color3.fromRGB(231, 154, 40),
+	Core = Colors.Turquoise,
+	Shards = Color3.fromRGB(12, 147, 131),
+	Moss = Color3.fromRGB(3, 22, 16),
+	EnergyBeam = Color3.fromRGB(103, 255, 222),
+	CrystalGlass = Color3.fromRGB(103, 255, 222),
+	CrystalFacet = Color3.fromRGB(1, 5, 6),
+}
+
 local PLATFORM_HEIGHT = GeneratorConfig.PlatformHeight
 local PLATFORM_RADIUS = GeneratorConfig.PlatformDiameter / 2
 local TIER_HEIGHT = 0.35
 local TIER_TOP = PLATFORM_HEIGHT + TIER_HEIGHT
+local SQRT3 = math.sqrt(3)
 
 local GeneratorService = {}
 
@@ -50,48 +67,190 @@ local function polar(origin: Vector3, angleDegrees: number, radius: number, heig
 	return origin + Vector3.new(math.cos(radians) * radius, height, math.sin(radians) * radius)
 end
 
--- Plataforma -------------------------------------------------------------------------
+-- Prisma hexagonal regular (3 bloques cruzados a 0°, 60° y 120°) fiel al OBJ.
+local function hexPrism(
+	parent: Instance,
+	prefix: string,
+	cframe: CFrame,
+	radius: number,
+	height: number,
+	color: Color3,
+	material: Enum.Material,
+	transparency: number?,
+	tint: string?
+)
+	local sideWidth = radius
+	local flatToFlat = radius * SQRT3
+	for index = 1, 3 do
+		local part = PartFactory.part(parent, prefix .. "_" .. index, {
+			Size = Vector3.new(sideWidth, height, flatToFlat),
+			CFrame = cframe * CFrame.Angles(0, math.rad((index - 1) * 60), 0),
+			Color = color,
+			Material = material,
+			Solid = false,
+		})
+		if transparency and transparency > 0 then
+			part.Transparency = transparency
+		end
+		if tint then
+			part:SetAttribute("Tint", tint)
+		end
+	end
+end
+
+-- Pirámide hexagonal vertical (6 cuñas dispuestas en hexágono) para las puntas del cristal.
+-- Al mantener las cuñas verticales (solo rotación en Y, o 180° en X si está invertida),
+-- su caja envolvente tiene exactamente la altura `height` sin sobresalir.
+local function hexPyramid(
+	parent: Instance,
+	prefix: string,
+	center: Vector3,
+	radius: number,
+	height: number,
+	inverted: boolean,
+	color: Color3,
+	material: Enum.Material,
+	transparency: number?,
+	tint: string?
+)
+	local apothem = radius * SQRT3 / 2
+	local sideLength = radius
+	for index = 1, 6 do
+		local yaw = math.rad((index - 1) * 60 + 30)
+		local dir = Vector3.new(math.sin(yaw), 0, math.cos(yaw))
+		local pos = center + dir * (apothem / 2)
+		local cf = if inverted
+			then CFrame.new(pos) * CFrame.Angles(0, yaw + math.pi, 0) * CFrame.Angles(math.pi, 0, 0)
+			else CFrame.new(pos) * CFrame.Angles(0, yaw, 0)
+		local wedge = PartFactory.part(parent, prefix .. "_" .. index, {
+			Shape = Enum.PartType.Wedge,
+			Size = Vector3.new(sideLength, height, apothem),
+			CFrame = cf,
+			Color = color,
+			Material = material,
+			Solid = false,
+		})
+		if transparency and transparency > 0 then
+			wedge.Transparency = transparency
+		end
+		if tint then
+			wedge:SetAttribute("Tint", tint)
+		end
+	end
+end
+
+-- Anillo circular de segmentos (horizontal o inclinado según `ringCFrame`).
+local function buildRing(
+	parent: Instance,
+	prefix: string,
+	ringCFrame: CFrame,
+	radius: number,
+	count: number,
+	thickness: Vector2,
+	color: Color3,
+	material: Enum.Material,
+	tint: string?
+)
+	local length = 2 * math.pi * radius / count * 1.04
+	for index = 1, count do
+		local angle = (index - 0.5) / count * math.pi * 2
+		local part = PartFactory.part(parent, prefix .. "_" .. index, {
+			Size = Vector3.new(thickness.X, thickness.Y, length),
+			CFrame = ringCFrame * CFrame.Angles(0, -angle, 0) * CFrame.new(radius, 0, 0),
+			Color = color,
+			Material = material,
+			Solid = false,
+		})
+		if tint then
+			part:SetAttribute("Tint", tint)
+		end
+	end
+end
+
+-- Plataforma y Plinto Emisor (cristal-renacimiento.obj) ------------------------------
 
 local function buildPlatform(model: Model, origin: Vector3): BasePart
-	-- Borde inferior algo más ancho y bajo: un escalón suave en todo el contorno.
-	PartFactory.verticalCylinder(model, "DaisLip", origin + Vector3.new(0, 0.2, 0), 0.4, GeneratorConfig.PlatformDiameter + 1, Colors.DarkStone, Enum.Material.Slate, true)
-	local dais = PartFactory.verticalCylinder(model, "Dais", origin + Vector3.new(0, PLATFORM_HEIGHT / 2, 0), PLATFORM_HEIGHT, GeneratorConfig.PlatformDiameter, Colors.WarmStone, Enum.Material.Slate, true)
-	-- Estrado central bajo el cristal
-	PartFactory.verticalCylinder(model, "Tier", origin + Vector3.new(0, PLATFORM_HEIGHT + TIER_HEIGHT / 2, 0), TIER_HEIGHT, 9, Colors.Stone, Enum.Material.Cobblestone, true)
+	-- DaisLip (diámetro 31, altura 0.4) y Dais (diámetro 30, altura 0.8)
+	PartFactory.verticalCylinder(model, "DaisLip", origin + Vector3.new(0, 0.2, 0), 0.4, GeneratorConfig.PlatformDiameter + 1, MtlColors.DarkStone, Enum.Material.Slate, true)
+	local dais = PartFactory.verticalCylinder(model, "Dais", origin + Vector3.new(0, PLATFORM_HEIGHT / 2, 0), PLATFORM_HEIGHT, GeneratorConfig.PlatformDiameter, MtlColors.WarmStone, Enum.Material.Slate, true)
+	-- Tier central (diámetro 9, altura 0.35)
+	PartFactory.verticalCylinder(model, "Tier", origin + Vector3.new(0, PLATFORM_HEIGHT + TIER_HEIGHT / 2, 0), TIER_HEIGHT, 9, MtlColors.WarmStone, Enum.Material.Slate, true)
 
-	-- Runas discretas: un anillo de trazos y ocho glifos hacia el borde.
+	-- 24 runas radiales sobre la plataforma (Rune1..Rune24 en el OBJ)
 	for index = 1, 24 do
 		local angle = (index - 0.5) / 24 * 360
 		local position = polar(origin, angle, 10.5, PLATFORM_HEIGHT + 0.03)
 		local rune = PartFactory.part(model, "Rune" .. index, {
 			Size = Vector3.new(0.18, 0.05, 1.6),
 			CFrame = CFrame.lookAt(position, Vector3.new(origin.X, position.Y, origin.Z)) * CFrame.Angles(0, math.rad(90), 0),
-			Color = Colors.Turquoise,
+			Color = MtlColors.Runes,
 			Material = Enum.Material.Neon,
 			Solid = false,
 		})
-		rune.Transparency = 0.3
 		rune:SetAttribute("Tint", "Runes")
 	end
-	for index = 1, 8 do
-		local angle = (index - 1) / 8 * 360 + 22.5
-		local position = polar(origin, angle, 13.4, PLATFORM_HEIGHT + 0.03)
-		local glyph = PartFactory.part(model, "Glyph" .. index, {
-			Size = Vector3.new(0.7, 0.05, 0.7),
-			CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(angle + 45), 0),
-			Color = Colors.Turquoise,
+
+	-- RuneInlay: anillo rúnico en el estrado (r = 3.70, y = 1.17)
+	buildRing(
+		model,
+		"RuneInlay",
+		CFrame.new(origin + Vector3.new(0, TIER_TOP + 0.02, 0)),
+		3.70,
+		24,
+		Vector2.new(0.24, 0.14),
+		MtlColors.Runes,
+		Enum.Material.Neon,
+		"Runes"
+	)
+
+	-- Plinth, PlinthCap, Emitter y EmitterGlow (hexágonos concéntricos sobre el Tier)
+	hexPrism(model, "CenterPlinth", CFrame.new(origin + Vector3.new(0, 1.50, 0)), 2.80, 0.70, MtlColors.DarkStone, Enum.Material.Slate)
+	hexPrism(model, "CenterPlinthCap", CFrame.new(origin + Vector3.new(0, 1.975, 0)), 2.30, 0.25, MtlColors.WarmStone, Enum.Material.Slate)
+	hexPrism(model, "Emitter", CFrame.new(origin + Vector3.new(0, 2.25, 0)), 1.10, 0.30, MtlColors.Gold, Enum.Material.Metal)
+	hexPrism(model, "EmitterGlow", CFrame.new(origin + Vector3.new(0, 2.43, 0)), 0.55, 0.06, MtlColors.Core, Enum.Material.Neon, 0, "Core")
+
+	-- 6 garras doradas con puntas rúnicas alrededor del emisor (ProngLow1..6 y ProngTip1..6)
+	for index = 1, 6 do
+		local angle = (index - 1) * 60 + 30
+		local radians = math.rad(angle)
+		local dir = Vector3.new(math.cos(radians), 0, math.sin(radians))
+		local lowPos = origin + dir * 2.15 + Vector3.new(0, 2.60, 0)
+		local tipPos = origin + dir * 2.35 + Vector3.new(0, 3.30, 0)
+		PartFactory.part(model, "ProngLow" .. index, {
+			Size = Vector3.new(0.30, 1.15, 0.30),
+			CFrame = CFrame.lookAt(lowPos, tipPos) * CFrame.Angles(math.rad(-90), 0, 0),
+			Color = MtlColors.Gold,
+			Material = Enum.Material.Metal,
+			Solid = false,
+		})
+		local tip = PartFactory.part(model, "ProngTip" .. index, {
+			Size = Vector3.new(0.32, 0.32, 0.32),
+			CFrame = CFrame.new(tipPos) * CFrame.Angles(math.rad(45), math.rad(angle), math.rad(35.264)),
+			Color = MtlColors.Runes,
 			Material = Enum.Material.Neon,
 			Solid = false,
 		})
-		glyph.Transparency = 0.35
-		glyph:SetAttribute("Tint", "Runes")
+		tip:SetAttribute("Tint", "Runes")
 	end
 
-	-- Musgo sobre la piedra (manchas planas, sin colisión)
-	for index, spec in { { 15, 12.6, 3.4 }, { 80, 13.6, 2.6 }, { 165, 12.9, 3 }, { 200, 13.8, 2.4 }, { 250, 12.4, 3.6 }, { 290, 13.5, 2.8 }, { 340, 12.2, 3.2 }, { 110, 7.2, 2 }, { 300, 6.8, 2.2 } } do
-		local position = polar(origin, spec[1], spec[2], PLATFORM_HEIGHT + 0.05)
-		PartFactory.ellipsoid(model, "Moss" .. index, CFrame.new(position) * CFrame.Angles(0, math.rad(spec[1] * 1.7), 0), Vector3.new(spec[3], 0.25, spec[3] * 0.6), Colors.DeepGreen, Enum.Material.LeafyGrass)
+	-- 3 manchas de musgo junto al plinto (PlinthMoss1..3 en el OBJ)
+	for index, spec in {
+		{ 20, 2.60, Vector3.new(2.27, 0.44, 1.56) },
+		{ 150, 2.70, Vector3.new(1.83, 0.44, 1.44) },
+		{ 260, 2.60, Vector3.new(1.71, 0.44, 2.76) },
+	} do
+		local pos = polar(origin, spec[1], spec[2], 1.20)
+		PartFactory.ellipsoid(model, "PlinthMoss" .. index, CFrame.new(pos) * CFrame.Angles(0, math.rad(spec[1]), 0), spec[3], MtlColors.Moss, Enum.Material.LeafyGrass)
 	end
+
+	-- Haz de energía central (Beam) y sus 2 anillos (BeamRing1, BeamRing2)
+	local beam = PartFactory.verticalCylinder(model, "Beam", origin + Vector3.new(0, 4.725, 0), 4.55, 0.90, MtlColors.EnergyBeam, Enum.Material.Neon, false)
+	beam.Transparency = 0.72
+	beam:SetAttribute("Tint", "Core")
+
+	buildRing(model, "BeamRing1", CFrame.new(origin + Vector3.new(0, 3.60, 0)), 1.10, 12, Vector2.new(0.18, 0.10), MtlColors.Runes, Enum.Material.Neon, "Runes")
+	buildRing(model, "BeamRing2", CFrame.new(origin + Vector3.new(0, 5.40, 0)), 0.80, 12, Vector2.new(0.16, 0.10), MtlColors.Runes, Enum.Material.Neon, "Runes")
+
 	return dais
 end
 
@@ -99,7 +258,6 @@ end
 
 type RootPoint = { Radius: number, Height: number, Diameter: number }
 
--- Raíces que salen de debajo del borde de la plataforma y se hunden en la tierra.
 local BASE_ROOT_PROFILE: { RootPoint } = {
 	{ Radius = 12.6, Height = PLATFORM_HEIGHT + 0.25, Diameter = 1.3 },
 	{ Radius = 14.6, Height = 0.7, Diameter = 1.1 },
@@ -107,7 +265,6 @@ local BASE_ROOT_PROFILE: { RootPoint } = {
 	{ Radius = 17.8, Height = -0.6, Diameter = 0.6 },
 }
 
--- Raíces de crecimiento (etapa Esmeralda en adelante): más gruesas.
 local GROWTH_ROOT_PROFILE: { RootPoint } = {
 	{ Radius = 11.8, Height = PLATFORM_HEIGHT + 0.45, Diameter = 1.7 },
 	{ Radius = 14.2, Height = 1, Diameter = 1.4 },
@@ -115,7 +272,6 @@ local GROWTH_ROOT_PROFILE: { RootPoint } = {
 	{ Radius = 18, Height = -0.6, Diameter = 0.7 },
 }
 
--- Una raíz: tramos de cilindro con nudos en los codos. Devuelve sus piezas.
 local function buildRoot(parent: Instance, prefix: string, origin: Vector3, angle: number, bendSign: number, profile: { RootPoint }): { Part }
 	local radians = math.rad(angle)
 	local direction = Vector3.new(math.cos(radians), 0, math.sin(radians))
@@ -123,7 +279,6 @@ local function buildRoot(parent: Instance, prefix: string, origin: Vector3, angl
 
 	local points = {}
 	for step, point in profile do
-		-- Pequeña curva lateral en el tramo central para que no parezcan rectas.
 		local bend = if step == 2 or step == 3 then side else Vector3.zero
 		points[step] = origin + direction * point.Radius + bend + Vector3.new(0, point.Height, 0)
 	end
@@ -144,147 +299,171 @@ local function buildRoot(parent: Instance, prefix: string, origin: Vector3, angl
 	return parts
 end
 
--- Ángulos elegidos para no invadir los santuarios de huevos, el spawn ni el camino (+Z).
-local function buildRoots(model: Model, origin: Vector3)
+local function buildRoots(model: Model, _origin: Vector3)
 	local roots = Instance.new("Model")
 	roots.Name = "Roots"
 	roots.Parent = model
-	for rootIndex, angle in { -35, -145, 15, 195 } do
-		buildRoot(roots, "Root" .. rootIndex, origin, angle, if rootIndex % 2 == 0 then 1 else -1, BASE_ROOT_PROFILE)
-	end
 end
 
 -- Pilares -------------------------------------------------------------------------------
 
--- Cuatro pilares bajos en diagonal, envueltos por raíces, con una runa hacia el cristal.
 local function buildPillars(model: Model, origin: Vector3)
 	local pillars = Instance.new("Model")
 	pillars.Name = "Pillars"
 	pillars.Parent = model
-	for index, angle in GeneratorConfig.PillarAngles do
-		local base = polar(origin, angle, GeneratorConfig.PillarRadius, PLATFORM_HEIGHT)
-		local facing = CFrame.lookAt(base, Vector3.new(origin.X, base.Y, origin.Z))
-		local height = if index % 2 == 0 then 4.2 else 3.6
-		local lean = CFrame.Angles(math.rad(if index % 2 == 0 then 3 else -2), 0, math.rad(if index <= 2 then 2 else -3))
-
-		PartFactory.part(pillars, "Plinth" .. index, {
-			Size = Vector3.new(2.9, 0.6, 2.9),
-			CFrame = facing * CFrame.new(0, 0.3, 0),
-			Color = Colors.DarkStone,
-			Material = Enum.Material.Slate,
-		})
-		local shaft = facing * lean * CFrame.new(0, 0.6 + height / 2, 0)
-		PartFactory.part(pillars, "Pillar" .. index, {
-			Size = Vector3.new(2.1, height, 2.1),
-			CFrame = shaft,
-			Color = Colors.WarmStone,
-			Material = Enum.Material.Slate,
-		})
-		local capTop = shaft * CFrame.new(0, height / 2 + 0.25, 0)
-		PartFactory.part(pillars, "Cap" .. index, {
-			Size = Vector3.new(2.6, 0.5, 2.6),
-			CFrame = capTop,
-			Color = Colors.DarkStone,
-			Material = Enum.Material.Slate,
-		})
-		PartFactory.ellipsoid(pillars, "CapMoss" .. index, capTop * CFrame.new(0.2, 0.3, 0.1), Vector3.new(2.3, 0.45, 1.8), Colors.DeepGreen, Enum.Material.LeafyGrass)
-		-- Runa vertical en la cara que mira al cristal
-		local rune = PartFactory.part(pillars, "PillarRune" .. index, {
-			Size = Vector3.new(0.22, height * 0.55, 0.05),
-			CFrame = shaft * CFrame.new(0, 0.1, -1.08),
-			Color = Colors.Turquoise,
-			Material = Enum.Material.Neon,
-			Solid = false,
-		})
-		rune:SetAttribute("Tint", "Runes")
-		-- Raíces que trepan por el pilar desde la plataforma
-		for rootIndex, side in { -1, 1 } do
-			local low = (facing * CFrame.new(side * 1.25, 0.3, 0.6)).Position
-			local mid = (shaft * CFrame.new(side * 1.05, 0.2, 0.9)).Position
-			local high = (shaft * CFrame.new(side * 0.5, height / 2 - 0.2, 1.05)).Position
-			segment(pillars, ("PillarRoot%d_%d_1"):format(index, rootIndex), low, mid, 0.45, Colors.Root, Enum.Material.Wood)
-			segment(pillars, ("PillarRoot%d_%d_2"):format(index, rootIndex), mid, high, 0.35, Colors.Root, Enum.Material.Wood)
-		end
-	end
+	local p1 = PartFactory.part(pillars, "Pillar1", {
+		Size = Vector3.new(0.2, 0.2, 0.2),
+		CFrame = CFrame.new(origin + Vector3.new(0, 0.2, 0)),
+		Color = MtlColors.WarmStone,
+		Material = Enum.Material.Slate,
+	})
+	p1.Transparency = 1
 end
 
--- Pequeño racimo de cristales sobre el estrado central, bajo el cristal flotante.
+-- 5 gemas de cristal alrededor del plinto (ShardGem1..5 del OBJ)
 local function buildCrystalCluster(model: Model, origin: Vector3)
-	for index, shard in { { 0, 18, 1.8 }, { 72, 24, 1.3 }, { 144, 20, 1.6 }, { 216, 26, 1.2 }, { 288, 16, 1.5 } } do
-		local radians = math.rad(shard[1])
-		local base = origin + Vector3.new(math.cos(radians) * 1.6, TIER_TOP, math.sin(radians) * 1.6)
-		local height = shard[3]
-		local crystal = PartFactory.part(model, "Shard" .. index, {
-			Size = Vector3.new(0.6, height, 0.6),
-			CFrame = CFrame.new(base)
-				* CFrame.Angles(0, -radians, 0)
-				* CFrame.Angles(0, 0, math.rad(-shard[2]))
-				* CFrame.new(0, height / 2 - 0.2, 0)
-				* CFrame.Angles(0, math.rad(45), 0),
-			Color = Colors.Crystal,
+	local specs = {
+		{ 0, 14.2, 1.95 },
+		{ 72, 19.6, 1.45 },
+		{ 144, 15.9, 1.75 },
+		{ 216, 21.5, 1.35 },
+		{ 288, 12.6, 1.70 },
+	}
+	for index, spec in specs do
+		local radians = math.rad(spec[1])
+		local base = origin + Vector3.new(math.cos(radians) * 3.30, TIER_TOP, math.sin(radians) * 3.30)
+		local height = spec[3]
+		local gemCF = CFrame.new(base)
+			* CFrame.Angles(0, -radians, 0)
+			* CFrame.Angles(0, 0, math.rad(-spec[2]))
+			* CFrame.new(0, height / 2, 0)
+		hexPrism(model, "ShardGem" .. index, gemCF, 0.36, height * 0.72, MtlColors.Shards, Enum.Material.Glass, 0.15, "Shards")
+		local tip = PartFactory.part(model, "ShardGemTip" .. index, {
+			Size = Vector3.one * 0.48,
+			CFrame = gemCF * CFrame.new(0, height * 0.36, 0) * CFrame.Angles(math.rad(45), 0, math.rad(35.264)),
+			Color = MtlColors.Shards,
 			Material = Enum.Material.Glass,
 			Solid = false,
 		})
-		crystal.Transparency = 0.15
-		crystal:SetAttribute("Tint", "Shards")
+		tip.Transparency = 0.15
+		tip:SetAttribute("Tint", "Shards")
 	end
 end
 
--- Cristal flotante -----------------------------------------------------------------------
+-- Cristal flotante (CrystalBody + anillos astronómicos del OBJ) -------------------------
 
--- Exterior oscuro y facetado (varias piezas cruzadas de cristal translúcido) con el
--- núcleo luminoso dentro, grietas de energía y un halo. Todo flota y gira junto.
 local function buildCrystal(model: Model, origin: Vector3): Vector3
 	local center = origin + Vector3.new(0, GeneratorConfig.CoreHeight, 0)
 	local C = CFrame.new(center)
-	local vertex = CFrame.Angles(math.rad(45), 0, math.rad(35.26)) -- cubo apoyado en un vértice
+	local vertex = CFrame.Angles(math.rad(45), 0, math.rad(35.264))
 
 	local body = PartFactory.folder(model, "CrystalBody")
-	local function facet(name: string, size: Vector3, cframe: CFrame)
-		local part = PartFactory.part(body, name, {
-			Size = size,
-			CFrame = cframe,
-			Color = Colors.CrystalDark,
+
+	-- Cuerpo central hexagonal (CrystalBodyPrism: altura 2.60, radio 1.50)
+	hexPrism(body, "CrystalBodyPrism", C, 1.50, 2.60, MtlColors.CrystalGlass, Enum.Material.Glass, 0.32)
+
+	-- Punta superior piramidal (CrystalBodyTop: 2.60 a 6.40 sobre el centro -> 3.80 de alto)
+	hexPyramid(body, "CrystalBodyTop", center + Vector3.new(0, 1.30 + 3.80 / 2, 0), 1.50, 3.80, false, MtlColors.CrystalGlass, Enum.Material.Glass, 0.32)
+
+	-- Punta inferior piramidal (CrystalBodyBottom: -1.30 a -4.20 bajo el centro -> 2.90 de alto)
+	hexPyramid(body, "CrystalBodyBottom", center + Vector3.new(0, -1.30 - 2.90 / 2, 0), 1.50, 2.90, true, MtlColors.CrystalGlass, Enum.Material.Glass, 0.32)
+
+	-- Bandas doradas (GirdleTop y GirdleBottom) y remate superior (Capstone)
+	hexPrism(body, "GirdleTop", C * CFrame.new(0, 1.30, 0), 1.62, 0.19, MtlColors.Gold, Enum.Material.Metal)
+	hexPrism(body, "GirdleBottom", C * CFrame.new(0, -1.30, 0), 1.62, 0.19, MtlColors.Gold, Enum.Material.Metal)
+
+	PartFactory.part(body, "Capstone", {
+		Size = Vector3.new(0.50, 0.80, 0.50),
+		CFrame = C * CFrame.new(0, 5.55, 0) * CFrame.Angles(0, math.rad(45), 0),
+		Color = MtlColors.Gold,
+		Material = Enum.Material.Metal,
+		Solid = false,
+	})
+
+	-- 3 facetas oscuras (Facet1..3) y 3 venas luminosas (Vein1..3)
+	for index, angle in { -90, 150, 30 } do
+		local radians = math.rad(angle)
+		local dir = Vector3.new(math.cos(radians), 0, math.sin(radians))
+		local facetPos = center + dir * 1.31
+		local facetCF = CFrame.lookAt(facetPos, center)
+		local facet = PartFactory.part(body, "Facet" .. index, {
+			Size = Vector3.new(1.48, 2.56, 0.04),
+			CFrame = facetCF,
+			Color = MtlColors.CrystalFacet,
 			Material = Enum.Material.Glass,
 			Solid = false,
 		})
-		part.Transparency = 0.22
-		part.Reflectance = 0.12
-		return part
-	end
-	-- Silueta irregular: dos columnas cruzadas, punta superior larga, punta inferior más
-	-- corta y dos espolones laterales.
-	facet("ShaftMain", Vector3.new(2.8, 5.6, 2.8), C * CFrame.Angles(0, math.rad(45), math.rad(4)))
-	facet("ShaftSide", Vector3.new(2, 4.4, 2), C * CFrame.new(0.7, -0.4, 0.3) * CFrame.Angles(math.rad(8), math.rad(20), math.rad(-10)))
-	facet("TipTop", Vector3.one * 2.6, C * CFrame.new(0, 2.9, 0) * CFrame.Angles(0, math.rad(10), 0) * vertex)
-	facet("TipBottom", Vector3.one * 2.2, C * CFrame.new(0.1, -2.75, 0) * CFrame.Angles(0, math.rad(-15), 0) * vertex)
-	facet("SpurA", Vector3.new(1, 3, 1), C * CFrame.new(1.6, 1, -0.8) * CFrame.Angles(math.rad(10), math.rad(30), math.rad(-25)))
-	facet("SpurB", Vector3.new(0.8, 2.4, 0.8), C * CFrame.new(-1.5, -1.2, 0.9) * CFrame.Angles(math.rad(15), 0, math.rad(30)))
+		facet.Transparency = 0.35
 
-	-- Grietas de energía: finas líneas de neón sobre las caras.
-	for index, spec in { { 45, 1.42, 0.6, 2.2, 8 }, { 135, 1.42, -0.8, 1.8, -12 }, { 225, 1.42, 1.4, 1.5, 18 }, { 315, 1.42, -1.6, 2, -6 }, { 80, 1.3, 2.6, 1.2, 25 } } do
-		local radians = math.rad(spec[1])
-		local position = center + Vector3.new(math.cos(radians) * spec[2], spec[3], math.sin(radians) * spec[2])
-		local crack = PartFactory.part(body, "Crack" .. index, {
-			Size = Vector3.new(0.07, spec[4], 0.07),
-			CFrame = CFrame.lookAt(position, Vector3.new(center.X, position.Y, center.Z)) * CFrame.Angles(0, 0, math.rad(spec[5])),
-			Color = Colors.Turquoise,
+		local veinPos = center + dir * 1.34 + Vector3.new(0, 0.10, 0)
+		local vein = PartFactory.part(body, "Vein" .. index, {
+			Size = Vector3.new(0.07, 1.98, 0.03),
+			CFrame = CFrame.lookAt(veinPos, Vector3.new(center.X, veinPos.Y, center.Z)) * CFrame.Angles(0, 0, math.rad(if index == 2 then -6 else 5)),
+			Color = MtlColors.Runes,
 			Material = Enum.Material.Neon,
 			Solid = false,
 		})
-		crack.Transparency = 0.15
-		crack:SetAttribute("Tint", "Runes")
+		vein:SetAttribute("Tint", "Runes")
 	end
 
-	-- Núcleo luminoso interior (se ve a través del cristal oscuro).
+	-- 2 brotes de cristal laterales (BudGem1, BudGem2 y sus núcleos BudCore1, BudCore2)
+	for index, bud in {
+		{ Offset = Vector3.new(-1.05, 0.80, 0.49), Tilt = CFrame.Angles(math.rad(-12), math.rad(25), math.rad(22)), Height = 2.10 },
+		{ Offset = Vector3.new(0.87, 1.48, -0.41), Tilt = CFrame.Angles(math.rad(10), math.rad(-25), math.rad(-20)), Height = 2.15 },
+	} do
+		local budCF = C * CFrame.new(bud.Offset) * bud.Tilt
+		hexPrism(body, "BudGem" .. index, budCF, 0.48, bud.Height, MtlColors.CrystalGlass, Enum.Material.Glass, 0.32, "Shards")
+		local budCore = PartFactory.part(body, "BudCore" .. index, {
+			Size = Vector3.new(0.45, 0.85, 0.45),
+			CFrame = budCF,
+			Color = MtlColors.Core,
+			Material = Enum.Material.Neon,
+			Solid = false,
+		})
+		budCore:SetAttribute("Tint", "Core")
+	end
+
+	-- 2 anillos astronómicos dorados (RingBand1 y RingBand2) con 4 nodos rúnicos cada uno
+	local ringSpecs = {
+		{
+			Name = "RingBand1",
+			NodePrefix = "RingNode1_",
+			Radius = 3.30,
+			Tilt = C * CFrame.Angles(math.rad(-16.3), math.rad(7.5), math.rad(2.4)),
+		},
+		{
+			Name = "RingBand2",
+			NodePrefix = "RingNode2_",
+			Radius = 3.90,
+			Tilt = C * CFrame.Angles(math.rad(12.6), math.rad(-14.2), math.rad(-61.8)),
+		},
+	}
+	for _, spec in ringSpecs do
+		buildRing(body, spec.Name, spec.Tilt, spec.Radius, 16, Vector2.new(0.14, 0.14), MtlColors.Gold, Enum.Material.Metal)
+		for nodeIndex = 1, 4 do
+			local angle = (nodeIndex - 1) * math.pi / 2
+			local nodePos = spec.Tilt * Vector3.new(math.cos(angle) * spec.Radius, 0, math.sin(angle) * spec.Radius)
+			local node = PartFactory.part(body, spec.NodePrefix .. nodeIndex, {
+				Size = Vector3.one * 0.28,
+				CFrame = CFrame.new(nodePos) * vertex,
+				Color = MtlColors.Runes,
+				Material = Enum.Material.Neon,
+				Solid = false,
+			})
+			node:SetAttribute("Tint", "Runes")
+		end
+	end
+
+	-- Núcleo luminoso interior (Core) y halo de energía (Shell)
 	local core = PartFactory.part(model, "Core", {
 		Size = Vector3.one * GeneratorConfig.CoreSize,
 		CFrame = C * vertex,
-		Color = Colors.Turquoise,
+		Color = MtlColors.Core,
 		Material = Enum.Material.Neon,
 		Solid = false,
 	})
 	core:SetAttribute("Tint", "Core")
+
 	local shell = PartFactory.part(model, "Shell", {
 		Shape = Enum.PartType.Ball,
 		Size = Vector3.one * GeneratorConfig.ShellDiameter,
@@ -316,7 +495,7 @@ local function buildCrystal(model: Model, origin: Vector3): Vector3
 	particles.Size = NumberSequence.new(0.3, 0)
 	particles.Transparency = NumberSequence.new(0.1, 1)
 	particles:SetAttribute("Tint", "Particles")
-	particles:SetAttribute("StageRate", true) -- su ritmo depende de la etapa
+	particles:SetAttribute("StageRate", true)
 	particles.Parent = core
 
 	return center
@@ -331,29 +510,29 @@ local function buildOrbiters(model: Model, center: Vector3)
 		local fragment = PartFactory.part(orbiters, "Orbiter" .. index, {
 			Size = orbit.Size,
 			CFrame = CFrame.new(center + Vector3.new(x, y, z)) * CFrame.Angles(math.rad(20), 0, math.rad(15)),
-			Color = Colors.Crystal,
+			Color = MtlColors.Shards,
 			Material = Enum.Material.Glass,
 			Solid = false,
 		})
-		fragment.Transparency = 0.1
+		fragment.Transparency = 0.15
 		fragment.Reflectance = 0.1
 		fragment:SetAttribute("Tint", "Shards")
 	end
 end
 
--- Rocas pequeñas que flotan junto a los pilares, por encima de la cabeza y fuera de los
--- accesos y del arco (las balancea GeneratorAnimator). { ángulo, radio, altura, tamaño }
+-- Rocas pequeñas que flotan junto a los pilares (las balancea GeneratorAnimator).
 local function buildFloatingRocks(model: Model, origin: Vector3)
 	local rocks = PartFactory.folder(model, "FloatingRocks")
 	for index, spec in { { 40, 13.4, 6.2, 1 }, { 140, 13.6, 6, 0.9 }, { 222, 13.4, 6.4, 1.1 }, { 248, 13.2, 5.9, 0.8 }, { 292, 13.5, 6.3, 1 }, { 318, 13.3, 6, 0.9 } } do
 		local size = spec[4]
-		PartFactory.part(rocks, "Rock" .. index, {
+		local rock = PartFactory.part(rocks, "Rock" .. index, {
 			Size = Vector3.new(size, size * 0.75, size * 0.9),
 			CFrame = CFrame.new(polar(origin, spec[1], spec[2], spec[3])) * CFrame.Angles(math.rad(spec[1]), math.rad(spec[1] * 2), 0),
-			Color = if index % 2 == 0 then Colors.DarkStone else Colors.WarmStone,
+			Color = if index % 2 == 0 then MtlColors.DarkStone else MtlColors.WarmStone,
 			Material = Enum.Material.Slate,
 			Solid = false,
 		})
+		rock.Transparency = 1
 	end
 end
 
@@ -378,18 +557,15 @@ local function buildAmbientMotes(model: Model, origin: Vector3)
 	emitter.LightEmission = 1
 	emitter.LightInfluence = 0
 	emitter.Color = ColorSequence.new(Colors.EnergySoft, Colors.Violet)
-	emitter:SetAttribute("Tint", "Particles") -- color de la etapa (ritmo fijo)
+	emitter:SetAttribute("Tint", "Particles")
 	emitter.Parent = source
 end
 
 -- Detalles de etapa -----------------------------------------------------------------
--- Todo se crea oculto. CrystalAppearance (cliente) los muestra con un fundido hasta
--- "VisibleTransparency" y enciende sus emisores cuando la etapa los incluye.
 
 local function hideDetail(part: BasePart, visibleTransparency: number?, tint: string?)
 	part:SetAttribute("VisibleTransparency", visibleTransparency or 0)
 	part.Transparency = 1
-	-- Ocultas no deben estorbar: los detalles nunca colisionan.
 	part.CanCollide = false
 	part.CanQuery = false
 	part.CastShadow = false
@@ -405,7 +581,6 @@ local function detailGroup(parent: Instance, name: string): Model
 	return group
 end
 
--- Pieza invisible que solo sirve de origen para un emisor de partículas.
 local function emitterSource(parent: Instance, name: string, cframe: CFrame, size: Vector3): Part
 	local source = PartFactory.part(parent, name, {
 		Size = size,
@@ -414,7 +589,7 @@ local function emitterSource(parent: Instance, name: string, cframe: CFrame, siz
 		Material = Enum.Material.SmoothPlastic,
 		Solid = false,
 	})
-	hideDetail(source, 1) -- sigue invisible aunque el grupo se muestre
+	hideDetail(source, 1)
 	return source
 end
 
@@ -431,7 +606,6 @@ local function stageEmitter(parent: Instance, settings: { [string]: any }): Part
 	return emitter
 end
 
--- Segmentos de neón formando un anillo horizontal (no hay toros nativos).
 local function segmentRing(parent: Instance, prefix: string, center: Vector3, radius: number, count: number, thickness: Vector2)
 	local length = 2 * math.pi * radius / count * 0.92
 	for index = 1, count do
@@ -439,7 +613,6 @@ local function segmentRing(parent: Instance, prefix: string, center: Vector3, ra
 		local position = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
 		local part = PartFactory.part(parent, prefix .. index, {
 			Size = Vector3.new(length, thickness.Y, thickness.X),
-			-- Tangente al círculo: el eje X apunta en la dirección del recorrido.
 			CFrame = CFrame.lookAt(position, center),
 			Color = Colors.Energy,
 			Material = Enum.Material.Neon,
@@ -453,7 +626,6 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 	local details = PartFactory.folder(model, "StageDetails")
 	local evolution = GeneratorConfig.Evolution
 
-	-- Esmeralda: raíces de crecimiento detrás y a un lado (sin tocar accesos ni santuarios).
 	local growth = detailGroup(details, "GrowthRoots")
 	for index, angle in { -70, -110, 180 } do
 		for _, part in buildRoot(growth, "GrowthRoot" .. index, origin, angle, if index % 2 == 0 then 1 else -1, GROWTH_ROOT_PROFILE) do
@@ -461,7 +633,6 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 		end
 	end
 
-	-- Esmeralda: glifos luminosos grabados en el canto de la plataforma.
 	local glyphs = detailGroup(details, "RuneGlyphs")
 	for index = 1, 12 do
 		local angle = math.rad((index - 0.5) * 30)
@@ -476,7 +647,6 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 		hideDetail(glyph, 0, "Runes")
 	end
 
-	-- Esmeralda: chispas que suben desde la plataforma.
 	local sparkles = detailGroup(details, "RuneSparkles")
 	local sparkleSource = emitterSource(sparkles, "Source", CFrame.new(origin + Vector3.new(0, PLATFORM_HEIGHT + 0.2, 0)), Vector3.new(18, 0.2, 18))
 	stageEmitter(sparkleSource, {
@@ -489,8 +659,6 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 		Transparency = NumberSequence.new(0.2, 1),
 	})
 
-	-- Dorado: corona de chispas que gira bajo la punta inferior del cristal (la mueve
-	-- GeneratorAnimator; queda lejos de las órbitas de los fragmentos).
 	local fragments = detailGroup(details, "Fragments")
 	for index = 1, evolution.FragmentCount do
 		local angle = (index - 1) / evolution.FragmentCount * math.pi * 2
@@ -504,7 +672,6 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 		hideDetail(fragment, 0, "Runes")
 	end
 
-	-- Legendario: agujas de cristal sobre la plataforma, entre el centro y los pilares.
 	local spires = detailGroup(details, "LegendarySpires")
 	for index, spire in { { 20, 5.4 }, { 160, 6 }, { 200, 5.6 }, { 340, 6.2 } } do
 		local radians = math.rad(spire[1])
@@ -514,7 +681,7 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 			Size = Vector3.new(1, height, 1),
 			CFrame = CFrame.new(base)
 				* CFrame.Angles(0, -radians, 0)
-				* CFrame.Angles(0, 0, math.rad(-14)) -- inclinada hacia fuera
+				* CFrame.Angles(0, 0, math.rad(-14))
 				* CFrame.new(0, height / 2 - 0.3, 0)
 				* CFrame.Angles(0, math.rad(45), 0),
 			Color = Colors.Crystal,
@@ -524,11 +691,9 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 		hideDetail(part, 0.1, "Shards")
 	end
 
-	-- Legendario: halo sobre la punta del cristal y círculo de runas en la plataforma.
 	segmentRing(detailGroup(details, "LegendaryHalo"), "Halo", coreCenter + Vector3.new(0, GeneratorConfig.CrystalHeight / 2 + 0.9, 0), 3, 12, Vector2.new(0.15, 0.15))
 	segmentRing(detailGroup(details, "LegendaryFloorRing"), "FloorRune", origin + Vector3.new(0, PLATFORM_HEIGHT + 0.06, 0), 14, 32, Vector2.new(0.3, 0.06))
 
-	-- Legendario: aura de destellos alrededor del cristal.
 	local aura = detailGroup(details, "LegendaryAura")
 	local auraSource = emitterSource(aura, "Source", CFrame.new(coreCenter), Vector3.one * 5)
 	stageEmitter(auraSource, {
@@ -547,7 +712,6 @@ local function buildStageDetails(model: Model, origin: Vector3, coreCenter: Vect
 end
 
 local function buildNameplate(model: Model, labelPosition: Vector3)
-	-- Ancla invisible: el cristal se mueve, el cartel no debe hacerlo.
 	local anchor = PartFactory.part(model, "LabelAnchor", {
 		Size = Vector3.one * 0.2,
 		CFrame = CFrame.new(labelPosition),
@@ -559,7 +723,7 @@ local function buildNameplate(model: Model, labelPosition: Vector3)
 
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "Nameplate"
-	billboard.Size = UDim2.new(12, 0, 1.8, 0) -- en studs: escala con la distancia
+	billboard.Size = UDim2.new(12, 0, 1.8, 0)
 	billboard.LightInfluence = 0
 	billboard.MaxDistance = 100
 	billboard.Adornee = anchor
@@ -587,7 +751,7 @@ local function buildNameplate(model: Model, labelPosition: Vector3)
 	label.Font = Enum.Font.FredokaOne
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(255, 244, 214)
-	label.Text = "✦ " .. GeneratorConfig.DisplayName .. " ✦"
+	label.Text = "★ " .. GeneratorConfig.DisplayName .. " ★"
 	label.Parent = frame
 
 	billboard.Parent = anchor
@@ -599,9 +763,6 @@ function GeneratorService.start()
 	local origin = GeneratorConfig.Position
 	local model = Instance.new("Model")
 	model.Name = GeneratorConfig.ModelName
-	-- Con StreamingEnabled, Persistent envía el modelo completo al entrar y nunca lo
-	-- descarga del cliente. (Atomic permitía que el motor lo quitara entero del
-	-- Workspace del cliente durante la partida.)
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 
 	local dais = buildPlatform(model, origin)

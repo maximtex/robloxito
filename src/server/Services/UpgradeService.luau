@@ -1,5 +1,7 @@
 -- Procesa compras de mejoras. Toda la validación ocurre aquí:
 -- tipo de argumento, mejora existente, nivel máximo, saldo y límite de frecuencia.
+-- UpgradeService.purchase la usa también la mejora automática (pase de la tienda), con las
+-- mismas comprobaciones pero sin el límite de frecuencia del remote.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +12,7 @@ local Constants = require(Shared.Constants)
 local Economy = require(Shared.Economy)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 
 local Codes = Constants.PurchaseCodes
 local RateLimit = EconomyConfig.PurchaseRateLimit
@@ -73,17 +76,30 @@ local function tryPurchase(player: Player, upgradeId: any): string
 		return Codes.MaxLevel
 	end
 
+	-- Las de la Tienda de Láser se pagan con dinero; las demás, con energía
 	local cost = Economy.getUpgradeCost(upgradeId, level)
-	if not cost or profile.Energy < cost then
-		return Codes.InsufficientEnergy
+	if Economy.getUpgradeCurrency(upgradeId) == "Money" then
+		if not cost or profile.Money < cost then
+			return Codes.InsufficientMoney
+		end
+		profile.Money -= cost
+	else
+		if not cost or profile.Energy < cost then
+			return Codes.InsufficientEnergy
+		end
+		profile.Energy -= cost
 	end
-
-	profile.Energy -= cost
 	profile.UpgradeLevels[upgradeId] = level + 1
 	PlayerDataService.recalculateProduction(player)
 	PlayerDataService.replicate(player)
+	GameEvents.fire("UpgradePurchased", player, upgradeId) -- misiones diarias
 
 	return Codes.Success
+end
+
+-- Compra un nivel de una mejora (servidor). Devuelve el código.
+function UpgradeService.purchase(player: Player, upgradeId: string): string
+	return tryPurchase(player, upgradeId)
 end
 
 function UpgradeService.start()

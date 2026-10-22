@@ -584,6 +584,9 @@ local function place(enemy: Enemy)
 	enemy.Root.AssemblyLinearVelocity = Vector3.zero
 end
 
+-- La IA de jefe (más abajo, updateBoss) reinicia su estado al reaparecer
+local resetBrain: (Enemy, number) -> ()
+
 local function respawn(enemy: Enemy)
 	EnemyLogic.reset(enemy.Status)
 	enemy.Target = nil
@@ -1026,7 +1029,7 @@ local function newBrain(): Brain
 end
 
 -- Al reaparecer: patrulla y los especiales escalonados (no todos a la vez al empezar)
-local function resetBrain(enemy: Enemy, now: number)
+function resetBrain(enemy: Enemy, now: number)
 	local brain = enemy.Brain :: Brain
 	brain.State = "Patrol"
 	brain.Until = 0

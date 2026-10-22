@@ -1,17 +1,18 @@
--- EnemyService simulado con el EnemyLogic REAL (vida, muerte única y reparto).
+-- Combate automático: el PetCombatService REAL (el único camino de disparo) con armas
+-- reales (WeaponLogic) y un EnemyService simulado sobre el EnemyLogic real.
+
+-- EnemyService simulado con el EnemyLogic REAL (vida y muerte única).
 local enemyList = {}
 local kills = {}
-local payouts = {}
-local incomingModifier
+local slows = {}
 local EnemyService = {}
-local function newEnemy(id, x, z, health)
+local function newEnemy(id, x, z, health, y)
 	local enemy = {
 		Id = id,
 		Kind = "Normal",
 		Radius = 1.2,
 		RootHeight = 1.6,
-		Reward = 100,
-		Root = { Position = Vector3.new(x, 2, z) },
+		Root = { Position = Vector3.new(x, y or 2, z) },
 		Model = { Parent = true },
 		Status = { State = "Idle", Health = health, MaxHealth = health, Contributions = {} },
 	}
@@ -28,16 +29,14 @@ function EnemyService.damage(enemy, player, amount)
 	local dealt, killed = EnemyLogic.applyDamage(enemy.Status, player.UserId, amount)
 	if killed then
 		kills[enemy.Id] = (kills[enemy.Id] or 0) + 1
-		for userId, value in EnemyLogic.splitReward(enemy.Status.Contributions, enemy.Reward) do
-			payouts[userId] = (payouts[userId] or 0) + value
-		end
+		enemy.Model.Parent = nil
 	end
 	return dealt, killed
 end
 function EnemyService.findInRadius(center, radius, maxTargets)
 	local candidates, byId = {}, {}
 	for _, enemy in enemyList do
-		if EnemyService.isAlive(enemy) then
+		if EnemyService.isAlive(enemy) and math.abs(enemy.Root.Position.Y - center.Y) <= 10 + enemy.RootHeight then
 			byId[enemy.Id] = enemy
 			table.insert(candidates, { Id = enemy.Id, X = enemy.Root.Position.X, Z = enemy.Root.Position.Z, Radius = enemy.Radius, Alive = true })
 		end
@@ -48,8 +47,26 @@ function EnemyService.findInRadius(center, radius, maxTargets)
 	end
 	return result
 end
-function EnemyService.setIncomingDamageModifier(fn)
-	incomingModifier = fn
+function EnemyService.applyControl(enemy, kind, seconds, factor)
+	table.insert(slows, { Enemy = enemy, Kind = kind, Seconds = seconds, Factor = factor })
+	return true
+end
+function EnemyService.onClicked() end
+
+-- Números de combate del arma (PlayerDataService.combatStats) con el WeaponLogic real
+PlayerDataService.combatStats = function(profile)
+	local weapons = profile.PetData.Weapons
+	local weaponId = weapons.Equipped
+	local level = WeaponLogic.level(weapons, weaponId)
+	return {
+		WeaponId = weaponId,
+		Level = level,
+		Shot = WeaponLogic.shotDamage(weaponId, level, 1, 1),
+		Cooldown = WeaponLogic.cooldown(weaponId, 0),
+		Range = WeaponConfig.Weapons[weaponId].Range,
+		RawPower = WeaponLogic.power(weaponId, level, 0, 1, 1),
+		Bonus = 1,
+	}
 end
 
 local PetCombatService = (function()
@@ -63,171 +80,129 @@ local function check(name, ok)
 	end
 	print((ok and "OK   " or "FALLO") .. "  " .. name)
 end
-local function count(kind, player)
-	local n = 0
-	for _, f in fired do
-		if f.Event.Kind == kind and (player == nil or f.Event.Owner == player) and f.Player == f.Event.Owner then
-			n += 1
+local function reset()
+	for _, enemy in enemyList do
+		enemy.Model.Parent = nil -- los de la prueba anterior ya no existen
+	end
+	table.clear(enemyList)
+	table.clear(kills)
+	table.clear(slows)
+	table.clear(fired)
+end
+local function shots(player)
+	local list = {}
+	for _, entry in fired do
+		if entry.Player == player and entry.Event.Kind == "PlayerShot" then
+			table.insert(list, entry.Event)
 		end
 	end
-	return n
+	return list
 end
-local function damageOf(enemy, userId)
-	return enemy.Status.Contributions[userId] or 0
+local function run(fromTime, seconds)
+	local t = fromTime
+	while t < fromTime + seconds - 1e-9 do
+		t += 0.1
+		advance(t)
+		PetCombatService.step(t)
+	end
+	return t
+end
+local function profileWith(weaponId, equipped)
+	local weapons = WeaponLogic.empty()
+	WeaponLogic.grant(weapons, weaponId)
+	weapons.Equipped = weaponId
+	return { PetData = { Weapons = weapons }, UpgradeLevels = {}, PetMultiplier = 1, Equipped = equipped or {} }
 end
 
-local alice = newPlayer("Alice", 1, Vector3.new(0, 3, 0))
-profiles[alice] = { UpgradeLevels = { GeneratorPower = 10 }, PetMultiplier = 1.35, Equipped = {} }
+local ana = newPlayer("Ana", 1, Vector3.new(0, 3, 0))
+profiles[ana] = profileWith("Laser")
 PetCombatService.start()
-playerAdded:Fire(alice)
-local playerDamage = CombatMath.playerDamage(10, 1.35)
-local foxDamage = CombatMath.petAbilityDamage(PetCombatConfig.Abilities.QuartzFox.DamageRatio, playerDamage)
+playerAdded:Fire(ana)
 
-print("-- Sin mascotas de combate")
-local dummy = newEnemy(1, 0, -6, 10000)
-advance(0)
-hitListener(alice, dummy)
-for t = 0.25, 3, 0.25 do
-	advance(t)
-	PetCombatService.step(t)
-end
-check("sin mascotas de combate no hay ningún ataque extra", #fired == 0 and damageOf(dummy, 1) == 0)
-profiles[alice].Equipped = { "Sproutling", "MoonOwl" }
-for t = 3.25, 5, 0.25 do
-	advance(t)
-	PetCombatService.step(t)
-end
-check("mascotas sin habilidad (Brotecillo, Búho) tampoco atacan", #fired == 0)
+print("-- 1. Objetivo automático y cadencia del arma")
+local near = newEnemy(1, 30, 0, 1000)
+local far = newEnemy(2, 50, 0, 1000)
+local outside = newEnemy(3, 100, 0, 1000)
+local now = run(0, 1)
+local list = shots(ana)
+check("dispara solo al más cercano a tiro, sin clic", #list > 0 and list[1].Target.X == 30)
+check(("con la cadencia del láser (0.25 s): %d disparos en 1 s"):format(#list), #list >= 3 and #list <= 5)
+check("cada disparo hace el daño del arma (5)", near.Status.MaxHealth - near.Status.Health == 5 * #list)
+check("ni el lejano ni el que está fuera de alcance reciben daño", far.Status.Health == 1000 and outside.Status.Health == 1000)
+check("el disparo atribuye el arma para que el cliente lo dibuje", list[1].WeaponId == "Laser")
 
-print("-- Zorrito de Cuarzo")
-profiles[alice].Equipped = { "QuartzFox" }
-hitListener(alice, dummy)
-local times = {}
-for t = 5, 9, 0.05 do
-	advance(t)
-	local before = count("FoxBolt", alice)
-	PetCombatService.step(t)
-	if count("FoxBolt", alice) > before then
-		table.insert(times, t)
+print("-- 2. Cambia de objetivo al matarlo y se detiene sin objetivos")
+near.Status.Health = 5
+table.clear(fired)
+now = run(now, 0.6)
+check("el cercano muere y sigue con el siguiente a tiro", kills[1] == 1 and far.Status.Health < 1000)
+far.Model.Parent = nil
+far.Status.State = "Dead"
+table.clear(fired)
+now = run(now, 0.6)
+check("sin enemigos a tiro no dispara (el de 100 studs queda fuera)", #shots(ana) == 0 and outside.Status.Health == 1000)
+
+print("-- 3. Altura: no dispara a través de suelos")
+reset()
+newEnemy(10, 20, 0, 100, 40)
+now = run(now, 0.6)
+check("un enemigo 37 studs más arriba no es objetivo", #shots(ana) == 0)
+
+print("-- 4. Apagar el automático y elegir con clic")
+reset()
+local clicked = newEnemy(20, 70, 0, 1000)
+local auto = newEnemy(21, 20, 0, 1000)
+remotes.SetAutoFire.OnServerEvent:Fire(ana, false)
+now = run(now, 0.6)
+check("con el automático apagado no dispara", #shots(ana) == 0 and ana:GetAttribute("AutoFire") == false)
+hitListener(ana, clicked)
+now = run(now, 0.6)
+check("elegido con clic fuera de alcance (70 > 60): se mantiene pero aún no dispara", #shots(ana) == 0)
+ana.Root.Position = Vector3.new(30, 3, 0)
+now = run(now, 0.6)
+check("al acercarse dispara al elegido, no al más cercano", #shots(ana) > 0 and clicked.Status.Health < 1000 and auto.Status.Health == 1000)
+remotes.SetAutoFire.OnServerEvent:Fire(ana, true)
+ana.Root.Position = Vector3.new(0, 3, 0)
+
+print("-- 5. Efectos de las armas")
+reset()
+profiles[ana] = profileWith("PlasmaBlaster")
+local center = newEnemy(30, 20, 0, 10000)
+local close = newEnemy(31, 23, 0, 10000)
+local away = newEnemy(32, 40, 0, 10000)
+now = run(now, 0.6)
+local plasma = shots(ana)
+check("plasma: daña al objetivo y al que está a menos de 6 studs (50 %)", #plasma > 0 and center.Status.MaxHealth - center.Status.Health == 16 * #plasma and close.Status.MaxHealth - close.Status.Health == 8 * #plasma)
+check("plasma: el que está lejos no recibe nada y el disparo avisa del radio", away.Status.Health == 10000 and plasma[1].Splash == 6)
+
+reset()
+profiles[ana] = profileWith("CrystalCannon")
+local first = newEnemy(40, 20, 0, 10000)
+local hop1 = newEnemy(41, 30, 0, 10000)
+local hop2 = newEnemy(42, 40, 0, 10000)
+local hop3 = newEnemy(43, 50, 0, 10000)
+now = run(now, 0.5)
+local crystal = shots(ana)
+check("cristal: salta a 2 enemigos más (50 %), en cadena", #crystal > 0 and hop1.Status.Health < 10000 and hop2.Status.Health < 10000 and hop3.Status.Health == 10000 and #crystal[1].Chain == 2)
+check("cristal: el primero recibe el daño entero", first.Status.MaxHealth - first.Status.Health == 40 * #crystal)
+
+reset()
+profiles[ana] = profileWith("ThornBow")
+newEnemy(50, 20, 0, 10000)
+now = run(now, 0.4)
+check("arco: ralentiza al objetivo (factor 0.6, 1.5 s)", #slows > 0 and slows[1].Kind == "Slow" and slows[1].Factor == 0.6 and slows[1].Seconds == 1.5)
+
+print("-- 6. Mascotas: golpean al mismo objetivo")
+reset()
+profiles[ana] = profileWith("Laser", { "MossFox" })
+local petTarget = newEnemy(60, 20, 0, 100000)
+now = run(now, 1.4)
+local petHits = 0
+for _, entry in fired do
+	if entry.Event.Kind == "FoxBolt" then
+		petHits += 1
 	end
 end
-local minGap = math.huge
-for i = 2, #times do
-	minGap = math.min(minGap, times[i] - times[i - 1])
-end
-check(("ataca respetando su intervalo (%d rayos en 4 s, separación mínima %.2f s >= %.2f)"):format(#times, minGap, PetCombatConfig.Abilities.QuartzFox.Interval), #times >= 3 and minGap >= PetCombatConfig.Abilities.QuartzFox.Interval - 1e-6)
-check(("daño de cada rayo = %.2f (0.35 × %.2f del jugador)"):format(foxDamage, playerDamage), math.abs(damageOf(dummy, 1) - foxDamage * #times) < 1e-6)
-local boltsBefore = count("FoxBolt", alice)
-profiles[alice].Equipped = { "MossFox" } -- desequipa el zorrito
-for t = 9.05, 12, 0.25 do
-	advance(t)
-	PetCombatService.step(t)
-end
-check("al desequiparlo deja de atacar de inmediato", count("FoxBolt", alice) == boltsBefore)
-profiles[alice].Equipped = { "QuartzFox" }
-for t = 12, 20, 0.25 do
-	advance(t)
-	PetCombatService.step(t)
-end
-check("fuera de combate (6 s sin golpear) no ataca", count("FoxBolt", alice) == boltsBefore)
-local far = newEnemy(2, 0, -60, 1000)
-hitListener(alice, far)
-advance(20.25)
-PetCombatService.step(20.25)
-check("objetivo fuera de alcance: no ataca", count("FoxBolt", alice) == boltsBefore)
+check(("la mascota equipada golpea al objetivo del arma (%d golpes en 1.4 s)"):format(petHits), petHits >= 2 and petTarget.Status.Health < 100000)
 
-print("-- Dragón Bebé de Amatista")
-local function engage(t, enemy)
-	advance(t)
-	hitListener(alice, enemy)
-	PetCombatService.step(t)
-end
-profiles[alice].Equipped = { "AmethystDragon" }
-local center = newEnemy(10, 0, -8, 5000)
-local near1 = newEnemy(11, 4, -8, 5000)
-local near2 = newEnemy(12, -5, -10, 5000)
-local outside = newEnemy(13, 30, -8, 5000)
-engage(30, center)
-check("lanza la nova y avisa antes del impacto (DragonCast sin impacto aún)", count("DragonCast", alice) == 1 and count("DragonImpact", alice) == 0)
-advance(30 + PetCombatConfig.Abilities.AmethystDragon.Telegraph)
-local novaDamage = CombatMath.petAbilityDamage(PetCombatConfig.Abilities.AmethystDragon.DamageRatio, playerDamage)
-check(("impacto: cada enemigo del área recibe %.2f UNA vez"):format(novaDamage), damageOf(center, 1) == novaDamage and damageOf(near1, 1) == novaDamage and damageOf(near2, 1) == novaDamage)
-check("los enemigos fuera del radio no reciben daño", damageOf(outside, 1) == 0)
-for t = 31, 39.75, 0.25 do
-	engage(t, center) -- sigue en combate todo el rato
-end
-check("respeta su recarga de 10 s (una sola nova)", count("DragonCast", alice) == 1)
-local crowd = {}
-for i = 1, 10 do
-	table.insert(crowd, newEnemy(100 + i, (i % 4) - 2, -8 + (i % 3), 5000))
-end
-engage(40, center)
-advance(41)
-local struck = 0
-for _, enemy in { center, near1, near2, table.unpack(crowd) } do
-	if damageOf(enemy, 1) > (if enemy == center or enemy == near1 or enemy == near2 then novaDamage else 0) then
-		struck += 1
-	end
-end
-check(("con 13 enemigos en el área golpea como mucho %d (golpeó %d)"):format(PetCombatConfig.Abilities.AmethystDragon.MaxTargets, struck), count("DragonImpact", alice) == 2 and struck >= 1 and struck <= PetCombatConfig.Abilities.AmethystDragon.MaxTargets)
--- Cancelaciones durante el aviso
-local impacts = count("DragonImpact", alice)
-engage(50, center)
-local before = damageOf(center, 1)
-alice.CharacterRemoving:Fire() -- muere durante el aviso
-advance(51)
-check("si el jugador muere durante el aviso, la nova se anula", count("DragonImpact", alice) == impacts and damageOf(center, 1) == before)
-engage(60, center)
-profiles[alice].Equipped = {} -- desequipa durante el aviso
-advance(61)
-check("si se desequipa durante el aviso, la nova se anula", count("DragonImpact", alice) == impacts)
-profiles[alice].Equipped = { "AmethystDragon" }
-engage(70, center)
-alice.AttributeSignals.CurrentZone:Fire() -- viaja a otra zona durante el aviso
-advance(71)
-check("si cambia de zona durante el aviso, la nova se anula", count("DragonImpact", alice) == impacts)
-alice.CharacterRemoving:Fire()
-engage(71.5, center)
-check(("morir no reinicia la recarga: %d novas en 30/40/50/60/70 s, ninguna extra"):format(count("DragonCast", alice)), count("DragonCast", alice) == 5)
-
-print("-- Tortuga de Musgo Cristalino")
-profiles[alice].Equipped = {}
-check("sin tortuga el daño recibido no cambia (20 -> 20)", incomingModifier(alice, 20) == 20)
-profiles[alice].Equipped = { "CrystalTurtle" }
-local one = incomingModifier(alice, 20)
-local again = incomingModifier(alice, 20)
-check(("1 tortuga: 20 -> %.1f (-15 %%)"):format(one), math.abs(one - 17) < 1e-6)
-check("repetir golpes, cambiar de zona o reaparecer no acumula la reducción", again == one)
-alice.AttributeSignals.CurrentZone:Fire()
-alice.CharacterRemoving:Fire()
-check("tras cambiar de zona y reaparecer sigue siendo -15 %", math.abs(incomingModifier(alice, 20) - 17) < 1e-6)
-profiles[alice].Equipped = { "CrystalTurtle", "CrystalTurtle", "CrystalTurtle" }
-local capped = incomingModifier(alice, 20)
-check(("3 tortugas: tope del %d %% (20 -> %.1f), nunca invulnerable"):format(PetCombatConfig.Abilities.CrystalTurtle.MaxReduction * 100, capped), math.abs(capped - 20 * (1 - PetCombatConfig.Abilities.CrystalTurtle.MaxReduction)) < 1e-6 and capped > 0)
-check("muestra el bloqueo al dueño (TurtleBlock)", count("TurtleBlock", alice) >= 1)
-
-print("-- Recompensa única con jugador, zorrito y dragón a la vez")
-local bob = newPlayer("Bob", 2, Vector3.new(2, 3, 0))
-profiles[bob] = { UpgradeLevels = { GeneratorPower = 0 }, PetMultiplier = 1, Equipped = { "QuartzFox" } }
-playerAdded:Fire(bob)
-profiles[alice].Equipped = { "QuartzFox", "AmethystDragon" }
-alice.Humanoid.Health = 100
-local target = newEnemy(500, 0, -6, 300)
-target.Reward = 120
-local t = 100
-while EnemyService.isAlive(target) and t < 200 do
-	EnemyService.damage(target, alice, playerDamage) -- golpe del jugador
-	hitListener(alice, target)
-	hitListener(bob, target)
-	advance(t)
-	PetCombatService.step(t)
-	t += 0.25
-end
-advance(t + 2)
-check("el enemigo muere exactamente una vez", kills[500] == 1)
-local total = 0
-for _, userId in { 1, 2 } do
-	total += payouts[userId] or 0
-end
-check(("recompensa total repartida = 120 (%d)"):format(total), total == 120 and (payouts[2] or 0) > 0)
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

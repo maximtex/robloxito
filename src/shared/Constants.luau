@@ -40,11 +40,12 @@ local Constants = {
 		-- cuando un jefe regala su arma.
 		WeaponResult = "WeaponResult",
 
-		-- Cliente -> servidor: () solo pide atacar. El servidor decide objetivos y daño.
+		-- Cliente -> servidor: (enemyModel: Model) elige el objetivo de su arma con un clic. El
+		-- servidor comprueba que exista y esté vivo; el disparo y el daño los decide él.
 		Attack = "Attack",
-		-- Servidor -> cliente: (hits: { { Position, Damage, Killed, Kind } }) para efectos
-		AttackResult = "AttackResult",
-		-- Servidor -> cliente: (amount, enemyName, isBoss) energía ganada al derrotar
+		-- Cliente -> servidor: (enabled: boolean) enciende o apaga el disparo automático.
+		SetAutoFire = "SetAutoFire",
+		-- Servidor -> cliente: (amount, enemyName, isBoss, position, isKill) dinero ganado
 		CombatReward = "CombatReward",
 		-- Servidor -> cliente: (event) acción de mascota YA confirmada, solo para efectos.
 		-- No existe la dirección contraria: el cliente no puede pedir habilidades.
@@ -147,6 +148,8 @@ local Constants = {
 		-- Armas: la equipada y las que tiene con su nivel ("Laser:3,PlasmaBlaster:0").
 		EquippedWeapon = "EquippedWeapon",
 		Weapons = "Weapons",
+		-- true si su arma dispara sola al enemigo más cercano (PetCombatService).
+		AutoFire = "AutoFire",
 		ProductionPerSecond = "ProductionPerSecond",
 		PlayerDamage = "PlayerDamage",
 		DamagePerSecond = "DamagePerSecond",

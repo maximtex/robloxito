@@ -321,15 +321,14 @@ PET_COMBAT_REQUIRES = [
     'local ReplicatedStorage = game:GetService("ReplicatedStorage")',
     'local Shared = ReplicatedStorage:WaitForChild("Shared")',
     "local Constants = require(Shared.Constants)",
-    "local CombatConfig = require(Shared.Config.CombatConfig)",
+    "local PetConfig = require(Shared.Config.PetConfig)",
     "local PetCombatConfig = require(Shared.Config.PetCombatConfig)",
-    "local CombatMath = require(Shared.CombatMath)",
-    "local RebirthLogic = require(Shared.RebirthLogic)",
-    "local AdventureLogic = require(Shared.AdventureLogic)",
+    "local WeaponLogic = require(Shared.WeaponLogic)",
     "local PlayerDataService = require(script.Parent.PlayerDataService)",
     "local RemoteService = require(script.Parent.RemoteService)",
     "local EnemyService = require(script.Parent.EnemyService)",
     "local CombatService = require(script.Parent.CombatService)",
+    "local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)",
 ]
 
 
@@ -339,13 +338,11 @@ def build_petcombat():
         ("Constants", "src/shared/Constants.luau"),
         ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
         ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
-        ("CombatMath", "src/shared/CombatMath.luau"),
-        ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
-        ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
-        ("RebirthLogic", "src/shared/RebirthLogic.luau"),
-        ("AdventureConfig", "src/shared/Config/AdventureConfig.luau"),
-        ("AdventureLogic", "src/shared/AdventureLogic.luau"),
+        ("PetConfig", "src/shared/Config/PetConfig.luau"),
+        ("WeaponConfig", "src/shared/Config/WeaponConfig.luau"),
+        ("WeaponLogic", "src/shared/WeaponLogic.luau"),
         ("EnemyLogic", "src/server/Util/EnemyLogic.luau"),
+        ("RateLimiter", "src/server/Util/RateLimiter.luau"),
     ]:
         out.append(mod(n, p))
     # PetCombatService real, con sus dependencias de servicio sustituidas por las simuladas.
@@ -541,7 +538,7 @@ SUITES = [
     ("quest", "Misiones, diarias y logros", build_quest),
     ("combat", "Combate (daño, muertes, recompensas, objetivos)", build_combat),
     ("weapons", "Armas: comprar, mejorar, equipar, daño y guardado", build_weapons),
-    ("petcombat", "Combate de mascotas", build_petcombat),
+    ("petcombat", "Combate automático: objetivo, cadencia, efectos de las armas y mascotas", build_petcombat),
     ("anim", "Animación de enemigos", build_anim),
     ("pose", "Articulaciones de los enemigos", build_pose),
     ("cores", "Ocho núcleos: configuración y lógica pura", build_cores),

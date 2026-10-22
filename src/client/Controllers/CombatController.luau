@@ -1,10 +1,11 @@
 -- Combate en el cliente (solo presentación y entrada; el servidor decide todo):
--- - Disparar con cada clic o toque (al enemigo apuntado), manteniendo el clic, con F, X
---   (mando), el botón táctil o el botón de pantalla (al más cercano). Cooldown visual.
--- - Rayo de luz al disparar (es el disparo, no el impacto). Los impactos (destello en el
---   enemigo, chispas, número de daño, sonido) SOLO se muestran cuando el servidor los
---   confirma en AttackResult; si confirma que no hubo impacto, una nubecilla discreta.
--- - Animación: la propia del avatar ("toolslash" de su script Animate) o una configurada.
+-- - El arma dispara sola (PetCombatService). Con un clic o toque en un enemigo se elige el
+--   objetivo; F, X (mando), el botón táctil o el botón "Disparar" encienden o apagan el
+--   disparo automático (insignia AUTO / OFF). Sobre el botón, el arma equipada y su daño
+--   por segundo.
+-- - Cada disparo confirmado (PetAbility "PlayerShot") se dibuja según el proyectil del arma
+--   (WeaponConfig): rayo, bola de plasma, espina, rayo de cristal que salta entre enemigos
+--   o esfera que explota; luego los impactos (destello, chispas, número de daño, sonido).
 -- - Dinero: monedas que saltan del enemigo y vuelan hacia ti al cobrar, aviso al derrotarlo
 --   y anuncio al derrotar a un jefe.
 -- - Barra de vida grande del jefe al acercarse a su arena.
@@ -24,6 +25,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CombatConfig = require(Shared.Config.CombatConfig)
+local WeaponConfig = require(Shared.Config.WeaponConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local CombatMath = require(Shared.CombatMath)
@@ -49,6 +51,9 @@ local BOSS_ENRAGED_COLOR = Color3.fromRGB(255, 140, 60)
 local MAX_DAMAGE_NUMBERS = 14 -- más números a la vez no se leen y cuestan rendimiento
 local SOUND_GAP = 0.06 -- el mismo sonido no se repite antes de este intervalo
 local AIM_DISTANCE = 300 -- largo de la línea del cursor (desde la cámara) para buscar al enemigo apuntado
+local SELECT_RANGE = 75 -- studs del personaje al enemigo para poder elegirlo (CombatService)
+local AUTO_ON = Color3.fromRGB(96, 214, 96)
+local AUTO_OFF = Color3.fromRGB(120, 120, 128)
 local COIN_COLOR = Color3.fromRGB(255, 200, 40)
 local COIN_SIZE = Vector3.new(0.22, 1.1, 1.1) -- moneda de canto (el cilindro va en X)
 local COINS_KILL = 6 -- monedas que suelta un enemigo al morir
@@ -58,8 +63,6 @@ local CombatController = {}
 
 local player = Players.LocalPlayer
 local fxFolder: Folder
-local nextAttackAt = 0
-local pendingSwings: { { Tip: Vector3, Time: number } } = {}
 
 local function makeSound(id: string?, volume: number): Sound?
 	if not id then
@@ -161,23 +164,59 @@ local function emitAt(kind: string, position: Vector3, color: Color3, amount: nu
 	ready:Emit(amount)
 end
 
--- Rayo del disparo: un haz de luz del personaje al objetivo que se estrecha y se apaga, con
--- un destello en la punta (como el láser automático). Es el disparo, no el impacto.
+-- Rayo de un disparo: un haz de luz de `from` a `to` que se estrecha y se apaga
 local SLASH_TO = Color3.fromRGB(120, 236, 206)
-local SHOT_COLOR = Color3.fromRGB(70, 235, 255)
-local function shotEffect(from: Vector3, to: Vector3)
+local function beamEffect(from: Vector3, to: Vector3, color: Color3, thickness: number)
 	local dist = (to - from).Magnitude
 	if dist > 0.2 then
-		local beam = fxPart(Vector3.new(dist, 0.32, 0.32), CFrame.lookAt((from + to) / 2, to) * CFrame.Angles(0, math.rad(90), 0), SHOT_COLOR)
+		local beam = fxPart(Vector3.new(dist, thickness, thickness), CFrame.lookAt((from + to) / 2, to) * CFrame.Angles(0, math.rad(90), 0), color)
 		beam.Shape = Enum.PartType.Cylinder
 		beam.Transparency = 0.05
-		TweenService:Create(beam, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TweenService:Create(beam, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Transparency = 1,
 			Size = Vector3.new(dist, 0.04, 0.04),
 		}):Play()
-		Debris:AddItem(beam, 0.2)
+		Debris:AddItem(beam, 0.24)
 	end
-	emitAt("Glint", to, SHOT_COLOR, 3)
+end
+
+-- Bola de luz con estela que viaja de `from` a `to` y llama a `onArrive` al llegar
+local function travelBall(from: Vector3, to: Vector3, color: Color3, size: number, speed: number, onArrive: () -> ())
+	local travel = math.clamp((to - from).Magnitude / speed, 0.1, 0.45)
+	local ball = fxPart(Vector3.one * size, CFrame.new(from), color)
+	ball.Shape = Enum.PartType.Ball
+	local tail = Instance.new("Attachment")
+	tail.Position = Vector3.new(0, size * 0.35, 0)
+	tail.Parent = ball
+	local head = Instance.new("Attachment")
+	head.Position = Vector3.new(0, -size * 0.35, 0)
+	head.Parent = ball
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = tail
+	trail.Attachment1 = head
+	trail.Lifetime = 0.16
+	trail.LightEmission = 1
+	trail.FaceCamera = true
+	trail.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+	trail.Transparency = NumberSequence.new(0.1, 1)
+	trail.Parent = ball
+	local tween = TweenService:Create(ball, TweenInfo.new(travel, Enum.EasingStyle.Sine, Enum.EasingDirection.In), { CFrame = CFrame.new(to) })
+	tween.Completed:Once(function()
+		ball:Destroy()
+		onArrive()
+	end)
+	tween:Play()
+	Debris:AddItem(ball, travel + 0.3)
+end
+
+-- Onda de una explosión en el suelo, del radio del daño en área
+local function impactRing(center: Vector3, radius: number, color: Color3)
+	local diameter = radius * 2
+	local wave = fxPart(Vector3.new(0.2, diameter * 0.4, diameter * 0.4), CFrame.new(center - Vector3.new(0, 2, 0)) * CFrame.Angles(0, 0, math.rad(90)), color)
+	wave.Shape = Enum.PartType.Cylinder
+	wave.Transparency = 0.35
+	TweenService:Create(wave, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.05, diameter, diameter), Transparency = 1 }):Play()
+	Debris:AddItem(wave, 0.4)
 end
 
 -- Enemigos vivos a tiro del personaje (Workspace.Enemies.<Zona>.<Modelo>)
@@ -193,7 +232,7 @@ local function enemiesInRange(origin: Vector3): { { Model: Model, Position: Vect
 			local health = model:GetAttribute("Health")
 			if enemyRoot and enemyRoot:IsA("BasePart") and (health == nil or health > 0) and model:GetAttribute("DiedAt") == nil then
 				local offset = enemyRoot.Position - origin
-				if Vector2.new(offset.X, offset.Z).Magnitude <= CombatConfig.ShotRange then
+				if Vector2.new(offset.X, offset.Z).Magnitude <= SELECT_RANGE then
 					table.insert(list, { Model = model, Position = enemyRoot.Position })
 				end
 			end
@@ -217,37 +256,23 @@ end
 local aimParams = RaycastParams.new()
 aimParams.FilterType = Enum.RaycastFilterType.Include
 
--- A quién se dispara. Con aimRay (la línea del cursor o del toque): solo al enemigo que esa
--- línea toca (su cuerpo, con un margen de AimRadius), si está a tiro; si no apunta a ninguno,
--- a nadie. Sin aimRay (F, botón): al más cercano al personaje y, sin enemigos, el rayo va
--- hacia delante. Solo es una propuesta: el servidor comprueba que exista, esté vivo y a tiro.
-local function pickTarget(root: BasePart, aimRay: Ray?): (Model?, Vector3)
-	local candidates = enemiesInRange(root.Position)
-	local best, bestScore = nil, math.huge
-	if aimRay then
-		local enemiesFolder = Workspace:FindFirstChild("Enemies")
-		if enemiesFolder then
-			aimParams.FilterDescendantsInstances = { enemiesFolder }
-			local hit = Workspace:Spherecast(aimRay.Origin, CombatConfig.AimRadius, aimRay.Direction.Unit * AIM_DISTANCE, aimParams)
-			local model = hit and enemyModelOf(hit.Instance, enemiesFolder)
-			for _, candidate in candidates do
-				if candidate.Model == model then
-					best = candidate
-				end
-			end
-		end
-	else
-		for _, candidate in candidates do
-			local d = (candidate.Position - root.Position).Magnitude
-			if d < bestScore then
-				best, bestScore = candidate, d
-			end
+-- Enemigo que toca la línea del cursor o del toque (su cuerpo, con un margen de AimRadius),
+-- si está lo bastante cerca para elegirlo. Solo es una propuesta: el servidor comprueba que
+-- exista, esté vivo y cerca.
+local function pickTarget(root: BasePart, aimRay: Ray): (Model?, Vector3?)
+	local enemiesFolder = Workspace:FindFirstChild("Enemies")
+	if not enemiesFolder then
+		return nil, nil
+	end
+	aimParams.FilterDescendantsInstances = { enemiesFolder }
+	local hit = Workspace:Spherecast(aimRay.Origin, CombatConfig.AimRadius, aimRay.Direction.Unit * AIM_DISTANCE, aimParams)
+	local model = hit and enemyModelOf(hit.Instance, enemiesFolder)
+	for _, candidate in enemiesInRange(root.Position) do
+		if candidate.Model == model then
+			return candidate.Model, candidate.Position
 		end
 	end
-	if best then
-		return best.Model, best.Position
-	end
-	return nil, root.Position + root.CFrame.LookVector * 12
+	return nil, nil
 end
 
 -- Reacción del enemigo al recibir daño: destello blanco breve con un Highlight local
@@ -515,6 +540,34 @@ local function buildGui()
 		Thickness = 2.5,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
 	}, atkLabel)
+	-- Disparo automático encendido (AUTO) o apagado (OFF)
+	local autoBadge = UiKit.text(buttonFrame, "AutoBadge", {
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromOffset(-6, -6),
+		Size = UDim2.fromOffset(40, 18),
+		BackgroundTransparency = 0,
+		BackgroundColor3 = AUTO_ON,
+		Font = FONTS.Display,
+		TextSize = 12,
+		TextColor3 = Color3.new(1, 1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "AUTO",
+		ZIndex = 5,
+	})
+	UiKit.corner(autoBadge, 6)
+	UiKit.create("UIStroke", { Color = INK, Thickness = 1.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, autoBadge)
+	-- Arma equipada y su daño por segundo, sobre el botón
+	local weaponPill = UiKit.text(buttonFrame, "WeaponPill", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, 4, 0, -8),
+		Size = UDim2.fromOffset(240, 22),
+		Font = FONTS.Display,
+		TextSize = 15,
+		TextColor3 = CREAM,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		ZIndex = 4,
+	})
+	UiKit.create("UIStroke", { Color = INK, Thickness = 2.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, weaponPill)
 
 	-- Barra del jefe: justo debajo de la tarjeta de energía (la energía de cada enemigo va a
 	-- la pila común de avisos, que baja cuando la barra se ve).
@@ -605,6 +658,8 @@ local function buildGui()
 		ButtonFrame = buttonFrame,
 		Button = button,
 		Cooldown = cooldown,
+		AutoBadge = autoBadge,
+		WeaponPill = weaponPill,
 		BossBar = bossBar,
 		BossName = bossName,
 		BossFill = bossFill,
@@ -618,7 +673,7 @@ end
 function CombatController.start()
 	local remotes = ReplicatedStorage:WaitForChild(Constants.RemotesFolderName)
 	local attackRemote = remotes:WaitForChild(Constants.Remotes.Attack) :: RemoteEvent
-	local resultRemote = remotes:WaitForChild(Constants.Remotes.AttackResult) :: RemoteEvent
+	local autoRemote = remotes:WaitForChild(Constants.Remotes.SetAutoFire) :: RemoteEvent
 	local rewardRemote = remotes:WaitForChild(Constants.Remotes.CombatReward) :: RemoteEvent
 
 	local existingFx = Workspace:FindFirstChild("ClientCombatFX")
@@ -677,83 +732,71 @@ function CombatController.start()
 		task.spawn(loadAnimation, player.Character)
 	end
 
-	-- aimRay: la línea del cursor o del toque (solo dispara si apunta a un enemigo); nil (F,
-	-- botón) dispara al más cercano.
-	local function tryAttack(aimRay: Ray?)
-		local now = os.clock()
-		if now < nextAttackAt then
-			return
-		end
+	-- Clic o toque sobre un enemigo: pasa a ser el objetivo del arma (el servidor lo comprueba)
+	local function selectTarget(aimRay: Ray)
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		if not (root and root:IsA("BasePart") and humanoid and humanoid.Health > 0) then
+		if not (root and root:IsA("BasePart")) then
 			return
 		end
-		local aimed, tip = pickTarget(root, aimRay)
-		if aimRay and not aimed then
-			return -- clic o toque sin apuntar a un enemigo: no se dispara (ni gasta la recarga)
+		local aimed, at = pickTarget(root, aimRay)
+		if aimed and at then
+			attackRemote:FireServer(aimed)
+			emitAt("Glint", at, SLASH_TO, 4)
+			flashEnemy(aimed, SLASH_TO)
+			if animationTrack then
+				animationTrack:Play()
+			end
 		end
-		nextAttackAt = now + CombatConfig.AttackCooldown
-		attackRemote:FireServer(aimed) -- solo una propuesta de objetivo: el servidor decide
-		shotEffect(root.Position + Vector3.new(0, 1.2, 0), tip)
-		-- Cada golpe enviado recibe un resultado; se emparejan en orden.
-		table.insert(pendingSwings, { Tip = tip, Time = now })
-		if #pendingSwings > 4 then
-			table.remove(pendingSwings, 1)
-		end
+	end
+
+	-- F, X (mando), el botón táctil o el de pantalla: enciende o apaga el disparo automático
+	local function autoFireOn(): boolean
+		return player:GetAttribute(Constants.Attributes.AutoFire) ~= false
+	end
+	local function refreshAutoFire()
+		local on = autoFireOn()
+		ui.AutoBadge.Text = if on then "AUTO" else "OFF"
+		ui.AutoBadge.BackgroundColor3 = if on then AUTO_ON else AUTO_OFF
+		ui.Cooldown.Size = if on then UDim2.fromScale(1, 0) else UDim2.fromScale(1, 1)
+	end
+	local function toggleAutoFire()
+		autoRemote:FireServer(not autoFireOn())
 		if swingSound then
 			swingSound:Play()
 		end
-		if animationTrack then
-			animationTrack:Play()
-		end
-		-- Indicador de recarga del botón
-		ui.Cooldown.Size = UDim2.fromScale(1, 1)
-		TweenService:Create(ui.Cooldown, TweenInfo.new(CombatConfig.AttackCooldown, Enum.EasingStyle.Linear), { Size = UDim2.fromScale(1, 0) }):Play()
 	end
-
-	-- Teclado (F), mando (X) y botón táctil automático en móvil: al enemigo más cercano.
 	ContextActionService:BindAction(ATTACK_ACTION, function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
-			tryAttack()
+			toggleAutoFire()
 		end
 		return Enum.ContextActionResult.Sink
 	end, true, Enum.KeyCode.F, Enum.KeyCode.ButtonX)
 	ContextActionService:SetTitle(ATTACK_ACTION, "⚔")
 	ContextActionService:SetPosition(ATTACK_ACTION, UDim2.new(1, -170, 1, -150))
-	ui.Button.Activated:Connect(function()
-		tryAttack()
-	end)
+	ui.Button.Activated:Connect(toggleAutoFire)
+	player:GetAttributeChangedSignal(Constants.Attributes.AutoFire):Connect(refreshAutoFire)
+	refreshAutoFire()
 
-	-- Clic izquierdo (ratón) o toque en pantalla: un disparo al enemigo apuntado (y disparos
-	-- seguidos mientras se mantiene el clic, solo mientras el cursor esté sobre un enemigo).
-	local isHoldingAttack = false
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then
 			return
 		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			isHoldingAttack = true
-			tryAttack(Workspace.CurrentCamera:ScreenPointToRay(input.Position.X, input.Position.Y))
-		elseif input.UserInputType == Enum.UserInputType.Touch then
-			tryAttack(Workspace.CurrentCamera:ScreenPointToRay(input.Position.X, input.Position.Y))
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			selectTarget(Workspace.CurrentCamera:ScreenPointToRay(input.Position.X, input.Position.Y))
 		end
 	end)
 
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			isHoldingAttack = false
-		end
-	end)
-
-	local RunService = game:GetService("RunService")
-	RunService.Heartbeat:Connect(function()
-		if isHoldingAttack and os.clock() >= nextAttackAt then
-			local mouse = UserInputService:GetMouseLocation()
-			tryAttack(Workspace.CurrentCamera:ViewportPointToRay(mouse.X, mouse.Y))
-		end
-	end)
+	-- Arma equipada y su daño por segundo sobre el botón
+	local function refreshWeaponPill()
+		local def = WeaponConfig.Weapons[player:GetAttribute(Constants.Attributes.EquippedWeapon)] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
+		local dps = player:GetAttribute(Constants.Attributes.DamagePerSecond)
+		ui.WeaponPill.Text = ("%s %s · %s/s"):format(def.Icon, def.DisplayName, formatNumber(if typeof(dps) == "number" then dps else 0))
+		ui.WeaponPill.TextColor3 = def.Color
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.EquippedWeapon):Connect(refreshWeaponPill)
+	player:GetAttributeChangedSignal(Constants.Attributes.DamagePerSecond):Connect(refreshWeaponPill)
+	refreshWeaponPill()
 
 	-- En pantallas solo táctiles se usa el botón táctil de Roblox (junto al de saltar).
 	local function refreshButtonVisibility()
@@ -761,51 +804,6 @@ function CombatController.start()
 	end
 	UserInputService.LastInputTypeChanged:Connect(refreshButtonVisibility)
 	refreshButtonVisibility()
-
-	-- Resultado CONFIRMADO del golpe: solo aquí se muestran impactos.
-	resultRemote.OnClientEvent:Connect(function(hits)
-		if typeof(hits) ~= "table" then
-			return
-		end
-		local swing = table.remove(pendingSwings, 1)
-		local landed, kills, bossHit = 0, 0, false
-		for _, hit in hits do
-			if typeof(hit) == "table" and typeof(hit.Position) == "Vector3" and typeof(hit.Damage) == "number" then
-				landed += 1
-				local killed = hit.Killed == true
-				local isBoss = hit.Kind == "Boss"
-				kills += if killed then 1 else 0
-				bossHit = bossHit or isBoss
-				local color = KIND_COLORS[hit.Kind] or KIND_COLORS.Normal
-				damageNumber(hit.Position, hit.Damage, color, killed, isBoss)
-				if typeof(hit.Coins) == "number" and hit.Coins > 0 then
-					coinNumber(hit.Position, hit.Coins)
-				end
-				-- Golpe normal: chispas; jefe: más chispas y brillo; derrota: estallido y motas.
-				emitAt("Spark", hit.Position, color, if killed then 22 elseif isBoss then 12 else 8)
-				emitAt("Glint", hit.Position, SLASH_TO, if killed then 10 elseif isBoss then 6 else 3)
-				if killed then
-					emitAt("Wisp", hit.Position, SLASH_TO, 14) -- la criatura se disuelve en luz
-				end
-				if typeof(hit.Model) == "Instance" and hit.Model:IsA("Model") then
-					flashEnemy(hit.Model, if killed then THEME.Gold else Color3.new(1, 1, 1))
-					if not killed then
-						EnemyAnimator.react(hit.Model, 1)
-					end
-				end
-			end
-		end
-		if landed > 0 then
-			if kills > 0 and killSound then
-				playVaried(killSound, 0.9, 0.05)
-			else
-				playVaried(hitSound, if bossHit then 1.15 else 1.35, 0.07)
-			end
-		elseif swing and os.clock() - swing.Time < 1.5 then
-			-- Fallo confirmado: una nubecilla discreta donde acabó el tajo, sin texto.
-			emitAt("Miss", swing.Tip, Color3.fromRGB(200, 204, 190), 5)
-		end
-	end)
 
 	-- Mascotas de combate -------------------------------------------------------------
 	-- Solo se dibujan acciones que el servidor ya ha resuelto (PetAbility).
@@ -952,13 +950,15 @@ function CombatController.start()
 		-- En móvil, a media altura a la derecha para no chocar con los botones táctiles; en
 		-- escritorio, justo encima del botón de ataque (que crece con la escala del HUD).
 		local hudScale = UiKit.computeScale((ui.ButtonFrame.Parent :: ScreenGui).AbsoluteSize)
-		chips.Position = if touchOnly then UDim2.new(1, -20, 0.5, 0) else UDim2.new(1, -20, 1, -(24 + 96 * hudScale + 12))
+		-- (por encima del arma equipada, que va justo sobre el botón)
+		chips.Position = if touchOnly then UDim2.new(1, -20, 0.5, 0) else UDim2.new(1, -20, 1, -(24 + 96 * hudScale + 12 + 30 * hudScale))
 		dragonChip.Visible = equippedCount("AmethystDragon") > 0
 		local turtles = equippedCount("CrystalTurtle")
 		turtleChip.Visible = turtles > 0
 		turtleLabel.Text = "-" .. formatNumber(CombatMath.guardReduction(turtles) * 100, 0) .. " % daño"
 		-- La columna derecha del HUD termina encima de los indicadores cuando se ven.
-		HudDock.setChips(dragonChip.Visible or turtleChip.Visible)
+		-- (el arma equipada ocupa ese sitio aunque no haya indicadores)
+		HudDock.setChips(true)
 		refreshGuardAura()
 	end
 	player:GetAttributeChangedSignal(Constants.Attributes.EquippedPets):Connect(refreshPetChips)
@@ -995,37 +995,48 @@ function CombatController.start()
 		local owner = event.Owner :: Player
 		local isOwner = owner == player
 
-		if event.Kind == "PlayerLaser" and typeof(event.Target) == "Vector3" then
+		if event.Kind == "PlayerShot" and typeof(event.Target) == "Vector3" then
+			local def = WeaponConfig.Weapons[event.WeaponId] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
+			local color = def.Color
 			local character = owner.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
-			local from = if root and root:IsA("BasePart") then root.Position + Vector3.new(0, 1.2, 0) else event.Target
 			local target = event.Target :: Vector3
-			local lvl = tonumber(event.LaserLevel) or 0
-			local laserColor = if lvl >= 35
-				then Color3.fromRGB(255, 65, 95)
-				elseif lvl >= 20 then Color3.fromRGB(255, 215, 65)
-				elseif lvl >= 10 then Color3.fromRGB(195, 95, 255)
-				elseif lvl >= 5 then Color3.fromRGB(80, 245, 130)
-				else Color3.fromRGB(70, 235, 255)
-			local thickness = math.clamp(0.28 + lvl * 0.015, 0.28, 0.85)
-			local dist = (target - from).Magnitude
-			if dist > 0.2 then
-				local mid = (from + target) / 2
-				local beam = fxPart(
-					Vector3.new(dist, thickness, thickness),
-					CFrame.lookAt(mid, target) * CFrame.Angles(0, math.rad(90), 0),
-					laserColor
-				)
-				beam.Shape = Enum.PartType.Cylinder
-				beam.Transparency = 0.05
-				TweenService:Create(beam, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Transparency = 1,
-					Size = Vector3.new(dist, 0.04, 0.04),
-				}):Play()
-				Debris:AddItem(beam, 0.24)
+			local from = if root and root:IsA("BasePart") then root.Position + Vector3.new(0, 1.2, 0) else target
+			local function impact()
+				emitAt("Glint", target, color, 4)
+				if typeof(event.Splash) == "number" then
+					impactRing(target, event.Splash, color)
+				end
+				showHits(event.Hits, color, isOwner, 0.8)
+				if isOwner and typeof(event.Hits) == "table" and #event.Hits > 0 then
+					local killed = false
+					for _, hit in event.Hits do
+						killed = killed or (typeof(hit) == "table" and hit.Killed == true)
+					end
+					if killed then
+						playVaried(killSound, 0.9, 0.05)
+					else
+						playVaried(hitSound, 1.35, 0.07)
+					end
+				end
 			end
-			emitAt("Glint", target, laserColor, 4)
-			showPetHits(event.Hits, laserColor, isOwner)
+			if def.Projectile == "Bolt" or def.Projectile == "Orb" then
+				travelBall(from, target, color, if def.Projectile == "Orb" then 1.5 else 0.9, if def.Projectile == "Orb" then 70 else 90, impact)
+			else
+				beamEffect(from, target, color, if def.Projectile == "Thorn" then 0.22 elseif def.Projectile == "Prism" then 0.45 else 0.3)
+				if typeof(event.Chain) == "table" then
+					-- El rayo de cristal salta de enemigo en enemigo
+					local previous = target
+					for _, point in event.Chain do
+						if typeof(point) == "Vector3" then
+							beamEffect(previous, point, color, 0.25)
+							emitAt("Glint", point, color, 3)
+							previous = point
+						end
+					end
+				end
+				impact()
+			end
 		elseif event.Kind == "FoxBolt" and typeof(event.Target) == "Vector3" then
 			-- Rayo turquesa desde el zorrito hasta el objetivo (daño ya aplicado).
 			-- Bola de luz con estela; tarda según la distancia para que se vea el recorrido.
@@ -1112,7 +1123,6 @@ function CombatController.start()
 
 	-- Limpiar efectos temporales al morir o al cambiar de zona.
 	player.CharacterRemoving:Connect(function()
-		table.clear(pendingSwings)
 		if animationTrack then
 			animationTrack:Stop(0)
 			animationTrack = nil
@@ -1120,7 +1130,6 @@ function CombatController.start()
 		clearTransientEffects()
 	end)
 	player:GetAttributeChangedSignal(Constants.Attributes.CurrentZone):Connect(function()
-		table.clear(pendingSwings)
 		clearTransientEffects()
 	end)
 

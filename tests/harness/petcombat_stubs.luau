@@ -82,6 +82,7 @@ local function newPlayer(name, userId, position)
 		FindFirstChildOfClass = function() return humanoid end,
 	}
 	local attributeSignals = {}
+	local attributes = {}
 	local player = {
 		Name = name,
 		UserId = userId,
@@ -89,6 +90,8 @@ local function newPlayer(name, userId, position)
 		Root = root,
 		Humanoid = humanoid,
 		CharacterRemoving = signal(),
+		SetAttribute = function(_, key, value) attributes[key] = value end,
+		GetAttribute = function(_, key) return attributes[key] end,
 		GetAttributeChangedSignal = function(self, attribute)
 			attributeSignals[attribute] = attributeSignals[attribute] or signal()
 			return attributeSignals[attribute]
@@ -121,9 +124,14 @@ local PlayerDataService = {
 	get = function(player) return profiles[player] end,
 	getEquippedPetIds = function(profile) return profile.Equipped end,
 }
+local remotes = {}
 local RemoteService = {
 	get = function(name)
-		return { FireClient = function(_, player, event) table.insert(fired, { Remote = name, Player = player, Event = event }) end }
+		remotes[name] = remotes[name] or {
+			OnServerEvent = signal(),
+			FireClient = function(_, player, event) table.insert(fired, { Remote = name, Player = player, Event = event }) end,
+		}
+		return remotes[name]
 	end,
 }
 local hitListener

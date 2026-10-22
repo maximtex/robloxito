@@ -11,13 +11,8 @@ local CombatConfig = {
 	DamagePerLevel = 2,
 	PetDamageShare = 0.5,
 
-	-- Disparo por clic (clic, toque, F o el botón): un rayo al enemigo apuntado, el más
-	-- cercano a la línea del cursor o del toque, o, si no se apunta a ninguno, al más
-	-- cercano a tiro. Cada disparo hace ShotDamageScale del daño de arriba: con el doble de
-	-- ritmo que el antiguo tajo (0.5 s), el daño por segundo es el mismo.
-	AttackCooldown = 0.25, -- segundos entre disparos
-	ShotRange = 60, -- studs desde el jugador hasta el borde del enemigo
-	ShotDamageScale = 0.5,
+	-- El arma dispara sola (PetCombatService) con la cadencia y el alcance de WeaponConfig.
+	-- Con un clic o toque se elige el enemigo apuntado, el más cercano a la línea del cursor.
 	AimRadius = 1, -- margen (studs) alrededor del cuerpo del enemigo para darlo por apuntado con el cursor
 
 	-- Animación de ataque. Orden de preferencia:

@@ -41,6 +41,7 @@ local StudFloor = require(Shared.Util.StudFloor)
 local RebirthLogic = require(Shared.RebirthLogic)
 local AdventureConfig = require(Shared.Config.AdventureConfig)
 local AdventureLogic = require(Shared.AdventureLogic)
+local CombatConfig = require(Shared.Config.CombatConfig)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
@@ -614,6 +615,14 @@ local function respawn(enemy: Enemy)
 	end)
 end
 
+-- Multiplicador del dinero que cobra un jugador: renacimiento y "Botín abundante", amuletos
+-- y bendiciones de las aventuras, y sus mascotas (CombatConfig.PetMoneyShare de su
+-- bonificación).
+local function lootMultiplier(profile): number
+	local pets = 1 + math.max(0, (profile.PetMultiplier or 1) - 1) * CombatConfig.PetMoneyShare
+	return RebirthLogic.lootMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.lootMultiplier(AdventureLogic.ofProfile(profile), os.time()) * pets
+end
+
 local function onDeath(enemy: Enemy)
 	enemy.Generation += 1
 	local generation = enemy.Generation
@@ -631,9 +640,7 @@ local function onDeath(enemy: Enemy)
 		local player = Players:GetPlayerByUserId(userId)
 		local profile = player and PlayerDataService.get(player)
 		if player and profile and amount > 0 then
-			-- Renacimiento y "Botín abundante" multiplican la parte de cada jugador.
-			-- Y también los amuletos y bendiciones de las aventuras.
-			local earned = math.floor(amount * RebirthLogic.lootMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.lootMultiplier(AdventureLogic.ofProfile(profile), os.time()))
+			local earned = math.floor(amount * lootMultiplier(profile))
 			profile.Money += earned
 			PlayerDataService.replicate(player)
 			rewardRemote:FireClient(player, earned, enemy.Def.DisplayName, isBoss, enemy.Root.Position, true)
@@ -678,14 +685,7 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 	local earnedHit = 0
 	if profile then
 		local baseHit = math.max(1, math.floor(enemy.Def.Reward * (dealt / math.max(1, enemy.Status.MaxHealth)) * 0.75))
-		earnedHit = math.max(
-			1,
-			math.floor(
-				baseHit
-					* RebirthLogic.lootMultiplier(RebirthLogic.ofProfile(profile))
-					* AdventureLogic.lootMultiplier(AdventureLogic.ofProfile(profile), os.time())
-			)
-		)
+		earnedHit = math.max(1, math.floor(baseHit * lootMultiplier(profile)))
 		profile.Money += earnedHit
 		PlayerDataService.replicate(player)
 		rewardRemote:FireClient(player, earnedHit, enemy.Def.DisplayName, false, enemy.Root.Position, false)

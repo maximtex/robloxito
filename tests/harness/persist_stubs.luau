@@ -93,10 +93,33 @@ local DataStoreStub = {
 	end,
 }
 
--- Jugadores falsos con atributos
+-- Instancias mínimas (la carpeta leaderstats): nombre, padre e hijos
+local function findChild(self, childName)
+	for _, child in self.Children do
+		if child.Name == childName then
+			return child
+		end
+	end
+	return nil
+end
+local InstanceMeta = {
+	__newindex = function(object, key, value)
+		if key == "Parent" and type(value) == "table" and value.Children then
+			table.insert(value.Children, object)
+		end
+		rawset(object, key, value)
+	end,
+}
+Instance = {
+	new = function(className)
+		return setmetatable({ ClassName = className, Children = {}, FindFirstChild = findChild }, InstanceMeta)
+	end,
+}
+
+-- Jugadores falsos con atributos (sin personaje: CharacterAdded no llega a dispararse)
 local function newPlayer(name, userId)
 	local attributes = {}
-	local player = { Name = name, UserId = userId, Parent = true }
+	local player = { Name = name, UserId = userId, Parent = true, Children = {}, FindFirstChild = findChild, CharacterAdded = signal() }
 	function player.SetAttribute(_, k, v) attributes[k] = v end
 	function player.GetAttribute(_, k) return attributes[k] end
 	player.Attributes = attributes

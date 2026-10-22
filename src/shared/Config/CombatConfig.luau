@@ -10,6 +10,7 @@ local CombatConfig = {
 	BaseDamage = 10,
 	DamagePerLevel = 2,
 	PetDamageShare = 0.5,
+	PetMoneyShare = 0.5, -- y la mitad de su bonificación al dinero de los enemigos
 
 	-- El arma dispara sola (PetCombatService) con la cadencia y el alcance de WeaponConfig.
 	-- Con un clic o toque se elige el enemigo apuntado, el más cercano a la línea del cursor.

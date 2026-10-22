@@ -88,9 +88,10 @@ check("se carga tal cual, sin correcciones", same(p.PetData.Cores, V3.Cores) and
 -- Fase 2: Agua (nivel 4) y Fuego (seleccionado: afinidad) producen; y al cargar se concede
 -- la producción offline desde LastSeen (máximo 4 h, al 50 %, sin afinidad).
 local cleanCores = CoreLogic.sanitize(V3.Cores)
-local expectedOffline = CoreLogic.offlineReward(cleanCores, { GeneratorPower = 2 }, 1, V3.LastSeen, os.time())
+-- Sin mascotas guardadas recibe la inicial (Brotecillo): cuenta en la producción y offline
+local expectedOffline = CoreLogic.offlineReward(cleanCores, { GeneratorPower = 2 }, p.PetMultiplier, V3.LastSeen, os.time())
 check(("fase 2: producción de todos los núcleos + afinidad (%s/s) y offline %s al cargar"):format(tostring(p.ProductionPerSecond), tostring(expectedOffline)),
-	p.ProductionPerSecond == CoreLogic.effectiveProduction(cleanCores, { GeneratorPower = 2 }, 1)
+	p.ProductionPerSecond == CoreLogic.effectiveProduction(cleanCores, { GeneratorPower = 2 }, p.PetMultiplier)
 		and p.ProductionPerSecond > Economy.getProductionPerSecond({ GeneratorPower = 2 })
 		and expectedOffline > 0 and p.Energy == 50 + expectedOffline
 		and ben:GetAttribute("OfflineReward") == ("%.0f,%.0f"):format(expectedOffline, CoreConfig.Offline.CapSeconds))

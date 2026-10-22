@@ -291,9 +291,11 @@ function PetController.start()
 		local failed = dataStatus == "Failed"
 		local status = if snapshot.Ready then "" elseif failed then "  ·  no se pudieron cargar" else "  ·  cargando…"
 		local saving = if snapshot.Ready and snapshot.Saving == false then "  ·  sin guardado en esta sesión" else ""
-		ui.InventorySubtitle.Text = ("Producción con mascotas: %s (×%s)  ·  %d/%d en total%s%s"):format(
-			bonusText(multiplier),
+		-- Las equipadas suben la energía (entera), el daño y el dinero (la mitad de su bonificación)
+		local half = 1 + (multiplier - 1) * 0.5
+		ui.InventorySubtitle.Text = ("⚡ ×%s  ·  💥 y 💰 ×%s  ·  %d/%d en total%s%s"):format(
 			formatNumber(multiplier, 2),
+			formatNumber(half, 2),
 			#snapshot.Pets,
 			snapshot.MaxInventory,
 			status,

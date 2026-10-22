@@ -198,9 +198,10 @@ cores.Elements.Water.Level = 2
 storeData.player_33 = { Version = 3, Energy = 10, UpgradeLevels = { GeneratorPower = 4 }, Cores = cores, LastSeen = now - 7200,
 	Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2 }
 local cid, cp = enter("Cid", 33)
-local offlineBase = Economy.getProductionPerSecond({ GeneratorPower = 4 }) + 6
-local expected = math.floor(7200 * offlineBase * pets * CoreConfig.Offline.Efficiency)
-check(("2 h fuera: %d (base de todos los núcleos · mascotas · 50 %%)"):format(expected), cp.Energy == 10 + expected)
+-- Como el servicio: CoreLogic.offlineReward (base de los núcleos · mascotas · 50 %, ya
+-- redondeada) por los multiplicadores de renacimiento, amuletos y pases (aquí 1).
+local expected = CoreLogic.offlineReward(cores, { GeneratorPower = 4 }, pets, now - 7200, now)
+check(("2 h fuera: %d (base de todos los núcleos · mascotas · 50 %%); recibió %d"):format(expected, cp.Energy - 10), cp.Energy == 10 + expected)
 check("aviso al cliente: OfflineReward = energía,segundos", cid:GetAttribute("OfflineReward") == ("%d,%d"):format(expected, 7200))
 check("se guarda en seguida: LastSeen avanza (no se cobra dos veces)", record(33).LastSeen == os.time() and record(33).Energy == 10 + expected)
 check("no cuenta como energía generada para las misiones", (cp.PetData.Quests.Stats.EnergyEarned or 0) == 0)
@@ -211,7 +212,8 @@ exit(cid)
 
 storeData.player_34 = { Version = 3, Energy = 0, UpgradeLevels = { GeneratorPower = 0 }, LastSeen = now - 10 * 86400 }
 local dee, dp = enter("Dee", 34)
-check("10 días fuera: como mucho 4 h", dp.Energy == math.floor(CoreConfig.Offline.CapSeconds * Economy.getProductionPerSecond({ GeneratorPower = 0 }) * CoreConfig.Offline.Efficiency))
+-- Sin mascotas guardadas recibe la inicial (Brotecillo), que también cuenta offline
+check("10 días fuera: como mucho 4 h", dp.Energy == math.floor(CoreConfig.Offline.CapSeconds * Economy.getProductionPerSecond({ GeneratorPower = 0 }) * PetMath.getTotalMultiplier({ "Sproutling" }) * CoreConfig.Offline.Efficiency))
 exit(dee)
 
 storeData.player_35 = { Version = 3, Energy = 5, UpgradeLevels = { GeneratorPower = 3 } }

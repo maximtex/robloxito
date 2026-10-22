@@ -47,7 +47,7 @@ join(alice)
 advance(0)
 profile = PlayerDataService.get(alice)
 check(("al volver: energía %d, nivel 3"):format(profile.Energy), profile.Energy == expected and profile.UpgradeLevels.GeneratorPower == 3)
-check(("producción recalculada con la mejora y la mascota: %s/s"):format(tostring(profile.ProductionPerSecond)), math.abs(profile.ProductionPerSecond - 4 * 1.25) < 1e-9)
+check(("producción recalculada con la mejora y la mascota: %s/s"):format(tostring(profile.ProductionPerSecond)), math.abs(profile.ProductionPerSecond - 4 * PetMath.getTotalMultiplier({ "MossFox" })) < 1e-9)
 check("el cliente recibe la energía y el nivel guardados", alice:GetAttribute("Energy") == math.floor(expected) and alice:GetAttribute("UpgradeLevel_GeneratorPower") == 3)
 
 print("-- 3. Compra de mejora y recompensa de misión simultáneas")
@@ -160,5 +160,37 @@ local target = profile.Energy
 task.spawn(closeCallbacks[1])
 advance(1)
 check("BindToClose guarda la energía de los jugadores conectados", record(1).Energy == target)
+
+print("-- 10. Dinero, armas y jefes derrotados (guardado v8)")
+storeData.player_8 = { Version = 7, Energy = 10, Money = 777, UpgradeLevels = { GeneratorPower = 1, LaserPower = 7 } }
+local gus = newPlayer("Gus", 8)
+join(gus)
+advance(0)
+local gp = PlayerDataService.get(gus)
+check("registro v7: conserva su dinero", gp.Money == 777)
+check("sin armas guardadas: el láser con el nivel de la antigua Potencia del Láser (7)", gp.PetData.Weapons.Equipped == "Laser" and gp.PetData.Weapons.Levels.Laser == 7)
+check("sin jefes guardados: ninguno derrotado", next(gp.PetData.Bosses) == nil)
+gp.Money = 4321
+WeaponLogic.grant(gp.PetData.Weapons, "PlasmaBlaster")
+gp.PetData.Weapons.Levels.PlasmaBlaster = 3
+WeaponLogic.equip(gp.PetData.Weapons, "PlasmaBlaster")
+gp.PetData.Bosses.ForestWarden = 2
+PlayerDataService.markDirty(gus)
+leave(gus)
+advance(0)
+local r8 = record(8)
+check("al salir se guardan dinero, armas, la equipada, sus niveles y los jefes", r8.Version == 8 and r8.Money == 4321 and r8.Weapons.Equipped == "PlasmaBlaster" and r8.Weapons.Levels.PlasmaBlaster == 3 and table.find(r8.Weapons.Owned, "PlasmaBlaster") ~= nil and r8.Bosses.ForestWarden == 2)
+gus = newPlayer("Gus", 8)
+join(gus)
+advance(0)
+gp = PlayerDataService.get(gus)
+check("al volver: todo sigue igual (y el láser conserva su nivel 7)", gp.Money == 4321 and gp.PetData.Weapons.Equipped == "PlasmaBlaster" and gp.PetData.Weapons.Levels.PlasmaBlaster == 3 and gp.PetData.Weapons.Levels.Laser == 7 and gp.PetData.Bosses.ForestWarden == 2)
+check("el cliente ve el arma equipada y las que tiene", gus:GetAttribute("EquippedWeapon") == "PlasmaBlaster" and gus:GetAttribute("Weapons") == "Laser:7,PlasmaBlaster:3" and gus:GetAttribute("BossesDefeated") == "ForestWarden")
+storeData.player_9 = { Version = 8, Money = 0 / 0, Weapons = { Owned = { "Laser", "Nope" }, Levels = { Laser = 999 }, Equipped = "Nope" }, Bosses = { ForestWarden = -3, Bad = 0 / 0 } }
+local hal = newPlayer("Hal", 9)
+join(hal)
+advance(0)
+local hp = PlayerDataService.get(hal)
+check("valores corruptos: dinero 0, nivel al tope, equipada válida y jefes limpios", hp.Money == 0 and hp.PetData.Weapons.Levels.Laser == WeaponConfig.MaxLevel and hp.PetData.Weapons.Equipped == "Laser" and hp.PetData.Bosses.ForestWarden == nil and hp.PetData.Bosses.Bad == nil)
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

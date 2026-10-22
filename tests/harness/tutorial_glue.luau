@@ -20,5 +20,12 @@ local function lastResult(name, player)
 	end
 	return nil
 end
-local EnemyService = { onDefeated = function() end }
+-- Enemigos simulados: las pruebas anuncian derrotas como lo haría EnemyService
+local defeatListeners = {}
+local EnemyService = { onDefeated = function(fn) table.insert(defeatListeners, fn) end }
+local function defeat(player, typeId, kind)
+	for _, fn in defeatListeners do
+		fn(player, { TypeId = typeId, Kind = kind or "Normal", ZoneId = "Forest", Reward = 25 })
+	end
+end
 local PetCombatService = { onAbilityHit = function() end }

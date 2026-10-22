@@ -137,3 +137,39 @@ Las mascotas multiplican la energía (100 % de su bonificación), el daño (50 %
 ### Guardado
 - Esquema v8: `Weapons` (`WeaponLogic.serialize`) y `Bosses`. Los registros antiguos cargan
   con el láser inicial (con el nivel de la antigua Potencia del Láser) y sin jefes.
+
+## 3. Estado de la implementación (fases 3 a 8)
+
+| Fase | Commit | Qué quedó hecho |
+|---|---|---|
+| 3. Armas y Armería | f9df766 | `WeaponConfig`/`WeaponLogic`/`WeaponService`, `BossRewardService`, `PlayerDataService.combatStats`, guardado v8, Armería (puesto, tecla L, botón "Armas") |
+| 4. Mascotas sin huevos | cc84b9a | Jardín = tienda de mascotas fijas (`PetLogic`, `BuyPet`, `PetStandDisplay`), mascotas de jefe, premio del día 7 fijo, tutorial nuevo, arreglo de la mascota inicial duplicada |
+| 5. Combate automático | ae05d96 | Un solo camino de disparo (`PetCombatService`), clic = elegir objetivo, F/botón = AUTO/OFF, proyectil por arma, arreglo del arranque de `EnemyService` |
+| 6. IA de jefes | e094955 | `EnemyService.updateBoss` (patrulla, persecución con rutas, ataques anunciados, descanso, regreso), aviso "¡Te persigue!" |
+| 7. Progresión de mapas | 9795eef | `RequiredBoss` por zona, `BossesDefeated`, panel del portal y cartel de la puerta |
+| 8. Interfaz y guardado | (este) | Mascotas suman la mitad de su bonificación al dinero (`CombatConfig.PetMoneyShare`), panel de mascotas con sus tres bonificaciones, baterías de guardado reparadas y ampliadas |
+
+### Mapa verde
+Comprobado con `git diff 24bccd4`: no cambió ningún constructor de geometría (terreno, suelo,
+caminos, muros, árboles y decoración, Navidad, cofres, aparición, tablas, posiciones de
+enemigos y arenas). Solo cambia el contenido de los pedestales del jardín (mascotas en vez de
+huevos), el nombre flotante del puesto del láser ("Armería") y, en `LandscapeLayout`, el
+nombre de la tabla de pedestales (mismos datos).
+
+### Pruebas automáticas (`python tests/run_tests.py`)
+Pasan 18 de 24 baterías. Nuevas o reparadas en el rediseño: `weapons` (34), `petcombat`
+(combate automático, 17), `persist` (38, con dinero, armas y jefes al salir y volver),
+`persist_cores`, `core_service`, `tutorial`, `sandbox`, `shop`, `rebirth`, `adventure`.
+Las 6 que fallan ya fallaban en el punto de partida por motivos ajenos al rediseño
+(`sanctuary` 1, `shrines` 2, `quest` 3, `landscape` 16, `zones` 9: la Caldera ya no pide 3
+renacimientos y no hay portales de vuelta, `leaderboard` 1).
+
+### Pendientes conocidos
+- `GeneratorService` (santuario del cristal) y `CoreShrineService` (altares de núcleos) siguen
+  desactivados: el aviso "Renacer" del cristal no aparece (renacer funciona con la tecla T).
+- Las pruebas con varios jugadores a la vez solo están cubiertas por código y por las
+  baterías (estado por jugador, reparto de recompensas por daño); falta probarlo en Studio
+  con 2 jugadores (Test > Players).
+- El guardado real no se puede probar en Studio sin "Enable Studio Access to API Services";
+  está cubierto por la batería `persist` sobre un DataStore simulado.
+- Los Ids de Robux (pases, productos, Haxigator) siguen en 0.

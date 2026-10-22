@@ -211,7 +211,8 @@ for _ = 4, 7 do
 	advance(2)
 end
 result = lastResult("RewardResult", p1)
-check("día 7: su mascota y energía", result and result[1] == true and result[4].Day == 7 and type(result[4].PetId) == "string" and result[4].Energy and #PlayerDataService.get(p1).PetData.Pets == 1)
+local p1Pets = PlayerDataService.get(p1).PetData.Pets
+check("día 7: su mascota (además de la inicial) y energía", result and result[1] == true and result[4].Day == 7 and result[4].PetId == RewardLogic.streakReward(7).Pet and result[4].Energy and #p1Pets == 2 and p1Pets[2].PetId == result[4].PetId)
 
 print("-- 7. Códigos en el servidor")
 fireServer("RewardAction", p1, "Redeem", "  bienvenido ")
@@ -260,6 +261,7 @@ Market.PromptGamePassPurchaseFinished:Fire(p3, 102, true)
 advance(0.1)
 local shopResult = lastResult("ShopResult", p3)
 check("comprar un pase en la partida: se aplica al momento y se avisa", PlayerDataService.get(p3).Passes.AutoUpgrade == true and p3:GetAttribute("Passes") == "AutoUpgrade" and shopResult and shopResult[1] == "Pass" and shopResult[2] == "AutoUpgrade")
+PlayerDataService.get(p3).PetData.Shop.AutoUpgrade = false -- apagada: si no, gastaría su energía en las compras de abajo
 Market.PromptGamePassPurchaseFinished:Fire(p3, 104, false)
 advance(0.1)
 check("ventana cerrada sin comprar: nada cambia", not PlayerDataService.get(p3).Passes.PetSpace)

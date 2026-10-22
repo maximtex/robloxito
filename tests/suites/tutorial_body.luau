@@ -23,7 +23,7 @@ end
 local function status(p) return p:GetAttribute("TutorialStatus") end
 local function step(p) return p:GetAttribute("TutorialStep") end
 local function give(profile, petId)
-	-- Lo que hace PetService al abrir un huevo (aquí sin pasar por el santuario).
+	-- Lo que hace PetService al vender una mascota (aquí sin pasar por el pedestal).
 	local uid = tostring(profile.PetData.NextPetUid)
 	profile.PetData.NextPetUid += 1
 	table.insert(profile.PetData.Pets, { Uid = uid, PetId = petId })
@@ -37,20 +37,22 @@ join(alice)
 advance(0)
 local profile = PlayerDataService.get(alice)
 check("al entrar: tutorial activo, 0 pasos hechos", status(alice) == "Active" and step(alice) == 0)
-advance(5)
-check("a los 5 s (5 ⚡ generados) sigue en el paso 1", step(alice) == 0)
-advance(6)
-check("con 10 ⚡ generados por el cristal: paso 1 hecho", step(alice) == 1)
-advance(0.5)
-fireServer("PurchaseUpgrade", alice, "GeneratorPower")
+defeat(alice, "StarterThornling")
+defeat(alice, "Thornling")
 advance(1)
-check("tras comprar una mejora real: paso 2 hecho", step(alice) == 2)
-give(profile, "Sproutling")
+check("con 2 enemigos derrotados sigue en el paso 1", step(alice) == 0)
+defeat(alice, "Thornling")
 advance(1)
-check("con su primera mascota: paso 3 hecho", step(alice) == 3)
-table.insert(profile.PetData.Equipped, profile.PetData.Pets[1].Uid)
+check("con 3 enemigos derrotados: paso 1 hecho", step(alice) == 1)
+profile.PetData.Weapons.Levels.Laser = 1 -- lo que hace WeaponService al mejorar el arma
 advance(1)
-check("al equiparla: paso 4 hecho", step(alice) == 4)
+check("tras mejorar su arma: paso 2 hecho", step(alice) == 2)
+give(profile, "MushroomHopper")
+advance(1)
+check("con una mascota además de la inicial: paso 3 hecho", step(alice) == 3)
+defeat(alice, "ForestWarden", "Boss")
+advance(1)
+check("al derrotar al Guardián del Bosque: paso 4 hecho", step(alice) == 4)
 local energyBefore = profile.Energy
 local production = profile.ProductionPerSecond
 table.insert(profile.PetData.UnlockedZones, "CrystalValley")
@@ -86,12 +88,12 @@ print(("  (logros concedidos al cargar: +%d de energía)"):format(achievementEne
 check("el tutorial no cambia su energía (solo los logros de misiones) ni sus mascotas", PlayerDataService.get(bob).Energy == 9000 + achievementEnergy and #PlayerDataService.get(bob).PetData.Pets == 2)
 
 print("-- 3. Veterano a medias: tiene mascota pero no la equipó")
-storeData.player_3 = { Version = 2, Energy = 40, UpgradeLevels = { GeneratorPower = 0 }, Pets = { { Uid = "1", PetId = "Sproutling" } }, Equipped = {}, NextPetUid = 2 }
+storeData.player_3 = { Version = 2, Energy = 40, UpgradeLevels = { GeneratorPower = 0 }, Pets = { { Uid = "1", PetId = "Sproutling" }, { Uid = "2", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 3, Quests = { Stats = { Kills = 12 } } }
 local cara = newPlayer("Cara", 3)
 join(cara)
 advance(0)
-check("no repite lo que ya cumple: empieza en 'Equipa tu mascota' (3 hechos)", status(cara) == "Active" and step(cara) == 3)
-PlayerDataService.get(cara).PetData.Equipped = {}
+check("no repite lo que ya cumple: con 2 mascotas empieza en 'Derrota al Guardián' (3 hechos)", status(cara) == "Active" and step(cara) == 3)
+table.remove(PlayerDataService.get(cara).PetData.Pets)
 advance(1)
 check("lo hecho no se deshace (sigue en 3)", step(cara) == 3)
 
@@ -106,7 +108,7 @@ local caraHistory = track(cara)
 join(cara)
 advance(2)
 check("al volver sigue omitido y no se muestra", status(cara) == "Skipped" and not table.find(caraHistory, "Active"))
-table.insert(PlayerDataService.get(cara).PetData.Equipped, "1")
+defeat(cara, "ForestWarden", "Boss")
 advance(2)
 check("cumplir pasos después de omitir no lo reactiva", status(cara) == "Skipped")
 
@@ -153,13 +155,18 @@ print("-- 8. Dos jugadores a la vez")
 local h1, h2 = newPlayer("Hana", 8), newPlayer("Ivo", 9)
 join(h1)
 join(h2)
-advance(11)
-check("los dos avanzan con su propia energía (paso 1 cada uno)", step(h1) == 1 and step(h2) == 1)
+advance(1)
+for _ = 1, 3 do
+	defeat(h1, "Thornling")
+	defeat(h2, "Thornling")
+end
+advance(1)
+check("los dos avanzan con sus propias derrotas (paso 1 cada uno)", step(h1) == 1 and step(h2) == 1)
 advance(0.5)
-fireServer("PurchaseUpgrade", h1, "GeneratorPower")
+PlayerDataService.get(h1).PetData.Weapons.Levels.Laser = 1
 fireServer("SkipTutorial", h2)
 advance(1)
-check("la compra de uno no avanza al otro, y omitir de uno no afecta al otro", step(h1) == 2 and status(h1) == "Active" and status(h2) == "Skipped" and step(h2) == 1)
+check("mejorar el arma de uno no avanza al otro, y omitir de uno no afecta al otro", step(h1) == 2 and status(h1) == "Active" and status(h2) == "Skipped" and step(h2) == 1)
 leave(h1)
 leave(h2)
 advance(0)

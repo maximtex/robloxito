@@ -98,6 +98,14 @@ local function ownedWeapons(): { [string]: number }
 	return owned
 end
 
+-- Mundo en el que está el jugador (el de su zona actual): la Armería del Mundo 2 solo enseña
+-- lo del Mundo 2 (WeaponConfig.Weapons.*.World) y la del Mundo 1, lo suyo
+local function currentWorld(): number
+	local zoneId = player:GetAttribute(Constants.Attributes.CurrentZone)
+	local zone = typeof(zoneId) == "string" and ZoneConfig.Zones[zoneId]
+	return if zone and zone.World then zone.World else 1
+end
+
 -- Tienda que se ve: la del estilo de pelea (Armas, Puños o Magia)
 local function currentCategory(): string
 	local styleId = player:GetAttribute(Constants.Attributes.CombatStyle)
@@ -851,21 +859,23 @@ function WeaponController.start()
 		local cadence = numberAttribute(Constants.Attributes.UpgradeLevelPrefix .. WeaponConfig.CadenceUpgradeId)
 		local category = currentCategory()
 		local info = WeaponConfig.Categories[category]
-		ui.Title.Text = info.Title
+		local world = currentWorld()
+		ui.Title.Text = if world == 2 then info.Title .. " 2" else info.Title
+		ui.Title.TextSize = if world == 2 then 52 else 60
 		local useImage = ui.HeaderImage ~= nil and category == "Weapons"
 		if ui.HeaderImage then
 			ui.HeaderImage.Visible = useImage
 		end
 		ui.HeaderEmoji.Visible = not useImage
 		ui.HeaderEmoji.Text = info.Icon
-		if category ~= shownCategory then
-			shownCategory = category
+		if category .. world ~= shownCategory then
+			shownCategory = category .. world
 			ui.Row.CanvasPosition = Vector2.zero -- otra tienda: a la primera página
 		end
 
 		for weaponId, card in ui.Cards do
 			local def = card.Def
-			card.Frame.Visible = WeaponLogic.category(weaponId) == category
+			card.Frame.Visible = WeaponLogic.category(weaponId) == category and WeaponLogic.world(weaponId) == world
 			local level = owned[weaponId]
 			local has = level ~= nil
 			local isEquipped = equipped == weaponId
@@ -1150,6 +1160,7 @@ function WeaponController.start()
 		Constants.Attributes.PetMultiplier,
 		Constants.Attributes.UpgradeLevelPrefix .. WeaponConfig.CadenceUpgradeId,
 		Constants.Attributes.CombatStyle,
+		Constants.Attributes.CurrentZone,
 	} do
 		player:GetAttributeChangedSignal(attribute):Connect(refresh)
 	end

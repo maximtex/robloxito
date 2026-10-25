@@ -18,6 +18,9 @@ for _, id in StyleConfig.Order do
 	local def = StyleConfig.Styles[id]
 	local count, free, priced = 0, 0, 0
 	for _, skill in (def and def.Skills) or {} do
+		if skill.World == 2 then
+			continue -- las del Mundo 2, aparte
+		end
 		count += 1
 		configOk = configOk and type(skill.Cooldown) == "number" and skill.Cooldown > 0 and type(skill.Name) == "string" and type(skill.Icon) == "string" and type(skill.Price) == "number"
 		if skill.Price == 0 then
@@ -41,6 +44,28 @@ for _, id in StyleConfig.Order do
 	end
 end
 check("cada habilidad es de un solo estilo (ids únicos)", handlersOk)
+-- Mundo 2: 4 más por estilo, que se compran (piden el Mundo 2) y usan el efecto de una del
+-- Mundo 1 de su estilo (Base), más fuertes
+local world2Ok = true
+for _, id in StyleConfig.Order do
+	local def = StyleConfig.Styles[id]
+	local list = SkillLogic.ordered(id, 2)
+	world2Ok = world2Ok and #list == 4 and #SkillLogic.ordered(id, 1) == 4 and #SkillLogic.ordered(id) == 8
+	for _, skillId in list do
+		local skill = def.Skills[skillId]
+		local base = skill.Base and def.Skills[skill.Base]
+		world2Ok = world2Ok and SkillLogic.world(skillId) == 2 and skill.Requires == "World2" and (skill.Price or 0) > 0
+			and base ~= nil and (base.World or 1) == 1 and skill.Color ~= nil
+			and ((skill.DamageRatio or 0) >= (base.DamageRatio or 0)) and type(skill.Name) == "string" and type(skill.Icon) == "string"
+	end
+end
+check("Mundo 2: 4 habilidades más por estilo, con precio, el Mundo 2 de requisito y el efecto (más fuerte) de una del Mundo 1", world2Ok)
+local w2 = SkillLogic.empty()
+local code, price = SkillLogic.buy(w2, "Bombardment", 1e9, {})
+check("sin haber llegado al Mundo 2 no se compran (ZoneLocked) y no se cobra", code == "ZoneLocked" and w2.Owned.Bombardment == nil and price == StyleConfig.Styles.Weapons.Skills.Bombardment.Price)
+code = SkillLogic.buy(w2, "Bombardment", 1e9, { "World2" })
+check("con el Mundo 2, sí (y se puede poner en la Z)", code == "Success" and w2.Owned.Bombardment == 1 and SkillLogic.equip(w2, "Bombardment", 1) == "Success" and SkillLogic.equipped(w2, "Weapons", 1) == "Bombardment")
+check("las de siempre se siguen comprando sin requisito", SkillLogic.buy(w2, "Pierce", 1e9) == "Success")
 local soundsOk = true
 for name, spec in StyleConfig.Sounds do
 	local id = spec.Id

@@ -38,7 +38,7 @@ check("las zonas que piden existen", zoneOK)
 
 print("-- Progresión de poder")
 local order = WeaponLogic.ordered("Weapons")
-check("orden de la Armería: empieza por el láser (12: las de la Tundra, la Fortaleza y el Mundo 2 al final)", order[1] == WeaponConfig.StarterWeapon and #order == 12)
+check("orden de la Armería: empieza por el láser (14: las de la Tundra, la Fortaleza y las 4 del Mundo 2 al final)", order[1] == WeaponConfig.StarterWeapon and #order == 14)
 local growing = true
 for index = 2, #order do
 	if WeaponLogic.dps(order[index], 0) <= WeaponLogic.dps(order[index - 1], 0) then
@@ -46,7 +46,7 @@ for index = 2, #order do
 	end
 end
 check("cada arma hace más daño por segundo que la anterior", growing)
-check("sin categoría: todas (armas, guantes y bastones)", #WeaponLogic.ordered() == 36)
+check("sin categoría: todas (armas, guantes y bastones)", #WeaponLogic.ordered() == 42)
 for _, category in { "Fists", "Magic" } do
 	local list = WeaponLogic.ordered(category)
 	local up, sameTiers = true, true
@@ -61,8 +61,8 @@ for _, category in { "Fists", "Magic" } do
 			sameTiers = false
 		end
 	end
-	check(("%s: 12, empieza por %s (gratis), cada uno pega más y al ritmo de las armas"):format(category, WeaponConfig.Starters[category]),
-		#list == 12 and list[1] == WeaponConfig.Starters[category] and WeaponConfig.Weapons[list[1]].Price == 0 and up and sameTiers)
+	check(("%s: 14, empieza por %s (gratis), cada uno pega más y al ritmo de las armas"):format(category, WeaponConfig.Starters[category]),
+		#list == 14 and list[1] == WeaponConfig.Starters[category] and WeaponConfig.Weapons[list[1]].Price == 0 and up and sameTiers)
 end
 local bossDrops = {}
 for weaponId, def in WeaponConfig.Weapons do
@@ -79,6 +79,26 @@ for _, boss in { "ForestWarden", "AmethystColossus", "CalderaTitan", "IceGolem",
 	end
 end
 check("cada jefe suelta un arma, unos guantes y un bastón (el de tu estilo)", dropsOk)
+-- Armería del Mundo 2: 4 de cada estilo, solo allí, se compran (con el Mundo 2 abierto) y
+-- pegan más que todo lo del Mundo 1
+local world2Ok = true
+for _, category in { "Weapons", "Fists", "Magic" } do
+	local count, strongest1, weakest2 = 0, 0, math.huge
+	for _, id in WeaponLogic.ordered(category) do
+		local def = WeaponConfig.Weapons[id]
+		local dps = WeaponLogic.dps(id, 0)
+		if WeaponLogic.world(id) == 2 then
+			count += 1
+			weakest2 = math.min(weakest2, dps)
+			world2Ok = world2Ok and def.Price ~= nil and def.Requires ~= nil and def.Requires.Zone == "World2" and def.BossDrop == nil
+		else
+			strongest1 = math.max(strongest1, dps)
+		end
+	end
+	world2Ok = world2Ok and count == 4 and weakest2 > strongest1
+end
+check("Mundo 2: 4 armas, 4 guantes y 4 bastones solo de su Armería, más fuertes que todo lo del Mundo 1", world2Ok)
+check("los del Mundo 1 siguen en su Armería (mundo 1)", WeaponLogic.world("Laser") == 1 and WeaponLogic.world("GoblinCannon") == 1 and WeaponLogic.world("VoidAnnihilator") == 2)
 check("láser nivel 0: 8 por disparo, 20/s y poder 10 (como el antiguo golpe)", WeaponLogic.shotDamage("Laser", 0) == 8 and WeaponLogic.dps("Laser", 0) == 20 and WeaponLogic.power("Laser", 0) == 10)
 check("cada nivel suma un 15 %", WeaponLogic.shotDamage("Laser", 10) == 20)
 check("mascotas ×1.5 → +25 % (la mitad de su bonificación)", WeaponLogic.shotDamage("Laser", 0, 1.5) == 10)

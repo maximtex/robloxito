@@ -49,12 +49,20 @@ function SkillLogic.definition(skillId: any): { [string]: any }?
 	return if styleId then StyleConfig.Styles[styleId].Skills[skillId] else nil
 end
 
--- Habilidades de un estilo en su orden (Order)
-function SkillLogic.ordered(styleId: string): { string }
+-- Mundo de una habilidad (World; 1 si no lo dice): cada puesto ⚡ Mejoras enseña las de su mundo
+function SkillLogic.world(skillId: any): number
+	local def = SkillLogic.definition(skillId)
+	return if def and def.World then def.World else 1
+end
+
+-- Habilidades de un estilo en su orden (Order); con `world`, solo las de ese mundo
+function SkillLogic.ordered(styleId: string, world: number?): { string }
 	local style = StyleConfig.Styles[styleId]
 	local ids = {}
-	for skillId in (style and style.Skills) or {} do
-		table.insert(ids, skillId)
+	for skillId, def in (style and style.Skills) or {} do
+		if world == nil or (def.World or 1) == world then
+			table.insert(ids, skillId)
+		end
 	end
 	table.sort(ids, function(a, b)
 		return (style.Skills[a].Order or 0) < (style.Skills[b].Order or 0)
@@ -196,9 +204,10 @@ end
 
 -- Acciones (devuelven el código y los 💎 cobrados; quien llama los resta) ---------------------
 
--- Comprar: "Success" (queda a nivel 1), "InvalidRequest", "AlreadyOwned" o
--- "InsufficientEnergy" (faltan 💎), y el precio.
-function SkillLogic.buy(data: SkillData, skillId: any, diamonds: any): (string, number)
+-- Comprar: "Success" (queda a nivel 1), "InvalidRequest", "AlreadyOwned", "ZoneLocked" (las
+-- del Mundo 2 piden haber llegado: Requires, en `unlockedZones`) o "InsufficientEnergy" (faltan
+-- 💎), y el precio.
+function SkillLogic.buy(data: SkillData, skillId: any, diamonds: any, unlockedZones: { string }?): (string, number)
 	local def = SkillLogic.definition(skillId)
 	if not def then
 		return "InvalidRequest", 0
@@ -207,6 +216,9 @@ function SkillLogic.buy(data: SkillData, skillId: any, diamonds: any): (string, 
 		return "AlreadyOwned", 0
 	end
 	local price = def.Price or 0
+	if def.Requires and not (type(unlockedZones) == "table" and table.find(unlockedZones, def.Requires)) then
+		return "ZoneLocked", price
+	end
 	if not (finite(diamonds) and diamonds >= price) then
 		return "InsufficientEnergy", price
 	end

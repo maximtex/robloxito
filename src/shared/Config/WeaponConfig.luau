@@ -20,6 +20,7 @@
 --   CardColors  fondo de su tarjeta en la Armería: { claro (centro), base, oscuro (borde) }
 --   Tagline     su efecto en pocas palabras (tarjeta de un arma que aún no tiene)
 --   Art         imagen del arma (rbxassetid://…); sin ella la tarjeta muestra su Icon
+--   World       2 = solo se ve en la Armería del Mundo 2 (sin él, en la del Mundo 1)
 --   Category    para qué estilo es (StyleConfig): "Weapons" (armas, por defecto), "Fists"
 --               (guantes) o "Magic" (bastones). Cada estilo tiene su propia tienda (la
 --               Armería enseña la de tu estilo), su equipado y sus niveles: el progreso de
@@ -244,6 +245,7 @@ local WeaponConfig = {
 			Effect = { Chain = { Count = 4, Range = 18, Fraction = 0.7 } },
 			Price = 6000000,
 			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
 			UpgradeCost = 90000,
 			Order = 11,
 			Rarity = "Divina",
@@ -262,11 +264,50 @@ local WeaponConfig = {
 			Effect = { Splash = { Radius = 16, Fraction = 0.75 }, Slow = { Factor = 0.7, Seconds = 1.2 } },
 			Price = 20000000,
 			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
 			UpgradeCost = 160000,
 			Order = 12,
 			Rarity = "Divina",
 			CardColors = { Color3.fromRGB(240, 190, 255), Color3.fromRGB(160, 80, 240), Color3.fromRGB(60, 20, 140) },
 			Tagline = "💥 Área gigante + 🧊 frena",
+		},
+		SupernovaCannon = {
+			DisplayName = "Cañón supernova",
+			Description = "Disparos de estrella que explotan en un área gigante y saltan a otros dos. Solo en el Mundo 2.",
+			Icon = "☀️",
+			Damage = 6500,
+			Cooldown = 1,
+			Range = 95,
+			Projectile = "Orb",
+			Color = Color3.fromRGB(255, 150, 90),
+			Effect = { Splash = { Radius = 16, Fraction = 0.75 }, Chain = { Count = 2, Range = 18, Fraction = 0.6 } },
+			Price = 50000000,
+			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
+			UpgradeCost = 260000,
+			Order = 13,
+			Rarity = "Divina",
+			CardColors = { Color3.fromRGB(255, 236, 200), Color3.fromRGB(255, 120, 80), Color3.fromRGB(170, 30, 60) },
+			Tagline = "💥 Área + ⚡ salta a 2",
+		},
+		VoidAnnihilator = {
+			DisplayName = "Aniquilador del vacío",
+			Description = "El arma más fuerte: rayos del vacío que saltan a seis enemigos y los frenan. Solo en el Mundo 2.",
+			Icon = "🌑",
+			Damage = 10000,
+			Cooldown = 1,
+			Range = 100,
+			Projectile = "Prism",
+			Color = Color3.fromRGB(150, 110, 255),
+			Effect = { Chain = { Count = 6, Range = 22, Fraction = 0.8 }, Slow = { Factor = 0.6, Seconds = 1.5 } },
+			Price = 120000000,
+			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
+			UpgradeCost = 420000,
+			Order = 14,
+			Rarity = "Divina",
+			CardColors = { Color3.fromRGB(200, 190, 255), Color3.fromRGB(60, 40, 140), Color3.fromRGB(10, 6, 40) },
+			Tagline = "⚡ Salta a 6 + 🧊 frena",
 		},
 
 		-- 🥊 Guantes (estilo Puños): mismo DPS que el arma del mismo puesto
@@ -465,6 +506,7 @@ local WeaponConfig = {
 			Effect = { Chain = { Count = 4, Range = 16, Fraction = 0.7 } },
 			Price = 6000000,
 			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
 			UpgradeCost = 90000,
 			Order = 111,
 			Rarity = "Divina",
@@ -484,11 +526,52 @@ local WeaponConfig = {
 			Effect = { Splash = { Radius = 11, Fraction = 0.75 }, Slow = { Factor = 0.7, Seconds = 1.2 } },
 			Price = 20000000,
 			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
 			UpgradeCost = 160000,
 			Order = 112,
 			Rarity = "Divina",
 			CardColors = { Color3.fromRGB(240, 190, 255), Color3.fromRGB(160, 80, 240), Color3.fromRGB(60, 20, 140) },
 			Tagline = "💥 Área + 🧊 frena",
+		},
+		SupernovaFists = {
+			Category = "Fists",
+			DisplayName = "Puños supernova",
+			Description = "Cada golpe estalla como una estrella y salta a otros dos. Solo en el Mundo 2.",
+			Icon = "☀️",
+			Damage = 2600,
+			Cooldown = 0.4,
+			Range = 9,
+			Projectile = "Orb",
+			Color = Color3.fromRGB(255, 150, 90),
+			Effect = { Splash = { Radius = 12, Fraction = 0.75 }, Chain = { Count = 2, Range = 16, Fraction = 0.6 } },
+			Price = 50000000,
+			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
+			UpgradeCost = 260000,
+			Order = 113,
+			Rarity = "Divina",
+			CardColors = { Color3.fromRGB(255, 236, 200), Color3.fromRGB(255, 120, 80), Color3.fromRGB(170, 30, 60) },
+			Tagline = "💥 Área + ⚡ salta a 2",
+		},
+		AnnihilatorFists = {
+			Category = "Fists",
+			DisplayName = "Puños del aniquilador",
+			Description = "Los guantes más fuertes: golpes del vacío que saltan a seis enemigos y los frenan. Solo en el Mundo 2.",
+			Icon = "🌑",
+			Damage = 4000,
+			Cooldown = 0.4,
+			Range = 9,
+			Projectile = "Prism",
+			Color = Color3.fromRGB(150, 110, 255),
+			Effect = { Chain = { Count = 6, Range = 20, Fraction = 0.8 }, Slow = { Factor = 0.6, Seconds = 1.5 } },
+			Price = 120000000,
+			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
+			UpgradeCost = 420000,
+			Order = 114,
+			Rarity = "Divina",
+			CardColors = { Color3.fromRGB(200, 190, 255), Color3.fromRGB(60, 40, 140), Color3.fromRGB(10, 6, 40) },
+			Tagline = "⚡ Salta a 6 + 🧊 frena",
 		},
 
 		-- ✨ Bastones (estilo Magia): mismo DPS que el arma del mismo puesto
@@ -688,6 +771,7 @@ local WeaponConfig = {
 			Effect = { Chain = { Count = 4, Range = 18, Fraction = 0.7 } },
 			Price = 6000000,
 			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
 			UpgradeCost = 90000,
 			Order = 211,
 			Rarity = "Divina",
@@ -707,11 +791,52 @@ local WeaponConfig = {
 			Effect = { Splash = { Radius = 14, Fraction = 0.75 }, Slow = { Factor = 0.7, Seconds = 1.2 } },
 			Price = 20000000,
 			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
 			UpgradeCost = 160000,
 			Order = 212,
 			Rarity = "Divina",
 			CardColors = { Color3.fromRGB(240, 190, 255), Color3.fromRGB(160, 80, 240), Color3.fromRGB(60, 20, 140) },
 			Tagline = "💥 Área gigante + 🧊 frena",
+		},
+		SupernovaStaff = {
+			Category = "Magic",
+			DisplayName = "Bastón supernova",
+			Description = "Soles en miniatura que explotan en un área gigante y saltan a otros dos. Solo en el Mundo 2.",
+			Icon = "☀️",
+			Damage = 5200,
+			Cooldown = 0.8,
+			Range = 52,
+			Projectile = "Orb",
+			Color = Color3.fromRGB(255, 150, 90),
+			Effect = { Splash = { Radius = 15, Fraction = 0.75 }, Chain = { Count = 2, Range = 18, Fraction = 0.6 } },
+			Price = 50000000,
+			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
+			UpgradeCost = 260000,
+			Order = 213,
+			Rarity = "Divina",
+			CardColors = { Color3.fromRGB(255, 236, 200), Color3.fromRGB(255, 120, 80), Color3.fromRGB(170, 30, 60) },
+			Tagline = "💥 Área + ⚡ salta a 2",
+		},
+		AnnihilatorStaff = {
+			Category = "Magic",
+			DisplayName = "Báculo del aniquilador",
+			Description = "El bastón más fuerte: orbes del vacío que saltan a seis enemigos y los frenan. Solo en el Mundo 2.",
+			Icon = "🌑",
+			Damage = 8000,
+			Cooldown = 0.8,
+			Range = 52,
+			Projectile = "Orb",
+			Color = Color3.fromRGB(150, 110, 255),
+			Effect = { Chain = { Count = 6, Range = 22, Fraction = 0.8 }, Slow = { Factor = 0.6, Seconds = 1.5 } },
+			Price = 120000000,
+			Requires = { Zone = "World2" },
+			World = 2, -- solo en la Armería del Mundo 2
+			UpgradeCost = 420000,
+			Order = 214,
+			Rarity = "Divina",
+			CardColors = { Color3.fromRGB(200, 190, 255), Color3.fromRGB(60, 40, 140), Color3.fromRGB(10, 6, 40) },
+			Tagline = "⚡ Salta a 6 + 🧊 frena",
 		},
 	},
 

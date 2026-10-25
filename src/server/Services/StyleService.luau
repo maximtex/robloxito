@@ -166,6 +166,7 @@ type Cast = {
 	SkillId: string,
 	Damage: number, -- daño base de cada golpe (DPS × DamageRatio × nivel)
 	Buffed: boolean,
+	Color: Color3?, -- el de sus efectos (las del Mundo 2 traen el suyo)
 	Combo: string?,
 	ComboAt: Vector3?,
 }
@@ -214,6 +215,14 @@ local function announceCombo(cast: Cast)
 		broadcast(cast.Player, cast.ComboAt, { Kind = "Combo", Name = cast.Combo, Position = cast.ComboAt, Style = cast.Style })
 		cast.ComboAt = nil
 	end
+end
+
+-- El color de los efectos de la habilidad va en cada aviso al cliente (si tiene uno propio)
+local function fx(cast: Cast, event: { [string]: any }): { [string]: any }
+	if cast.Color then
+		event.Color = cast.Color
+	end
+	return event
 end
 
 -- Enemigos válidos alrededor de `center` para el jugador
@@ -312,40 +321,45 @@ function HANDLERS.Burst(cast: Cast, ability: any, root: BasePart, level: number)
 	PetCombatService.setBurst(player, os.clock() + duration, ability.CooldownScale)
 	buffUntil[player] = os.clock() + duration
 	player:SetAttribute(Constants.Attributes.StyleBurstUntil, serverNow() + duration)
-	broadcast(player, root.Position, { Kind = "Burst", Duration = duration })
+	broadcast(player, root.Position, fx(cast, { Kind = "Burst", Duration = duration }))
 	return true
 end
 
--- Armas: Granada (vuela hasta tu objetivo y explota al llegar)
+-- Armas: Granada (vuela hasta tu objetivo y explota al llegar). Count (Bombardeo): una a
+-- cada uno de los enemigos más cercanos, una detrás de otra.
 function HANDLERS.Grenade(cast: Cast, ability: any, root: BasePart): boolean
 	local player = cast.Player
-	local target = nearestTarget(player, root.Position, ability.Range)
-	if not target then
+	local count = math.max(1, math.floor(ability.Count or 1))
+	local targets = targetsAround(player, root.Position, ability.Range, count)
+	if #targets == 0 then
 		return false
 	end
-	local landing = target.Root.Position
 	local token = generation[player] or 0
-	broadcast(player, root.Position, {
-		Kind = "Grenade",
-		From = root.Position + Vector3.new(0, 1.5, 0),
-		To = landing,
-		Delay = ability.Delay,
-		Radius = ability.Radius,
-	})
-	task.delay(ability.Delay, function()
-		if not player.Parent or (generation[player] or 0) ~= token then
-			return
-		end
-		local hits = {}
-		for _, enemy in targetsAround(player, landing, ability.Radius, ability.MaxTargets) do
-			local killed = hit(cast, enemy, hits)
-			if not killed and EnemyService.isAlive(enemy) then
-				EnemyService.knockback(enemy, landing, ability.Knockback)
+	for index, target in targets do
+		local landing = target.Root.Position
+		local delay = ability.Delay + (index - 1) * 0.1
+		broadcast(player, root.Position, fx(cast, {
+			Kind = "Grenade",
+			From = root.Position + Vector3.new(0, 1.5, 0),
+			To = landing,
+			Delay = delay,
+			Radius = ability.Radius,
+		}))
+		task.delay(delay, function()
+			if not player.Parent or (generation[player] or 0) ~= token then
+				return
 			end
-		end
-		broadcast(player, landing, { Kind = "GrenadeHit", Position = landing, Radius = ability.Radius, Hits = hits })
-		announceCombo(cast)
-	end)
+			local hits = {}
+			for _, enemy in targetsAround(player, landing, ability.Radius, ability.MaxTargets) do
+				local killed = hit(cast, enemy, hits)
+				if not killed and EnemyService.isAlive(enemy) then
+					EnemyService.knockback(enemy, landing, ability.Knockback)
+				end
+			end
+			broadcast(player, landing, fx(cast, { Kind = "GrenadeHit", Position = landing, Radius = ability.Radius, Hits = hits }))
+			announceCombo(cast)
+		end)
+	end
 	return true
 end
 
@@ -358,21 +372,30 @@ function HANDLERS.Pierce(cast: Cast, ability: any, root: BasePart): boolean
 		return false
 	end
 	local toward = target.Root.Position - origin
-	local direction = Vector3.new(toward.X, 0, toward.Z)
-	direction = if direction.Magnitude > 0.05 then direction.Unit else Vector3.new(0, 0, -1)
-	local finish = origin + direction * ability.Length
-	local hits = {}
-	local middle = (origin + finish) / 2
-	for _, enemy in targetsAround(player, middle, ability.Length / 2 + ability.Width, ability.MaxTargets * 2) do
-		if #hits >= ability.MaxTargets then
-			break
+	local aim = Vector3.new(toward.X, 0, toward.Z)
+	aim = if aim.Magnitude > 0.05 then aim.Unit else Vector3.new(0, 0, -1)
+	-- Beams (Rayo triple): varios rayos en abanico, Spread grados entre uno y otro; cada
+	-- enemigo recibe como mucho un rayo
+	local beams = math.max(1, math.floor(ability.Beams or 1))
+	local struck = {}
+	for beam = 1, beams do
+		local angle = math.rad((beam - (beams + 1) / 2) * (ability.Spread or 0))
+		local direction = (CFrame.Angles(0, angle, 0) * aim).Unit
+		local finish = origin + direction * ability.Length
+		local hits = {}
+		local middle = (origin + finish) / 2
+		for _, enemy in targetsAround(player, middle, ability.Length / 2 + ability.Width, ability.MaxTargets * 2) do
+			if #hits >= ability.MaxTargets then
+				break
+			end
+			local p = enemy.Root.Position
+			if not struck[enemy] and StyleLogic.inStrip(origin.X, origin.Z, finish.X, finish.Z, ability.Width / 2, p.X, p.Z, enemy.Radius) then
+				struck[enemy] = true
+				hit(cast, enemy, hits)
+			end
 		end
-		local p = enemy.Root.Position
-		if StyleLogic.inStrip(origin.X, origin.Z, finish.X, finish.Z, ability.Width / 2, p.X, p.Z, enemy.Radius) then
-			hit(cast, enemy, hits)
-		end
+		broadcast(player, origin, fx(cast, { Kind = "Pierce", From = origin + Vector3.new(0, 1.2, 0), To = finish + Vector3.new(0, 1.2, 0), Width = ability.Width, Hits = hits }))
 	end
-	broadcast(player, origin, { Kind = "Pierce", From = origin + Vector3.new(0, 1.2, 0), To = finish + Vector3.new(0, 1.2, 0), Width = ability.Width, Hits = hits })
 	announceCombo(cast)
 	return true
 end
@@ -391,7 +414,7 @@ function HANDLERS.Turret(cast: Cast, ability: any, root: BasePart, level: number
 	local duration = SkillLogic.duration(ability, level)
 	local token = generation[player] or 0
 	local gun = spot + Vector3.new(0, 2.6, 0)
-	broadcast(player, spot, { Kind = "Turret", Position = spot, Duration = duration })
+	broadcast(player, spot, fx(cast, { Kind = "Turret", Position = spot, Duration = duration }))
 	task.spawn(function()
 		local elapsed = 0
 		while elapsed < duration do
@@ -404,28 +427,49 @@ function HANDLERS.Turret(cast: Cast, ability: any, root: BasePart, level: number
 			if target then
 				local hits = {}
 				hit(cast, target, hits)
-				broadcast(player, gun, { Kind = "TurretShot", From = gun, To = target.Root.Position, Hits = hits })
+				broadcast(player, gun, fx(cast, { Kind = "TurretShot", From = gun, To = target.Root.Position, Hits = hits }))
 				announceCombo(cast)
 			end
 		end
-		broadcast(player, spot, { Kind = "TurretEnd", Position = spot })
+		broadcast(player, spot, fx(cast, { Kind = "TurretEnd", Position = spot }))
 	end)
 	return true
 end
 
--- Puños: Terremoto
-function HANDLERS.Quake(cast: Cast, ability: any, root: BasePart): boolean
-	local player = cast.Player
+-- Puños: Terremoto. Waves (Terremoto titán): varios golpes seguidos donde lo usaste, cada uno
+-- un 35 % más grande.
+local function quakeWave(cast: Cast, ability: any, center: Vector3, radius: number)
 	local hits = {}
-	for _, enemy in targetsAround(player, root.Position, ability.Radius, ability.MaxTargets) do
+	for _, enemy in targetsAround(cast.Player, center, radius, ability.MaxTargets) do
 		local killed = hit(cast, enemy, hits)
 		if not killed and EnemyService.isAlive(enemy) then
 			stun(enemy, ability.Stun)
-			EnemyService.knockback(enemy, root.Position, ability.Knockback)
+			EnemyService.knockback(enemy, center, ability.Knockback)
 		end
 	end
-	broadcast(player, root.Position, { Kind = "Quake", Position = root.Position, Radius = ability.Radius, Hits = hits })
+	broadcast(cast.Player, center, fx(cast, { Kind = "Quake", Position = center, Radius = radius, Hits = hits }))
 	announceCombo(cast)
+end
+
+function HANDLERS.Quake(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local center = root.Position
+	quakeWave(cast, ability, center, ability.Radius)
+	local waves = math.max(1, math.floor(ability.Waves or 1))
+	if waves > 1 then
+		local token = generation[player] or 0
+		task.spawn(function()
+			local radius = ability.Radius
+			for _ = 2, waves do
+				task.wait(ability.WaveInterval or 0.35)
+				if not player.Parent or (generation[player] or 0) ~= token then
+					return
+				end
+				radius *= 1.35
+				quakeWave(cast, ability, center, radius)
+			end
+		end)
+	end
 	return true
 end
 
@@ -458,7 +502,19 @@ function HANDLERS.Dash(cast: Cast, ability: any, root: BasePart): boolean
 		character:PivotTo(CFrame.lookAt(finish, finish + direction))
 		root.AssemblyLinearVelocity = Vector3.zero
 	end
-	broadcast(player, origin, { Kind = "Dash", From = origin, To = finish, Hits = hits })
+	broadcast(player, origin, fx(cast, { Kind = "Dash", From = origin, To = finish, Hits = hits }))
+	-- EndRadius (Cometa): al llegar, explota alrededor (EndRatio × DPS)
+	if ability.EndRadius then
+		local blast = {}
+		local scale = (ability.EndRatio or ability.DamageRatio) / math.max(0.01, ability.DamageRatio)
+		for _, enemy in targetsAround(player, finish, ability.EndRadius, ability.MaxTargets) do
+			local killed = hit(cast, enemy, blast, scale)
+			if not killed and EnemyService.isAlive(enemy) then
+				EnemyService.knockback(enemy, finish, ability.Knockback)
+			end
+		end
+		broadcast(player, finish, fx(cast, { Kind = "Quake", Position = finish, Radius = ability.EndRadius, Hits = blast }))
+	end
 	announceCombo(cast)
 	return true
 end
@@ -473,7 +529,7 @@ function HANDLERS.Rage(cast: Cast, ability: any, root: BasePart, level: number):
 	rageUntil[player] = untilClock
 	rageTaken[player] = ability.DamageTaken or 0.5
 	player:SetAttribute(Constants.Attributes.StyleRageUntil, serverNow() + duration)
-	broadcast(player, root.Position, { Kind = "Rage", Duration = duration })
+	broadcast(player, root.Position, fx(cast, { Kind = "Rage", Duration = duration }))
 	return true
 end
 
@@ -481,7 +537,7 @@ end
 function HANDLERS.Whirlwind(cast: Cast, ability: any, root: BasePart): boolean
 	local player = cast.Player
 	local token = generation[player] or 0
-	broadcast(player, root.Position, { Kind = "Whirl", Radius = ability.Radius, Pulses = ability.Pulses, Interval = ability.Interval })
+	broadcast(player, root.Position, fx(cast, { Kind = "Whirl", Radius = ability.Radius, Pulses = ability.Pulses, Interval = ability.Interval }))
 	task.spawn(function()
 		for pulse = 1, ability.Pulses do
 			if pulse > 1 then
@@ -498,7 +554,7 @@ function HANDLERS.Whirlwind(cast: Cast, ability: any, root: BasePart): boolean
 					pull(enemy, here.Position, ability.Pull)
 				end
 			end
-			broadcast(player, here.Position, { Kind = "WhirlHit", Position = here.Position, Radius = ability.Radius, Hits = hits })
+			broadcast(player, here.Position, fx(cast, { Kind = "WhirlHit", Position = here.Position, Radius = ability.Radius, Hits = hits }))
 			announceCombo(cast)
 		end
 	end)
@@ -518,14 +574,14 @@ function HANDLERS.Meteors(cast: Cast, ability: any, root: BasePart): boolean
 		table.insert(points, center + Vector3.new(offset.X, 0, offset.Y))
 	end
 	local token = generation[player] or 0
-	broadcast(player, root.Position, {
+	broadcast(player, root.Position, fx(cast, {
 		Kind = "Meteor",
 		Points = points,
 		Delay = ability.Delay,
 		Interval = ability.Interval,
 		Radius = ability.Radius,
 		StartAt = serverNow(),
-	})
+	}))
 	for index, point in points do
 		task.delay(ability.Delay + (index - 1) * ability.Interval, function()
 			if not player.Parent or (generation[player] or 0) ~= token then
@@ -535,7 +591,7 @@ function HANDLERS.Meteors(cast: Cast, ability: any, root: BasePart): boolean
 			for _, enemy in targetsAround(player, point, ability.Radius, ability.MaxTargets) do
 				hit(cast, enemy, hits)
 			end
-			broadcast(player, point, { Kind = "MeteorHit", Position = point, Radius = ability.Radius, Hits = hits })
+			broadcast(player, point, fx(cast, { Kind = "MeteorHit", Position = point, Radius = ability.Radius, Hits = hits }))
 			announceCombo(cast)
 		end)
 	end
@@ -555,7 +611,7 @@ function HANDLERS.Nova(cast: Cast, ability: any, root: BasePart): boolean
 			end
 		end
 	end
-	broadcast(player, root.Position, { Kind = "Nova", Position = root.Position, Radius = ability.Radius, Hits = hits, Frozen = frozen })
+	broadcast(player, root.Position, fx(cast, { Kind = "Nova", Position = root.Position, Radius = ability.Radius, Hits = hits, Frozen = frozen }))
 	announceCombo(cast)
 	return true
 end
@@ -594,7 +650,7 @@ function HANDLERS.ChainLightning(cast: Cast, ability: any, root: BasePart): bool
 		end
 		current = nextEnemy
 	end
-	broadcast(player, root.Position, { Kind = "Lightning", Points = points, Hits = hits })
+	broadcast(player, root.Position, fx(cast, { Kind = "Lightning", Points = points, Hits = hits }))
 	announceCombo(cast)
 	return true
 end
@@ -610,7 +666,7 @@ function HANDLERS.BlackHole(cast: Cast, ability: any, root: BasePart, level: num
 	local duration = SkillLogic.duration(ability, level)
 	local token = generation[player] or 0
 	local tickScale = (ability.TickRatio or 0.5) / math.max(0.01, ability.DamageRatio)
-	broadcast(player, center, { Kind = "BlackHole", Position = center, Radius = ability.Radius, Duration = duration })
+	broadcast(player, center, fx(cast, { Kind = "BlackHole", Position = center, Radius = ability.Radius, Duration = duration }))
 	task.spawn(function()
 		local elapsed = 0
 		while elapsed < duration do
@@ -627,14 +683,14 @@ function HANDLERS.BlackHole(cast: Cast, ability: any, root: BasePart, level: num
 				end
 			end
 			if #hits > 0 then
-				broadcast(player, center, { Kind = "BlackHoleTick", Position = center, Hits = hits })
+				broadcast(player, center, fx(cast, { Kind = "BlackHoleTick", Position = center, Hits = hits }))
 			end
 		end
 		local hits = {}
 		for _, enemy in targetsAround(player, center, ability.Radius, ability.MaxTargets) do
 			hit(cast, enemy, hits)
 		end
-		broadcast(player, center, { Kind = "BlackHoleBlast", Position = center, Radius = ability.Radius, Hits = hits })
+		broadcast(player, center, fx(cast, { Kind = "BlackHoleBlast", Position = center, Radius = ability.Radius, Hits = hits }))
 		announceCombo(cast)
 	end)
 	return true
@@ -650,7 +706,9 @@ local function useAbility(player: Player, slot: number)
 	end
 	local skills = skillsOf(profile)
 	local ability, skillId = StyleLogic.ability(style, slot, skills)
-	local handler = skillId and HANDLERS[skillId]
+	-- Las del Mundo 2 usan el efecto de una del Mundo 1 (Base)
+	local baseId = if ability and ability.Base then ability.Base else skillId
+	local handler = baseId and HANDLERS[baseId]
 	if not (ability and skillId and handler) then
 		return
 	end
@@ -668,8 +726,9 @@ local function useAbility(player: Player, slot: number)
 		Style = style,
 		SkillId = skillId,
 		Damage = styleDps(profile, style) * (ability.DamageRatio or 0) * SkillLogic.power(level) * class.SkillDamage,
-		-- La Ráfaga y la Furia no se potencian a sí mismas
-		Buffed = (buffUntil[player] or 0) > now and skillId ~= "Burst" and skillId ~= "Rage",
+		-- La Ráfaga y la Furia (y las que las usan) no se potencian a sí mismas
+		Buffed = (buffUntil[player] or 0) > now and baseId ~= "Burst" and baseId ~= "Rage",
+		Color = ability.Color,
 	}
 	if not handler(cast, ability, root, level) then
 		result(player, { Success = false, Code = "NoTarget", Style = style, Slot = slot })
@@ -741,7 +800,7 @@ function StyleService.skillAction(player: Player, action: string, skillId: any, 
 	local skills = skillsOf(profile)
 	local code, cost = "InvalidRequest", 0
 	if action == "BuySkill" then
-		code, cost = SkillLogic.buy(skills, skillId, profile.Energy)
+		code, cost = SkillLogic.buy(skills, skillId, profile.Energy, profile.PetData.UnlockedZones)
 	elseif action == "UpgradeSkill" then
 		code, cost = SkillLogic.upgrade(skills, skillId, profile.Energy)
 	elseif action == "EquipSkill" then

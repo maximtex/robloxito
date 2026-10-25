@@ -44,6 +44,12 @@ function WeaponLogic.category(weaponId: any): string
 	return if def and type(def.Category) == "string" then def.Category else "Weapons"
 end
 
+-- Mundo de un objeto (World; 1 si no lo dice): cada Armería enseña los de su mundo
+function WeaponLogic.world(weaponId: any): number
+	local def = WeaponLogic.definition(weaponId)
+	return if def and type(def.World) == "number" then def.World else 1
+end
+
 -- Objeto inicial de una categoría
 function WeaponLogic.starter(category: string): string
 	local starters = WeaponConfig.Starters

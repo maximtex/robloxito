@@ -235,9 +235,10 @@ local function buildPanel()
 		line(card, "Cons", 152, 34, "❌ " .. def.Cons, Color3.fromRGB(255, 150, 140))
 		local passive = def.Passive
 		line(card, "Passive", 190, 52, ("<b>%s Pasiva · %s</b>\n%s"):format(passive.Icon, passive.Name, passive.Text))
-		-- Sus cuatro habilidades (las dos iniciales y las dos que se compran con 💎)
+		-- Sus cuatro habilidades del Mundo 1 (las dos iniciales y las dos que se compran con 💎;
+		-- las del Mundo 2 se ven en su puesto ⚡ Mejoras)
 		local names = {}
-		for _, skillId in SkillLogic.ordered(id) do
+		for _, skillId in SkillLogic.ordered(id, 1) do
 			local skill = def.Skills[skillId]
 			local price = if (skill.Price or 0) > 0 then (" <font color=\"#9AD8FF\">💎%d</font>"):format(skill.Price) else ""
 			table.insert(names, ("%s %s%s"):format(skill.Icon, skill.Name, price))
@@ -471,6 +472,10 @@ local function groundBelow(position: Vector3): Vector3
 	return if hit then hit.Position else position - Vector3.new(0, 2.5, 0)
 end
 
+-- Color propio de la habilidad que se está dibujando (las del Mundo 2 traen el suyo: el
+-- servidor lo manda en el aviso, Color); nil = el de siempre de su estilo
+local tint: Color3? = nil
+
 local function fxPart(size: Vector3, cframe: CFrame, color: Color3): Part
 	local part = Instance.new("Part")
 	part.Anchored = true
@@ -493,7 +498,7 @@ local function burstFx(owner: Player, duration: number)
 	if not (root and root:IsA("BasePart")) then
 		return
 	end
-	local color = StyleConfig.Styles.Weapons.Color
+	local color = tint or StyleConfig.Styles.Weapons.Color
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = "StyleBurst"
 	emitter.Color = ColorSequence.new(Color3.fromRGB(255, 230, 120), color)
@@ -513,7 +518,7 @@ end
 
 -- Terremoto: dos ondas naranjas, polvo y sacudida
 local function quakeFx(owner: Player, position: Vector3, radius: number, hits: any)
-	local color = StyleConfig.Styles.Fists.Color
+	local color = tint or StyleConfig.Styles.Fists.Color
 	local ground = groundBelow(position)
 	CharacterPose.slam(owner.Character)
 	WaveFx.ring(ground, color, 2, radius * 2, 0.55, 0.1)
@@ -533,7 +538,7 @@ local function meteorFx(owner: Player, points: any, delay: number, interval: num
 	if typeof(points) ~= "table" then
 		return
 	end
-	local color = StyleConfig.Styles.Magic.Color
+	local color = tint or StyleConfig.Styles.Magic.Color
 	local elapsed = math.max(0, serverNow() - startAt)
 	CharacterPose.cast(owner.Character, 0.3)
 	for index, point in points do
@@ -584,7 +589,7 @@ local function meteorFx(owner: Player, points: any, delay: number, interval: num
 end
 
 local function meteorHitFx(owner: Player, position: Vector3, radius: number, hits: any)
-	local color = StyleConfig.Styles.Magic.Color
+	local color = tint or StyleConfig.Styles.Magic.Color
 	local ground = groundBelow(position)
 	WaveFx.ring(ground, color, 2, radius * 2, 0.45, 0.1)
 	CombatController.emitAt("Glint", ground + Vector3.new(0, 1.5, 0), color, 10)
@@ -642,7 +647,7 @@ end
 
 local function grenadeHitFx(owner: Player, position: Vector3, radius: number, hits: any)
 	local ground = groundBelow(position)
-	local fire = Color3.fromRGB(255, 150, 60)
+	local fire = tint or Color3.fromRGB(255, 150, 60)
 	-- Bola de fuego que crece y se apaga, onda en el suelo y humo
 	local ball = fxPart(Vector3.one * 2, CFrame.new(ground + Vector3.new(0, 1.5, 0)), fire)
 	ball.Shape = Enum.PartType.Ball
@@ -661,7 +666,7 @@ end
 
 -- Embestida: puños por delante, estela del recorrido e imágenes que se desvanecen
 local function dashFx(owner: Player, from: Vector3, to: Vector3, hits: any)
-	local color = StyleConfig.Styles.Fists.Color
+	local color = tint or StyleConfig.Styles.Fists.Color
 	CharacterPose.charge(owner.Character)
 	local offset = to - from
 	local distance = offset.Magnitude
@@ -696,16 +701,17 @@ end
 
 -- Nova de hielo: brazos abiertos, anillo helado, carámbanos y los congelados en hielo
 local function novaFx(owner: Player, position: Vector3, radius: number, hits: any, frozen: any)
+	local ice = tint or ICE
 	local ground = groundBelow(position)
 	CharacterPose.spread(owner.Character)
-	WaveFx.ring(ground, ICE, 2, radius * 2, 0.5, 0.05)
+	WaveFx.ring(ground, ice, 2, radius * 2, 0.5, 0.05)
 	task.delay(0.1, WaveFx.ring, ground, Color3.new(1, 1, 1), 2, radius * 1.6, 0.45, 0.4)
 	-- Carámbanos que salen del suelo en círculo y se derriten
 	for index = 1, 12 do
 		local angle = index / 12 * math.pi * 2
 		local distance = radius * (0.45 + (index % 3) * 0.18)
 		local base = ground + Vector3.new(math.cos(angle) * distance, 0, math.sin(angle) * distance)
-		local spike = fxPart(Vector3.new(1, 0.2, 1), CFrame.new(base) * CFrame.Angles(math.rad((index % 2) * 12), angle, 0), ICE)
+		local spike = fxPart(Vector3.new(1, 0.2, 1), CFrame.new(base) * CFrame.Angles(math.rad((index % 2) * 12), angle, 0), ice)
 		spike.Material = Enum.Material.Glass
 		spike.Transparency = 0.2
 		local tall = 2.5 + (index % 4)
@@ -727,7 +733,7 @@ local function novaFx(owner: Player, position: Vector3, radius: number, hits: an
 					return model:GetBoundingBox()
 				end)
 				if ok then
-					local block = fxPart(size + Vector3.new(0.6, 0.6, 0.6), cframe, ICE)
+					local block = fxPart(size + Vector3.new(0.6, 0.6, 0.6), cframe, ice)
 					block.Material = Enum.Material.Glass
 					block.Transparency = 0.45
 					TweenService:Create(block, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, math.max(0, seconds - 0.5)), { Transparency = 1 }):Play()
@@ -736,10 +742,10 @@ local function novaFx(owner: Player, position: Vector3, radius: number, hits: an
 			end
 		end
 	end
-	WaveFx.sparkle(ground + Vector3.new(0, 1.5, 0), ICE, 22)
-	CombatController.showHits(hits, ICE, owner == player, 1.1)
+	WaveFx.sparkle(ground + Vector3.new(0, 1.5, 0), ice, 22)
+	CombatController.showHits(hits, ice, owner == player, 1.1)
 	if owner == player then
-		WaveFx.flash(ICE, 0.25)
+		WaveFx.flash(ice, 0.25)
 	end
 	playSound("Nova", if owner == player then nil else position)
 	playSound("NovaBlast", if owner == player then nil else position)
@@ -747,7 +753,7 @@ end
 
 -- Rayo perforante: un rayo grueso y recto con su núcleo blanco
 local function pierceFx(owner: Player, from: Vector3, to: Vector3, width: number, hits: any)
-	local color = StyleConfig.Styles.Weapons.Color
+	local color = tint or StyleConfig.Styles.Weapons.Color
 	CharacterPose.aim(owner.Character)
 	local distance = (to - from).Magnitude
 	if distance > 0.5 then
@@ -785,7 +791,7 @@ local function removeTurret(owner: Player)
 end
 local function turretFx(owner: Player, position: Vector3, duration: number)
 	removeTurret(owner)
-	local color = StyleConfig.Styles.Weapons.Color
+	local color = tint or StyleConfig.Styles.Weapons.Color
 	local model = Instance.new("Model")
 	model.Name = "StyleTurret"
 	model.Parent = fxFolder
@@ -814,7 +820,7 @@ local function turretFx(owner: Player, position: Vector3, duration: number)
 	end)
 end
 local function turretShotFx(owner: Player, from: Vector3, to: Vector3, hits: any)
-	local color = StyleConfig.Styles.Weapons.Color
+	local color = tint or StyleConfig.Styles.Weapons.Color
 	local turret = turrets[owner]
 	if turret and turret.Head.Parent then
 		turret.Head.CFrame = CFrame.lookAt(turret.Gun, Vector3.new(to.X, turret.Gun.Y, to.Z))
@@ -834,7 +840,7 @@ local function rageFx(owner: Player, duration: number)
 	if not (root and root:IsA("BasePart")) then
 		return
 	end
-	local color = Color3.fromRGB(255, 70, 50)
+	local color = tint or Color3.fromRGB(255, 70, 50)
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = "StyleRage"
 	emitter.Color = ColorSequence.new(Color3.fromRGB(255, 200, 120), color)
@@ -869,7 +875,7 @@ local function whirlFx(owner: Player, radius: number, pulses: number, interval: 
 	if not (root and root:IsA("BasePart")) then
 		return
 	end
-	local color = StyleConfig.Styles.Fists.Color
+	local color = tint or StyleConfig.Styles.Fists.Color
 	local blades = {}
 	for index = 1, 6 do
 		local blade = fxPart(Vector3.new(0.4, 3.2, radius * 0.45), root.CFrame, color)
@@ -900,7 +906,7 @@ local function whirlFx(owner: Player, radius: number, pulses: number, interval: 
 	playSound("Whirl", if owner == player then nil else root.Position)
 end
 local function whirlHitFx(owner: Player, position: Vector3, radius: number, hits: any)
-	local color = StyleConfig.Styles.Fists.Color
+	local color = tint or StyleConfig.Styles.Fists.Color
 	WaveFx.ring(groundBelow(position), color, 2, radius * 2, 0.3, 0.3)
 	CombatController.showHits(hits, color, owner == player, 0.9)
 	if owner == player and typeof(hits) == "table" and #hits > 0 then
@@ -927,6 +933,7 @@ local function lightningFx(owner: Player, points: any, hits: any)
 		return
 	end
 	local purple = StyleConfig.Styles.Magic.Color
+	local bolt = tint or LIGHTNING
 	CharacterPose.cast(owner.Character, 0.2)
 	local start = CharacterPose.handPosition(owner.Character)
 	for index = 1, #points - 1 do
@@ -936,22 +943,22 @@ local function lightningFx(owner: Player, points: any, hits: any)
 				a = start
 			end
 			task.delay((index - 1) * 0.05, function()
-				zigzag(a, b, LIGHTNING)
+				zigzag(a, b, bolt)
 				zigzag(a, b, purple)
-				CombatController.emitAt("Spark", b, LIGHTNING, 8)
+				CombatController.emitAt("Spark", b, bolt, 8)
 			end)
 		end
 	end
-	CombatController.showHits(hits, LIGHTNING, owner == player, 1.05)
+	CombatController.showHits(hits, bolt, owner == player, 1.05)
 	if owner == player then
-		WaveFx.flash(LIGHTNING, 0.12)
+		WaveFx.flash(bolt, 0.12)
 	end
 	playSound("Lightning", if owner == player then nil else (if typeof(points[1]) == "Vector3" then points[1] else nil))
 end
 
 -- Agujero negro: esfera oscura que crece, anillo morado girando y, al final, la explosión
 local function blackHoleFx(owner: Player, position: Vector3, radius: number, duration: number)
-	local purple = StyleConfig.Styles.Magic.Color
+	local purple = tint or StyleConfig.Styles.Magic.Color
 	local ground = groundBelow(position)
 	local center = ground + Vector3.new(0, 2.5, 0)
 	local core = fxPart(Vector3.one * 0.5, CFrame.new(center), Color3.fromRGB(12, 6, 24))
@@ -995,7 +1002,7 @@ local function blackHoleFx(owner: Player, position: Vector3, radius: number, dur
 	playSound("BlackHole", if owner == player then nil else position)
 end
 local function blackHoleBlastFx(owner: Player, position: Vector3, radius: number, hits: any)
-	local purple = StyleConfig.Styles.Magic.Color
+	local purple = tint or StyleConfig.Styles.Magic.Color
 	local ground = groundBelow(position)
 	local ball = fxPart(Vector3.one * 3, CFrame.new(ground + Vector3.new(0, 2.5, 0)), purple)
 	ball.Shape = Enum.PartType.Ball
@@ -1275,6 +1282,7 @@ function StyleController.start()
 			return
 		end
 		local owner = event.Owner :: Player
+		tint = if typeof(event.Color) == "Color3" then event.Color else nil
 		if event.Kind == "Result" then
 			if owner ~= player then
 				return
@@ -1327,7 +1335,7 @@ function StyleController.start()
 		elseif event.Kind == "BlackHole" and typeof(event.Position) == "Vector3" then
 			blackHoleFx(owner, event.Position, tonumber(event.Radius) or 14, tonumber(event.Duration) or 3)
 		elseif event.Kind == "BlackHoleTick" then
-			CombatController.showHits(event.Hits, StyleConfig.Styles.Magic.Color, owner == player, 0.7)
+			CombatController.showHits(event.Hits, tint or StyleConfig.Styles.Magic.Color, owner == player, 0.7)
 		elseif event.Kind == "BlackHoleBlast" and typeof(event.Position) == "Vector3" then
 			blackHoleBlastFx(owner, event.Position, tonumber(event.Radius) or 14, event.Hits)
 		elseif event.Kind == "QuickDash" and typeof(event.From) == "Vector3" and typeof(event.To) == "Vector3" then
@@ -1335,6 +1343,7 @@ function StyleController.start()
 		elseif event.Kind == "Combo" and typeof(event.Name) == "string" and typeof(event.Position) == "Vector3" then
 			comboFx(owner, event.Name, event.Position, if typeof(event.Style) == "string" then event.Style else nil)
 		end
+		tint = nil
 	end)
 end
 

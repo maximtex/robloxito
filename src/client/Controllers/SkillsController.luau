@@ -9,6 +9,9 @@
 -- - Se abre en el puesto ⚡ Mejoras del pueblo (pisando su círculo), con el botón ⚡ MEJORAS de
 --   la tienda de tu estilo, la insignia ⚡ del botón de la X o la tecla B.
 -- Datos de los atributos del jugador: Skills ("Burst:1,Pierce:2"), SkillSlots y Energy (💎).
+-- Cada mundo tiene las suyas: en el Mundo 2 (CurrentZone del Mundo 2) se ven sus 4 habilidades
+-- nuevas de cada estilo (StyleConfig: World = 2) y en el Mundo 1, las de siempre. Las puestas
+-- en la Z y la X se quedan aunque cambies de mundo.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,6 +22,7 @@ local StyleConfig = require(Shared.Config.StyleConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local Economy = require(Shared.Economy)
 local SkillLogic = require(Shared.SkillLogic)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
@@ -44,6 +48,7 @@ local MESSAGES = {
 	[Codes.TooFast] = "Demasiado rápido, espera un momento",
 	[Codes.NotReady] = "Cargando datos, inténtalo de nuevo",
 	[Codes.InvalidRequest] = "Solicitud no válida",
+	[Codes.ZoneLocked] = "Primero llega al Mundo 2",
 }
 
 local SkillsController = {}
@@ -53,6 +58,13 @@ local player = Players.LocalPlayer
 local function diamonds(): number
 	local value = player:GetAttribute(Constants.Attributes.Energy)
 	return if typeof(value) == "number" then value else 0
+end
+
+-- Mundo en el que está el jugador (el de su zona actual)
+local function currentWorld(): number
+	local zoneId = player:GetAttribute(Constants.Attributes.CurrentZone)
+	local zone = typeof(zoneId) == "string" and ZoneConfig.Zones[zoneId]
+	return if zone and zone.World then zone.World else 1
 end
 
 local function currentStyle(): string
@@ -329,14 +341,19 @@ function SkillsController.start()
 		local money = diamonds()
 		renderSpeed(money)
 		ui.Diamonds.Text = "💎 " .. formatNumber(money)
-		ui.Title.Text = ("⚡ Mejoras · %s %s"):format(style.Icon, style.DisplayName)
+		local world = currentWorld()
+		ui.Title.Text = ("⚡ Mejoras%s · %s %s"):format(if world == 2 then " del Mundo 2" else "", style.Icon, style.DisplayName)
 		for styleId, tab in ui.Tabs do
 			local active = styleId == shown
 			tab.BackgroundColor3 = if active then StyleConfig.Styles[styleId].Color else THEME.Inset
 		end
 		local owned = SkillLogic.parseOwned(player:GetAttribute(Constants.Attributes.Skills))
 		local slots = SkillLogic.parseSlots(player:GetAttribute(Constants.Attributes.SkillSlots))[shown] or {}
-		for index, skillId in SkillLogic.ordered(shown) do
+		local list = SkillLogic.ordered(shown, world)
+		for index, card in ui.Cards do
+			card.Frame.Visible = list[index] ~= nil
+		end
+		for index, skillId in list do
 			local card = ui.Cards[index]
 			if not card then
 				continue
@@ -494,7 +511,7 @@ function SkillsController.start()
 		end
 	end)
 
-	for _, attribute in { Constants.Attributes.Energy, Constants.Attributes.Skills, Constants.Attributes.SkillSlots, Constants.Attributes.CombatStyle, Constants.Attributes.UpgradeLevelPrefix .. SPEED_ID } do
+	for _, attribute in { Constants.Attributes.Energy, Constants.Attributes.Skills, Constants.Attributes.SkillSlots, Constants.Attributes.CombatStyle, Constants.Attributes.CurrentZone, Constants.Attributes.UpgradeLevelPrefix .. SPEED_ID } do
 		player:GetAttributeChangedSignal(attribute):Connect(function()
 			if PanelManager.isOpen(PANEL_NAME) then
 				render()

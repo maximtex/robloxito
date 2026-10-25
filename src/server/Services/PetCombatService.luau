@@ -20,6 +20,10 @@
 --   que el arma dispare sola también sin el pase (dentro de una partida) y
 --   setShotModifier aplica las mejoras de la partida (WaveLogic.Mods): más daño, más
 --   cadencia, saltos y explosiones extra y disparo doble.
+-- - Estilo de pelea (PetData.Style; StyleLogic): Armas dispara el arma tal cual con un 20 %
+--   de críticos; Puños golpea cuerpo a cuerpo (poco alcance, más DPS, sin efecto del arma);
+--   Magia lanza orbes que explotan y cura al jugador con una parte del daño. La Ráfaga
+--   (habilidad de Armas, StyleService.setBurst) acorta el tiempo entre disparos un rato.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,6 +34,8 @@ local PetConfig = require(Shared.Config.PetConfig)
 local PetCombatConfig = require(Shared.Config.PetCombatConfig)
 local WeaponLogic = require(Shared.WeaponLogic)
 local MonetizationLogic = require(Shared.MonetizationLogic)
+local StyleLogic = require(Shared.StyleLogic)
+local StyleConfig = require(Shared.Config.StyleConfig)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
@@ -66,6 +72,28 @@ local freeAutoFire: ((Player) -> boolean)? = nil
 local shotModifier: ((Player) -> any)? = nil
 local CHAIN_DEFAULT = { Range = 14, Fraction = 0.5 } -- salto de la mejora "Rebote" sin arma que salte
 local MAX_TWIN_SHOTS = 1
+-- Ráfaga (habilidad de Armas): os.clock() hasta el que dispara más rápido.
+local burstUntil: { [Player]: number } = {}
+-- Azar de los críticos (las pruebas lo sustituyen para que sea determinista).
+PetCombatService.random = function(): number
+	return math.random()
+end
+
+function PetCombatService.setBurst(player: Player, untilClock: number)
+	burstUntil[player] = untilClock
+end
+
+-- Estilo de pelea del perfil (uno válido siempre).
+local function styleOf(profile): string
+	return StyleLogic.sanitize(profile.PetData.Style)
+end
+
+-- Números del disparo con el estilo: Puños y Magia salen del DPS del arma (con su cadencia).
+local function styledStats(profile, stats)
+	local def = WeaponLogic.definition(stats.WeaponId)
+	return StyleLogic.applyStats(stats, styleOf(profile), def and def.Cooldown)
+end
+PetCombatService.styledStats = styledStats
 
 function PetCombatService.setFreeAutoFire(predicate: (Player) -> boolean)
 	freeAutoFire = predicate
@@ -269,13 +297,25 @@ local function hitWith(player: Player, enemy: any, damage: number, slow, hits: {
 	return killed
 end
 
--- Un disparo del arma equipada a `target`, con su efecto. true si el objetivo ha muerto.
-local function fire(player: Player, root: BasePart, target: any, stats, mods: any?): boolean
+-- Cura al jugador (robo de vida de la Magia), sin pasar de su vida máxima.
+local function heal(player: Player, amount: number)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health > 0 and amount > 0 then
+		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + amount)
+	end
+end
+
+-- Un disparo (o golpe, u orbe, según el estilo) a `target`, con su efecto. true si el
+-- objetivo ha muerto.
+local function fire(player: Player, root: BasePart, target: any, stats, mods: any?, style: string): boolean
 	local def = WeaponLogic.definition(stats.WeaponId)
-	local effect = effectWith(def and def.Effect or {}, mods)
+	local effect = effectWith(StyleLogic.effect(style, def and def.Effect), mods)
 	local targetPosition = target.Root.Position
 	local hits = {}
-	local killed = hitWith(player, target, stats.Shot, effect.Slow, hits)
+	-- Puntería (Armas): algunos disparos son críticos (solo el golpe principal)
+	local crit = StyleLogic.critMultiplier(style, PetCombatService.random())
+	local killed = hitWith(player, target, stats.Shot * crit, effect.Slow, hits)
 
 	local splashRadius = nil
 	if effect.Splash then
@@ -309,9 +349,24 @@ local function fire(player: Player, root: BasePart, target: any, stats, mods: an
 		end
 	end
 
+	-- Robo de vida (Magia): una parte de todo el daño de este golpe, con tope
+	if style == "Magic" then
+		local dealt = 0
+		for _, hit in hits do
+			dealt += hit.Damage
+		end
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			heal(player, StyleLogic.lifeSteal(style, dealt, humanoid.MaxHealth))
+		end
+	end
+
 	broadcast(player, root.Position, {
 		Kind = "PlayerShot",
 		WeaponId = stats.WeaponId,
+		Style = style,
+		Crit = crit > 1,
 		Target = targetPosition,
 		Hits = hits,
 		Chain = chain,
@@ -335,6 +390,13 @@ function PetCombatService.step(now: number)
 		if mods then
 			stats.Shot = stats.Shot * finite(mods.Damage, 1, 0.1, 20)
 			stats.Cooldown = math.max(0.05, stats.Cooldown * finite(mods.Cooldown, 1, 0.2, 1))
+		end
+		-- Estilo de pelea (alcance, ritmo y daño de cada golpe) y la Ráfaga
+		local style = styleOf(profile)
+		stats = styledStats(profile, stats)
+		if (burstUntil[player] or 0) > now then
+			local scale = StyleConfig.Styles.Weapons.Ability.CooldownScale or 0.5
+			stats.Cooldown = math.max(0.05, stats.Cooldown * scale)
 		end
 		if player:GetAttribute(Constants.Attributes.AutoFire) ~= auto then
 			player:SetAttribute(Constants.Attributes.AutoFire, auto)
@@ -385,7 +447,7 @@ function PetCombatService.step(now: number)
 			shots += 1
 			state.NextShotAt += stats.Cooldown
 			state.ShotRequestedAt = -math.huge
-			local killed = fire(player, root, target, stats, mods)
+			local killed = fire(player, root, target, stats, mods, style)
 			-- Disparo doble (mejora de la partida): uno más gratis, al mismo objetivo o, si ha
 			-- caído, al más cercano a tiro.
 			local twin = if mods then finite(mods.Twin, 0, 0, 1) else 0
@@ -395,7 +457,7 @@ function PetCombatService.step(now: number)
 				end
 				local other = if EnemyService.isAlive(target) then target else EnemyService.findInRadius(root.Position, stats.Range, 1, player)[1]
 				if other and inReach(root, other, stats.Range) then
-					fire(player, root, other, stats, mods)
+					fire(player, root, other, stats, mods, style)
 				end
 			end
 			if killed then
@@ -455,7 +517,7 @@ function PetCombatService.start()
 			if not (root and profile) then
 				return
 			end
-			local range = PlayerDataService.combatStats(profile).Range
+			local range = styledStats(profile, PlayerDataService.combatStats(profile)).Range
 			local target = state.Target
 			if not (target and EnemyService.isAlive(target) and EnemyService.canInteract(player, target) and inReach(root, target, range)) then
 				local nearest = EnemyService.findInRadius(root.Position, range, 1, player)[1]
@@ -508,6 +570,7 @@ function PetCombatService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		reset(player)
 		states[player] = nil
+		burstUntil[player] = nil
 		autoLimiter:remove(player)
 	end)
 

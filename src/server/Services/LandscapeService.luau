@@ -9,6 +9,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local LandscapeConfig = require(Shared.Config.LandscapeConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
+local StudFloor = require(Shared.Util.StudFloor)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local LandscapeLayout = require(script.Parent.Parent.Util.LandscapeLayout)
 
@@ -45,7 +46,9 @@ end
 local function buildBoundary(zone: Zone, walls: { any })
 	local folder = PartFactory.folder(zone.Parent, "MapBoundary")
 	for index, wall in walls do
-		if nearPortal(at(zone, wall.X, 0, wall.Z)) then
+		local center = at(zone, wall.X, 0, wall.Z)
+		-- Ni en el paso de una puerta ni dentro de la cueva del Bosque (sus paredes ya cierran)
+		if nearPortal(center) or StudFloor.inCave(center.X, center.Z, wall.Width / 2 + 4) then
 			continue
 		end
 		local part = Instance.new("Part")

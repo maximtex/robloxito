@@ -8,6 +8,9 @@
 -- - Cada disparo confirmado (PetAbility "PlayerShot") se dibuja según el proyectil del arma
 --   (WeaponConfig): rayo, bola de plasma, espina, rayo de cristal que salta entre enemigos
 --   o esfera que explota; luego los impactos (destello, chispas, número de daño, sonido).
+--   Con el estilo Puños es un puñetazo (estallido en el enemigo, sin proyectil) y con Magia
+--   un orbe morado; los críticos (Armas) sacan el número dorado y más grande. El botón dice
+--   Disparar / Golpear / Lanzar y la línea de encima, el estilo y su daño por segundo.
 -- - Botín: monedas (💰) y orbes de energía (⚡) que saltan del enemigo y vuelan hacia ti al
 --   cobrar, el ORBE DORADO (botín ×10) con su destello, un aviso al derrotarlo (uno solo
 --   que se actualiza, para que las hordas no llenen la pila) y anuncio al derrotar a un jefe.
@@ -31,6 +34,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CombatConfig = require(Shared.Config.CombatConfig)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
+local StyleConfig = require(Shared.Config.StyleConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local CombatMath = require(Shared.CombatMath)
@@ -437,6 +441,16 @@ local function showHits(hits: any, color: Color3, isOwner: boolean, react: numbe
 	end
 end
 CombatController.showHits = showHits
+CombatController.emitAt = function(kind: string, position: Vector3, color: Color3, amount: number)
+	if fxFolder then
+		emitAt(kind, position, color, amount)
+	end
+end
+CombatController.impactRing = function(center: Vector3, radius: number, color: Color3)
+	if fxFolder then
+		impactRing(center, radius, color)
+	end
+end
 
 -- Número flotante (p. ej. la curación de la Marea Sanadora) con el mismo estilo.
 function CombatController.floatingNumber(position: Vector3, amount: number, color: Color3, boost: number?)
@@ -678,6 +692,7 @@ local function buildGui()
 		Cooldown = cooldown,
 		AutoBadge = autoBadge,
 		WeaponPill = weaponPill,
+		AttackLabel = atkLabel,
 		BossBar = bossBar,
 		BossName = bossName,
 		BossFill = bossFill,
@@ -872,15 +887,26 @@ function CombatController.start()
 	player:GetAttributeChangedSignal(Constants.Attributes.Passes):Connect(refreshAutoFire)
 	refreshAutoFire()
 
-	-- Arma equipada y su daño por segundo sobre el botón
+	-- Arma equipada (o el estilo, si no es Armas) y su daño por segundo sobre el botón
+	local ATTACK_WORDS = { Weapons = "Disparar", Fists = "Golpear", Magic = "Lanzar" }
 	local function refreshWeaponPill()
 		local def = WeaponConfig.Weapons[player:GetAttribute(Constants.Attributes.EquippedWeapon)] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
 		local dps = player:GetAttribute(Constants.Attributes.DamagePerSecond)
-		ui.WeaponPill.Text = ("%s %s · %s/s"):format(def.Icon, def.DisplayName, formatNumber(if typeof(dps) == "number" then dps else 0))
-		ui.WeaponPill.TextColor3 = def.Color
+		local styleId = player:GetAttribute(Constants.Attributes.CombatStyle)
+		local style = if typeof(styleId) == "string" and styleId ~= "Weapons" then StyleConfig.Styles[styleId] else nil
+		local dpsText = formatNumber(if typeof(dps) == "number" then dps else 0)
+		if style then
+			ui.WeaponPill.Text = ("%s %s · %s/s"):format(style.Icon, style.DisplayName, dpsText)
+			ui.WeaponPill.TextColor3 = style.Color
+		else
+			ui.WeaponPill.Text = ("%s %s · %s/s"):format(def.Icon, def.DisplayName, dpsText)
+			ui.WeaponPill.TextColor3 = def.Color
+		end
+		ui.AttackLabel.Text = ATTACK_WORDS[if typeof(styleId) == "string" then styleId else "Weapons"] or "Disparar"
 	end
 	player:GetAttributeChangedSignal(Constants.Attributes.EquippedWeapon):Connect(refreshWeaponPill)
 	player:GetAttributeChangedSignal(Constants.Attributes.DamagePerSecond):Connect(refreshWeaponPill)
+	player:GetAttributeChangedSignal(Constants.Attributes.CombatStyle):Connect(refreshWeaponPill)
 	refreshWeaponPill()
 
 	-- En pantallas solo táctiles se usa el botón táctil de Roblox (junto al de saltar).
@@ -1082,17 +1108,20 @@ function CombatController.start()
 
 		if event.Kind == "PlayerShot" and typeof(event.Target) == "Vector3" then
 			local def = WeaponConfig.Weapons[event.WeaponId] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
-			local color = def.Color
+			local style = if typeof(event.Style) == "string" and StyleConfig.Styles[event.Style] then event.Style else "Weapons"
+			local color = if style == "Weapons" then def.Color else StyleConfig.Styles[style].Color
+			local crit = event.Crit == true
 			local character = owner.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			local target = event.Target :: Vector3
 			local from = if root and root:IsA("BasePart") then root.Position + Vector3.new(0, 1.2, 0) else target
 			local function impact()
-				emitAt("Glint", target, color, 4)
+				emitAt("Glint", target, color, if crit then 10 else 4)
 				if typeof(event.Splash) == "number" then
 					impactRing(target, event.Splash, color)
 				end
-				showHits(event.Hits, color, isOwner, 0.8)
+				-- Crítico: número dorado y más grande
+				showHits(event.Hits, if crit then THEME.Gold else color, isOwner, 0.8, if crit then 1.6 else nil)
 				if isOwner and typeof(event.Hits) == "table" and #event.Hits > 0 then
 					local killed = false
 					for _, hit in event.Hits do
@@ -1101,11 +1130,19 @@ function CombatController.start()
 					if killed then
 						playVaried(killSound, 0.9, 0.05)
 					else
-						playVaried(hitSound, 1.35, 0.07)
+						playVaried(hitSound, if style == "Fists" then 0.95 elseif crit then 1.6 else 1.35, 0.07)
 					end
 				end
 			end
-			if def.Projectile == "Bolt" or def.Projectile == "Orb" then
+			if style == "Fists" then
+				-- Puñetazo: sin proyectil, un estallido en el enemigo
+				impactRing(target, 2.6, color)
+				emitAt("Spark", target, color, 8)
+				impact()
+			elseif style == "Magic" then
+				-- Orbe mágico que viaja y explota (el área la marca impact)
+				travelBall(from, target, color, 1.3, 70, impact)
+			elseif def.Projectile == "Bolt" or def.Projectile == "Orb" then
 				travelBall(from, target, color, if def.Projectile == "Orb" then 1.5 else 0.9, if def.Projectile == "Orb" then 70 else 90, impact)
 			else
 				beamEffect(from, target, color, if def.Projectile == "Thorn" then 0.22 elseif def.Projectile == "Prism" then 0.45 else 0.3)

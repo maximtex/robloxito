@@ -393,4 +393,27 @@ check("energía de un Espinillo al empezar: 35 · 0.15", near(WaveLogic.killEner
 check("crece con el poder de energía", near(WaveLogic.killEnergy(35, 0.15, 4), 21))
 check("poder por debajo de 1 cuenta como 1 y valores raros dan 0", near(WaveLogic.killEnergy(35, 0.15, 0), 5.25) and WaveLogic.killEnergy(0 / 0, 0.15, 1) == 0 and WaveLogic.killEnergy(35, -1, 1) == 0)
 
+print("-- Sonidos de la partida")
+local soundsOK, soundCount = true, 0
+for name, spec in WaveConfig.Sounds do
+	soundCount += 1
+	local id = type(spec) == "table" and spec.Id
+	local okId = type(id) == "string" and (string.match(id, "^rbxassetid://%d+$") ~= nil or string.match(id, "^rbxasset://sounds/") ~= nil)
+	local okVolume = type(spec.Volume) == "number" and spec.Volume > 0 and spec.Volume <= 1
+	local okPitch = spec.Pitch == nil or (type(spec.Pitch) == "number" and spec.Pitch > 0.2 and spec.Pitch < 3)
+	if not (okId and okVolume and okPitch) then
+		soundsOK = false
+		print("   sonido mal configurado: " .. tostring(name))
+	end
+end
+check("cada sonido tiene Id de Roblox, volumen 0..1 y tono razonable", soundsOK)
+local usedSounds = { "Tick", "Whoosh", "WaveHit", "Cleared", "CardsOpen", "Chime", "Pick", "BossGong", "BossRoar", "Victory", "Record", "Endless", "EndlessEnd", "Defeat" }
+local missing = {}
+for _, name in usedSounds do
+	if WaveConfig.Sounds[name] == nil then
+		table.insert(missing, name)
+	end
+end
+check("están todos los que usa el cliente (" .. soundCount .. ")" .. (if #missing > 0 then ": faltan " .. table.concat(missing, ", ") else ""), #missing == 0)
+
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

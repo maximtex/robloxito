@@ -131,6 +131,11 @@ end
 
 local ana = newPlayer("Ana", 1, Vector3.new(0, 3, 0))
 profiles[ana] = profileWith("Laser")
+-- Sin críticos salvo donde se prueban (Puntería, estilo Armas): resultados deterministas
+local critRoll = 0.99
+PetCombatService.random = function()
+	return critRoll
+end
 PetCombatService.start()
 playerAdded:Fire(ana)
 
@@ -141,8 +146,8 @@ local outside = newEnemy(3, 100, 0, 1000)
 local now = run(0, 1)
 local list = shots(ana)
 check("dispara solo al más cercano a tiro, sin clic", #list > 0 and list[1].Target.X == 30 and ana:GetAttribute("AutoFire") == true)
-check(("con la cadencia del láser (0.25 s): %d disparos en 1 s"):format(#list), #list >= 3 and #list <= 5)
-check("cada disparo hace el daño del arma (5)", near.Status.MaxHealth - near.Status.Health == 5 * #list)
+check(("con la cadencia del láser (0.4 s): %d disparos en 1 s"):format(#list), #list >= 2 and #list <= 4)
+check("cada disparo hace el daño del arma (8)", near.Status.MaxHealth - near.Status.Health == 8 * #list)
 check("ni el lejano ni el que está fuera de alcance reciben daño", far.Status.Health == 1000 and outside.Status.Health == 1000)
 check("el disparo atribuye el arma para que el cliente lo dibuje", list[1].WeaponId == "Laser")
 
@@ -198,7 +203,7 @@ local close = newEnemy(31, 23, 0, 10000)
 local away = newEnemy(32, 40, 0, 10000)
 now = run(now, 0.6)
 local plasma = shots(ana)
-check("plasma: daña al objetivo y al que está a menos de 6 studs (50 %)", #plasma > 0 and center.Status.MaxHealth - center.Status.Health == 16 * #plasma and close.Status.MaxHealth - close.Status.Health == 8 * #plasma)
+check("plasma: daña al objetivo y al que está a menos de 6 studs (50 %)", #plasma > 0 and math.abs(center.Status.MaxHealth - center.Status.Health - 25.6 * #plasma) < 1e-6 and math.abs(close.Status.MaxHealth - close.Status.Health - 12.8 * #plasma) < 1e-6)
 check("plasma: el que está lejos no recibe nada y el disparo avisa del radio", away.Status.Health == 10000 and plasma[1].Splash == 6)
 
 reset()
@@ -207,15 +212,15 @@ local first = newEnemy(40, 20, 0, 10000)
 local hop1 = newEnemy(41, 30, 0, 10000)
 local hop2 = newEnemy(42, 40, 0, 10000)
 local hop3 = newEnemy(43, 50, 0, 10000)
-now = run(now, 0.5)
+now = run(now, 0.6)
 local crystal = shots(ana)
 check("cristal: salta a 2 enemigos más (50 %), en cadena", #crystal > 0 and hop1.Status.Health < 10000 and hop2.Status.Health < 10000 and hop3.Status.Health == 10000 and #crystal[1].Chain == 2)
-check("cristal: el primero recibe el daño entero", first.Status.MaxHealth - first.Status.Health == 40 * #crystal)
+check("cristal: el primero recibe el daño entero", first.Status.MaxHealth - first.Status.Health == 64 * #crystal)
 
 reset()
 profiles[ana] = profileWith("ThornBow")
 newEnemy(50, 20, 0, 10000)
-now = run(now, 0.4)
+now = run(now, 0.6)
 check("arco: ralentiza al objetivo (factor 0.6, 1.5 s)", #slows > 0 and slows[1].Kind == "Slow" and slows[1].Factor == 0.6 and slows[1].Seconds == 1.5)
 
 print("-- 6. Mascotas: golpean al mismo objetivo")
@@ -239,14 +244,14 @@ check("encender el automático sin el pase no hace nada", #shots(ana) == 0 and a
 shotListener(ana, nil)
 now = run(now, 0.6)
 local single = shots(ana)
-check("F / Disparar: un disparo, al más cercano a tiro", #single == 1 and single[1].Target.X == 20 and manual.Status.MaxHealth - manual.Status.Health == 5)
+check("F / Disparar: un disparo, al más cercano a tiro", #single == 1 and single[1].Target.X == 20 and manual.Status.MaxHealth - manual.Status.Health == 8)
 table.clear(fired)
 for _ = 1, 10 do
 	shotListener(ana, nil)
 	now = run(now, 0.1)
 end
 local held = shots(ana)
-check(("mantener pulsado: dispara a la cadencia del arma, no más (%d en 1 s)"):format(#held), #held >= 3 and #held <= 5)
+check(("mantener pulsado: dispara a la cadencia del arma, no más (%d en 1 s)"):format(#held), #held >= 2 and #held <= 4)
 table.clear(fired)
 hitListener(ana, manualFar)
 shotListener(ana, manualFar)
@@ -275,5 +280,62 @@ hitListener(ana, chosen)
 shotListener(ana, chosen)
 now = run(now, 1.4)
 check(("las mascotas siguen golpeando al elegido (%d golpes) aunque el arma dispare una vez"):format(petHitsIn(fired)), #shots(ana) == 1 and petHitsIn(fired) >= 2)
+
+print("-- 8. Estilos de pelea")
+local function damageOf(enemy)
+	return enemy.Status.MaxHealth - enemy.Status.Health
+end
+local function near2(a, b)
+	return math.abs(a - b) < 1e-6
+end
+reset()
+profiles[ana] = profileWith("Laser")
+critRoll = 0 -- todos críticos
+local critTarget = newEnemy(90, 20, 0, 100000)
+now = run(now, 0.6)
+local critShots = shots(ana)
+check("Armas · Puntería: un crítico hace ×2 y el disparo lo avisa", #critShots > 0 and critShots[1].Crit == true and critShots[1].Style == "Weapons" and near2(damageOf(critTarget), 16 * #critShots))
+critRoll = 0.99
+
+reset()
+local fists = profileWith("Laser")
+fists.PetData.Style = "Fists"
+profiles[ana] = fists
+local farFist = newEnemy(91, 20, 0, 100000)
+now = run(now, 0.6)
+check("Puños: a 20 studs no llega (alcance 9)", #shots(ana) == 0 and farFist.Status.Health == 100000)
+local closeFist = newEnemy(92, 8, 0, 100000)
+table.clear(fired)
+now = run(now, 1)
+local punches = shots(ana)
+-- Láser: 20 DPS · 1.5 = 30 DPS en golpes de 0.35 s = 10.5 por golpe, sin crítico
+check(("Puños: golpes rápidos de 10.5 (%d en 1 s) y sin efecto del arma"):format(#punches), #punches >= 2 and #punches <= 4 and near2(damageOf(closeFist), 10.5 * #punches) and punches[1].Style == "Fists" and punches[1].Splash == nil)
+
+reset()
+local magic = profileWith("Laser")
+magic.PetData.Style = "Magic"
+profiles[ana] = magic
+ana.Humanoid.MaxHealth = 100
+ana.Humanoid.Health = 50
+local orbTarget = newEnemy(93, 30, 0, 100000)
+local orbClose = newEnemy(94, 34, 0, 100000)
+local orbFar = newEnemy(95, 50, 0, 100000)
+now = run(now, 0.7)
+local orbs = shots(ana)
+-- Magia: 20 DPS en orbes de 0.6 s = 12 por orbe; explosión de 7 studs al 50 %
+check(("Magia: orbes de 12 que explotan (6 al de al lado), %d orbes"):format(#orbs), #orbs >= 1 and near2(damageOf(orbTarget), 12 * #orbs) and near2(damageOf(orbClose), 6 * #orbs) and orbFar.Status.Health == 100000 and orbs[1].Splash == 7)
+-- Robo de vida: 5 % de 18 por orbe = 0.9 (tope 3 por golpe)
+check("Magia · Robo de vida: se cura una parte del daño", near2(ana.Humanoid.Health, 50 + 0.9 * #orbs))
+ana.Humanoid.Health = 100
+
+reset()
+profiles[ana] = profileWith("Laser")
+local burstTarget = newEnemy(97, 20, 0, 100000)
+PetCombatService.setBurst(ana, now + 10)
+table.clear(fired)
+now = run(now, 1)
+local burst = shots(ana)
+check(("Armas · Ráfaga: dispara el doble de rápido (%d en 1 s)"):format(#burst), #burst >= 4 and #burst <= 6)
+PetCombatService.setBurst(ana, 0)
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

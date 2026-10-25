@@ -46,12 +46,12 @@ for index = 2, #order do
 	end
 end
 check("cada arma hace más daño por segundo que la anterior", growing)
-check("láser nivel 0: 5 por disparo, 20/s y poder 10 (como el antiguo golpe)", WeaponLogic.shotDamage("Laser", 0) == 5 and WeaponLogic.dps("Laser", 0) == 20 and WeaponLogic.power("Laser", 0) == 10)
-check("cada nivel suma un 15 %", WeaponLogic.shotDamage("Laser", 10) == 12.5)
-check("mascotas ×1.5 → +25 % (la mitad de su bonificación)", WeaponLogic.shotDamage("Laser", 0, 1.5) == 6.25)
-check("renacimiento ×2 duplica", WeaponLogic.shotDamage("Laser", 0, 1, 2) == 10)
-check("valores no válidos no rompen ni bajan de la base", WeaponLogic.shotDamage("Laser", 0 / 0, 0 / 0, -1) == 5 and WeaponLogic.shotDamage("Nope", 0) == 5)
-check("la cadencia acorta el tiempo entre disparos con un tope", WeaponLogic.cooldown("Laser", 4) == 0.25 * 0.9 and WeaponLogic.cooldown("Laser", 999) == 0.25 * WeaponConfig.MinCadenceFactor)
+check("láser nivel 0: 8 por disparo, 20/s y poder 10 (como el antiguo golpe)", WeaponLogic.shotDamage("Laser", 0) == 8 and WeaponLogic.dps("Laser", 0) == 20 and WeaponLogic.power("Laser", 0) == 10)
+check("cada nivel suma un 15 %", WeaponLogic.shotDamage("Laser", 10) == 20)
+check("mascotas ×1.5 → +25 % (la mitad de su bonificación)", WeaponLogic.shotDamage("Laser", 0, 1.5) == 10)
+check("renacimiento ×2 duplica", WeaponLogic.shotDamage("Laser", 0, 1, 2) == 16)
+check("valores no válidos no rompen ni bajan de la base", WeaponLogic.shotDamage("Laser", 0 / 0, 0 / 0, -1) == 8 and WeaponLogic.shotDamage("Nope", 0) == 8)
+check("la cadencia acorta el tiempo entre disparos con un tope", WeaponLogic.cooldown("Laser", 4) == 0.4 * 0.9 and WeaponLogic.cooldown("Laser", 999) == 0.4 * WeaponConfig.MinCadenceFactor)
 local plasma = WeaponConfig.Weapons.PlasmaBlaster
 check("el plasma no es solo más daño: explota en área y dispara más lento", plasma.Effect.Splash ~= nil and plasma.Cooldown > starter.Cooldown)
 check("el cristal salta entre enemigos", WeaponConfig.Weapons.CrystalCannon.Effect.Chain.Count >= 2)

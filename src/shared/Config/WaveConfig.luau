@@ -145,18 +145,18 @@ local WaveConfig = {
 	MaxPlayersPerRun = 4,
 
 	-- Ritmo de la partida (segundos)
-	StartCountdown = 4, -- durante la cuenta atrás, quien pulse E se une
-	BreakSeconds = 1, -- entre oleadas
-	CardSeconds = 10, -- para elegir mejora (luego se elige una al azar)
+	StartCountdown = 3, -- durante la cuenta atrás, quien pulse E se une
+	BreakSeconds = 0.6, -- entre oleadas (casi seguidas)
+	CardSeconds = 8, -- para elegir mejora (luego se elige una al azar)
 	LeaveGrace = 6, -- sin nadie dentro (o todos caídos) durante esto: se pierde
 	-- Aparición: de BatchSize en BatchSize cada SpawnInterval, sin pasar de los vivos a la
 	-- vez de la oleada: AliveStart en la 1.ª y AliveGrowth más en cada una, hasta MaxAlive
 	-- (las primeras no te rodean de golpe).
-	SpawnInterval = 0.6,
-	BatchSize = 4,
-	AliveStart = 7,
+	SpawnInterval = 0.4,
+	BatchSize = 5,
+	AliveStart = 8,
 	AliveGrowth = 2,
-	MaxAlive = 18,
+	MaxAlive = 20,
 	-- Al limpiar cada oleada recuperas esta parte de tu vida máxima.
 	ClearHeal = 0.35,
 	-- Daño que hacen los enemigos de la oleada w (el jefe, el suyo):
@@ -166,7 +166,7 @@ local WaveConfig = {
 	DamageGrowth = 0.1,
 	DamageMax = 1.3,
 	-- La escolta del jefe sale poco a poco mientras el jefe siga vivo.
-	EscortInterval = 8,
+	EscortInterval = 6,
 
 	-- Dificultad y premios por oleada (oleada w, n jugadores dentro):
 	--   vida = base · (1 + HealthGrowth · (w - 1)) · (1 + PlayerHealth · (n - 1))
@@ -228,6 +228,26 @@ local WaveConfig = {
 
 	-- Protección del servidor contra peticiones repetidas.
 	ActionCooldown = 0.25,
+
+	-- Sonidos de la partida (solo cliente, WaveFx). Todos son de las bibliotecas con licencia
+	-- de Roblox (Pro Sound Effects y APM Music): sirven en cualquier experiencia y se
+	-- comprobó en Studio que cargan. Volume 0..1; Pitch cambia tono y velocidad.
+	Sounds = {
+		Tick = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.35, Pitch = 1.2 }, -- cuenta atrás y racha
+		Whoosh = { Id = "rbxassetid://9126229267", Volume = 0.5, Pitch = 1 }, -- PSE: ráfaga rápida (0,6 s)
+		WaveHit = { Id = "rbxassetid://1846902656", Volume = 0.55, Pitch = 1 }, -- APM: golpe grave de orquesta (empieza la oleada)
+		Cleared = { Id = "rbxassetid://1839997962", Volume = 0.45, Pitch = 1 }, -- APM: "respuesta correcta" con brillos
+		CardsOpen = { Id = "rbxassetid://9126228629", Volume = 0.4, Pitch = 1.1 }, -- PSE: zoom de cámara
+		Chime = { Id = "rbxassetid://9116394876", Volume = 0.45, Pitch = 1.4 }, -- campanillas (las de las mejoras del juego)
+		Pick = { Id = "rbxassetid://9116394876", Volume = 0.55, Pitch = 1.75 },
+		BossGong = { Id = "rbxassetid://9114630316", Volume = 0.6, Pitch = 0.9 }, -- PSE: gong con cola larga
+		BossRoar = { Id = "rbxassetid://9113980319", Volume = 0.5, Pitch = 0.8 }, -- PSE: rugido de bestia gigante
+		Victory = { Id = "rbxassetid://1840091929", Volume = 0.6, Pitch = 1 }, -- APM: fanfarria de metales y percusión
+		Record = { Id = "rbxassetid://1839997693", Volume = 0.55, Pitch = 1 }, -- APM: metales y coro épico
+		Endless = { Id = "rbxassetid://9125807267", Volume = 0.6, Pitch = 0.9 }, -- PSE: ráfaga que sube
+		EndlessEnd = { Id = "rbxassetid://1839997745", Volume = 0.5, Pitch = 1 }, -- APM: final orgulloso con cuerdas y coro
+		Defeat = { Id = "rbxassetid://1839997989", Volume = 0.55, Pitch = 1 }, -- APM: melodía grave que baja
+	},
 }
 
 return WaveConfig

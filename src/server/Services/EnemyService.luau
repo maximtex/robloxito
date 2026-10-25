@@ -83,16 +83,32 @@ local MAX_CONTROL_SECONDS = 10
 local KNOCKBACK_SECONDS = 0.18 -- duración del empujón (distancia ≈ fuerza · duración)
 -- Atributo de presentación de cada estado (hora del servidor a la que termina).
 local STATUS_ATTRIBUTES = { Slow = "SlowUntil", Root = "RootUntil", Stun = "StunUntil", Vulnerable = "CurseUntil", Burn = "BurnUntil" }
-local KIND_BAR_COLORS = {
-	Normal = Color3.fromRGB(120, 230, 110),
-	Strong = Color3.fromRGB(255, 180, 60),
-	Boss = Color3.fromRGB(240, 80, 96),
+-- Barra de vida como la de Roblox (la de los jugadores): nombre blanco con sombra y barra
+-- verde que pasa a amarilla y a roja al bajar. El nombre de los fuertes y los jefes lleva un
+-- toque de color para distinguirlos.
+local BAR_HEALTHY = Color3.fromRGB(27, 252, 107)
+local BAR_WARNING = Color3.fromRGB(250, 235, 0)
+local BAR_CRITICAL = Color3.fromRGB(255, 28, 0)
+local BAR_TRACK = Color3.fromRGB(28, 28, 28)
+local KIND_NAME_COLORS = {
+	Normal = Color3.fromRGB(255, 255, 255),
+	Strong = Color3.fromRGB(255, 214, 140),
+	Boss = Color3.fromRGB(255, 150, 150),
 }
--- Estilo caricatura (como la interfaz): contorno oscuro alrededor de cada enemigo y
--- barras de vida grandes con borde, visibles desde más lejos.
+-- Contorno oscuro alrededor de cada enemigo (estilo caricatura).
 local INK = Color3.fromRGB(43, 29, 63)
-local BAR_SIZES = { Normal = UDim2.fromOffset(150, 40), Strong = UDim2.fromOffset(170, 42), Boss = UDim2.fromOffset(220, 46) }
+local BAR_SIZES = { Normal = UDim2.fromOffset(130, 32), Strong = UDim2.fromOffset(150, 34), Boss = UDim2.fromOffset(190, 38) }
 local BAR_DISTANCE = { Normal = 120, Strong = 140, Boss = 180 }
+
+-- Color de la barra según la vida que queda (0..1), como la de Roblox.
+local function healthColor(fraction: number): Color3
+	if fraction >= 0.5 then
+		return BAR_HEALTHY
+	elseif fraction >= 0.25 then
+		return BAR_WARNING:Lerp(BAR_HEALTHY, (fraction - 0.25) / 0.25)
+	end
+	return BAR_CRITICAL:Lerp(BAR_WARNING, math.max(0, fraction) / 0.25)
+end
 
 type SafeZone = { Center: Vector3, Radius: number }
 type SafeArea = { Min: Vector2, Max: Vector2 } -- rectángulo en X/Z del mundo
@@ -534,38 +550,43 @@ local function buildHealthBar(enemy: Enemy, barHeight: number)
 	billboard.Adornee = enemy.Root
 
 	local name = Instance.new("TextLabel")
-	name.Size = UDim2.new(1, 0, 0.5, 0)
+	name.Name = "EnemyName"
+	name.Size = UDim2.new(1, 0, 0.58, 0)
 	name.BackgroundTransparency = 1
-	name.Font = Enum.Font.FredokaOne
+	name.Font = Enum.Font.GothamBold
 	name.TextScaled = true
-	name.TextColor3 = Color3.new(1, 1, 1)
+	name.TextColor3 = KIND_NAME_COLORS[enemy.Kind] or KIND_NAME_COLORS.Normal
+	name.TextStrokeColor3 = Color3.new(0, 0, 0)
+	name.TextStrokeTransparency = 0.35
 	name.Text = enemy.Def.DisplayName
 	name.Parent = billboard
-	local nameStroke = Instance.new("UIStroke")
-	nameStroke.Color = INK
-	nameStroke.Thickness = 2
-	nameStroke.Parent = name
 
 	local track = Instance.new("Frame")
-	track.Position = UDim2.new(0, 2, 0.58, 0)
-	track.Size = UDim2.new(1, -4, 0.34, 0)
-	track.BackgroundColor3 = INK
+	track.Name = "Track"
+	track.AnchorPoint = Vector2.new(0.5, 0)
+	track.Position = UDim2.new(0.5, 0, 0.66, 0)
+	track.Size = UDim2.new(0.86, 0, 0.26, 0)
+	track.BackgroundColor3 = BAR_TRACK
+	track.BackgroundTransparency = 0.25
+	track.BorderSizePixel = 0
 	track.Parent = billboard
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.CornerRadius = UDim.new(0, 3)
 	corner.Parent = track
 	local trackStroke = Instance.new("UIStroke")
-	trackStroke.Color = INK
-	trackStroke.Thickness = 2
+	trackStroke.Color = Color3.new(0, 0, 0)
+	trackStroke.Transparency = 0.4
+	trackStroke.Thickness = 1
 	trackStroke.Parent = track
 
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
 	fill.Size = UDim2.fromScale(1, 1)
-	fill.BackgroundColor3 = KIND_BAR_COLORS[enemy.Kind] or KIND_BAR_COLORS.Normal
+	fill.BackgroundColor3 = BAR_HEALTHY
+	fill.BorderSizePixel = 0
 	fill.Parent = track
 	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(0.5, 0)
+	fillCorner.CornerRadius = UDim.new(0, 3)
 	fillCorner.Parent = fill
 
 	billboard.Enabled = false
@@ -580,7 +601,9 @@ local function syncHealth(enemy: Enemy)
 	local status = enemy.Status
 	enemy.Model:SetAttribute("Health", math.ceil(status.Health))
 	enemy.Model:SetAttribute("MaxHealth", status.MaxHealth)
-	enemy.Bar.Size = UDim2.fromScale(math.clamp(status.Health / status.MaxHealth, 0, 1), 1)
+	local fraction = math.clamp(status.Health / status.MaxHealth, 0, 1)
+	enemy.Bar.Size = UDim2.fromScale(fraction, 1)
+	enemy.Bar.BackgroundColor3 = healthColor(fraction)
 end
 
 local function setEyes(enemy: Enemy, color: Color3)

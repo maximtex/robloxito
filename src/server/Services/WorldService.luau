@@ -22,6 +22,7 @@ local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local StudWorld = require(script.Parent.Parent.Util.StudWorld)
 local ChristmasDecor = require(script.Parent.Parent.Util.ChristmasDecor)
 local ChristmasData = require(script.Parent.Parent.Util.ChristmasData)
+local ForestCave = require(script.Parent.Parent.Util.ForestCave)
 local StudFloor = require(Shared.Util.StudFloor)
 
 local WorldService = {}
@@ -567,7 +568,20 @@ local function buildForestDetails(parent: Instance)
 			end
 		end
 	end
-	local decor = StudWorld.newDecor(FOREST, "Forest", keepOut)
+	-- La decoración se reparte como antes de existir el camino de la cueva (misma semilla, mismos
+	-- sitios) y luego se quita lo que haya quedado encima de ese camino.
+	local road = FOREST.Cave and FOREST.Cave.Road
+	local decorLayout = FOREST
+	if road then
+		decorLayout = table.clone(FOREST)
+		decorLayout.Paths = {}
+		for _, path in FOREST.Paths do
+			if path ~= road and not (path[1] == road[1] and path[2] == road[2] and path[3] == road[3] and path[4] == road[4]) then
+				table.insert(decorLayout.Paths, path)
+			end
+		end
+	end
+	local decor = StudWorld.newDecor(decorLayout, "Forest", keepOut)
 	local rng = decor.Rng
 
 	-- Pocos árboles sueltos al azar por las praderas, sin hileras (en Navidad, el árbol navideño
@@ -590,6 +604,16 @@ local function buildForestDetails(parent: Instance)
 	decor.scatter(50, 1.5, math.huge, 3, function(pos)
 		buildGrassTuft(pos, rng:NextNumber() < 0.45)
 	end)
+
+	-- Fuera lo que pise el camino de la cueva (con 3 studs de margen)
+	if road then
+		for _, child in folder:GetChildren() do
+			local position = if child:IsA("Model") then child:GetPivot().Position elseif child:IsA("BasePart") then child.Position else nil
+			if position and position.X > road[1] - 3 and position.X < road[2] + 3 and position.Z > road[3] - 3 and position.Z < road[4] + 3 then
+				child:Destroy()
+			end
+		end
+	end
 end
 
 -- Luz del juego desde WorldConfig.Lighting: la misma que DayNightController usa de día, así
@@ -682,6 +706,12 @@ function WorldService.start()
 			end,
 		},
 		{ "buildForestDetails", buildForestDetails },
+		{
+			"buildForestCave",
+			function(parent)
+				ForestCave.build(parent, FOREST)
+			end,
+		},
 		{
 			"buildChristmasDecor",
 			function(parent)

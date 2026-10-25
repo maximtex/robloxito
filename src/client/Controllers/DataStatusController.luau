@@ -2,12 +2,17 @@
 -- - Arriba en el centro: Pastilla amarilla compacta `.warn-pill` con icono `!` para avisos de
 --   estado de datos ("Modo sin guardado · el progreso de esta sesión no se guardará", etc.).
 -- - Arriba a la derecha: Cabecera de zona `.zone-card` ("Bosque" / "ZONA 1 · PLAZA DEL CRISTAL").
+--   Dentro de la Cueva de los Espinillos dice "ZONA 1 · CUEVA DE LOS ESPINILLOS" y el sonido
+--   suena con eco de cueva (SoundService.AmbientReverb, solo para este jugador).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
 
 local Constants = require(ReplicatedStorage:WaitForChild("Shared").Constants)
+local StudFloor = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("StudFloor"))
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local HudLayout = require(script.Parent.Parent.UI.HudLayout)
@@ -173,14 +178,34 @@ function DataStatusController.start()
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
 	applyScale()
 
+	local inCave = false
+	local cave = StudFloor.Zones.Forest.Cave
 	local function refreshZone()
 		local z = player:GetAttribute(Constants.Attributes.CurrentZone)
 		local info = (typeof(z) == "string" and ZONE_HEADERS[z]) or ZONE_HEADERS.Forest
 		zoneTitle.Text = info.Title
-		zoneSub.Text = info.Sub
+		zoneSub.Text = if inCave and cave then "ZONA 1 · " .. string.upper(cave.Name) else info.Sub
 	end
 	player:GetAttributeChangedSignal(Constants.Attributes.CurrentZone):Connect(refreshZone)
 	refreshZone()
+
+	-- ¿Estás dentro de la cueva? (cada medio segundo)
+	local caveCheck = 0
+	RunService.Heartbeat:Connect(function(dt: number)
+		caveCheck += dt
+		if caveCheck < 0.5 then
+			return
+		end
+		caveCheck = 0
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local now = root ~= nil and root:IsA("BasePart") and StudFloor.inCave(root.Position.X, root.Position.Z)
+		if now ~= inCave then
+			inCave = now
+			SoundService.AmbientReverb = if now then Enum.ReverbType.Cave else Enum.ReverbType.NoReverb
+			refreshZone()
+		end
+	end)
 
 	local dismissed: { [string]: boolean } = {}
 	local shownKey: string? = nil

@@ -120,8 +120,24 @@ StudFloor.Zones = {
 			{ 12, 28, 52, 68 }, -- pasillo de 2 bloques del patio a la avenida sur, con hierba a los lados
 			{ -12, 12, 28, 108 }, -- avenida sur hacia el portal del Valle
 			{ -28, 28, 108, 140 }, -- plazoleta del portal (entra en el paso del muro)
+			{ -140, -44, 12, 28 }, -- camino de la cueva: de la plaza a la boca (Cave.Road)
 		},
 		DecorSeed = 2024,
+		-- Cueva de los Espinillos, al oeste (la construye Server.Util.ForestCave): un camino
+		-- sale de la plaza del pueblo, cruza la pradera oeste y entra por una boca en la colina a
+		-- una sala cerrada, fuera del rectángulo de siempre, donde viven muchos bichos
+		-- (EnemyConfig.Zones.Forest.Spawns). Todo en coordenadas del mundo y en bordes de bloque.
+		-- Road: el camino (también está en Paths, para que se dibuje con sus bordes).
+		-- Opening: casillas de la colina que se vacían para la boca; Ceiling: filas de 8 de alto
+		-- del hueco (encima vuelve a haber colina).
+		-- Room: la sala (sus paredes, techo y suelo de piedra); Height: alto del techo.
+		Cave = {
+			Name = "Cueva de los Espinillos",
+			Road = { -140, -44, 12, 28 },
+			Opening = { MinX = -140, MaxX = -124, MinZ = 12, MaxZ = 28, Ceiling = 3 },
+			Room = { MinX = -236, MaxX = -140, MinZ = -28, MaxZ = 68 },
+			Height = 32,
+		},
 	},
 
 	-- Valle Morado: llegada desde el Bosque, río con puente en la avenida, plaza del santuario
@@ -320,6 +336,23 @@ function StudFloor.onFloor(layout, x: number, z: number, margin: number?): boole
 		end
 	end
 	return true
+end
+
+-- ¿Está el punto (x, z) del mundo dentro de la sala o la boca de la cueva de alguna zona?
+-- margin: studs de más alrededor.
+function StudFloor.inCave(x: number, z: number, margin: number?): boolean
+	local m = margin or 0
+	for _, zone in StudFloor.Zones do
+		local cave = (zone :: any).Cave
+		if cave then
+			for _, r in { cave.Room, cave.Opening } do
+				if x > r.MinX - m and x < r.MaxX + m and z > r.MinZ - m and z < r.MaxZ + m then
+					return true
+				end
+			end
+		end
+	end
+	return false
 end
 
 -- Altura extra del suelo en (x, z) del mundo: PathRaise sobre un camino o plaza de cualquier

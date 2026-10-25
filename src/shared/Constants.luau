@@ -163,6 +163,13 @@ local Constants = {
 		-- Servidor -> cliente: (success, code, action, detail?); también "Drop" (botín de un
 		-- jefe), "Title" (título nuevo) y "BoostEnded" (se acabó una poción).
 		ItemResult = "ItemResult",
+
+		-- Estilos de pelea (StyleService; StyleConfig). Cliente -> servidor: ("Set", styleId)
+		-- cambia de estilo o ("Ability") usa la habilidad del estilo; el servidor lo decide todo.
+		StyleAction = "StyleAction",
+		-- Servidor -> clientes cercanos: (event) efecto YA resuelto de una habilidad de estilo
+		-- ("Burst", "Quake", "Meteor") o resultado para quien la pidió ("Result").
+		StyleEvent = "StyleEvent",
 	},
 
 	-- Atributos que el servidor escribe en el Player (solo lectura para el cliente).
@@ -239,6 +246,11 @@ local Constants = {
 		-- modelo y en sus efectos). Las partidas son privadas: cada jugador solo ve, golpea y
 		-- recibe golpes de los enemigos con su mismo valor (nil = el mundo normal).
 		WaveRun = "WaveRun",
+		-- Estilo de pelea elegido (StyleConfig: "Weapons" | "Fists" | "Magic"), hora del
+		-- servidor en que su habilidad vuelve a estar lista y hasta cuándo dura la Ráfaga.
+		CombatStyle = "CombatStyle",
+		StyleReadyAt = "StyleReadyAt",
+		StyleBurstUntil = "StyleBurstUntil",
 	},
 
 	PurchaseCodes = {

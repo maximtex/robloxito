@@ -251,11 +251,15 @@ local INWARD = {
 	[Enum.NormalId.Front] = -Vector3.zAxis,
 }
 
+StudWorld.studFace = studFace
+
 -- Borde a medida (layout.Outline): lo que hay entre el suelo y el rectángulo del mapa es una
 -- colina de bloques en una rejilla de 8x8 alineada con el suelo. Las casillas que tocan el suelo
 -- son columnas de muro como las de siempre (tierra abajo, hierba arriba con alero y alguna una
 -- fila más alta); las de detrás, una meseta de hierba a la misma altura. Studs nítidos en todo
 -- lo que se ve. El muro sur (compartido con la zona siguiente) se hace aparte, como siempre.
+-- layout.Cave.Opening: casillas que se vacían para la boca de una cueva ("tunnel"): las de al
+-- lado se vuelven muro y encima del hueco (Ceiling filas) sigue la colina, como un dintel.
 local function buildHill(folder: Instance, layout)
 	local W = StudFloor.Wall
 	local B, H, O, t = W.BlockWidth, W.BlockHeight, W.GrassOverhang, W.Thickness
@@ -273,9 +277,13 @@ local function buildHill(folder: Instance, layout)
 	end
 	local i0, i1 = math.round((x0 + B / 2) / B), math.round((x1 - B / 2) / B)
 	local j0, j1 = math.round((z0 + B / 2) / B), math.round((z1 - B / 2) / B)
+	local opening = layout.Cave and layout.Cave.Opening
+	local function inOpening(x: number, z: number): boolean
+		return opening ~= nil and x > opening.MinX and x < opening.MaxX and z > opening.MinZ and z < opening.MaxZ
+	end
 	for i = i0, i1 do
 		for j = j0, j1 do
-			kinds[key(i, j)] = if StudFloor.onFloor(layout, i * B, j * B) then "floor" else "fill"
+			kinds[key(i, j)] = if inOpening(i * B, j * B) then "tunnel" elseif StudFloor.onFloor(layout, i * B, j * B) then "floor" else "fill"
 		end
 	end
 	local SIDES = {
@@ -292,7 +300,8 @@ local function buildHill(folder: Instance, layout)
 			if kind(i, j) == "fill" then
 				local touches = false
 				for _, side in SIDES do
-					if kind(i + side[1], j + side[2]) == "floor" then
+					local other = kind(i + side[1], j + side[2])
+					if other == "floor" or other == "tunnel" then
 						touches = true
 					end
 				end
@@ -305,7 +314,7 @@ local function buildHill(folder: Instance, layout)
 	local heights: { [string]: number } = {}
 	local function heightOf(i: number, j: number): number
 		local k = kind(i, j)
-		if k == "floor" then
+		if k == "floor" or k == "tunnel" then
 			return 0
 		elseif k == "wall" then
 			local h = heights[key(i, j)]
@@ -335,7 +344,45 @@ local function buildHill(folder: Instance, layout)
 	for i = i0, i1 do
 		for j = j0, j1 do
 			local k = kind(i, j)
-			if k == "top" then
+			if k == "tunnel" then
+				-- Boca de la cueva: hueco de Ceiling filas y encima la colina (dintel), con
+				-- hierba arriba y alero hacia la pradera como el muro de al lado
+				local ceiling = opening.Ceiling or 3
+				local g = grassRows(i, j)
+				for r = ceiling + 1, rows do
+					local grassy = r > rows - g
+					local color = (if grassy then walls.Top else walls.Base)[(r + i + j) % 2 + 1]
+					local part = block(("dintel_%s_%d"):format(key(i, j), r), Vector3.new(i * B, GROUND + (r - 0.5) * H, j * B), Vector3.new(B, H, B), color)
+					for _, side in SIDES do
+						if kind(i + side[1], j + side[2]) == "floor" then
+							studFace(part, side[3], B, H)
+						end
+					end
+					if r == ceiling + 1 then
+						studFace(part, Enum.NormalId.Bottom, B, B)
+					end
+					if r == rows then
+						studFace(part, Enum.NormalId.Top, B, B)
+					end
+				end
+				for _, side in SIDES do
+					if kind(i + side[1], j + side[2]) == "floor" then
+						local out = Vector3.new(side[1], 0, side[2])
+						local size = if side[1] ~= 0 then Vector3.new(O, H, B) else Vector3.new(B, H, O)
+						for r = math.max(ceiling + 1, rows - g + 1), rows do
+							local center = Vector3.new(i * B, GROUND + (r - 0.5) * H, j * B) + out * (B / 2 + O / 2)
+							local lip = block(("alero_%s_%d"):format(key(i, j), r), center, size, walls.Top[(r + i + j) % 2 + 1])
+							studFace(lip, side[3], B, H)
+							if r == rows then
+								studFace(lip, Enum.NormalId.Top, size.X, size.Z)
+							end
+							if r == math.max(ceiling + 1, rows - g + 1) then
+								studFace(lip, Enum.NormalId.Bottom, size.X, size.Z)
+							end
+						end
+					end
+				end
+			elseif k == "top" then
 				-- Meseta: un bloque de hierba arriba
 				local part = block("meseta_" .. key(i, j), Vector3.new(i * B, GROUND + (rows - 0.5) * H, j * B), Vector3.new(B, H, B), walls.Top[(rows + i + j) % 2 + 1])
 				studFace(part, Enum.NormalId.Top, B, B)

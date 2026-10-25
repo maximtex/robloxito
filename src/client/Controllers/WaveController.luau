@@ -15,13 +15,15 @@
 -- - Racha: contador "x12" sobre tu cabeza mientras matas sin parar (atributos Streak y
 --   StreakUntil de EnemyService), con el multiplicador de botín que da.
 -- - Explosiones de la mejora "Reacción en cadena".
+-- - Sonidos y efectos de cada momento (WaveFx): golpe y onda al empezar oleada, chispas al
+--   superarla, gong y viñeta roja con el jefe, confeti en la victoria y el récord, pantalla
+--   gris al caer.
 
 local ContextActionService = game:GetService("ContextActionService")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
@@ -33,6 +35,8 @@ local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Toasts = require(script.Parent.Parent.UI.Toasts)
+local Juice = require(script.Parent.Parent.UI.Juice)
+local WaveFx = require(script.Parent.WaveFx)
 
 local HudDock = require(script.Parent.Parent.UI.HudDock)
 
@@ -53,24 +57,13 @@ local STREAK_COLORS = {
 	{ Min = 50, Color = Color3.fromRGB(255, 92, 120) },
 	{ Min = 100, Color = Color3.fromRGB(196, 120, 255) },
 }
-local SOUNDS = {
-	Tick = "rbxasset://sounds/electronicpingshort.wav",
-	Wave = "rbxasset://sounds/impact_explosion_03.mp3",
-	Pick = "rbxasset://sounds/electronicpingshort.wav",
-}
+local CLEAR_GREEN = Color3.fromRGB(150, 236, 120)
+local ENDLESS_PURPLE = Color3.fromRGB(176, 120, 255)
+local HEAL_PINK = Color3.fromRGB(255, 120, 160)
 
 local WaveController = {}
 
 local player = Players.LocalPlayer
-
-local function makeSound(id: string, volume: number, speed: number): Sound
-	local sound = Instance.new("Sound")
-	sound.SoundId = id
-	sound.Volume = volume
-	sound.PlaybackSpeed = speed
-	sound.Parent = SoundService
-	return sound
-end
 
 local function serverNow(): number
 	return Workspace:GetServerTimeNow()
@@ -503,9 +496,7 @@ function WaveController.start()
 
 	local ui = buildHud()
 	local streakUi = buildStreak()
-	local tickSound = makeSound(SOUNDS.Tick, 0.35, 1.2)
-	local waveSound = makeSound(SOUNDS.Wave, 0.3, 0.7)
-	local pickSound = makeSound(SOUNDS.Pick, 0.45, 1.6)
+	WaveFx.init()
 
 	local fxFolder = Workspace:FindFirstChild("ClientWaveFX")
 	if fxFolder then
@@ -520,6 +511,8 @@ function WaveController.start()
 	local lastWave = 0
 	local cardData: any = nil
 	local resultToken = 0
+	local pickedHere = false -- elegiste tú la mejora (si no, la eligió el servidor al acabarse el tiempo)
+	local celebratedRun: number? = nil -- partida cuya victoria ya se celebró (al caer el jefe)
 
 	-- Anuncio grande en el centro
 	local announceToken = 0
@@ -548,6 +541,116 @@ function WaveController.start()
 			return current
 		end
 		return nil
+	end
+
+	-- Efectos de cada momento (WaveFx) -------------------------------------------------
+	local function arenaSize(state: any): number
+		return (tonumber(state and state.Radius) or WaveConfig.Place.AreaRadius) * 2
+	end
+
+	-- Empieza una oleada: golpe, onda desde el altar y un toque de cámara.
+	local function waveStartFx(state: any)
+		WaveFx.sound("Whoosh")
+		WaveFx.sound("WaveHit", 1, 0.05)
+		WaveFx.flash(Color3.new(1, 1, 1), 0.3)
+		WaveFx.shake(0.22)
+		WaveFx.kick(3)
+		if typeof(state.Center) == "Vector3" then
+			local size = arenaSize(state)
+			WaveFx.ring(state.Center, if state.Endless then ENDLESS_PURPLE else THEME.Gold, 4, size * 1.1, 0.8, 0.15)
+			task.delay(0.12, WaveFx.ring, state.Center, Color3.new(1, 1, 1), 2, size * 0.8, 0.7, 0.4)
+		end
+	end
+
+	-- Sale el jefe: gong, rugido, imagen roja un momento y viñeta que late mientras viva.
+	local function bossFx(state: any)
+		WaveFx.sound("BossGong")
+		WaveFx.sound("BossRoar", 1, 0.45)
+		WaveFx.flash(BOSS_RED, 0.5)
+		WaveFx.pulse(BOSS_RED, 0.6, 1.8)
+		WaveFx.tint({ TintColor = Color3.fromRGB(255, 205, 205), Contrast = 0.12 }, 0.4, 1.6)
+		WaveFx.shake(0.55)
+		WaveFx.kick(7)
+		if typeof(state.Center) == "Vector3" then
+			local size = arenaSize(state)
+			WaveFx.ring(state.Center, BOSS_RED, 4, size * 1.3, 1.1, 0.1)
+			task.delay(0.25, WaveFx.ring, state.Center, BOSS_RED, 2, size, 0.9, 0.3)
+		end
+	end
+
+	-- Oleada superada: sonido de acierto y chispas verdes a tus pies (rosas si te curó).
+	local function clearedFx(data: any)
+		WaveFx.sound("Cleared")
+		announce("✅ ¡OLEADA SUPERADA!", CLEAR_GREEN, 1)
+		WaveFx.flash(CLEAR_GREEN, 0.25)
+		WaveFx.pulse(CLEAR_GREEN, 0.3, 0.9)
+		local feet = WaveFx.feet()
+		if feet then
+			WaveFx.ring(feet, CLEAR_GREEN, 2, 14, 0.7, 0.2)
+			WaveFx.sparkle(feet + Vector3.new(0, 1.5, 0), CLEAR_GREEN, 18)
+			if data.Healed == true then
+				WaveFx.sparkle(feet + Vector3.new(0, 2.5, 0), HEAL_PINK, 12)
+			end
+		end
+	end
+
+	-- Victoria (una vez por partida): fanfarria, destello dorado y lluvia de confeti.
+	local function celebrate(runId: number?)
+		if runId ~= nil and celebratedRun == runId then
+			return
+		end
+		celebratedRun = runId
+		WaveFx.setDanger(false)
+		WaveFx.sound("Victory")
+		WaveFx.flash(THEME.Gold, 0.45)
+		WaveFx.pulse(THEME.Gold, 0.35, 1.5)
+		WaveFx.shake(0.3)
+		WaveFx.confetti(90)
+		local feet = WaveFx.feet()
+		if feet then
+			WaveFx.sparkle(feet + Vector3.new(0, 2, 0), THEME.Gold, 30)
+		end
+	end
+
+	-- Récord superado en plena partida: coro, estrellas y confeti desde el anuncio.
+	local function recordFx()
+		WaveFx.sound("Record")
+		WaveFx.flash(THEME.Gold, 0.25)
+		WaveFx.confettiFrom(ui.Announce, 45)
+		Juice.burst(ui.Announce, THEME.Gold, 14, 160)
+	end
+
+	-- Entras al modo infinito: ráfaga que sube y golpe, todo morado.
+	local function endlessFx()
+		WaveFx.sound("Endless")
+		WaveFx.sound("WaveHit", 0.85, 0.9)
+		WaveFx.flash(ENDLESS_PURPLE, 0.4)
+		WaveFx.pulse(ENDLESS_PURPLE, 0.45, 1.4)
+		WaveFx.kick(5)
+		local state = myState()
+		if state and typeof(state.Center) == "Vector3" then
+			WaveFx.ring(state.Center, ENDLESS_PURPLE, 4, arenaSize(state) * 1.2, 1, 0.15)
+		end
+	end
+
+	-- Caíste: melodía que baja y la imagen pierde el color unos segundos.
+	local function defeatFx()
+		WaveFx.setDanger(false)
+		WaveFx.sound("Defeat")
+		WaveFx.tint({ Saturation = -0.85, Brightness = -0.04 }, 0.8, 2.2)
+		WaveFx.pulse(Color3.fromRGB(40, 10, 20), 0.55, 2.2)
+		WaveFx.shake(0.2)
+	end
+
+	-- Rebote de una tarjeta con su propia escala de pulsar (no se apilan dos UIScale).
+	local function bounce(button: GuiObject, amount: number)
+		local scale = button:FindFirstChild("PressScale")
+		if scale and scale:IsA("UIScale") then
+			scale.Scale = 1 + amount
+			TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+		else
+			Juice.pop(button, amount)
+		end
 	end
 
 	-- Consejo de la partida de práctica
@@ -649,7 +752,10 @@ function WaveController.start()
 			return
 		end
 		actionRemote:FireServer("Pick", card.Id)
-		pickSound:Play()
+		pickedHere = true
+		WaveFx.sound("Pick")
+		Juice.burst(card.Button, THEME.Gold, 12, 120)
+		bounce(card.Button, 0.1)
 		for _, other in ui.Cards do
 			other.Stroke.Color = if other == card then THEME.BuyHighlight else THEME.Disabled
 		end
@@ -677,6 +783,14 @@ function WaveController.start()
 			end
 		end
 		ui.CardPanel.Visible = true
+		pickedHere = false
+		WaveFx.sound("CardsOpen")
+		WaveFx.sound("Chime", 1, 0.15)
+		for index, card in ui.Cards do
+			if card.Button.Visible then
+				task.delay((index - 1) * 0.07, bounce, card.Button, 0.14)
+			end
+		end
 		ContextActionService:BindAction(CARD_ACTION, function(_, inputState, input)
 			if inputState == Enum.UserInputState.Begin then
 				local index = table.find(CARD_KEYS, input.KeyCode)
@@ -710,6 +824,7 @@ function WaveController.start()
 		closeChoice()
 		if keepGoing then
 			announce("♾️ ¡MODO INFINITO!", THEME.Gold, 2)
+			endlessFx()
 		end
 	end
 
@@ -729,6 +844,8 @@ function WaveController.start()
 		ui.ChoiceBody.Text = reward .. "¿Sigues en el <b>modo infinito</b>? Oleadas sin fin, cada vez más duras y con más premio. Si caes, no pierdes nada."
 		ui.ChoicePanel.Visible = true
 		announce("🏆 ¡VICTORIA!", THEME.Gold, 2)
+		local state = myState()
+		celebrate(if state then state.Run else nil)
 		local endsAt = tonumber(data.EndsAt) or (serverNow() + WaveConfig.Endless.ChoiceSeconds)
 		local total = math.max(0.1, endsAt - serverNow())
 		task.spawn(function()
@@ -774,17 +891,29 @@ function WaveController.start()
 		closeCards()
 		resultToken += 1
 		local token = resultToken
+		local runId = tonumber(data.Run)
 		if data.Endless then
 			-- Modo infinito: el jefe ya cayó; se acaba al caer (sin perder nada)
 			ui.ResultTitle.Text = ("♾️ Llegaste a la oleada %d"):format(tonumber(data.Wave) or 0)
 			ui.ResultTitle.TextColor3 = THEME.Gold
+			WaveFx.setDanger(false)
+			WaveFx.sound("EndlessEnd")
+			WaveFx.pulse(THEME.Gold, 0.3, 1.5)
+			if data.NewBest then
+				WaveFx.confetti(60)
+			end
 		elseif data.Victory then
 			ui.ResultTitle.Text = if data.Tutorial then "🏆 ¡PRÁCTICA SUPERADA!" else "🏆 ¡VICTORIA!"
 			ui.ResultTitle.TextColor3 = THEME.Gold
-			announce("🏆 ¡VICTORIA!", THEME.Gold, 2)
+			if celebratedRun == nil or celebratedRun ~= runId then
+				-- Sin modo infinito (la práctica): la victoria se celebra aquí
+				announce("🏆 ¡VICTORIA!", THEME.Gold, 2)
+				celebrate(runId)
+			end
 		else
 			ui.ResultTitle.Text = ("💀 Caíste en la oleada %d"):format(tonumber(data.Wave) or 0)
 			ui.ResultTitle.TextColor3 = THEME.Error
+			defeatFx()
 		end
 		local lines = {
 			("⚔ Enemigos: <b>%s</b>"):format(formatNumber(tonumber(data.Kills) or 0)),
@@ -805,6 +934,9 @@ function WaveController.start()
 		end
 		ui.ResultBody.Text = table.concat(lines, "\n")
 		ui.ResultPanel.Visible = true
+		if data.Victory or data.Endless or data.NewBest then
+			task.defer(Juice.burst, ui.ResultTitle, THEME.Gold, 12, 150)
+		end
 		task.delay(10, function()
 			if resultToken == token then
 				closeResult()
@@ -852,14 +984,17 @@ function WaveController.start()
 		if mine then
 			if state.Phase == "Countdown" and previous ~= "Countdown" then
 				announce("⚔ ¡PREPÁRATE!", THEME.Gold, 1)
+				WaveFx.sound("Whoosh", 0.9)
 			elseif state.Phase == "Wave" and (previous ~= "Wave" or (state.Wave or 0) ~= previousWave) then
 				announce(("OLEADA %d"):format(state.Wave), Color3.new(1, 1, 1), 1.3)
-				waveSound:Play()
+				waveStartFx(state)
 			elseif state.Phase == "Boss" and previous ~= "Boss" then
 				announce("💀 ¡JEFE FINAL!", BOSS_RED, 1.8)
-				waveSound:Play()
+				bossFx(state)
 			end
 		end
+		-- La viñeta roja late solo mientras el jefe de tu partida sigue vivo
+		WaveFx.setDanger(mine and state.Phase == "Boss")
 		if state.Phase ~= "Cards" and cardData then
 			closeCards()
 		end
@@ -872,6 +1007,10 @@ function WaveController.start()
 		elseif kind == "Cards" then
 			openCards(data)
 		elseif kind == "Picked" then
+			if not pickedHere then
+				WaveFx.sound("Pick") -- se acabó el tiempo y la eligió el servidor
+			end
+			pickedHere = false
 			if type(data) == "table" and type(data.Id) == "string" then
 				local card = WaveConfig.Cards[data.Id]
 				local level = type(data.Levels) == "table" and tonumber(data.Levels[data.Id]) or 1
@@ -884,6 +1023,7 @@ function WaveController.start()
 			if type(data) == "table" then
 				local heal = if data.Healed == true then "  +❤️" else ""
 				Toasts.show(("✅ Oleada %d superada  +%s ⚡  +%s 💰%s"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0), heal), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
+				clearedFx(data)
 			end
 		elseif kind == "Choice" then
 			openChoice(data)
@@ -891,9 +1031,11 @@ function WaveController.start()
 			if type(data) == "table" then
 				Toasts.show(("🏆 ¡Nuevo récord! Oleada %d (antes %d)"):format(tonumber(data.Wave) or 0, tonumber(data.Previous) or 0), { Color = THEME.Gold, Key = "WaveRecord" })
 				announce("🏆 ¡NUEVO RÉCORD!", THEME.Gold, 1.5)
+				recordFx()
 			end
 		elseif kind == "Result" then
 			current = nil
+			WaveFx.setDanger(false)
 			closeChoice()
 			showResult(data)
 			refreshPanel()
@@ -941,7 +1083,11 @@ function WaveController.start()
 			TweenService:Create(streakUi.Scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 			-- Cada salto de multiplicador, un aviso
 			if value % WaveConfig.Streak.Step == 0 then
-				tickSound:Play()
+				WaveFx.sound("Tick", math.min(1.8, 1 + value / WaveConfig.Streak.Step * 0.08))
+				local feet = WaveFx.feet()
+				if feet then
+					WaveFx.sparkle(feet + Vector3.new(0, 3, 0), streakColor(value), 10)
+				end
 			end
 		end
 		-- Se apaga al acabarse la ventana
@@ -966,7 +1112,7 @@ function WaveController.start()
 			if left ~= lastSecond and left > 0 then
 				lastSecond = left
 				announce(tostring(left), Color3.new(1, 1, 1), 0.8)
-				tickSound:Play()
+				WaveFx.sound("Tick", 1 + math.max(0, WaveConfig.StartCountdown - left) * 0.1)
 			end
 		else
 			lastSecond = -1
@@ -980,6 +1126,9 @@ function WaveController.start()
 		end
 	end)
 	player:GetAttributeChangedSignal(Constants.Attributes.WaveRun):Connect(function()
+		if player:GetAttribute(Constants.Attributes.WaveRun) == nil then
+			WaveFx.setDanger(false)
+		end
 		refreshPanel()
 		refreshPrompt()
 	end)

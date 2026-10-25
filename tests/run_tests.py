@@ -81,6 +81,9 @@ BASE = [
     # Récords de las oleadas (campo Waves del guardado v10).
     ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
     ("WaveLogic", "src/shared/WaveLogic.luau"),
+    # Estilo de pelea (campo Style del guardado v11).
+    ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+    ("StyleLogic", "src/shared/StyleLogic.luau"),
 ] + [
     # Premios, tienda y semana (campos Rewards, Shop y Weekly del guardado v6).
     ("RewardConfig", "src/shared/Config/RewardConfig.luau"),
@@ -244,6 +247,8 @@ def build_quest():
         ("ItemLogic", "src/shared/ItemLogic.luau"),
         ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
         ("WaveLogic", "src/shared/WaveLogic.luau"),
+        ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("StyleLogic", "src/shared/StyleLogic.luau"),
     ] + CORE + [
         ("SaveService", "src/server/Services/SaveService.luau"),
     ]
@@ -347,6 +352,8 @@ PET_COMBAT_REQUIRES = [
     "local PetCombatConfig = require(Shared.Config.PetCombatConfig)",
     "local WeaponLogic = require(Shared.WeaponLogic)",
     "local MonetizationLogic = require(Shared.MonetizationLogic)",
+    "local StyleLogic = require(Shared.StyleLogic)",
+    "local StyleConfig = require(Shared.Config.StyleConfig)",
     "local PlayerDataService = require(script.Parent.PlayerDataService)",
     "local RemoteService = require(script.Parent.RemoteService)",
     "local EnemyService = require(script.Parent.EnemyService)",
@@ -368,6 +375,8 @@ def build_petcombat():
         ("RebirthLogic", "src/shared/RebirthLogic.luau"),
         ("MonetizationConfig", "src/shared/Config/MonetizationConfig.luau"),
         ("MonetizationLogic", "src/shared/MonetizationLogic.luau"),
+        ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("StyleLogic", "src/shared/StyleLogic.luau"),
         ("EnemyLogic", "src/server/Util/EnemyLogic.luau"),
         ("RateLimiter", "src/server/Util/RateLimiter.luau"),
     ]:
@@ -411,6 +420,18 @@ def build_abilities():
     return "\n".join(out)
 
 
+def build_styles():
+    # Estilos de pelea: lógica pura con su configuración real.
+    out = [harness("landscape_stubs.luau")]
+    for n, p in [
+        ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("StyleLogic", "src/shared/StyleLogic.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("styles_body.luau"))
+    return "\n".join(out)
+
+
 def build_landscape():
     # Distribución del paisaje (pura) con las configuraciones reales de todas las zonas.
     out = [harness("landscape_stubs.luau")]
@@ -427,6 +448,8 @@ def build_landscape():
         ("VillageConfig", "src/shared/Config/VillageConfig.luau"),
         ("WildsConfig", "src/shared/Config/WildsConfig.luau"),
         ("ChestConfig", "src/shared/Config/ChestConfig.luau"),
+        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
+        ("StudFloor", "src/shared/Util/StudFloor.luau"),
         ("LandscapeLayout", "src/server/Util/LandscapeLayout.luau"),
     ]:
         out.append(mod(n, p))
@@ -559,6 +582,8 @@ def build_waves():
         ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
         ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
         ("WaveLogic", "src/shared/WaveLogic.luau"),
+        ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("StyleLogic", "src/shared/StyleLogic.luau"),
     ]:
         out.append(mod(n, p))
     out.append(suite("waves_body.luau"))
@@ -614,6 +639,7 @@ SUITES = [
     ("world", "Mundo vivo: día y noche, cofres escondidos y río", build_world),
     ("energy", "Energía solo de matar: sin producción pasiva ni offline, energía de los enemigos", build_energy),
     ("waves", "Oleadas: arenas, aparición, dificultad, mejoras, racha y botín de cada enemigo", build_waves),
+    ("styles", "Estilos de pelea: armas, puños y magia (ataque, pasivas y habilidades)", build_styles),
     ("items", "Inventario: pociones, huevos guardados, botín de los jefes y títulos", build_items),
 ]
 LEGACY = ["pettest", "eggtest", "zonetest", "savetest", "layouttest", "stagetest"]

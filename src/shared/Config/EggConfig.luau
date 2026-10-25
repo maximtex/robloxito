@@ -1,8 +1,9 @@
--- Configuración de los 3 Huevos del juego (cada uno con 3 tipos de mascotas):
--- 1. Huevo del Bosque (⚡ 100): Brotecillo, Seta Saltarina, Zorrito de Brasa
--- 2. Huevo de Musgo (⚡ 750): Zorro de Musgo, Zorrito de Cuarzo, Búho Lunar
--- 3. Huevo Ancestral (⚡ 4,000): Tortuga Cristalina, Cervatillo Esmeralda, Dragón de Amatista
--- 4. Huevo Clásico (⚡ 1,500): Perrito, Conejito, Osito y Dragoncito (modelos 3D de
+-- Configuración de los Huevos del juego (cada uno con sus mascotas). Se pagan con 💰
+-- (Cost; economía 2: EconomyConfig):
+-- 1. Huevo del Bosque (💰 250): Brotecillo, Seta Saltarina, Zorrito de Brasa
+-- 2. Huevo de Musgo (💰 2,500): Zorro de Musgo, Zorrito de Cuarzo, Búho Lunar
+-- 3. Huevo Ancestral (💰 20,000): Tortuga Cristalina, Cervatillo Esmeralda, Dragón de Amatista
+-- 4. Huevo Clásico (💰 7,500): Perrito, Conejito, Osito y Dragoncito (modelos 3D de
 --    mascotas-clasico.glb). Va en el pedestal rosa del Arcoíris (Gardens.Forest.RainbowOffset).
 
 local EggConfig = {
@@ -78,7 +79,7 @@ local EggConfig = {
 			TitleColor = Color3.fromRGB(235, 242, 255),
 			Enabled = true,
 			Order = 1,
-			Cost = 50,
+			Cost = 250,
 			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "Sproutling", Chance = 55 },
@@ -102,7 +103,7 @@ local EggConfig = {
 			TitleColor = Color3.fromRGB(85, 248, 42),
 			Enabled = true,
 			Order = 2,
-			Cost = 500,
+			Cost = 2500,
 			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "MossFox", Chance = 55 },
@@ -126,7 +127,7 @@ local EggConfig = {
 			TitleColor = Color3.fromRGB(48, 214, 255),
 			Enabled = true,
 			Order = 3,
-			Cost = 4000,
+			Cost = 20000,
 			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "CrystalTurtle", Chance = 55 },
@@ -151,7 +152,7 @@ local EggConfig = {
 			TitleColor = Color3.fromRGB(255, 105, 235),
 			Enabled = true,
 			Order = 4,
-			Cost = 1500,
+			Cost = 7500,
 			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "ClassicDog", Chance = 50 },
@@ -174,7 +175,7 @@ local EggConfig = {
 			DisplayName = "Huevo de Cristal",
 			Enabled = false,
 			Order = 4,
-			Cost = 5000,
+			Cost = 25000,
 			RequiredLevel = 0,
 			Zone = "CrystalValley",
 			RequiredZone = "CrystalValley",
@@ -196,7 +197,7 @@ local EggConfig = {
 			DisplayName = "Huevo de Magma",
 			Enabled = false,
 			Order = 5,
-			Cost = 60000,
+			Cost = 300000,
 			RequiredLevel = 0,
 			Zone = "EmberCaldera",
 			RequiredZone = "EmberCaldera",

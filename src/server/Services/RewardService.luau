@@ -2,9 +2,9 @@
 -- cliente solo pide (RewardAction "Claim" o "Redeem" con el texto del código).
 -- - Racha y códigos: lógica pura en RewardLogic; premios en RewardConfig y CodesConfig
 --   (esta última solo en el servidor).
--- - Premios: energía (N minutos de la producción actual, con mínimo; no cuenta como energía
---   generada), bendiciones (AdventureService, se guardan sin activar) y mascota del mejor
---   huevo que ya pueda abrir (PetService; con el inventario lleno, su precio en energía).
+-- - Premios: 💰 (N minutos del poder de energía, con mínimo), bendiciones (AdventureService,
+--   se guardan sin activar) y mascota del mejor huevo que ya pueda abrir (PetService; con el
+--   inventario lleno, su precio en 💰).
 -- - La marca de "reclamado"/"canjeado" va antes que el premio, sin pausas, y se guarda en
 --   seguida: no se cobra dos veces aunque lleguen dos solicitudes o se cierre el servidor.
 -- - Atributo DailyReady (insignia del menú), al día también al cambiar el día.
@@ -87,9 +87,9 @@ local function grant(player: Player, profile: PlayerDataService.Profile, reward:
 	if type(reward) ~= "table" then
 		return detail
 	end
-	local energy = 0
-	if reward.Energy then
-		energy += RewardLogic.energyAmount(reward.Energy, profile.ProductionPerSecond)
+	local money = 0
+	if reward.Money then
+		money += RewardLogic.moneyAmount(reward.Money, profile.ProductionPerSecond)
 	end
 	if reward.Blessings then
 		local added = AdventureService.grantBlessings(player, reward.Blessings)
@@ -103,15 +103,15 @@ local function grant(player: Player, profile: PlayerDataService.Profile, reward:
 			detail.PetId = pet.PetId
 			detail.EggId = eggId
 		elseif code == Codes.InventoryFull and eggId and EggConfig.Eggs[eggId] then
-			-- Inventario lleno: su precio en energía, para no perder el premio.
-			energy += EggConfig.Eggs[eggId].Cost
+			-- Inventario lleno: su precio en 💰, para no perder el premio.
+			money += EggConfig.Eggs[eggId].Cost
 			detail.InventoryFull = true
 			detail.EggId = eggId
 		end
 	end
-	if energy > 0 then
-		profile.Energy += energy
-		detail.Energy = energy
+	if money > 0 then
+		profile.Money += money
+		detail.Money = money
 	end
 	PlayerDataService.replicate(player)
 	PlayerDataService.markDirty(player)

@@ -173,6 +173,32 @@ check(("sala 1: solo pequeños (%d)"):format(counts[1].Normal or 0), (counts[1].
 check(("sala 2: los medianos (%d brutos)"):format(counts[2].Strong or 0), (counts[2].Strong or 0) >= 4 and counts[2].Normal == nil and counts[2].Boss == nil)
 check("sala 3: sin bichos del mundo (solo las oleadas)", next(counts[3]) == nil and altarClear)
 check("los bichos salen dentro de su sala, lejos de las paredes y nunca en un pasillo", spawnsOK and corridorClear)
+
+-- Oleadas del altar: salen por varios sitios de la sala 3 (no solo del círculo)
+local cavePlace = WaveConfig.Places.Forest
+local points = cavePlace.SpawnPoints or {}
+local pointsOk, spread = #points >= 4 and altar ~= nil, {}
+local altarRect = rooms[3].Rect
+for _, point in points do
+	local x, z = altar.X + point.X, altar.Y + point.Y
+	-- dentro de la sala 3, lejos de las paredes, fuera del círculo y lejos de los cristales de las esquinas
+	if CaveLogic.roomAt(x, z) ~= 3 or not inside(altarRect, x, z, WALL + 3) or dist(x, z, altar.X, altar.Y) < WaveConfig.Place.AreaRadius + 10 then
+		pointsOk = false
+		print(("  salida de oleada mal en (%d, %d)"):format(x, z))
+	end
+	for _, corner in { { altarRect.MinX + 12, altarRect.MinZ + 12 }, { altarRect.MaxX - 12, altarRect.MinZ + 12 }, { altarRect.MinX + 12, altarRect.MaxZ - 12 }, { altarRect.MaxX - 12, altarRect.MaxZ - 12 } } do
+		if dist(x, z, corner[1], corner[2]) < 10 then
+			pointsOk = false
+		end
+	end
+	spread[(if point.X > 5 then "E" elseif point.X < -5 then "W" else "") .. (if point.Y > 5 then "S" elseif point.Y < -5 then "N" else "")] = true
+end
+local sides = 0
+for _ in spread do
+	sides += 1
+end
+check(("oleadas de la cueva: salen por %d sitios de la sala, por %d lados distintos"):format(#points, sides), pointsOk and sides >= 4)
+check("y te siguen por toda la sala (y se cuenta como dentro toda la sala)", (cavePlace.LeashRadius or 0) >= 56 and (cavePlace.InsideRadius or 0) >= 56)
 check("ninguno sale junto a donde llegas", arrivalClear)
 local guarded = false
 for _, safe in enemies.SafeZones do

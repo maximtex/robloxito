@@ -189,7 +189,9 @@ function QuestLogic.reward(def: any, upgradeLevel: number): number
 		return 0
 	end
 	local cost = Economy.getUpgradeCost(QuestConfig.RewardUpgradeId, math.max(0, math.floor(upgradeLevel))) or 0
-	return math.floor(math.clamp(settings.Share * cost, settings.Min, settings.Max))
+	local scale = QuestConfig.RewardCostScale
+	scale = if type(scale) == "number" and scale > 0 and scale < math.huge then scale else 1
+	return math.floor(math.clamp(settings.Share * cost * scale, settings.Min, settings.Max))
 end
 
 -- Progreso -------------------------------------------------------------------------------

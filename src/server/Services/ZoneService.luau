@@ -1,4 +1,4 @@
--- Zonas y puertas de energía (estilo Pet Simulator):
+-- Zonas y puertas de energía (estilo Pet Simulator; se abren pagando 💰):
 -- - Construye las puertas de energía de ZoneConfig en la entrada de cada puente.
 -- - Desbloqueo (UnlockZone): validado aquí, cobra una sola vez (ZoneLogic), se registra
 --   en los datos del jugador (SaveService, mismo DataStore) y se guarda al momento.
@@ -181,7 +181,7 @@ local function buildPortal(parent: Instance, portalId: string)
 	sign.Parent = barrier
 	gateLabel(sign, "ZoneTitle", target.DisplayName, style.Title, 17, 7)
 	local boss = target.RequiredBoss and EnemyConfig.Types[target.RequiredBoss]
-	gateLabel(sign, "ZoneCost", "🔒 ⚡ " .. formatNumber(cost) .. " Energía", Color3.fromRGB(255, 230, 80), 11, 4.5)
+	gateLabel(sign, "ZoneCost", "🔒 💰 " .. formatNumber(cost), Color3.fromRGB(255, 230, 80), 11, 4.5)
 	if boss then
 		gateLabel(sign, "ZoneBoss", "🏆 Derrota al " .. boss.DisplayName, Color3.fromRGB(255, 160, 140), 6.5, 3.2)
 	end
@@ -193,7 +193,7 @@ local function buildPortal(parent: Instance, portalId: string)
 	promptAt.Parent = barrier
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "PortalPrompt"
-	prompt.ActionText = "Desbloquear (" .. formatNumber(cost) .. " ⚡)"
+	prompt.ActionText = "Desbloquear (" .. formatNumber(cost) .. " 💰)"
 	prompt.ObjectText = target.DisplayName
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 22

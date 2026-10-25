@@ -220,6 +220,8 @@ local Constants = {
 		SecondaryCore = "SecondaryCore",
 		-- Producción offline concedida al entrar: "energía,segundos" (una vez por sesión).
 		OfflineReward = "OfflineReward",
+		-- Economía nueva: la ⚡ guardada se convirtió en 💰 al entrar: "energía,dinero" (una vez).
+		EconomyNotice = "EconomyNotice",
 		-- Renacimiento: renacimientos hechos, fichas sin gastar, niveles de la tienda
 		-- ("Loot=1,Strike=2"), mejor nivel de Resonancia con el que se renació (los huevos
 		-- que abrió siguen abiertos) y mascotas que se pueden equipar a la vez.
@@ -261,6 +263,15 @@ local Constants = {
 		-- Puertas de la Cueva de los Espinillos: bichos derrotados para cada una ("15,3";
 		-- CaveLogic.parseProgress). Sin atributo: datos aún no cargados.
 		CaveGates = "CaveGates",
+		-- Habilidades de los estilos (SkillLogic): las que tiene con su nivel
+		-- ("Burst:1,Grenade:3") y las puestas de cada estilo ("Weapons=Burst,Grenade;…").
+		Skills = "Skills",
+		SkillSlots = "SkillSlots",
+		-- Ya eligió su estilo al empezar (si no, el cliente le enseña el selector).
+		StylePicked = "StylePicked",
+		-- Hasta cuándo dura la Furia de Puños (hora del servidor) y el dash (Shift).
+		StyleRageUntil = "StyleRageUntil",
+		DashReadyAt = "DashReadyAt",
 	},
 
 	PurchaseCodes = {

@@ -39,6 +39,7 @@ local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local TutorialConfig = require(Shared.Config.TutorialConfig)
 local ItemLogic = require(Shared.ItemLogic)
+local MonetizationLogic = require(Shared.MonetizationLogic)
 local StudFloor = require(Shared.Util.StudFloor)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
@@ -123,6 +124,10 @@ type Place = {
 	Practice: boolean, -- solo la práctica del tutorial (WaveConfig.Places.*.Practice)
 	ZoneId: string,
 	Center: Vector3,
+	SpawnPoints: { Vector2 }?, -- por dónde salen los bichos (si no, el anillo del altar)
+	SpawnJitter: number,
+	LeashRadius: number?,
+	InsideRadius: number?, -- hasta dónde se cuenta como dentro (si no, el círculo)
 	StatusLabel: TextLabel?,
 	InfoLabel: TextLabel?,
 }
@@ -163,7 +168,9 @@ end
 -- Dentro del círculo (con un margen al salir, para no salir y entrar a cada paso).
 local function isInside(run: Run, player: Player): boolean
 	local root = rootOf(player)
-	return root ~= nil and flatDistance(root.Position, run.Center) <= WaveConfig.Place.AreaRadius + INSIDE_SLACK
+	local place = places[run.PlaceId]
+	local radius = (place and place.InsideRadius) or (WaveConfig.Place.AreaRadius + INSIDE_SLACK)
+	return root ~= nil and flatDistance(root.Position, run.Center) <= radius
 end
 
 local function newParticipant(player: Player): Participant
@@ -330,8 +337,9 @@ local function pay(participant: Participant, energy: number, money: number): (nu
 	if not profile then
 		return 0, 0
 	end
-	-- Poción de Energía (inventario): también dobla la ⚡ de los premios de las oleadas.
-	local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time())
+	-- Poción de Diamantes (inventario) y pase Diamantes ×2: también doblan los 💎 de los
+	-- premios de las oleadas.
+	local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time()) * MonetizationLogic.energyMultiplier(profile.Passes)
 	local given = EnergyService.grant(participant.Player, energy * potion)
 	local coins = math.max(0, math.floor(money))
 	if coins > 0 then
@@ -348,6 +356,16 @@ end
 local onEnemyDeath: (Run, number) -> ((any, Player?, Vector3) -> ())
 
 local function spawnPoint(run: Run): Vector3
+	-- La cueva: por uno de sus sitios de la sala, al azar
+	local place = places[run.PlaceId]
+	local points = place and place.SpawnPoints
+	if points and #points > 0 then
+		local point = points[math.random(1, #points)]
+		local jitter = place.SpawnJitter
+		local x = run.Center.X + point.X + (math.random() * 2 - 1) * jitter
+		local z = run.Center.Z + point.Y + (math.random() * 2 - 1) * jitter
+		return Vector3.new(x, run.Center.Y, z)
+	end
 	local radius = WaveConfig.Place.SpawnRadius
 	local angle = math.random() * math.pi * 2
 	local distance = radius.Min + math.random() * (radius.Max - radius.Min)
@@ -356,10 +374,12 @@ end
 
 local function spawnOne(run: Run, typeId: string, wave: number): boolean
 	local area = WaveConfig.Place.AreaRadius
+	local place = places[run.PlaceId]
+	local leash = (place and place.LeashRadius) or (area + INSIDE_SLACK + 2)
 	local enemy = EnemyService.spawnPooled(run.ZoneId, typeId, spawnPoint(run), {
 		LeashCenter = run.Center,
-		LeashRadius = area + INSIDE_SLACK + 2,
-		DetectRange = area * 2.5,
+		LeashRadius = leash,
+		DetectRange = math.max(area * 2.5, leash * 1.6),
 		HealthMultiplier = WaveLogic.healthMultiplier(wave, run.Players),
 		RewardMultiplier = WaveLogic.rewardMultiplier(wave),
 		PoolLimit = (run.Arena.Pool and run.Arena.Pool[typeId]) or 12,
@@ -556,7 +576,7 @@ local function waveCleared(run: Run)
 	for _, participant in run.Participants do
 		local profile = PlayerDataService.get(participant.Player)
 		if profile then
-			local energy, money = WaveLogic.clearReward(wave, profile.ProductionPerSecond, run.ArenaId)
+			local energy, money = WaveLogic.clearReward(wave, WaveLogic.diamondPower(profile.ProductionPerSecond), run.ArenaId)
 			local given, coins = pay(participant, energy, money)
 			-- Respiro: recupera parte de la vida (solo quien sigue en pie)
 			local healed = false
@@ -588,7 +608,7 @@ local function payVictory(run: Run)
 	for player, participant in run.Participants do
 		local profile = PlayerDataService.get(player)
 		if profile then
-			participant.VictoryEnergy, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(profile.ProductionPerSecond, run.ArenaId))
+			participant.VictoryEnergy, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(WaveLogic.diamondPower(profile.ProductionPerSecond), run.ArenaId))
 		end
 		GameEvents.fire("WaveWon", player, run.ArenaId)
 	end
@@ -1071,6 +1091,10 @@ local function buildPlaceInfo(placeId: string, settings): Place?
 		Practice = settings.Practice == true,
 		ZoneId = settings.Zone,
 		Center = Vector3.new(x, floorAt(x, z), z), -- cara de arriba del suelo
+		SpawnPoints = settings.SpawnPoints,
+		SpawnJitter = settings.SpawnJitter or 0,
+		LeashRadius = settings.LeashRadius,
+		InsideRadius = settings.InsideRadius,
 		StatusLabel = nil,
 		InfoLabel = nil,
 	}

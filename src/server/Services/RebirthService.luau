@@ -1,6 +1,6 @@
 -- Renacimiento (Rebirth). Todo se decide aquí; el cliente solo pide.
 -- - Renacer (remote Rebirth): datos listos, Resonancia >= requisito (RebirthLogic). En el
---   mismo paso: +1 renacimiento, fichas, energía y dinero a los iniciales, Resonancia al
+--   mismo paso: +1 renacimiento, fichas, dinero al inicial (los 💎 se quedan), Resonancia al
 --   nivel de "Inicio rápido" y las armas a nivel 0. Las armas (y la equipada), mascotas,
 --   núcleos, zonas, jefes derrotados, mejoras de la Armería y misiones se quedan.
 --   Se guarda en seguida (no se pierde un renacimiento por un cierre).
@@ -64,10 +64,10 @@ function RebirthService.rebirth(player: Player): (string, any)
 	if code ~= "Success" then
 		return Codes[code] or Codes.InvalidRequest, { Required = RebirthLogic.requiredLevel(RebirthLogic.count(data)), Level = level }
 	end
-	-- Reinicio en el mismo paso (sin pausas: nadie produce ni gasta entre medias): energía,
-	-- dinero, Resonancia y el nivel de cada arma. Se conservan las armas (y la equipada), las
-	-- mascotas, las zonas, los jefes derrotados, las mejoras de la Armería y los núcleos.
-	profile.Energy = EconomyConfig.StartingEnergy
+	-- Reinicio en el mismo paso (sin pausas: nadie produce ni gasta entre medias): dinero,
+	-- Resonancia y el nivel de cada arma. Se conservan los 💎 (y las habilidades compradas),
+	-- las armas (y la equipada), las mascotas, las zonas, los jefes derrotados, las mejoras de
+	-- la Armería y los núcleos.
 	profile.Money = EconomyConfig.StartingMoney
 	profile.UpgradeLevels[RebirthConfig.UpgradeId] = result.Level
 	for weaponId in profile.PetData.Weapons.Levels do

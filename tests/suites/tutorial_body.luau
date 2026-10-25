@@ -87,8 +87,8 @@ for _, f in fired do
 		end
 	end
 end
-print(("  (logros concedidos al cargar: +%d de energía)"):format(achievementEnergy))
-check("el tutorial no cambia su energía (solo los logros de misiones) ni sus mascotas", PlayerDataService.get(bob).Energy == 9000 + achievementEnergy and #PlayerDataService.get(bob).PetData.Pets == 2)
+print(("  (logros concedidos al cargar: +%d 💎)"):format(achievementEnergy))
+check("el tutorial no cambia su dinero (su ⚡ 9000 pasó a 💰 45000) ni sus 💎 (solo los logros) ni sus mascotas", PlayerDataService.get(bob).Money == 45000 and PlayerDataService.get(bob).Energy == achievementEnergy and #PlayerDataService.get(bob).PetData.Pets == 2)
 
 print("-- 3. Veterano a medias: tiene mascota pero no la equipó")
 storeData.player_3 = { Version = 2, Energy = 40, UpgradeLevels = { GeneratorPower = 0 }, Pets = { { Uid = "1", PetId = "Sproutling" }, { Uid = "2", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 3, Quests = { Stats = { Kills = 12 } } }

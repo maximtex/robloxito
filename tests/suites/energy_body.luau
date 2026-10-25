@@ -54,7 +54,7 @@ storeData.player_2 = { Version = 3, Energy = 10, UpgradeLevels = { GeneratorPowe
 	Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2 }
 local bea, beaProfile = enter("Bea", 2)
 advance(10)
-check("2 h fuera: sin energía offline", beaProfile.Energy == 10)
+check("2 h fuera: sin 💎 offline (la ⚡ guardada, 10, pasó a 💰 50)", beaProfile.Energy == 0 and beaProfile.Money == 50)
 check("y sin aviso de energía offline", bea:GetAttribute("OfflineReward") == nil)
 check("el poder de energía (Resonancia y mascotas) sigue contando para los enemigos", beaProfile.ProductionPerSecond > 1)
 leave(bea)

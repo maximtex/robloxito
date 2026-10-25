@@ -34,7 +34,7 @@ local me = newPlayer("Yo", 1)
 join(me)
 advance(0)
 local profile = PlayerDataService.get(me)
-check("carga normal de los datos guardados (no hay modo prueba)", storeCalls > 0 and profile.DataState == "Loaded" and profile.Energy >= 9000 and not profile.Sandbox)
+check("carga normal de los datos guardados (no hay modo prueba)", storeCalls > 0 and profile.DataState == "Loaded" and profile.Money >= 45000 and not profile.Sandbox)
 check("sin atributo TestMode ni tutorial (veterano: completado)", me:GetAttribute("TestMode") == nil and me:GetAttribute("TutorialStatus") == "Completed")
 leave(me)
 advance(0)
@@ -49,13 +49,13 @@ join(me)
 advance(0)
 profile = PlayerDataService.get(me)
 check("NINGUNA llamada al DataStore al entrar (ni lectura ni bloqueo)", storeCalls == callsBefore and getStoreCalls == storesBefore)
-check("perfil temporal: 3000 ⚡, nivel 0, solo la mascota inicial y sin zonas", profile.Sandbox == true and profile.Energy == 3000 and profile.UpgradeLevels.GeneratorPower == 0 and #profile.PetData.Pets == 1 and #profile.PetData.UnlockedZones == 0)
+check("perfil temporal: 💰 15000 y 0 💎, nivel 0, solo la mascota inicial y sin zonas", profile.Sandbox == true and profile.Money == DevConfig.SandboxStartingMoney and profile.Energy == 0 and profile.UpgradeLevels.GeneratorPower == 0 and #profile.PetData.Pets == 1 and #profile.PetData.UnlockedZones == 0)
 check("misiones nuevas (nada reclamado del perfil real)", profile.PetData.Quests.Stats.Kills == 0 and next(profile.PetData.Quests.Claimed) == nil)
 check("núcleos iniciales (solo Naturaleza), sin archivo y sin llamadas al DataStore", same(profile.PetData.Cores, CoreLogic.empty()) and #profile.PetData.CoresArchive == 0 and storeCalls == callsBefore and getStoreCalls == storesBefore)
 check("atributo TestMode para el aviso y tutorial activo en el paso 1", me:GetAttribute("TestMode") == true and me:GetAttribute("TutorialStatus") == "Active" and me:GetAttribute("TutorialStep") == 0)
 advance(1)
 local oneSecond = if EconomyConfig.PassiveEnergy == false then 0 else profile.ProductionPerSecond -- sin energía pasiva, nada
-check("los 3000 iniciales NO cuentan como generados (solo la producción de 1 s; paso 1 sin hacer)", math.abs(profile.PetData.Quests.Stats.EnergyEarned - oneSecond) < 1e-9 and me:GetAttribute("TutorialStep") == 0)
+check("el 💰 inicial NO cuenta como 💎 conseguidos (solo la producción de 1 s; paso 1 sin hacer)", math.abs(profile.PetData.Quests.Stats.EnergyEarned - oneSecond) < 1e-9 and me:GetAttribute("TutorialStep") == 0)
 GameEvents.fire("WaveWon", me, "Tutorial") -- lo que hace WaveService al ganar la práctica
 advance(1)
 check("tras ganar la oleada de práctica: paso 1 hecho", me:GetAttribute("TutorialStep") == 1)
@@ -84,7 +84,7 @@ me = newPlayer("Yo", 1)
 join(me)
 advance(0)
 profile = PlayerDataService.get(me)
-check("al volver a entrar: perfil nuevo otra vez (3000 ⚡, tutorial en el paso 1)", profile.Energy == 3000 and me:GetAttribute("TutorialStatus") == "Active" and me:GetAttribute("TutorialStep") == 0)
+check("al volver a entrar: perfil nuevo otra vez (💰 15000, tutorial en el paso 1)", profile.Money == DevConfig.SandboxStartingMoney and me:GetAttribute("TutorialStatus") == "Active" and me:GetAttribute("TutorialStep") == 0)
 fireServer("SkipTutorial", me)
 check("omitir funciona en el modo prueba", me:GetAttribute("TutorialStatus") == "Skipped")
 
@@ -95,15 +95,15 @@ check("BindToClose no guarda el perfil de prueba", storeCalls == callsBefore and
 leave(me)
 advance(0)
 
-print("-- 5. Energía inicial no válida")
-DevConfig.SandboxStartingEnergy = -5
+print("-- 5. Dinero inicial no válido")
+DevConfig.SandboxStartingMoney = -5
 local other = newPlayer("Otro", 2)
 join(other)
 advance(0)
-check("energía inicial negativa -> valor normal (0)", PlayerDataService.get(other).Energy == 0)
+check("dinero inicial negativo -> valor normal (0)", PlayerDataService.get(other).Money == 0)
 leave(other)
 advance(0)
-DevConfig.SandboxStartingEnergy = 3000
+DevConfig.SandboxStartingMoney = 15000
 
 print("-- 6. Studio con el modo prueba desactivado")
 DevConfig.TutorialSandbox = false
@@ -111,7 +111,7 @@ me = newPlayer("Yo", 1)
 join(me)
 advance(0)
 profile = PlayerDataService.get(me)
-check("carga normal del perfil real (DataStore usado)", storeCalls > callsBefore and profile.DataState == "Loaded" and not profile.Sandbox and profile.Energy >= 9000)
+check("carga normal del perfil real (DataStore usado)", storeCalls > callsBefore and profile.DataState == "Loaded" and not profile.Sandbox and profile.Money >= 45000)
 check("sin aviso de modo prueba", me:GetAttribute("TestMode") == nil)
 profile.Energy += 5
 local expected = profile.Energy

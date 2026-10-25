@@ -19,14 +19,16 @@ check("multiplicador < 1 o nivel negativo no bajan de la base", CombatMath.playe
 print("-- Dinero y Armería")
 check("ya no hay una mejora de daño aparte: el daño es del arma (WeaponConfig)", EconomyConfig.Upgrades.LaserPower == nil and CombatConfig.DamageUpgradeId == nil)
 local shopMoney = true
-for _, upgradeId in { "WalkSpeed", "PetPower", "LaserSpeed" } do
+for _, upgradeId in { "PetPower", "LaserSpeed" } do
 	local def = EconomyConfig.Upgrades[upgradeId]
 	if not (def and def.Currency == "Money" and def.ProductionPerLevel == 0) then
 		shopMoney = false
 	end
 end
 check("las mejoras de la Armería cuestan dinero y no producen energía", shopMoney)
-check("la Resonancia del Cristal (renacer, huevos) sigue costando energía", EconomyConfig.Upgrades.GeneratorPower.Currency == nil and EconomyConfig.Upgrades.GeneratorPower.ProductionPerLevel > 0)
+local speed = EconomyConfig.Upgrades.WalkSpeed
+check("la Velocidad de Correr (puesto ⚡ Mejoras) se paga con 💎 y no produce", speed.Currency == "Energy" and speed.ProductionPerLevel == 0 and speed.SpeedPerLevel > 0)
+check("la Resonancia del Cristal (renacer, huevos) se paga con 💰 (economía 2) y sube el poder", EconomyConfig.Upgrades.GeneratorPower.Currency == "Money" and EconomyConfig.Upgrades.GeneratorPower.ProductionPerLevel > 0)
 local allHit = true
 for _, def in EnemyConfig.Types do
 	if not (def.Damage > 0 and def.Reward > 0) then

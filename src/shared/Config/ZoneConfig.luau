@@ -1,7 +1,7 @@
 -- Zonas del mundo y puertas de energía entre ellas. Configuración centralizada del precio de
 -- desbloqueo, puntos de llegada y límites de cada zona.
 -- Para abrir una zona: derrotar al jefe de la anterior (RequiredBoss, tipo de EnemyConfig;
--- se cuenta en PetData.Bosses), los renacimientos que pida y pagar su energía.
+-- se cuenta en PetData.Bosses), los renacimientos que pida y pagar su precio en 💰 (UnlockCost).
 --
 -- Los 3 mapas son cuadrados de 320×320 (halfSpan = 160) pegados de forma continua en +Z
 -- sin puentes intermedios:
@@ -25,7 +25,7 @@ local ZoneConfig = {
 			DisplayName = "Valle Morado",
 			-- Pegado directamente tras el Bosque (Z = 160..480, centro en Z = 320).
 			Center = Vector2.new(0, 320),
-			UnlockCost = 2500,
+			UnlockCost = 12500, -- 💰
 			RequiredBoss = "ForestWarden",
 			Arrival = Vector3.new(0, 0, -132),
 			ArrivalFacing = Vector3.new(0, 0, 1),
@@ -35,7 +35,7 @@ local ZoneConfig = {
 			DisplayName = "Caldera de Brasas",
 			-- Pegada directamente tras el Valle Morado (Z = 480..800, centro en Z = 640).
 			Center = Vector2.new(0, 640),
-			UnlockCost = 25000,
+			UnlockCost = 125000, -- 💰
 			RequiredRebirths = 0,
 			RequiredBoss = "AmethystColossus",
 			Arrival = Vector3.new(0, 0, -132),

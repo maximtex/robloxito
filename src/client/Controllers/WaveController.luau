@@ -8,7 +8,7 @@
 -- - Las partidas son privadas: el servidor solo manda el estado de la tuya (y el altar
 --   esconde su "Pulsa E" mientras juegas). Qué enemigos ves lo decide WaveVisibility.
 -- - Mejoras: tres tarjetas para elegir (clic o teclas 1, 2, 3) con su tiempo.
--- - Resumen al terminar (victoria o caída): enemigos, ⚡, 💰, orbes dorados, mejor racha y
+-- - Resumen al terminar (victoria o caída): enemigos, 💎, 💰, orbes dorados, mejor racha y
 --   tu récord en ese modo (aviso "Record" en cuanto lo superas).
 -- - Modo infinito: al caer el jefe, ventana para elegir si sigues ("Endless", true/false);
 --   después las oleadas se cuentan sin tope ("♾️ OLEADA 14").
@@ -839,7 +839,7 @@ function WaveController.start()
 		local token = choiceToken
 		local reward = ""
 		if (tonumber(data.VictoryEnergy) or 0) > 0 or (tonumber(data.VictoryMoney) or 0) > 0 then
-			reward = ("🎁 Premio cobrado: <b>+%s ⚡  +%s 💰</b>\n"):format(formatNumber(tonumber(data.VictoryEnergy) or 0), formatNumber(tonumber(data.VictoryMoney) or 0))
+			reward = ("🎁 Premio cobrado: <b>+%s 💎  +%s 💰</b>\n"):format(formatNumber(tonumber(data.VictoryEnergy) or 0), formatNumber(tonumber(data.VictoryMoney) or 0))
 		end
 		ui.ChoiceBody.Text = reward .. "¿Sigues en el <b>modo infinito</b>? Oleadas sin fin, cada vez más duras y con más premio. Si caes, no pierdes nada."
 		ui.ChoicePanel.Visible = true
@@ -917,11 +917,11 @@ function WaveController.start()
 		end
 		local lines = {
 			("⚔ Enemigos: <b>%s</b>"):format(formatNumber(tonumber(data.Kills) or 0)),
-			("⚡ Energía: <b>%s</b>     💰 Dinero: <b>%s</b>"):format(formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0)),
+			("💎 Diamantes: <b>%s</b>     💰 Dinero: <b>%s</b>"):format(formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0)),
 			("🔥 Mejor racha: <b>x%d</b>     🌟 Orbes dorados: <b>%d</b>"):format(tonumber(data.BestStreak) or 0, tonumber(data.Golden) or 0),
 		}
 		if data.Victory and (tonumber(data.VictoryEnergy) or 0) > 0 then
-			table.insert(lines, ("🎁 Premio de victoria: +%s ⚡  +%s 💰"):format(formatNumber(data.VictoryEnergy), formatNumber(tonumber(data.VictoryMoney) or 0)))
+			table.insert(lines, ("🎁 Premio de victoria: +%s 💎  +%s 💰"):format(formatNumber(data.VictoryEnergy), formatNumber(tonumber(data.VictoryMoney) or 0)))
 		end
 		if not data.Tutorial then
 			local personal = tonumber(data.PersonalBest) or 0
@@ -1022,7 +1022,7 @@ function WaveController.start()
 		elseif kind == "Cleared" then
 			if type(data) == "table" then
 				local heal = if data.Healed == true then "  +❤️" else ""
-				Toasts.show(("✅ Oleada %d superada  +%s ⚡  +%s 💰%s"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0), heal), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
+				Toasts.show(("✅ Oleada %d superada  +%s 💎  +%s 💰%s"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0), heal), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
 				clearedFx(data)
 			end
 		elseif kind == "Choice" then

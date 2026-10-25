@@ -14,7 +14,7 @@
 --   apunta con el brazo (CharacterPose). Los críticos (Armas) sacan el número dorado y más
 --   grande. El botón dice
 --   Disparar / Golpear / Lanzar y la línea de encima, el estilo y su daño por segundo.
--- - Botín: monedas (💰) y orbes de energía (⚡) que saltan del enemigo y vuelan hacia ti al
+-- - Botín: monedas (💰) y diamantes (💎) que saltan del enemigo y vuelan hacia ti al
 --   cobrar, el ORBE DORADO (botín ×10) con su destello, un aviso al derrotarlo (uno solo
 --   que se actualiza, para que las hordas no llenen la pila) y anuncio al derrotar a un jefe.
 -- - Dentro de una partida de oleadas el arma dispara sola aunque no tengas el pase: la
@@ -77,8 +77,9 @@ local COIN_COLOR = Color3.fromRGB(255, 200, 40)
 local COIN_SIZE = Vector3.new(0.22, 1.1, 1.1) -- moneda de canto (el cilindro va en X)
 local COINS_KILL = 6 -- monedas que suelta un enemigo al morir
 local COINS_BOSS = 18
-local ORB_COLOR = Color3.fromRGB(32, 229, 209) -- energía (turquesa del cristal)
-local ORB_SIZE = 0.8
+local ORB_COLOR = Color3.fromRGB(110, 210, 255) -- diamantes (azul claro)
+local ORB_SIZE = 0.75
+local GEM_TILT = CFrame.Angles(math.rad(45), 0, math.rad(45)) -- el cubo de canto parece una gema
 local ORBS_KILL = 3
 local ORBS_BOSS = 12
 local GOLDEN_COLOR = Color3.fromRGB(255, 214, 70)
@@ -243,8 +244,35 @@ local function flashBall(center: Vector3, color: Color3, from: number, to: numbe
 	Debris:AddItem(ball, seconds + 0.05)
 end
 
--- Puñetazo: estela curva del puño hacia el enemigo y estrella de impacto
-local function punchFx(from: Vector3, target: Vector3, color: Color3)
+-- Nombre de un combo de golpes (¡Gancho!, ¡Gran orbe!, ¡Tiro cargado!) sobre el enemigo
+local function comboLabel(position: Vector3, text: string, color: Color3)
+	local anchor = fxPart(Vector3.one * 0.2, CFrame.new(position + Vector3.new(0, 3.5, 0)), color)
+	anchor.Transparency = 1
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromOffset(50, 16)
+	billboard.AlwaysOnTop = true
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 90
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = FONTS.Display
+	label.TextScaled = true
+	label.TextColor3 = color
+	label.TextStrokeColor3 = Color3.fromRGB(43, 29, 63)
+	label.TextStrokeTransparency = 0
+	label.Text = text
+	label.Parent = billboard
+	billboard.Parent = anchor
+	TweenService:Create(billboard, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(170, 46) }):Play()
+	TweenService:Create(billboard, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { StudsOffset = Vector3.new(0, 2, 0) }):Play()
+	TweenService:Create(label, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 0.5), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	Debris:AddItem(anchor, 0.9)
+end
+
+-- Puñetazo: estela curva del puño hacia el enemigo y estrella de impacto (más grande en el
+-- gancho del combo)
+local function punchFx(from: Vector3, target: Vector3, color: Color3, big: boolean?)
 	local offset = target - from
 	local distance = offset.Magnitude
 	if distance > 0.5 then
@@ -253,9 +281,12 @@ local function punchFx(from: Vector3, target: Vector3, color: Color3)
 		TweenService:Create(streak, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.05, 0.05, streak.Size.Z), Transparency = 1 }):Play()
 		Debris:AddItem(streak, 0.15)
 	end
-	flashBall(target, Color3.new(1, 1, 1), 0.6, 3.2, 0.14)
+	flashBall(target, Color3.new(1, 1, 1), 0.6, if big then 6 else 3.2, if big then 0.22 else 0.14)
+	if big then
+		flashBall(target, color, 1, 7.5, 0.3)
+	end
 	-- Estrella: puntas que salen del golpe
-	for index = 1, 6 do
+	for index = 1, if big then 10 else 6 do
 		local angle = index / 6 * math.pi * 2
 		local direction = Vector3.new(math.cos(angle), math.sin(angle) * 0.6 + 0.2, math.sin(angle))
 		local spike = fxPart(Vector3.new(0.25, 0.25, 1.6), CFrame.lookAt(target, target + direction) * CFrame.new(0, 0, -0.8), color)
@@ -268,8 +299,8 @@ local function punchFx(from: Vector3, target: Vector3, color: Color3)
 end
 
 -- Orbe mágico: se carga en la mano (crece) y luego viaja girando, con chispas, hasta el
--- objetivo; al llegar llama a `onArrive`.
-local function magicOrb(hand: Vector3, target: Vector3, color: Color3, onArrive: () -> ())
+-- objetivo; al llegar llama a `onArrive`. `scale`: más grande (el gran orbe del combo).
+local function magicOrb(hand: Vector3, target: Vector3, color: Color3, onArrive: () -> (), scale: number?)
 	local charge = 0.14
 	local orb = fxPart(Vector3.one * 0.3, CFrame.new(hand), color)
 	orb.Shape = Enum.PartType.Ball
@@ -291,8 +322,8 @@ local function magicOrb(hand: Vector3, target: Vector3, color: Color3, onArrive:
 	sparkles.SpreadAngle = Vector2.new(180, 180)
 	sparkles.Rate = 70
 	sparkles.Parent = orb
-	TweenService:Create(orb, TweenInfo.new(charge, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = Vector3.one * 1.8 }):Play()
-	TweenService:Create(core, TweenInfo.new(charge), { Size = Vector3.one * 0.8 }):Play()
+	TweenService:Create(orb, TweenInfo.new(charge, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = Vector3.one * 1.8 * (scale or 1) }):Play()
+	TweenService:Create(core, TweenInfo.new(charge), { Size = Vector3.one * 0.8 * (scale or 1) }):Play()
 	task.delay(charge, function()
 		if not orb.Parent then
 			return
@@ -515,7 +546,7 @@ local function showHits(hits: any, color: Color3, isOwner: boolean, react: numbe
 		if typeof(hit) == "table" and typeof(hit.Position) == "Vector3" and typeof(hit.Damage) == "number" then
 			local killed = hit.Killed == true
 			if isOwner then
-				local size = (boost or 1) * (if hit.Reaction then 1.35 else 1)
+				local size = (boost or 1) * (if hit.Reaction or hit.Combo then 1.35 else 1)
 				damageNumber(hit.Position, hit.Damage, color, killed, hit.Kind == "Boss", size)
 			end
 			emitAt("Spark", hit.Position, color, if killed then 16 else 6)
@@ -540,6 +571,11 @@ end
 CombatController.impactRing = function(center: Vector3, radius: number, color: Color3)
 	if fxFolder then
 		impactRing(center, radius, color)
+	end
+end
+CombatController.beam = function(from: Vector3, to: Vector3, color: Color3, thickness: number)
+	if fxFolder then
+		beamEffect(from, to, color, thickness)
 	end
 end
 
@@ -986,7 +1022,11 @@ function CombatController.start()
 		local styleId = player:GetAttribute(Constants.Attributes.CombatStyle)
 		local style = if typeof(styleId) == "string" and styleId ~= "Weapons" then StyleConfig.Styles[styleId] else nil
 		local dpsText = formatNumber(if typeof(dps) == "number" then dps else 0)
-		if style then
+		if style and def.Category == styleId then
+			-- Puños / Magia: sus guantes o su bastón
+			ui.WeaponPill.Text = ("%s %s · %s/s"):format(def.Icon, def.DisplayName, dpsText)
+			ui.WeaponPill.TextColor3 = def.Color
+		elseif style then
 			ui.WeaponPill.Text = ("%s %s · %s/s"):format(style.Icon, style.DisplayName, dpsText)
 			ui.WeaponPill.TextColor3 = style.Color
 		else
@@ -1200,8 +1240,25 @@ function CombatController.start()
 		if event.Kind == "PlayerShot" and typeof(event.Target) == "Vector3" then
 			local def = WeaponConfig.Weapons[event.WeaponId] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
 			local style = if typeof(event.Style) == "string" and StyleConfig.Styles[event.Style] then event.Style else "Weapons"
-			local color = if style == "Weapons" then def.Color else StyleConfig.Styles[style].Color
+			-- El color del arma, o el de los guantes / el bastón (si no, el del estilo)
+			local gearOfStyle = style == "Weapons" or def.Category == style
+			local color = if gearOfStyle then def.Color else StyleConfig.Styles[style].Color
+			-- Rayos que saltan de enemigo en enemigo (armas, guantes y bastones de cristal)
+			local function chainFx(from: Vector3)
+				if typeof(event.Chain) ~= "table" then
+					return
+				end
+				local previous = from
+				for _, point in event.Chain do
+					if typeof(point) == "Vector3" then
+						beamEffect(previous, point, color, 0.25)
+						emitAt("Glint", point, color, 3)
+						previous = point
+					end
+				end
+			end
 			local crit = event.Crit == true
+			local combo = if typeof(event.Combo) == "string" then event.Combo else nil
 			local character = owner.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			local target = event.Target :: Vector3
@@ -1229,24 +1286,42 @@ function CombatController.start()
 			if style == "Fists" then
 				-- Puñetazo: el personaje lanza el puño y el golpe estalla en el enemigo
 				CharacterPose.punch(character)
-				punchFx(hand, target, color)
-				impactRing(target, 2.6, color)
-				emitAt("Spark", target, color, 8)
+				punchFx(hand, target, color, combo ~= nil)
+				impactRing(target, if combo then 5 else 2.6, color)
+				emitAt("Spark", target, color, if combo then 20 else 8)
+				chainFx(target)
+				if combo then
+					comboLabel(target, combo, color)
+				end
 				impact()
 			elseif style == "Magic" then
 				-- Orbe que se carga en las manos, viaja girando y explota con runas
 				CharacterPose.cast(character, 0.12)
 				magicOrb(hand, target, color, function()
-					flashBall(target, color, 1, 6, 0.22)
-					impactRing(target, 3.5, Color3.new(1, 1, 1))
+					flashBall(target, color, 1, if combo then 11 else 6, if combo then 0.32 else 0.22)
+					impactRing(target, if combo then 6 else 3.5, Color3.new(1, 1, 1))
+					chainFx(target)
+					if combo then
+						comboLabel(target, combo, color)
+					end
 					impact()
-				end)
+				end, if combo then 1.9 else 1)
 			elseif def.Projectile == "Bolt" or def.Projectile == "Orb" then
 				CharacterPose.aim(character)
-				travelBall(hand, target, color, if def.Projectile == "Orb" then 1.5 else 0.9, if def.Projectile == "Orb" then 70 else 90, impact)
+				travelBall(hand, target, color, (if def.Projectile == "Orb" then 1.5 else 0.9) * (if combo then 1.8 else 1), if def.Projectile == "Orb" then 70 else 90, function()
+					if combo then
+						comboLabel(target, combo, color)
+						impactRing(target, 4, color)
+					end
+					impact()
+				end)
 			else
 				CharacterPose.aim(character)
-				beamEffect(hand, target, color, if def.Projectile == "Thorn" then 0.22 elseif def.Projectile == "Prism" then 0.45 else 0.3)
+				beamEffect(hand, target, color, (if def.Projectile == "Thorn" then 0.22 elseif def.Projectile == "Prism" then 0.45 else 0.3) * (if combo then 2.4 else 1))
+				if combo then
+					comboLabel(target, combo, color)
+					flashBall(target, Color3.new(1, 1, 1), 0.6, 4, 0.18)
+				end
 				if typeof(event.Chain) == "table" then
 					-- El rayo de cristal salta de enemigo en enemigo
 					local previous = target
@@ -1408,7 +1483,8 @@ function CombatController.start()
 		end
 	end
 
-	-- Orbes de energía: brotan del enemigo, flotan un instante y vuelan hasta el jugador.
+	-- Diamantes: brotan del enemigo, flotan un instante y vuelan hasta el jugador (uno por 💎,
+	-- hasta ORBS_KILL).
 	-- El orbe dorado es uno grande que brilla (y suena) antes de volar.
 	local function dropOrbs(from: Vector3, count: number, golden: boolean)
 		local character = player.Character
@@ -1428,8 +1504,9 @@ function CombatController.start()
 			local isGolden = golden and index == count
 			local size = if isGolden then ORB_SIZE * 2.4 else ORB_SIZE * (0.8 + math.random() * 0.4)
 			local orb = Instance.new("Part")
-			orb.Name = if isGolden then "GoldenOrb" else "EnergyOrb"
-			orb.Shape = Enum.PartType.Ball
+			orb.Name = if isGolden then "GoldenOrb" else "DiamondDrop"
+			orb.Shape = if isGolden then Enum.PartType.Ball else Enum.PartType.Block
+			local tilt = if isGolden then CFrame.identity else GEM_TILT
 			orb.Size = Vector3.one * size
 			orb.Color = if isGolden then GOLDEN_COLOR else ORB_COLOR
 			orb.Material = Enum.Material.Neon
@@ -1441,7 +1518,7 @@ function CombatController.start()
 			local angle = math.random() * math.pi * 2
 			local spread = 1.5 + math.random() * 2.5
 			local peak = from + Vector3.new(math.cos(angle) * spread, 3 + math.random() * 2.5, math.sin(angle) * spread)
-			orb.CFrame = CFrame.new(from)
+			orb.CFrame = CFrame.new(from) * tilt
 			if isGolden then
 				local light = Instance.new("PointLight")
 				light.Color = GOLDEN_COLOR
@@ -1451,7 +1528,7 @@ function CombatController.start()
 				light.Parent = orb
 			end
 			orb.Parent = fxFolder
-			TweenService:Create(orb, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { CFrame = CFrame.new(peak) }):Play()
+			TweenService:Create(orb, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { CFrame = CFrame.new(peak) * tilt * CFrame.Angles(0, math.pi, 0) }):Play()
 			local hold = if isGolden then 0.6 else 0.3 + index * 0.04
 			task.delay(0.35 + hold, function()
 				if not orb.Parent then
@@ -1459,7 +1536,7 @@ function CombatController.start()
 				end
 				local goal = if root.Parent then root.Position else peak
 				TweenService:Create(orb, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-					CFrame = CFrame.new(goal),
+					CFrame = CFrame.new(goal) * tilt,
 					Size = Vector3.one * size * 0.3,
 				}):Play()
 				Debris:AddItem(orb, 0.3)
@@ -1496,15 +1573,15 @@ function CombatController.start()
 		if typeof(at) == "Vector3" then
 			dropCoins(at, if isBoss then COINS_BOSS elseif isKill then COINS_KILL else 1)
 			if isKill and (energy > 0 or golden) then
-				dropOrbs(at, if isBoss then ORBS_BOSS else ORBS_KILL, golden)
+				dropOrbs(at, math.clamp(energy, 1, if isBoss then ORBS_BOSS else ORBS_KILL), golden)
 			end
 		end
 		if not (isKill or isBoss) then
 			return -- golpe suelto: solo la moneda y el salto del contador
 		end
-		local loot = ("+%s 💰"):format(formatNumber(amount)) .. (if energy > 0 then ("  +%s ⚡"):format(formatNumber(energy)) else "")
+		local loot = ("+%s 💰"):format(formatNumber(amount)) .. (if energy > 0 then ("  +%s 💎"):format(formatNumber(energy)) else "")
 		if golden then
-			Toasts.show(("🌟 ¡ORBE DORADO!  ×10  ·  %s"):format(loot), { Color = GOLDEN_COLOR, Key = "GoldenOrb" })
+			Toasts.show(("🌟 ¡BOTÍN DORADO!  ×10  ·  %s"):format(loot), { Color = GOLDEN_COLOR, Key = "GoldenOrb" })
 			playVaried(killSound, 1.6, 0.05)
 		elseif isBoss then
 			toast(("%s  ·  %s"):format(loot, tostring(enemyName)), THEME.Gold)

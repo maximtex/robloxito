@@ -1,11 +1,11 @@
--- Tienda: pases (game passes) y compras sueltas de energía (developer products). Lo cobra
+-- Tienda: pases (game passes) y compras sueltas de 💎 (developer products). Lo cobra
 -- Roblox y lo concede este servicio; el cliente solo abre la ventana de compra de Roblox.
 -- - Pases: al entrar se consulta a Roblox cuáles tiene (UserOwnsGamePassAsync) y se guardan
 --   en el perfil (profile.Passes, no en el DataStore: Roblox es la fuente de verdad). Al
 --   comprar uno en la partida (PromptGamePassPurchaseFinished) se aplica en el acto.
 --   Efectos: Energía ×2 (PlayerDataService), Más mascotas y Abrir ×3 (PetService) y la
 --   mejora automática (bucle de este servicio, con su interruptor guardado en Shop).
--- - Compras sueltas (ProcessReceipt): se concede la energía o la mascota exclusiva
+-- - Compras sueltas (ProcessReceipt): se conceden los 💎 o la mascota exclusiva
 --   (PetProducts) UNA vez por compra (el PurchaseId se recuerda en el registro) y solo se
 --   confirma a Roblox cuando la compra quedó guardada; si no se puede guardar, Roblox lo
 --   reintenta más tarde.
@@ -108,7 +108,7 @@ end
 
 -- Compras sueltas -----------------------------------------------------------------------------
 
--- Concede una compra suelta (energía, una mascota exclusiva o un arma). Devuelve la
+-- Concede una compra suelta (💎, una mascota exclusiva o un arma). Devuelve la
 -- decisión para Roblox.
 function ShopService.processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	local productKey, def = MonetizationLogic.productById(receipt.ProductId)

@@ -10,7 +10,8 @@
 -- - Naturaleza ES el cristal actual: su nivel es UpgradeLevels.GeneratorPower y su
 --   producción y coste son los de Economy/EconomyConfig. Aquí NO se duplica.
 -- - Naturaleza está desbloqueada desde el principio; los otros siete se desbloquean
---   pagando energía, con costes crecientes.
+--   pagando 💎 diamantes (en el código, Energy), con costes crecientes. Sus mejoras también
+--   se pagan con 💎; cambiar de elemento es gratis (solo tiene enfriamiento).
 -- - Todos los núcleos desbloqueados producirán energía pasiva (en una fase futura); solo
 --   el elemento seleccionado habilitará sus habilidades.
 -- - Las mascotas multiplican la producción de TODOS los núcleos desbloqueados, una sola
@@ -47,12 +48,11 @@ local CoreConfig = {
 	},
 
 	-- Desbloqueo del núcleo en la posición k del orden (k = 2..8):
-	--   coste = BaseCost · Growth^(k - 2)
-	-- [PROVISIONAL] 5 000 ≈ el Huevo de Cristal (tras el Valle, 2 500) y la mejora 15
-	-- del cristal; ×4 por núcleo: 5 000, 20 000, 80 000, 320 000, 1,28 M, 5,12 M, 20,48 M.
+	--   coste = BaseCost · Growth^(k - 2)   [💎]
+	-- [PROVISIONAL] ×2 por núcleo: 300, 600, 1 200, 2 400, 4 800, 9 600 y 19 200 💎.
 	Unlock = {
-		BaseCost = 5000,
-		Growth = 4,
+		BaseCost = 300,
+		Growth = 2,
 		-- [PROVISIONAL, comportamiento explícito] Desbloqueo secuencial: para desbloquear
 		-- un núcleo hacen falta todos los anteriores del orden (no se puede saltar ninguno).
 		Sequential = true,
@@ -62,24 +62,23 @@ local CoreConfig = {
 	-- Núcleo en la posición k, nivel n:
 	--   producción = BaseProduction · TierMultiplier^(k - 1) · (1 + n)    [⚡/s]
 	--   coste de subir al nivel n + 1 = floor(BaseUpgradeCost · TierMultiplier^(k - 1) · CostGrowth^n)
-	-- [PROVISIONAL] Mismos parámetros que el cristal (base 1, coste 10, ×1,5 por nivel,
-	-- máximo 50) multiplicados por 2 por escalón: cada núcleo produce y cuesta el doble que
-	-- el anterior, así que el tiempo de amortización de cada mejora es el mismo en todos.
+	-- [PROVISIONAL] Coste en 💎: 6 · 2^(k-1) · 1,15^n (Agua: 12 el nivel 1, ~50 el 10, ~200
+	-- el 20); cada núcleo produce y cuesta el doble que el anterior.
 	Upgrade = {
 		BaseProduction = 1,
-		BaseUpgradeCost = 10,
-		CostGrowth = 1.5,
+		BaseUpgradeCost = 6,
+		CostGrowth = 1.15,
 		TierMultiplier = 2,
 		MaxLevel = 50,
 	},
 
 	-- Cambio de elemento seleccionado:
 	--   coste = max(MinCost, floor(ProductionSeconds · producción base total))
-	-- [PROVISIONAL] El equivalente a 1 minuto de producción (mínimo 100), con un
-	-- enfriamiento de 10 s para evitar cambios en ráfaga.
+	-- Gratis (los 💎 son para habilidades), con un enfriamiento de 10 s para evitar cambios
+	-- en ráfaga.
 	Switch = {
-		MinCost = 100,
-		ProductionSeconds = 60,
+		MinCost = 0,
+		ProductionSeconds = 0,
 		CooldownSeconds = 10,
 	},
 

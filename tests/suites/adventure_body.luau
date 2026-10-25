@@ -1,6 +1,7 @@
 -- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
 -- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
 EconomyConfig.PassiveEnergy = true
+EconomyConfig.Version = 1 -- la ⚡ de los registros antiguos de aquí no se convierte en 💰
 -- Aventuras: AdventureLogic (pura) y el AdventureService REAL con PlayerDataService y
 -- SaveService reales sobre un DataStore en memoria. Configuración, saneado, aceptar /
 -- progreso / entregar (derrotas, objetos perdidos y entregas entre personajes), amuletos y
@@ -166,9 +167,11 @@ code, step = AdventureLogic.turnIn(d, "Herbalist")
 check("última misión: Amuleto de Savia, puesto solo en la ranura vacía", code == "Success" and step.Reward.Amulet == "Sap" and d.Amulets.Sap and d.Equipped[1] == "Sap")
 check("historia completada: ya no ofrece nada", AdventureLogic.state(d, "Herbalist").Status == "Done" and AdventureLogic.accept(d, "Herbalist") == "AlreadyClaimed" and AdventureLogic.turnIn(d, "Herbalist") == "AlreadyClaimed")
 local first = AdventureConfig.Npcs.Herbalist.Steps[1]
-check("energía: clamp(Share · coste, Min, Max)",
-	AdventureLogic.rewardEnergy(first, 50) == 100 and AdventureLogic.rewardEnergy(first, 500) == 500 and AdventureLogic.rewardEnergy(first, 1e9) == 2000
-		and AdventureLogic.rewardEnergy(first, nil) == 100 and AdventureLogic.rewardEnergy(first, 0 / 0) == 100)
+local firstMoney = first.Reward.Money
+local middleCost = (firstMoney.Min + firstMoney.Max) / 2 / firstMoney.Share
+check("💰: clamp(Share · coste, Min, Max)",
+	AdventureLogic.rewardMoney(first, 1) == firstMoney.Min and AdventureLogic.rewardMoney(first, middleCost) == math.floor(firstMoney.Share * middleCost) and AdventureLogic.rewardMoney(first, 1e9) == firstMoney.Max
+		and AdventureLogic.rewardMoney(first, nil) == firstMoney.Min and AdventureLogic.rewardMoney(first, 0 / 0) == firstMoney.Min)
 -- Dos misiones a la vez: un mismo enemigo cuenta para todas las que lo piden.
 local both = AdventureLogic.empty()
 both.Npcs.Hunter = { Step = 3, Accepted = true, Progress = 0, Found = {} }
@@ -324,19 +327,19 @@ check("5/5: lista", lastState(p1).Npcs.Herbalist.Status == "Ready")
 args = act(p1, "TurnIn", "Herbalist")
 check("entregar lejos: TooFar", args[1] == false and args[2] == Codes.TooFar)
 at(p1, npcPos.Herbalist, 5)
-local energyBefore = profile.Energy
-local expectedEnergy = AdventureLogic.rewardEnergy(AdventureConfig.Npcs.Herbalist.Steps[1], Economy.getUpgradeCost("GeneratorPower", 5))
+local moneyBefore = profile.Money
+local expectedMoney = AdventureLogic.rewardMoney(AdventureConfig.Npcs.Herbalist.Steps[1], Economy.getUpgradeCost("GeneratorPower", 5))
 args = act(p1, "TurnIn", "Herbalist")
-check(("entregar: +%d de energía y una Bendición de Abundancia"):format(expectedEnergy),
-	args[1] == true and args[4].Energy == expectedEnergy and args[4].Blessing == "Abundance" and near(profile.Energy - energyBefore, expectedEnergy) and profile.PetData.Adventure.Blessings.Abundance == 1)
+check(("entregar: +%d 💰 y una Bendición de Abundancia"):format(expectedMoney),
+	args[1] == true and args[4].Money == expectedMoney and args[4].Blessing == "Abundance" and near(profile.Money - moneyBefore, expectedMoney) and profile.PetData.Adventure.Blessings.Abundance == 1)
 st = lastState(p1)
 local rewardNotice = nil
 for _, notice in st.Notices do
 	if notice.Type == "Reward" then rewardNotice = notice end
 end
-check("aviso de recompensa y siguiente misión ofrecida con su energía", rewardNotice and rewardNotice.Energy == expectedEnergy and st.Npcs.Herbalist.Status == "Offer" and st.Npcs.Herbalist.Step == 2 and st.Npcs.Herbalist.Reward > 0)
+check("aviso de recompensa y siguiente misión ofrecida con su 💰", rewardNotice and rewardNotice.Money == expectedMoney and st.Npcs.Herbalist.Status == "Offer" and st.Npcs.Herbalist.Step == 2 and st.Npcs.Herbalist.Reward > 0)
 args = act(p1, "TurnIn", "Herbalist")
-check("entregar otra vez: NotComplete y sin cobrar", args[1] == false and args[2] == Codes.NotComplete and near(profile.Energy - energyBefore, expectedEnergy))
+check("entregar otra vez: NotComplete y sin cobrar", args[1] == false and args[2] == Codes.NotComplete and near(profile.Money - moneyBefore, expectedMoney))
 
 -- Bendición: producción ×2 y caduca sola
 args = act(p1, "UseBlessing", "Abundance")
@@ -368,7 +371,7 @@ args = act(p1, "TurnIn", "Herbalist")
 check("amuleto: llega puesto y la producción sube ×1.25",
 	args[1] == true and args[4].Amulet == "Sap" and args[4].Finished == true and profile.PetData.Adventure.Equipped[1] == "Sap" and near(profile.ProductionPerSecond, baseProduction * 1.25))
 advance(0)
-check("guardado en seguida: Version 12 y Adventure en el registro", record(1) and record(1).Version == 12 and record(1).Adventure.Amulets.Sap == true and record(1).Adventure.Npcs.Herbalist.Step == 4)
+check("guardado en seguida: Version 13 y Adventure en el registro", record(1) and record(1).Version == 13 and record(1).Adventure.Amulets.Sap == true and record(1).Adventure.Npcs.Herbalist.Step == 4)
 args = act(p1, "Unequip", 1)
 check("quitarlo: producción normal", args[1] == true and near(profile.ProductionPerSecond, baseProduction))
 args = act(p1, "Equip", "Sap", 2)

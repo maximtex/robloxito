@@ -46,6 +46,7 @@ local MonetizationLogic = require(Shared.MonetizationLogic)
 local PetConfig = require(Shared.Config.PetConfig)
 local ItemLogic = require(Shared.ItemLogic)
 local StyleLogic = require(Shared.StyleLogic)
+local SkillLogic = require(Shared.SkillLogic)
 local SaveService = require(script.Parent.SaveService)
 local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
 local DevConfig = require(script.Parent.Parent.DevConfig)
@@ -156,7 +157,8 @@ end
 export type CombatStats = { WeaponId: string, Level: number, Shot: number, Cooldown: number, Range: number, Dps: number, Power: number, RawPower: number, Bonus: number }
 function PlayerDataService.combatStats(profile: Profile): CombatStats
 	local weapons = profile.PetData.Weapons
-	local weaponId = weapons.Equipped
+	-- Lo equipado para el estilo actual: el arma, los guantes o el bastón
+	local weaponId = WeaponLogic.equippedFor(weapons, StyleLogic.sanitize(profile.PetData.Style))
 	local level = WeaponLogic.level(weapons, weaponId)
 	local cadence = profile.UpgradeLevels[WeaponConfig.CadenceUpgradeId] or 0
 	local bonus = RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
@@ -172,6 +174,29 @@ function PlayerDataService.combatStats(profile: Profile): CombatStats
 		RawPower = WeaponLogic.power(weaponId, level, cadence, 1, 1),
 		Bonus = bonus,
 	}
+end
+
+-- Velocidad al caminar (mejora, amuleto y estilo: Puños corren más y Magia camina más
+-- lento) y vida máxima (Puños: +50 %) del personaje. Al cambiar la vida máxima se conserva
+-- la parte de vida que tenía.
+local BASE_HEALTH = 100
+local function applyBody(humanoid: Humanoid, profile: Profile)
+	local speedLevel = profile.UpgradeLevels.WalkSpeed or 0
+	local speedDef = EconomyConfig.Upgrades.WalkSpeed
+	local perLevel = if speedDef and type(speedDef.SpeedPerLevel) == "number" then speedDef.SpeedPerLevel else 2.5
+	local amuletMult = AdventureLogic.walkSpeedMultiplier(profile.PetData.Adventure)
+	local baseSpeed = (28 + speedLevel * perLevel) * amuletMult * StyleLogic.walkSpeed(profile.PetData.Style)
+	humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
+	humanoid.WalkSpeed = baseSpeed
+	local maxHealth = BASE_HEALTH * StyleLogic.maxHealth(profile.PetData.Style)
+	local current = humanoid.MaxHealth
+	if type(current) == "number" and type(humanoid.Health) == "number" and math.abs(current - maxHealth) > 0.01 then
+		local fraction = if current > 0 then math.clamp(humanoid.Health / current, 0, 1) else 1
+		humanoid.MaxHealth = maxHealth
+		if humanoid.Health > 0 then
+			humanoid.Health = maxHealth * fraction
+		end
+	end
 end
 
 -- Armas que tiene con su nivel, para el cliente ("Laser:3,PlasmaBlaster:0")
@@ -204,15 +229,10 @@ function PlayerDataService.replicate(player: Player)
 	for upgradeId, level in profile.UpgradeLevels do
 		setIfChanged(player, attributes.UpgradeLevelPrefix .. upgradeId, level)
 	end
-	local speedLevel = profile.UpgradeLevels.WalkSpeed or 0
-	local amuletMult = AdventureLogic.walkSpeedMultiplier(profile.PetData.Adventure)
-	-- Estilo de pelea: Puños corren más y Magia camina más lento
-	local baseSpeed = (28 + speedLevel * 2.5) * amuletMult * StyleLogic.walkSpeed(profile.PetData.Style)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
-		humanoid.WalkSpeed = baseSpeed
+		applyBody(humanoid, profile)
 	end
 	setIfChanged(player, attributes.PetMultiplier, profile.PetMultiplier)
 
@@ -226,6 +246,11 @@ function PlayerDataService.replicate(player: Player)
 	-- Estilo de pelea y el daño por segundo que da con el arma (Puños: más)
 	local style = StyleLogic.sanitize(profile.PetData.Style)
 	setIfChanged(player, attributes.CombatStyle, style)
+	-- Habilidades de los estilos: las que tiene (con nivel), las puestas y si ya eligió estilo
+	local skills = profile.PetData.Skills or SkillLogic.empty()
+	setIfChanged(player, attributes.Skills, SkillLogic.ownedText(skills))
+	setIfChanged(player, attributes.SkillSlots, SkillLogic.slotsText(skills))
+	setIfChanged(player, attributes.StylePicked, skills.Picked == true)
 	setIfChanged(player, attributes.DamagePerSecond, StyleLogic.dps(stats.Dps, style) * damageBoost)
 
 	-- Dinero en la lista de jugadores
@@ -325,21 +350,21 @@ local function sandboxActive(): boolean
 	return DevConfig.TutorialSandbox == true and RunService:IsStudio()
 end
 
-local function sandboxEnergy(): number
-	local energy = DevConfig.SandboxStartingEnergy
-	if type(energy) == "number" and energy == energy and energy >= 0 and energy < 1e15 then
-		return energy
+local function sandboxMoney(): number
+	local money = DevConfig.SandboxStartingMoney
+	if type(money) == "number" and money == money and money >= 0 and money < 1e15 then
+		return money
 	end
-	return EconomyConfig.StartingEnergy
+	return EconomyConfig.StartingMoney
 end
 
--- Perfil temporal: datos vacíos (sin mascotas, zonas ni misiones; tutorial activo) y la
--- energía inicial de prueba, que se suma directamente y NO cuenta como generada.
+-- Perfil temporal: datos vacíos (sin mascotas, zonas ni misiones; tutorial activo) y el
+-- 💰 inicial de prueba (los 💎 empiezan en 0, como un jugador nuevo).
 local function startSandbox(player: Player, profile: Profile)
 	profile.Sandbox = true
 	profile.DataState = "Unavailable" -- se juega con normalidad y nunca se guarda
 	profile.PetData = SaveService.emptyData() -- pura: no toca el DataStore
-	profile.Energy = sandboxEnergy()
+	profile.Money = sandboxMoney()
 	player:SetAttribute(Constants.Attributes.TestMode, true)
 	print(("[PlayerDataService] 🧪 Perfil temporal de prueba creado para %s (UserId %d)."):format(player.Name, player.UserId))
 	PlayerDataService.recalculateProduction(player)
@@ -405,6 +430,12 @@ local function loadPetData(player: Player, profile: Profile)
 		end
 		profile.UpgradeLevels = levels
 		profile.PetData = data
+		local converted = data.EconomyConverted
+		if converted then
+			data.EconomyConverted = nil
+			profile.Dirty = true -- que la conversión quede guardada cuanto antes
+			player:SetAttribute(Constants.Attributes.EconomyNotice, ("%d,%d"):format(converted.Energy, converted.Money))
+		end
 		if #profile.PetData.Pets == 0 then
 			table.insert(profile.PetData.Pets, { Uid = "p1", PetId = "Sproutling" })
 			table.insert(profile.PetData.Equipped, "p1")
@@ -495,11 +526,10 @@ local function onPlayerAdded(player: Player)
 		local humanoid = character:WaitForChild("Humanoid", 5) :: Humanoid?
 		local currentProfile = profiles[player]
 		if humanoid and currentProfile then
-			local speedLvl = currentProfile.UpgradeLevels.WalkSpeed or 0
-			local amuletMult = AdventureLogic.walkSpeedMultiplier(currentProfile.PetData.Adventure)
-			local baseSpeed = (28 + speedLvl * 2.5) * amuletMult * StyleLogic.walkSpeed(currentProfile.PetData.Style)
-			humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
-			humanoid.WalkSpeed = baseSpeed
+			applyBody(humanoid, currentProfile)
+			if type(humanoid.MaxHealth) == "number" then
+				humanoid.Health = humanoid.MaxHealth
+			end
 		end
 	end)
 	PlayerDataService.replicate(player)

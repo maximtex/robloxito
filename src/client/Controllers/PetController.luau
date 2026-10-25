@@ -50,6 +50,7 @@ local EGG_PANEL_CLOSE_DISTANCE = 20
 
 local MESSAGES = {
 	[Codes.InsufficientEnergy] = "Energía insuficiente",
+	[Codes.InsufficientMoney] = "Dinero insuficiente",
 	[Codes.InventoryFull] = "Inventario lleno",
 	[Codes.TooFar] = "Acércate al santuario del huevo",
 	[Codes.TooFast] = "Espera un momento",
@@ -532,9 +533,10 @@ function PetController.start()
 		local failed = dataStatus == "Failed"
 		local status = if snapshot.Ready then "" elseif failed then "  ·  no se pudieron cargar" else "  ·  cargando…"
 		local saving = if snapshot.Ready and snapshot.Saving == false then "  ·  sin guardado en esta sesión" else ""
-		-- Las equipadas suben la energía (entera), el daño y el dinero (la mitad de su bonificación)
+		-- Las equipadas suben el poder (entero: también algo los 💎), el daño y el dinero (la
+		-- mitad de su bonificación)
 		local half = 1 + (multiplier - 1) * 0.5
-		ui.InventorySubtitle.Text = ("⚡ ×%s  ·  💥 y 💰 ×%s  ·  %d/%d en total%s%s"):format(
+		ui.InventorySubtitle.Text = ("✨ poder ×%s  ·  💥 y 💰 ×%s  ·  %d/%d en total%s%s"):format(
 			formatNumber(multiplier, 2),
 			formatNumber(half, 2),
 			#snapshot.Pets,
@@ -663,7 +665,7 @@ function PetController.start()
 				Font = FONTS.Light,
 				TextSize = 13,
 				TextColor3 = THEME.Accent,
-				Text = bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " energía",
+				Text = bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " poder",
 			})
 			if equipped then
 				UiKit.text(card, "Equipped", {
@@ -885,10 +887,10 @@ function PetController.start()
 		local rawLevel = player:GetAttribute(levelAttribute)
 		local best = player:GetAttribute(Constants.Attributes.RebirthBestLevel)
 		local level = math.max(if typeof(rawLevel) == "number" then rawLevel else 0, if typeof(best) == "number" then best else 0)
-		local energy = player:GetAttribute(Constants.Attributes.Energy)
+		local money = player:GetAttribute(Constants.Attributes.Money) -- los huevos se pagan con 💰
 		local zoneLocked = egg.RequiredZone ~= nil and not zoneUnlocked(egg.RequiredZone)
 		local locked = zoneLocked or level < (egg.RequiredLevel or 0)
-		local affordable = typeof(energy) == "number" and energy >= egg.Cost
+		local affordable = typeof(money) == "number" and money >= egg.Cost
 		return locked, affordable, zoneLocked
 	end
 
@@ -911,8 +913,8 @@ function PetController.start()
 		local amount = count or 1
 		local locked, affordable, zoneLocked = eggState(egg)
 		if amount > 1 then
-			local energy = player:GetAttribute(Constants.Attributes.Energy)
-			affordable = typeof(energy) == "number" and energy >= egg.Cost * amount
+			local money = player:GetAttribute(Constants.Attributes.Money)
+			affordable = typeof(money) == "number" and money >= egg.Cost * amount
 		end
 		if zoneLocked then
 			local zone = ZoneConfig.Zones[egg.RequiredZone]
@@ -920,7 +922,7 @@ function PetController.start()
 		elseif locked then
 			button.Text = ("🔒 %s nivel %d"):format(unlockUpgradeName, egg.RequiredLevel)
 		else
-			button.Text = label .. "  ·  ⚡ " .. formatNumber(egg.Cost * amount)
+			button.Text = label .. "  ·  💰 " .. formatNumber(egg.Cost * amount)
 		end
 		local enabled = not locked and affordable
 		button.BackgroundColor3 = if enabled then THEME.Buy else THEME.Disabled
@@ -979,7 +981,7 @@ function PetController.start()
 				Font = FONTS.Light,
 				TextSize = 14,
 				TextColor3 = THEME.Muted,
-				Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " de energía",
+				Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " de poder",
 			})
 			UiKit.text(row, "Chance", {
 				AnchorPoint = Vector2.new(1, 0.5),
@@ -1082,9 +1084,9 @@ function PetController.start()
 		currentEggId = eggId
 		currentPromptPart = promptPart
 		ui.EggTitle.Text = egg.DisplayName
-		ui.EggCost.Text = "⚡ "
+		ui.EggCost.Text = "💰 "
 			.. formatNumber(egg.Cost)
-			.. " de energía por huevo"
+			.. " por huevo"
 			.. (if (egg.RequiredLevel or 0) > 0 then ("  ·  requiere %s nivel %d"):format(unlockUpgradeName, egg.RequiredLevel) else "")
 		ui.EggShape.BackgroundColor3 = egg.Look.Shell
 		for _, spot in ui.EggSpots do
@@ -1235,15 +1237,15 @@ function PetController.start()
 		local egg = EggConfig.Eggs[eggId]
 		local locked, affordable, zoneLocked = eggState(egg)
 		if amount > 1 then
-			local energy = player:GetAttribute(Constants.Attributes.Energy)
-			affordable = typeof(energy) == "number" and energy >= egg.Cost * amount
+			local money = player:GetAttribute(Constants.Attributes.Money)
+			affordable = typeof(money) == "number" and money >= egg.Cost * amount
 		end
 		if locked then
 			showFeedback(ui.EggFeedback, messageFor(if zoneLocked then Codes.ZoneLocked else Codes.Locked), THEME.Error)
 			return
 		end
 		if not affordable then
-			showFeedback(ui.EggFeedback, messageFor(Codes.InsufficientEnergy), THEME.Error)
+			showFeedback(ui.EggFeedback, messageFor(Codes.InsufficientMoney), THEME.Error)
 			return
 		end
 		lastCount = amount
@@ -1287,7 +1289,7 @@ function PetController.start()
 		pendingResult = result -- se revela al terminar la incubación
 	end)
 
-	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(refreshEggButton)
+	player:GetAttributeChangedSignal(Constants.Attributes.Money):Connect(refreshEggButton)
 	player:GetAttributeChangedSignal(levelAttribute):Connect(refreshEggButton)
 	player:GetAttributeChangedSignal(Constants.Attributes.UnlockedZones):Connect(refreshEggButton)
 	player:GetAttributeChangedSignal(Constants.Attributes.Passes):Connect(refreshEggButton)

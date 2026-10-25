@@ -1,6 +1,9 @@
 -- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
 -- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
 EconomyConfig.PassiveEnergy = true
+-- Con la economía 1: la ⚡ de los registros antiguos de esta batería no se convierte en 💰.
+EconomyConfig.Version = 1
+local UNLOCK = CoreConfig.Unlock.BaseCost -- despertar Agua
 -- Fase 2 de los núcleos: CoreLogic (afinidad y mejora) y el CoreService REAL con el
 -- PlayerDataService y el SaveService reales sobre un DataStore en memoria.
 -- Desbloquear, mejorar y elegir: validación, cobro en el mismo paso, producción,
@@ -92,24 +95,24 @@ local before = p.ProductionPerSecond
 check("entra con solo Naturaleza: producción de siempre y atributos de núcleos", before == Economy.getProductionPerSecond({ GeneratorPower = 10 }) * pets and ana:GetAttribute("UnlockedCores") == "Nature" and ana:GetAttribute("SelectedCore") == "Nature")
 local r = act(ana, "Unlock", "Fire")
 check("Fuego antes que Agua -> Locked (desbloqueo secuencial), sin cobrar", r[1] == false and r[2] == "Locked" and p.Energy == 100000)
-p.Energy = 4000
+p.Energy = UNLOCK - 1
 r = act(ana, "Unlock", "Water")
-check("sin energía suficiente -> InsufficientEnergy con el coste (5 000), sin cambios", r[1] == false and r[2] == "InsufficientEnergy" and r[5] == 5000 and p.Energy == 4000 and not CoreLogic.isUnlocked(p.PetData.Cores, "Water"))
+check(("sin 💎 suficientes -> InsufficientEnergy con el coste (%d), sin cambios"):format(UNLOCK), r[1] == false and r[2] == "InsufficientEnergy" and r[5] == UNLOCK and p.Energy == UNLOCK - 1 and not CoreLogic.isUnlocked(p.PetData.Cores, "Water"))
 p.Energy = 100000
 local writes = storeWrites
 r = act(ana, "Unlock", "Water")
-check("despertar Agua -> Success, cuesta 5 000", r[1] == true and r[2] == "Success" and r[3] == "Unlock" and r[4] == "Water" and r[5] == 5000 and p.Energy == 95000)
+check(("despertar Agua -> Success, cuesta %d"):format(UNLOCK), r[1] == true and r[2] == "Success" and r[3] == "Unlock" and r[4] == "Water" and r[5] == UNLOCK and p.Energy == 100000 - UNLOCK)
 check("la producción sube con la de Agua (2/s · mascotas)", near(p.ProductionPerSecond, (Economy.getProductionPerSecond({ GeneratorPower = 10 }) + 2) * pets))
 check("atributos y altar: UnlockedCores = Nature,Water", ana:GetAttribute("UnlockedCores") == "Nature,Water")
 check("se guarda al momento (UnlockedAt registrado)", storeWrites > writes and record(31).Cores.Elements.Water.Unlocked == true and record(31).Cores.Elements.Water.UnlockedAt == os.time())
 r = act(ana, "Unlock", "Water")
-check("despertarlo otra vez -> AlreadyUnlocked, sin cobrar", r[2] == "AlreadyUnlocked" and p.Energy == 95000)
+check("despertarlo otra vez -> AlreadyUnlocked, sin cobrar", r[2] == "AlreadyUnlocked" and p.Energy == 100000 - UNLOCK)
 
 print("-- 3. Mejorar")
 local upgradeCost = CoreLogic.upgradeCost("Water", 0)
 advance(1)
 r = act(ana, "Upgrade", "Water")
-check(("mejorar Agua -> nivel 1, cuesta %d"):format(upgradeCost), r[1] == true and r[3] == "Upgrade" and r[5] == upgradeCost and p.PetData.Cores.Elements.Water.Level == 1 and p.Energy == 95000 - upgradeCost)
+check(("mejorar Agua -> nivel 1, cuesta %d"):format(upgradeCost), r[1] == true and r[3] == "Upgrade" and r[5] == upgradeCost and p.PetData.Cores.Elements.Water.Level == 1 and p.Energy == 100000 - UNLOCK - upgradeCost)
 check("producción de Agua a nivel 1 = 4/s", near(p.ProductionPerSecond, (Economy.getProductionPerSecond({ GeneratorPower = 10 }) + 4) * pets))
 advance(1)
 r = act(ana, "Upgrade", "Nature")
@@ -160,7 +163,7 @@ advance(0)
 local state = lastResult("CoreState", ana)[1]
 check("CoreState: 8 núcleos en orden, Agua nivel 1, Fuego disponible, Viento no",
 	#state.Elements == 8 and state.Elements[2].Id == "Water" and state.Elements[2].Level == 1
-		and state.Elements[3].Available == true and state.Elements[3].UnlockCost == 20000 and state.Elements[4].Available == false)
+		and state.Elements[3].Available == true and state.Elements[3].UnlockCost == CoreLogic.unlockCost("Fire") and state.Elements[4].Available == false)
 check("CoreState: producción total, base, afinidad y coste de cambio coherentes con el perfil",
 	state.Total == p.ProductionPerSecond and near(state.BaseProduction, base) and state.AffinityProduction == 0
 		and state.SwitchCost == CoreLogic.switchCost(p.PetData.Cores, p.UpgradeLevels) and state.Ready == true and state.Secondary == "Water")

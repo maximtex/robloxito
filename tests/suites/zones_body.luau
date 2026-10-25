@@ -13,12 +13,12 @@ end
 local Codes = Constants.PurchaseCodes
 -- Por defecto con los jefes ya derrotados (el requisito del jefe se prueba aparte)
 local function profile(energy, zones, bosses)
-	return { Energy = energy, PetData = { UnlockedZones = zones or {}, Bosses = bosses or { ForestWarden = 1, AmethystColossus = 1 } } }
+	return { Money = energy, Energy = 0, PetData = { UnlockedZones = zones or {}, Bosses = bosses or { ForestWarden = 1, AmethystColossus = 1 } } }
 end
 
 print("-- 1. Desbloqueo")
 local caldera = ZoneConfig.Zones.EmberCaldera
-check("la Caldera existe y cuesta energía", caldera ~= nil and caldera.UnlockCost > 0)
+check("la Caldera existe y cuesta 💰", caldera ~= nil and caldera.UnlockCost > 0)
 check("los renacimientos que pide cada zona salen de su configuración", ZoneLogic.requiredRebirths(ZoneConfig, "EmberCaldera") == (caldera.RequiredRebirths or 0))
 check("el bosque y el valle no piden renacimientos", ZoneLogic.requiredRebirths(ZoneConfig, "Forest") == 0 and ZoneLogic.requiredRebirths(ZoneConfig, "CrystalValley") == 0)
 
@@ -32,27 +32,27 @@ check("con RequiredRebirths = 3 la Caldera pide 3", ZoneLogic.requiredRebirths(G
 
 local p = profile(1e9)
 local code, missing = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 2)
-check("con 2 renacimientos: RebirthLocked, falta 1 y no cobra", code == Codes.RebirthLocked and missing == 1 and p.Energy == 1e9 and #p.PetData.UnlockedZones == 0)
+check("con 2 renacimientos: RebirthLocked, falta 1 y no cobra", code == Codes.RebirthLocked and missing == 1 and p.Money == 1e9 and #p.PetData.UnlockedZones == 0)
 code, missing = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, nil)
 check("sin dato de renacimientos cuenta como 0", code == Codes.RebirthLocked and missing == 3)
 code = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 0 / 0)
-check("renacimientos NaN: bloqueado", code == Codes.RebirthLocked and p.Energy == 1e9)
+check("renacimientos NaN: bloqueado", code == Codes.RebirthLocked and p.Money == 1e9)
 local poor = profile(caldera.UnlockCost - 10)
 code, missing = ZoneLogic.unlock(poor, GatedConfig, "EmberCaldera", Codes, 3)
-check("con 3 renacimientos pero sin energía: InsufficientEnergy (faltan 10)", code == Codes.InsufficientEnergy and missing == 10 and poor.Energy == caldera.UnlockCost - 10)
+check("con 3 renacimientos pero sin 💰: InsufficientMoney (faltan 10)", code == Codes.InsufficientMoney and missing == 10 and poor.Money == caldera.UnlockCost - 10)
 code = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 3)
-check("con 3 renacimientos y energía: Success y cobra una vez", code == Codes.Success and p.Energy == 1e9 - caldera.UnlockCost and table.find(p.PetData.UnlockedZones, "EmberCaldera") ~= nil)
+check("con 3 renacimientos y 💰: Success y cobra una vez", code == Codes.Success and p.Money == 1e9 - caldera.UnlockCost and table.find(p.PetData.UnlockedZones, "EmberCaldera") ~= nil)
 code = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 0)
-check("ya desbloqueada: AlreadyUnlocked sin cobrar (aunque luego tenga menos renacimientos)", code == Codes.AlreadyUnlocked and p.Energy == 1e9 - caldera.UnlockCost)
+check("ya desbloqueada: AlreadyUnlocked sin cobrar (aunque luego tenga menos renacimientos)", code == Codes.AlreadyUnlocked and p.Money == 1e9 - caldera.UnlockCost)
 check("desbloqueada se puede usar (isUnlocked)", ZoneLogic.isUnlocked(p, ZoneConfig, "EmberCaldera") and not ZoneLogic.isUnlocked(profile(0), ZoneConfig, "EmberCaldera"))
 code = ZoneLogic.unlock(profile(1e9), ZoneConfig, "Lava", Codes, 99)
 check("zona inventada: InvalidRequest", code == Codes.InvalidRequest)
-local valley = profile(5000)
+local valley = profile(ZoneConfig.Zones.CrystalValley.UnlockCost + 5000)
 code = ZoneLogic.unlock(valley, ZoneConfig, "CrystalValley", Codes)
-check("el Valle sigue igual sin renacimientos", code == Codes.Success and valley.Energy == 5000 - ZoneConfig.Zones.CrystalValley.UnlockCost)
+check("el Valle sigue igual sin renacimientos", code == Codes.Success and valley.Money == 5000)
 local noBoss = profile(1e9, nil, {})
 code = ZoneLogic.unlock(noBoss, ZoneConfig, "CrystalValley", Codes)
-check("sin derrotar al Guardián del Bosque: BossLocked y no cobra", ZoneConfig.Zones.CrystalValley.RequiredBoss == "ForestWarden" and code == Codes.BossLocked and noBoss.Energy == 1e9 and #noBoss.PetData.UnlockedZones == 0)
+check("sin derrotar al Guardián del Bosque: BossLocked y no cobra", ZoneConfig.Zones.CrystalValley.RequiredBoss == "ForestWarden" and code == Codes.BossLocked and noBoss.Money == 1e9 and #noBoss.PetData.UnlockedZones == 0)
 noBoss.PetData.Bosses.ForestWarden = 1
 check("tras derrotarlo ya se abre", ZoneLogic.unlock(noBoss, ZoneConfig, "CrystalValley", Codes) == Codes.Success)
 check("la Caldera pide al Coloso de Amatista", ZoneConfig.Zones.EmberCaldera.RequiredBoss == "AmethystColossus" and ZoneLogic.bossDefeated(profile(0, nil, { ForestWarden = 3 }), ZoneConfig, "EmberCaldera") == false)

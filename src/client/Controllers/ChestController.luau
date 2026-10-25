@@ -219,8 +219,8 @@ function ChestController.start()
 			Juice.sound(Juice.Sounds.HatchRare)
 			local parts = { "📦 " .. chest.Name }
 			if typeof(detail) == "table" then
-				if typeof(detail.Energy) == "number" then
-					table.insert(parts, "+" .. formatNumber(detail.Energy) .. " ⚡")
+				if typeof(detail.Money) == "number" then
+					table.insert(parts, "+" .. formatNumber(detail.Money) .. " 💰")
 				end
 				local blessings = blessingText(detail.Blessings)
 				if blessings ~= "" then

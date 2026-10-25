@@ -1,7 +1,8 @@
--- Renacimiento (Rebirth). Al renacer se reinician la energía y la Resonancia del Cristal;
--- se conservan mascotas, núcleos, zonas, misiones y los huevos ya desbloqueados. A cambio:
--- - Multiplicador permanente de energía (producción, producción offline y botín de
---   enemigos) y de daño, que crece con cada renacimiento.
+-- Renacimiento (Rebirth). Al renacer se reinician el 💰, el nivel de las armas y la
+-- Resonancia del Cristal; se conservan los 💎, mascotas, núcleos, zonas, misiones y los
+-- huevos ya desbloqueados. A cambio:
+-- - Multiplicador permanente del "poder" (el de los 💎 y los premios en 💰) y de daño,
+--   que crece con cada renacimiento.
 -- - Fichas de renacimiento para la tienda de ventajas permanentes (Shop).
 -- La lógica pura está en RebirthLogic; el servidor (RebirthService) decide todo.
 --

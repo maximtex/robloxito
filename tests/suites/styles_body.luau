@@ -16,11 +16,31 @@ print("-- Configuración")
 local configOk = #StyleConfig.Order == 3
 for _, id in StyleConfig.Order do
 	local def = StyleConfig.Styles[id]
-	configOk = configOk and def ~= nil and type(def.DisplayName) == "string" and def.Passive ~= nil and def.Ability ~= nil and def.Ability2 ~= nil
-		and type(def.Ability.Cooldown) == "number" and def.Ability.Cooldown > 0 and type(def.Ability2.Cooldown) == "number" and def.Ability2.Cooldown > 0
-		and type(def.Pros) == "string" and type(def.Cons) == "string" and def.Ability.Name ~= def.Ability2.Name
+	local count, free, priced = 0, 0, 0
+	for _, skill in (def and def.Skills) or {} do
+		count += 1
+		configOk = configOk and type(skill.Cooldown) == "number" and skill.Cooldown > 0 and type(skill.Name) == "string" and type(skill.Icon) == "string" and type(skill.Price) == "number"
+		if skill.Price == 0 then
+			free += 1
+		else
+			priced += 1
+		end
+	end
+	configOk = configOk and def ~= nil and type(def.DisplayName) == "string" and def.Passive ~= nil and count == 4 and free == 2 and priced == 2
+		and def.Skills[def.StartSkills[1]] ~= nil and def.Skills[def.StartSkills[2]] ~= nil and def.StartSkills[1] ~= def.StartSkills[2]
+		and def.Skills[def.StartSkills[1]].Price == 0 and def.Skills[def.StartSkills[2]].Price == 0
+		and type(def.Pros) == "string" and type(def.Cons) == "string"
 end
-check("tres estilos (Armas, Puños, Magia) con pasiva, ventaja, desventaja y dos habilidades con recarga", configOk)
+check("tres estilos (Armas, Puños, Magia) con pasiva, ventaja, desventaja y 4 habilidades: 2 de inicio y 2 que se compran", configOk)
+local handlersOk = true
+for _, id in StyleConfig.Order do
+	for skillId in StyleConfig.Styles[id].Skills do
+		if SkillLogic.styleOf(skillId) ~= id then
+			handlersOk = false
+		end
+	end
+end
+check("cada habilidad es de un solo estilo (ids únicos)", handlersOk)
 local soundsOk = true
 for name, spec in StyleConfig.Sounds do
 	local id = spec.Id
@@ -48,8 +68,13 @@ local magic = StyleLogic.applyStats(laser, "Magic", 0.4)
 check("Magia: orbes que cargan, de 16 cada 0.8 s, alcance 45", near(magic.Shot, 16) and near(magic.Cooldown, 0.8) and magic.Range == 45)
 check("DPS que se muestra: ×1.5 con Puños, igual con Armas y Magia", StyleLogic.dps(20, "Fists") == 30 and StyleLogic.dps(20, "Weapons") == 20 and StyleLogic.dps(20, "Magic") == 20 and StyleLogic.dps(0 / 0, "Fists") == 0)
 local weaponEffect = { Splash = { Radius = 6, Fraction = 0.5 } }
-check("efecto: Armas el del arma, Puños ninguno, Magia su explosión (7, 50 %)", StyleLogic.effect("Weapons", weaponEffect) == weaponEffect and next(StyleLogic.effect("Fists", weaponEffect)) == nil
+local slowGloves = { Slow = { Factor = 0.6, Seconds = 1.5 } }
+local bigStaff = { Splash = { Radius = 11, Fraction = 0.7 }, Chain = { Count = 1, Range = 14, Fraction = 0.6 } }
+check("efecto: Armas el del arma; Puños el de sus guantes (sin guantes especiales, nada); Magia su explosión (7, 50 %)", StyleLogic.effect("Weapons", weaponEffect) == weaponEffect and next(StyleLogic.effect("Fists", nil)) == nil
+	and StyleLogic.effect("Fists", slowGloves).Slow.Factor == 0.6 and StyleLogic.effect("Fists", slowGloves) ~= slowGloves
 	and StyleLogic.effect("Magic", weaponEffect).Splash.Radius == 7 and StyleLogic.effect("Magic", nil).Splash.Fraction == 0.5)
+check("Magia con un bastón especial: su área si es más grande y su rayo que salta", StyleLogic.effect("Magic", bigStaff).Splash.Radius == 11 and StyleLogic.effect("Magic", bigStaff).Chain.Count == 1
+	and StyleLogic.effect("Magic", slowGloves).Slow ~= nil and StyleLogic.effect("Magic", slowGloves).Splash.Radius == 7)
 
 print("-- Pasivas")
 check("Puntería: críticos ×2 con un 20 %", StyleLogic.critMultiplier("Weapons", 0.1) == 2 and StyleLogic.critMultiplier("Weapons", 0.5) == 1 and StyleLogic.critMultiplier("Fists", 0) == 1 and StyleLogic.critMultiplier("Weapons", 0 / 0) == 1)
@@ -70,6 +95,56 @@ check("Meteoros: 1.5 × el DPS de Magia por meteoro", StyleLogic.abilityDamage("
 check("Ráfaga no hace daño por sí sola", StyleLogic.abilityDamage("Weapons", 20) == 0)
 check("segunda habilidad (X): Granada 3×, Embestida 2× y Nova 1.2× el DPS", StyleLogic.abilityDamage("Weapons", 20, 2) == 60 and StyleLogic.abilityDamage("Fists", 30, 2) == 60 and near(StyleLogic.abilityDamage("Magic", 20, 2), 24))
 check("habilidad por número: 1 = Z, 2 = X (y la 1 si es raro)", StyleLogic.ability("Fists", 1).Name == "Terremoto" and StyleLogic.ability("Fists", 2).Name == "Embestida" and StyleLogic.ability("Magic", 7).Name == "Meteoros" and StyleLogic.ability("Nope", 1) == nil)
+check("Puños: +50 % de vida y dash; los demás, vida normal", StyleLogic.maxHealth("Fists") == 1.5 and StyleLogic.maxHealth("Magic") == 1 and StyleLogic.maxHealth(nil) == 1 and StyleConfig.Styles.Fists.Dash.Cooldown > 0)
+
+print("-- Combos de golpes")
+local counter = {}
+local seq = {}
+for index = 1, 6 do
+	table.insert(seq, StyleLogic.countHit("Fists", counter, index * 0.4) ~= nil)
+end
+check("Puños: cada 3 golpes seguidos, un gancho", not seq[1] and not seq[2] and seq[3] and not seq[4] and not seq[5] and seq[6])
+local magicCounter = {}
+for index = 1, 3 do
+	StyleLogic.countHit("Magic", magicCounter, index)
+end
+check("parar más de lo que dura el combo lo reinicia", StyleLogic.countHit("Magic", magicCounter, 100) == nil and magicCounter.Count == 1)
+local mixed = {}
+StyleLogic.countHit("Fists", mixed, 1)
+StyleLogic.countHit("Fists", mixed, 1.2)
+check("cambiar de estilo también lo reinicia", StyleLogic.countHit("Weapons", mixed, 1.4) == nil and mixed.Count == 1)
+check("el gran orbe hace ×2.5 y agranda el área; el tiro cargado, cada 5", StyleConfig.Styles.Magic.HitCombo.Multiplier == 2.5 and StyleConfig.Styles.Magic.HitCombo.SplashScale > 1 and StyleConfig.Styles.Weapons.HitCombo.Every == 5)
+
+print("-- Habilidades compradas y sus niveles (SkillLogic)")
+local skills = SkillLogic.empty()
+check("al empezar: las dos iniciales de cada estilo, a nivel 1 y puestas en Z y X", skills.Owned.Burst == 1 and skills.Owned.Quake == 1 and skills.Owned.Nova == 1 and skills.Owned.Pierce == nil
+	and SkillLogic.equipped(skills, "Weapons", 1) == "Burst" and SkillLogic.equipped(skills, "Magic", 2) == "Nova" and skills.Picked == false)
+local code, cost = SkillLogic.buy(skills, "ChainLightning", 149)
+check("comprar sin 💎 suficientes: InsufficientEnergy con su precio", code == "InsufficientEnergy" and cost == 150 and skills.Owned.ChainLightning == nil)
+code, cost = SkillLogic.buy(skills, "ChainLightning", 150)
+check("con 150 💎: comprada a nivel 1", code == "Success" and cost == 150 and skills.Owned.ChainLightning == 1)
+check("no se compra dos veces ni una que no existe", (SkillLogic.buy(skills, "ChainLightning", 1e9)) == "AlreadyOwned" and (SkillLogic.buy(skills, "Nope", 1e9)) == "InvalidRequest")
+check("ponerla en la Z de Magia: Meteoros se queda fuera y Nova en la X", SkillLogic.equip(skills, "ChainLightning", 1) == "Success" and SkillLogic.equipped(skills, "Magic", 1) == "ChainLightning" and SkillLogic.equipped(skills, "Magic", 2) == "Nova")
+check("ponerla en la X: se intercambian", SkillLogic.equip(skills, "ChainLightning", 2) == "Success" and SkillLogic.equipped(skills, "Magic", 1) == "Nova" and SkillLogic.equipped(skills, "Magic", 2) == "ChainLightning")
+check("no se pone una que no tiene, ni en un hueco raro", SkillLogic.equip(skills, "BlackHole", 1) == "NotOwned" and SkillLogic.equip(skills, "Nova", 3) == "InvalidRequest")
+local up = SkillLogic.upgradeCost("Quake", 1)
+code, cost = SkillLogic.upgrade(skills, "Quake", up)
+check(("subir el Terremoto: nivel 2 por %d 💎"):format(up), code == "Success" and cost == up and skills.Owned.Quake == 2 and SkillLogic.upgradeCost("Quake", 2) > up)
+check("las compradas cuestan más de subir (UpgradeScale)", SkillLogic.upgradeCost("BlackHole", 1) > SkillLogic.upgradeCost("Quake", 1))
+skills.Owned.Quake = StyleConfig.SkillLevels.Max
+check("al máximo: MaxLevel", (SkillLogic.upgrade(skills, "Quake", 1e12)) == "MaxLevel" and SkillLogic.upgradeCost("Quake", StyleConfig.SkillLevels.Max) == nil)
+check("nivel: +15 % de daño por nivel, menos recarga (con tope) y más duración", near(SkillLogic.power(1), 1) and near(SkillLogic.power(3), 1.3)
+	and SkillLogic.cooldown({ Cooldown = 10 }, 1) == 10 and near(SkillLogic.cooldown({ Cooldown = 10 }, 3), 9.4) and SkillLogic.cooldown({ Cooldown = 10 }, 999) >= 10 * StyleConfig.SkillLevels.MinCooldown
+	and SkillLogic.duration({ Duration = 4 }, 2) > 4)
+check("el daño de una habilidad sube con su nivel", near(StyleLogic.abilityDamage("Fists", 30, 1, skills, 3), 75 * 1.3))
+check("con los datos del jugador, la habilidad puesta", StyleLogic.ability("Magic", 2, skills).Name == "Cadena de rayos")
+local back = SkillLogic.sanitize(SkillLogic.serialize(skills))
+check("guardar y cargar: niveles y las puestas", back.Owned.ChainLightning == 1 and back.Owned.Quake == StyleConfig.SkillLevels.Max and SkillLogic.equipped(back, "Magic", 2) == "ChainLightning")
+local messy = SkillLogic.sanitize({ Owned = { Quake = 99, Pierce = 0, OldSkill = 3 }, Equipped = { Weapons = { "Quake", "Pierce" }, Fists = { "Dash", "Dash" } }, Picked = true })
+check("datos sucios: niveles al tope o a 1, una de otro estilo no se pone, huecos repetidos se rellenan y lo viejo se archiva",
+	messy.Owned.Quake == StyleConfig.SkillLevels.Max and messy.Owned.Pierce == 1 and SkillLogic.equipped(messy, "Weapons", 1) == "Burst" and SkillLogic.equipped(messy, "Weapons", 2) == "Pierce"
+		and SkillLogic.equipped(messy, "Fists", 1) == "Dash" and SkillLogic.equipped(messy, "Fists", 2) == "Quake" and messy.Archived.OldSkill == 3 and messy.Picked == true)
+check("atributos para el cliente: ida y vuelta", SkillLogic.parseOwned(SkillLogic.ownedText(skills)).ChainLightning == 1 and SkillLogic.parseSlots(SkillLogic.slotsText(skills)).Magic[2] == "ChainLightning")
 check("embestida: golpea a los de su franja (borde incluido) y no a los de fuera", StyleLogic.inStrip(0, 0, 20, 0, 4, 10, 3, 1) and StyleLogic.inStrip(0, 0, 20, 0, 4, 10, 4.9, 1) and not StyleLogic.inStrip(0, 0, 20, 0, 4, 10, 6, 1)
 	and StyleLogic.inStrip(0, 0, 20, 0, 4, 21, 0, 1.5) and not StyleLogic.inStrip(0, 0, 20, 0, 4, 26, 0, 1) and StyleLogic.inStrip(0, 0, 0, 0, 4, 2, 0, 0) and not StyleLogic.inStrip(0, 0, 0 / 0, 0, 4, 1, 1))
 local offsets = StyleLogic.meteorOffsets(6, 9)

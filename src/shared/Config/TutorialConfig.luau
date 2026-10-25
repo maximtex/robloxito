@@ -22,15 +22,15 @@ local TutorialConfig = {
 			-- (WaveConfig.Arenas.Tutorial) con consejos en pantalla.
 			Id = "Waves",
 			Title = "Juega tu primera oleada",
-			Text = "Ve al círculo brillante delante de ti y pulsa E en el altar. Tu arma dispara sola: aguanta 3 oleadas cortas.",
+			Text = "Ve al círculo brillante delante de ti y pulsa E en el altar. Dentro atacas solo: aguanta 3 oleadas cortas.",
 			Goal = { Source = "Stat", Key = "WaveWins" },
 			Target = 1,
 			Guide = "Waves",
 		},
 		{
 			Id = "Weapon",
-			Title = "Mejora tu arma",
-			Text = "Abre la ⚔️ Armería (tecla L o el puesto del pueblo) y mejora tu láser con 💰.",
+			Title = "Mejora tu equipo",
+			Text = "Abre la tienda de tu estilo (tecla L o el puesto del pueblo) y mejora tu arma, tus guantes o tu bastón con 💰.",
 			Goal = { Source = "State", Key = "WeaponLevel" },
 			Target = 1,
 			Guide = "ArmoryButton",
@@ -38,7 +38,7 @@ local TutorialConfig = {
 		{
 			Id = "Pet",
 			Title = "Consigue una mascota",
-			Text = "Ve al 🥚 Jardín de los Huevos (a la derecha del spawn) y abre el Huevo del Bosque (50 ⚡).",
+			Text = "Ve al 🥚 Jardín de los Huevos (a la derecha del spawn) y abre el Huevo del Bosque (250 💰).",
 			Goal = { Source = "State", Key = "PetsOwned" },
 			Target = 2, -- la inicial y una más
 			Guide = "Egg:ForestEgg",
@@ -54,7 +54,7 @@ local TutorialConfig = {
 		{
 			Id = "Valley",
 			Title = "Desbloquea el Valle Morado",
-			Text = "Con el Guardián derrotado y energía suficiente, abre el portal al final del camino.",
+			Text = "Con el Guardián derrotado y 💰 suficiente, abre el portal al final del camino.",
 			Goal = { Source = "Zone", Zone = "CrystalValley" },
 			Target = 1,
 			Guide = "Portal:ForestPortal",

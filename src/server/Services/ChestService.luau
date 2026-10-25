@@ -1,6 +1,6 @@
 -- Cofres escondidos del Bosque (ChestConfig). Cada cofre se abre con su aviso de
 -- proximidad: lo valida el servidor (perfil cargado, distancia y espera de ESE jugador) y
--- concede energía (minutos de su producción, con mínimo) y a veces una bendición.
+-- concede 💰 (minutos de su poder de energía, con mínimo) y a veces una bendición.
 -- - La espera se marca antes del premio y se guarda en seguida (Rewards.Chests): no se
 --   cobra dos veces aunque lleguen dos avisos seguidos o se cierre el servidor.
 -- - El cliente (ChestController) recibe las esperas (ChestState) y pinta cada cofre
@@ -103,11 +103,11 @@ function ChestService.open(player: Player, chestId: any, position: Vector3?): (s
 	end
 	local detail: any = { ReadyAt = readyAt }
 	local reward = chest.Reward
-	if reward.Energy then
-		local energy = RewardLogic.energyAmount(reward.Energy, profile.ProductionPerSecond)
-		if energy > 0 then
-			profile.Energy += energy
-			detail.Energy = energy
+	if reward.Money then
+		local money = RewardLogic.moneyAmount(reward.Money, profile.ProductionPerSecond)
+		if money > 0 then
+			profile.Money += money
+			detail.Money = money
 		end
 	end
 	if reward.Blessings then

@@ -75,9 +75,9 @@ local function rewardFace(day: any): (string, string)
 		table.insert(icons, "🐾")
 		table.insert(lines, "Mascota")
 	end
-	if typeof(day.Energy) == "number" then
-		table.insert(icons, "⚡")
-		table.insert(lines, "+" .. formatNumber(day.Energy))
+	if typeof(day.Money) == "number" then
+		table.insert(icons, "💰")
+		table.insert(lines, "+" .. formatNumber(day.Money))
 	end
 	if typeof(day.Blessings) == "table" then
 		for blessingId in day.Blessings do
@@ -560,8 +560,8 @@ function RewardsController.start()
 		-- Lo concedido (ya sumado en el servidor).
 		local parts = {}
 		if typeof(detail) == "table" then
-			if typeof(detail.Energy) == "number" then
-				table.insert(parts, "+" .. formatNumber(detail.Energy) .. " ⚡")
+			if typeof(detail.Money) == "number" then
+				table.insert(parts, "+" .. formatNumber(detail.Money) .. " 💰")
 			end
 			local blessings = blessingText(detail.Blessings)
 			if blessings ~= "" then
@@ -587,7 +587,7 @@ function RewardsController.start()
 			Juice.sound(Juice.Sounds.Upgrade)
 		end
 		if typeof(detail) == "table" and detail.InventoryFull then
-			Toasts.show("Inventario lleno: la mascota del premio se cambió por energía.", { Color = THEME.Gold })
+			Toasts.show("Inventario lleno: la mascota del premio se cambió por 💰.", { Color = THEME.Gold })
 		end
 		render()
 	end)

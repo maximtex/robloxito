@@ -1,4 +1,4 @@
--- Interfaz de las puertas de energía entre zonas:
+-- Interfaz de las puertas de energía entre zonas (se abren pagando 💰):
 -- - Abre el panel de compra o permite desbloquear directamente la puerta.
 -- - Cuando una zona está desbloqueada para el jugador local, su barrera de cristal
 --   (`GateBarrier`) se vuelve invisible y sin colisión (`CanCollide = false`) para pasar caminando.
@@ -32,6 +32,7 @@ local TRAVEL_TIMEOUT = 8
 
 local MESSAGES = {
 	[Codes.InsufficientEnergy] = "Energía insuficiente",
+	[Codes.InsufficientMoney] = "Dinero insuficiente",
 	[Codes.TooFar] = "Acércate a la puerta",
 	[Codes.TooFast] = "Espera un momento",
 	[Codes.NotReady] = "Cargando tus datos, inténtalo de nuevo",
@@ -193,8 +194,8 @@ function PortalController.start()
 		return typeof(value) == "string" and table.find(string.split(value, ","), zoneId) ~= nil
 	end
 
-	local function energy(): number
-		local value = player:GetAttribute(Constants.Attributes.Energy)
+	local function money(): number
+		local value = player:GetAttribute(Constants.Attributes.Money)
 		return if typeof(value) == "number" then value else 0
 	end
 
@@ -254,7 +255,7 @@ function PortalController.start()
 		local target = ZoneConfig.Zones[portal.Target]
 		local cost = target.UnlockCost or 0
 		ui.Title.Text = "Zona · " .. target.DisplayName
-		ui.Subtitle.Text = "Desbloquea el puente con ⚡ Energía para pasar a la siguiente zona."
+		ui.Subtitle.Text = "Desbloquea el puente con 💰 dinero para pasar a la siguiente zona."
 
 		if isUnlocked(portal.Target) then
 			ui.Status.Text = "✓ Puente Desbloqueado"
@@ -266,7 +267,7 @@ function PortalController.start()
 			ui.Action.TextColor3 = THEME.Text
 			UiKit.setDisabled(ui.Action, false)
 		else
-			local have = energy()
+			local have = money()
 			local missing = math.max(0, cost - have)
 			local needRebirths = target.RequiredRebirths or 0
 			local haveRebirths = rebirths()
@@ -275,7 +276,7 @@ function PortalController.start()
 			local boss = missingBoss(target)
 			if boss then
 				ui.CostLine.Text = ("Requiere derrotar al 🏆 %s"):format(boss.DisplayName)
-				ui.MissingLine.Text = ("Y además ⚡ %s de energía"):format(formatNumber(cost))
+				ui.MissingLine.Text = ("Y además 💰 %s"):format(formatNumber(cost))
 				ui.MissingLine.TextColor3 = THEME.Muted
 				ui.Action.Text = "🔒 Derrota primero al jefe"
 				ui.Action.BackgroundColor3 = THEME.Disabled
@@ -285,7 +286,7 @@ function PortalController.start()
 			end
 			if needRebirths > haveRebirths then
 				ui.CostLine.Text = ("Requiere 🔄 %d renacimientos   ·   Tienes 🔄 %d"):format(needRebirths, haveRebirths)
-				ui.MissingLine.Text = ("Y además ⚡ %s de energía"):format(formatNumber(cost))
+				ui.MissingLine.Text = ("Y además 💰 %s"):format(formatNumber(cost))
 				ui.MissingLine.TextColor3 = THEME.Muted
 				ui.Action.Text = ("🔒 Te faltan %d renacimientos"):format(needRebirths - haveRebirths)
 				ui.Action.BackgroundColor3 = THEME.Disabled
@@ -293,10 +294,10 @@ function PortalController.start()
 				UiKit.setDisabled(ui.Action, true)
 				return
 			end
-			ui.CostLine.Text = ("Coste: ⚡ %s   ·   Tienes: ⚡ %s"):format(formatNumber(cost), formatNumber(have))
-			ui.MissingLine.Text = if missing > 0 then ("Te faltan ⚡ %s"):format(formatNumber(math.ceil(missing))) else "¡Tienes suficiente energía!"
+			ui.CostLine.Text = ("Coste: 💰 %s   ·   Tienes: 💰 %s"):format(formatNumber(cost), formatNumber(have))
+			ui.MissingLine.Text = if missing > 0 then ("Te faltan 💰 %s"):format(formatNumber(math.ceil(missing))) else "¡Tienes suficiente dinero!"
 			ui.MissingLine.TextColor3 = if missing > 0 then THEME.Error else THEME.BuyHighlight
-			ui.Action.Text = "Desbloquear  ·  ⚡ " .. formatNumber(cost)
+			ui.Action.Text = "Desbloquear  ·  💰 " .. formatNumber(cost)
 			local enabled = missing <= 0
 			ui.Action.BackgroundColor3 = if enabled then THEME.Buy else THEME.Disabled
 			ui.Action.TextColor3 = if enabled then THEME.Text else THEME.Muted
@@ -350,7 +351,7 @@ function PortalController.start()
 			end
 			if ui.Action:GetAttribute("Disabled") then
 				local zone = ZoneConfig.Zones[zoneId]
-				local code = if missingBoss(zone) then Codes.BossLocked elseif (zone.RequiredRebirths or 0) > rebirths() then Codes.RebirthLocked else Codes.InsufficientEnergy
+				local code = if missingBoss(zone) then Codes.BossLocked elseif (zone.RequiredRebirths or 0) > rebirths() then Codes.RebirthLocked else Codes.InsufficientMoney
 				showMessage(ui.Feedback, MESSAGES[code], THEME.Error)
 				return
 			end
@@ -372,8 +373,8 @@ function PortalController.start()
 			local zone = zoneId and ZoneConfig.Zones[zoneId]
 			Toasts.show("¡" .. (if zone then zone.DisplayName else "Zona") .. " desbloqueado!", { Color = THEME.BuyHighlight })
 			PanelManager.close("Portal")
-		elseif code == Codes.InsufficientEnergy and typeof(missing) == "number" then
-			showMessage(ui.Feedback, ("Te faltan ⚡ %s"):format(formatNumber(missing)), THEME.Error)
+		elseif (code == Codes.InsufficientMoney or code == Codes.InsufficientEnergy) and typeof(missing) == "number" then
+			showMessage(ui.Feedback, ("Te faltan 💰 %s"):format(formatNumber(missing)), THEME.Error)
 		elseif code == Codes.RebirthLocked and typeof(missing) == "number" then
 			showMessage(ui.Feedback, ("Te faltan 🔄 %d renacimientos"):format(missing), THEME.Error)
 		else
@@ -390,7 +391,7 @@ function PortalController.start()
 		end
 	end)
 
-	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(function()
+	player:GetAttributeChangedSignal(Constants.Attributes.Money):Connect(function()
 		if PanelManager.isOpen("Portal") then
 			render()
 		end

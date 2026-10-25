@@ -3,10 +3,13 @@
 -- el cliente solo para mostrar.
 --
 -- Datos (profile.PetData.Weapons):
---   Owned: { [id]: true }    armas que tiene (el arma inicial siempre)
---   Levels: { [id]: number } nivel de mejora de cada arma (0..MaxLevel)
---   Equipped: string         arma con la que dispara (siempre una que tiene)
--- Las armas que ya no existen en WeaponConfig se conservan en Archived tal cual.
+--   Owned: { [id]: true }    armas, guantes y bastones que tiene (los iniciales siempre)
+--   Levels: { [id]: number } nivel de mejora de cada uno (0..MaxLevel)
+--   Equipped: string         arma con la que dispara el estilo Armas (siempre una que tiene)
+--   Slots: { Fists, Magic }  guantes y bastón equipados de los otros dos estilos
+-- Lo que ya no existe en WeaponConfig se conserva en Archived tal cual.
+-- Cada objeto es de una categoría (WeaponConfig, Category: "Weapons", "Fists" o "Magic"):
+-- la de cada estilo, con su tienda, su equipado y sus niveles aparte.
 
 local WeaponConfig = require(script.Parent.Config.WeaponConfig)
 local CombatConfig = require(script.Parent.Config.CombatConfig)
@@ -17,8 +20,11 @@ export type WeaponData = {
 	Owned: { [string]: boolean },
 	Levels: { [string]: number },
 	Equipped: string,
+	Slots: { [string]: string },
 	Archived: { [string]: any }?,
 }
+
+local OTHER_CATEGORIES = { "Fists", "Magic" }
 
 local function isFinite(value: any): boolean
 	return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
@@ -32,9 +38,30 @@ function WeaponLogic.definition(weaponId: any)
 	return if type(weaponId) == "string" then WeaponConfig.Weapons[weaponId] else nil
 end
 
+-- Categoría de un objeto ("Weapons" si no dice otra)
+function WeaponLogic.category(weaponId: any): string
+	local def = WeaponLogic.definition(weaponId)
+	return if def and type(def.Category) == "string" then def.Category else "Weapons"
+end
+
+-- Objeto inicial de una categoría
+function WeaponLogic.starter(category: string): string
+	local starters = WeaponConfig.Starters
+	return (starters and starters[category]) or WeaponConfig.StarterWeapon
+end
+
 function WeaponLogic.empty(): WeaponData
 	local starter = WeaponConfig.StarterWeapon
-	return { Owned = { [starter] = true }, Levels = { [starter] = 0 }, Equipped = starter }
+	local data = { Owned = { [starter] = true }, Levels = { [starter] = 0 }, Equipped = starter, Slots = {} }
+	for _, category in OTHER_CATEGORIES do
+		local id = WeaponLogic.starter(category)
+		if WeaponLogic.definition(id) then
+			data.Owned[id] = true
+			data.Levels[id] = 0
+			data.Slots[category] = id
+		end
+	end
+	return data
 end
 
 -- Datos guardados -> válidos. Lo desconocido se archiva; lo corrupto toma el valor inicial.
@@ -70,8 +97,16 @@ function WeaponLogic.sanitize(raw: any): WeaponData
 	if next(archived) ~= nil then
 		data.Archived = archived
 	end
-	if data.Owned[raw.Equipped] then
+	if data.Owned[raw.Equipped] and WeaponLogic.category(raw.Equipped) == "Weapons" then
 		data.Equipped = raw.Equipped
+	end
+	if type(raw.Slots) == "table" then
+		for _, category in OTHER_CATEGORIES do
+			local id = raw.Slots[category]
+			if data.Owned[id] and WeaponLogic.category(id) == category then
+				data.Slots[category] = id
+			end
+		end
 	end
 	return data
 end
@@ -83,7 +118,7 @@ function WeaponLogic.serialize(data: WeaponData): { [string]: any }
 		table.insert(owned, weaponId)
 	end
 	table.sort(owned)
-	local out: { [string]: any } = { Owned = owned, Levels = table.clone(data.Levels), Equipped = data.Equipped }
+	local out: { [string]: any } = { Owned = owned, Levels = table.clone(data.Levels), Equipped = data.Equipped, Slots = table.clone(data.Slots or {}) }
 	if data.Archived and next(data.Archived) ~= nil then
 		out.Archived = table.clone(data.Archived)
 	end
@@ -98,11 +133,13 @@ function WeaponLogic.level(data: WeaponData, weaponId: string): number
 	return data.Levels[weaponId] or 0
 end
 
--- Armas en el orden de la Armería
-function WeaponLogic.ordered(): { string }
+-- Armas en el orden de la Armería (solo las de `category` si se pide una)
+function WeaponLogic.ordered(category: string?): { string }
 	local ids = {}
 	for weaponId in WeaponConfig.Weapons do
-		table.insert(ids, weaponId)
+		if category == nil or WeaponLogic.category(weaponId) == category then
+			table.insert(ids, weaponId)
+		end
 	end
 	table.sort(ids, function(a, b)
 		return WeaponConfig.Weapons[a].Order < WeaponConfig.Weapons[b].Order
@@ -166,8 +203,30 @@ function WeaponLogic.equip(data: WeaponData, weaponId: any): string
 	if not data.Owned[weaponId] then
 		return "NotOwned"
 	end
-	data.Equipped = weaponId
+	local category = WeaponLogic.category(weaponId)
+	if category == "Weapons" then
+		data.Equipped = weaponId
+	else
+		data.Slots = data.Slots or {}
+		data.Slots[category] = weaponId
+	end
 	return "Success"
+end
+
+-- Lo que lleva equipado el estilo `styleId` (Armas: el arma; Puños: los guantes; Magia: el
+-- bastón). Siempre algo que tiene (si no, el inicial de su categoría).
+function WeaponLogic.equippedFor(data: WeaponData, styleId: any): string
+	if styleId == "Fists" or styleId == "Magic" then
+		local id = data.Slots and data.Slots[styleId]
+		if id and data.Owned[id] and WeaponLogic.category(id) == styleId then
+			return id
+		end
+		local starter = WeaponLogic.starter(styleId)
+		if WeaponLogic.definition(starter) then
+			return starter
+		end
+	end
+	return data.Equipped
 end
 
 -- Coste de subir del nivel `level` al siguiente (nil si ya está al máximo o no existe)

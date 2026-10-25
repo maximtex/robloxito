@@ -4,7 +4,7 @@
 
 local ZoneLogic = {}
 
-export type ProfileLike = { Energy: number, PetData: { UnlockedZones: { string }, Bosses: { [string]: number }? } }
+export type ProfileLike = { Money: number, PetData: { UnlockedZones: { string }, Bosses: { [string]: number }? } }
 export type Codes = { [string]: string }
 
 function ZoneLogic.isUnlocked(profile: ProfileLike, zoneConfig, zoneId: string): boolean
@@ -58,10 +58,11 @@ function ZoneLogic.unlock(profile: ProfileLike, zoneConfig, zoneId: string, code
 		return codes.BossLocked, nil
 	end
 	local cost = zone.UnlockCost
-	if profile.Energy < cost then
-		return codes.InsufficientEnergy, math.ceil(cost - profile.Energy)
+	-- Los portales se pagan con 💰 (economía 2: EconomyConfig)
+	if (profile.Money or 0) < cost then
+		return codes.InsufficientMoney, math.ceil(cost - (profile.Money or 0))
 	end
-	profile.Energy -= cost
+	profile.Money -= cost
 	table.insert(profile.PetData.UnlockedZones, zoneId)
 	return codes.Success, nil
 end

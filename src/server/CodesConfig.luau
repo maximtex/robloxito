@@ -4,7 +4,7 @@
 -- Cada código se canjea UNA vez por jugador. Se escriben en MAYÚSCULAS, solo letras y
 -- números (el jugador puede escribirlos en minúsculas o con espacios: se normalizan).
 --   Reward       = premio, con el mismo formato que la racha (RewardConfig):
---                  Energy = { Minutes, Min }, Blessings = { Id = n }, Pet = true
+--                  Money = { Minutes, Min }, Blessings = { Id = n }, Pet = true
 --   Until        = { Year, Month, Day } último día válido (hora UTC, hasta las 23:59:59).
 --                  Sin Until, el código no caduca.
 --   MinRebirths  = renacimientos mínimos para canjearlo (opcional).
@@ -13,13 +13,13 @@
 
 return {
 	BIENVENIDO = {
-		Reward = { Energy = { Minutes = 15, Min = 1000 }, Blessings = { Abundance = 1 } },
+		Reward = { Money = { Minutes = 15, Min = 5000 }, Blessings = { Abundance = 1 } },
 	},
 	REBIRTH = {
 		Reward = { Blessings = { Fortune = 1, Fury = 1 } },
 	},
 	CALDERA = {
-		Reward = { Energy = { Minutes = 30, Min = 5000 } },
+		Reward = { Money = { Minutes = 30, Min = 25000 } },
 		MinRebirths = 1,
 		Until = { Year = 2027, Month = 1, Day = 31 },
 	},

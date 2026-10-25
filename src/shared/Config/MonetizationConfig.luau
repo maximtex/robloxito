@@ -17,9 +17,9 @@ local MonetizationConfig = {
 		DoubleEnergy = {
 			Id = 0,
 			Order = 1,
-			Icon = "⚡",
-			Name = "Energía ×2",
-			Description = "Produces el doble de energía para siempre, también mientras no juegas.",
+			Icon = "💎",
+			Name = "Diamantes ×2",
+			Description = "Ganas el doble de 💎 al derrotar enemigos y en las oleadas, para siempre.",
 			Color = Color3.fromRGB(255, 214, 90),
 		},
 		AutoUpgrade = {
@@ -27,7 +27,7 @@ local MonetizationConfig = {
 			Order = 2,
 			Icon = "🤖",
 			Name = "Mejora automática",
-			Description = "La Resonancia del Cristal sube sola en cuanto te alcanza la energía. Se puede apagar.",
+			Description = "La Resonancia del Cristal sube sola en cuanto te alcanza el 💰. Se puede apagar.",
 			Color = Color3.fromRGB(110, 236, 220),
 		},
 		TripleHatch = {
@@ -35,7 +35,7 @@ local MonetizationConfig = {
 			Order = 3,
 			Icon = "🥚",
 			Name = "Abrir ×3",
-			Description = "Abre 3 huevos de una vez (pagas los 3 con energía).",
+			Description = "Abre 3 huevos de una vez (pagas los 3 con 💰).",
 			Color = Color3.fromRGB(255, 160, 200),
 		},
 		PetSpace = {
@@ -56,12 +56,12 @@ local MonetizationConfig = {
 		},
 	},
 
-	-- Compras sueltas de energía: N minutos de la producción actual del jugador (como los
-	-- premios), nunca menos de Min.
+	-- Compras sueltas de 💎 (en el código, Energy): Min diamantes (y, si Minutes > 0, N
+	-- minutos del poder de energía si es más).
 	Products = {
-		EnergySmall = { Id = 0, Order = 1, Icon = "⚡", Name = "Saco de energía", Minutes = 30, Min = 5000 },
-		EnergyMedium = { Id = 0, Order = 2, Icon = "💰", Name = "Cofre de energía", Minutes = 120, Min = 25000 },
-		EnergyLarge = { Id = 0, Order = 3, Icon = "👑", Name = "Tesoro de energía", Minutes = 480, Min = 100000 },
+		EnergySmall = { Id = 0, Order = 1, Icon = "💎", Name = "Bolsa de diamantes", Minutes = 0, Min = 150 },
+		EnergyMedium = { Id = 0, Order = 2, Icon = "💠", Name = "Cofre de diamantes", Minutes = 0, Min = 700 },
+		EnergyLarge = { Id = 0, Order = 3, Icon = "👑", Name = "Tesoro de diamantes", Minutes = 0, Min = 3000 },
 	},
 
 	-- Mascotas exclusivas (por su PetId de PetConfig): cada compra da una, aunque el
@@ -81,7 +81,7 @@ local MonetizationConfig = {
 	},
 
 	-- Efecto de cada pase
-	EnergyMultiplier = 2, -- DoubleEnergy
+	EnergyMultiplier = 2, -- DoubleEnergy (×2 de 💎)
 	PetSlotBonus = 2, -- PetSpace: mascotas equipadas de más
 	InventoryBonus = 60, -- PetSpace: espacio de inventario de más
 	TripleCount = 3, -- TripleHatch: huevos por apertura

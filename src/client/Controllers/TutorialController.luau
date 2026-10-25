@@ -439,15 +439,14 @@ function TutorialController.start()
 
 	-- Progreso orientativo con los datos que ya ve el cliente (no decide nada).
 	local function progressFor(step): (number, string)
-		local energy = player:GetAttribute(Attributes.Energy)
-		energy = if typeof(energy) == "number" then energy else 0
-		if step.Id == "Energy" then
-			return math.clamp(energy / step.Target, 0, 1), ("%s/%s ⚡"):format(formatNumber(math.min(energy, step.Target)), formatNumber(step.Target))
-		elseif step.Id == "Valley" then
+		if step.Id == "Valley" then
+			-- el portal se paga con 💰
+			local money = player:GetAttribute(Attributes.Money)
+			money = if typeof(money) == "number" then money else 0
 			local zone = ZoneConfig.Zones[step.Goal.Zone]
 			local cost = zone and zone.UnlockCost or 0
 			if cost > 0 then
-				return math.clamp(energy / cost, 0, 1), ("%s/%s ⚡"):format(formatNumber(math.min(energy, cost)), formatNumber(cost))
+				return math.clamp(money / cost, 0, 1), ("%s/%s 💰"):format(formatNumber(math.min(money, cost)), formatNumber(cost))
 			end
 		end
 		return 0, ""
@@ -486,7 +485,7 @@ function TutorialController.start()
 		ui.Collapse.Visible = false
 		ui.Header.Text = "Tutorial"
 		local ratio, label = progressFor(step)
-		local cleanProgress = label:gsub("%s*⚡", "")
+		local cleanProgress = label:gsub("%s*💰", "")
 		ui.Title.Text = if cleanProgress ~= ""
 			then string.upper(step.Title) .. " (" .. cleanProgress .. ")"
 			else string.upper(step.Title)
@@ -533,7 +532,7 @@ function TutorialController.start()
 		skipRemote:FireServer() -- el servidor decide; la tarjeta se oculta cuando lo confirma
 	end)
 
-	for _, attribute in { Attributes.TutorialStatus, Attributes.TutorialStep, Attributes.Energy, Attributes.CurrentZone } do
+	for _, attribute in { Attributes.TutorialStatus, Attributes.TutorialStep, Attributes.Money, Attributes.CurrentZone } do
 		player:GetAttributeChangedSignal(attribute):Connect(render)
 	end
 	player.CharacterAdded:Connect(function(character)

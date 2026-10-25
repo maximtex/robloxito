@@ -43,7 +43,7 @@ local function onFloor(pos: Vector3): Vector3
 	return pos + Vector3.new(0, StudFloor.raiseAt(pos.X, pos.Z), 0)
 end
 
--- Texto flotante de 2 líneas estilo cartoon (como en las capturas 4 y 5: "COMÚN" + "⚡ 50 Energía")
+-- Texto flotante de 2 líneas estilo cartoon (como en las capturas 4 y 5: "COMÚN" + "💰 250")
 local function buildFloatingEggTitle(adornee: BasePart, titleText: string, titleColor: Color3, costText: string)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "EggInfo"
@@ -195,12 +195,12 @@ local function buildShrine(parent: Instance, eggId: string, egg)
 
 	local titleText = egg.RarityTitle or egg.DisplayName
 	local titleColor = egg.TitleColor or Color3.new(1, 1, 1)
-	local costText = "🏆 " .. formatNumber(egg.Cost) .. " Energía"
+	local costText = "💰 " .. formatNumber(egg.Cost)
 	buildFloatingEggTitle(anchor, titleText, titleColor, costText)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "EggPrompt"
-	prompt.ActionText = "¡Eclosionar! (" .. formatNumber(egg.Cost) .. " ⚡)"
+	prompt.ActionText = "¡Eclosionar! (" .. formatNumber(egg.Cost) .. " 💰)"
 	prompt.ObjectText = egg.DisplayName
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 13
@@ -415,7 +415,7 @@ local function buildRainbowEggDisplay(parent: Instance)
 		Solid = false,
 	})
 	anchor.Transparency = 1
-	buildFloatingEggTitle(anchor, "Huevo del Arcoíris", Color3.fromRGB(255, 105, 235), "⚡ Especial")
+	buildFloatingEggTitle(anchor, "Huevo del Arcoíris", Color3.fromRGB(255, 105, 235), "✨ Especial")
 
 	-- Al interactuar, abre el huevo Raro o la tienda
 	local prompt = Instance.new("ProximityPrompt")

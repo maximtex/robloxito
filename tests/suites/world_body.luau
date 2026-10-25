@@ -94,7 +94,7 @@ for _, chest in ChestConfig.Chests do
 	end
 	seen[chest.Id] = true
 	local reward = chest.Reward
-	if not (reward and reward.Energy and reward.Energy.Minutes > 0 and reward.Energy.Min > 0) then
+	if not (reward and reward.Money and reward.Money.Minutes > 0 and reward.Money.Min > 0) then
 		rewardsOk = false
 	end
 	for blessingId, amount in (reward and reward.Blessings) or {} do
@@ -107,7 +107,7 @@ for _, chest in ChestConfig.Chests do
 	end
 end
 check(("cofres: %d cofres con nombre e id único"):format(#ChestConfig.Chests), unique and namesOk and #ChestConfig.Chests >= 6)
-check("cofres: premios de energía y bendiciones que existen", rewardsOk)
+check("cofres: premios de 💰 y bendiciones que existen", rewardsOk)
 check("cofres: espera de horas y distancia de apertura razonable", cooldown >= 3600 and ChestConfig.OpenDistance >= ChestConfig.PromptDistance and ChestConfig.get("Nada") == nil and ChestConfig.get(5) == nil)
 
 -- 5. Río -------------------------------------------------------------------------------------

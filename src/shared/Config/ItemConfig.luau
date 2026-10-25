@@ -8,18 +8,18 @@
 
 local ItemConfig = {
 	-- Pociones. Multiplier: lo que multiplica mientras dura (ItemLogic.multiplier).
-	--   Energy  ⚡ de los enemigos y de los premios de las oleadas (EnemyService, WaveService)
+	--   Energy  💎 de los enemigos y de los premios de las oleadas (EnemyService, WaveService)
 	--           y la producción por segundo si la hay (PlayerDataService.recalculateProduction)
 	--   Damage  todo el daño del jugador: disparos, habilidades y mascotas (EnemyService.damage)
 	--   Money   dinero de los enemigos (EnemyService: lootMultiplier)
 	--   Luck    sorteo de los huevos: se tira LuckRolls veces y se queda el mejor (PetService)
 	Potions = {
 		Energy = {
-			DisplayName = "Poción de Energía",
-			Short = "x2 Energía",
-			Description = "Duplica la ⚡ que sueltan los enemigos y las oleadas.",
-			Icon = "⚡",
-			Color = Color3.fromRGB(255, 196, 48),
+			DisplayName = "Poción de Diamantes",
+			Short = "x2 Diamantes",
+			Description = "Duplica los 💎 que sueltan los enemigos y las oleadas.",
+			Icon = "💎",
+			Color = Color3.fromRGB(110, 200, 255),
 			Multiplier = 2,
 			Seconds = 10 * 60,
 			Order = 1,
@@ -86,7 +86,7 @@ local ItemConfig = {
 	-- Títulos. Requisito (uno):
 	--   Stat + Goal  llegar a Goal en una estadística (ItemService.statsOf):
 	--                Kills (enemigos derrotados), Rebirths, Pets (mascotas que tiene),
-	--                PotionsUsed, EnergyEarned (energía generada en total)
+	--                PotionsUsed, EnergyEarned (💎 conseguidos en total)
 	--   Boss         haber derrotado a ese jefe (tipo de EnemyConfig)
 	--   sin nada     se tiene desde el principio
 	Titles = {
@@ -98,7 +98,7 @@ local ItemConfig = {
 		SenorMagma = { DisplayName = "Señor del Magma", Description = "Derrota al Titán de la Caldera.", Boss = "CalderaTitan", Color = Color3.fromRGB(255, 92, 48), Order = 6 },
 		Alquimista = { DisplayName = "Alquimista", Description = "Usa 10 pociones.", Stat = "PotionsUsed", Goal = 10, Color = Color3.fromRGB(170, 120, 255), Order = 7 },
 		Coleccionista = { DisplayName = "Coleccionista", Description = "Ten 25 mascotas.", Stat = "Pets", Goal = 25, Color = Color3.fromRGB(96, 190, 255), Order = 8 },
-		Generador = { DisplayName = "Generador", Description = "Genera 1M de energía en total.", Stat = "EnergyEarned", Goal = 1e6, Color = Color3.fromRGB(255, 226, 80), Order = 9 },
+		Generador = { DisplayName = "Minero de Diamantes", Description = "Consigue 25.000 💎 en total.", Stat = "EnergyEarned", Goal = 25000, Color = Color3.fromRGB(110, 200, 255), Order = 9 },
 		Renacido = { DisplayName = "Renacido", Description = "Renace 1 vez.", Stat = "Rebirths", Goal = 1, Color = Color3.fromRGB(255, 200, 80), Order = 10 },
 		Inmortal = { DisplayName = "Inmortal", Description = "Renace 10 veces.", Stat = "Rebirths", Goal = 10, Color = Color3.fromRGB(255, 110, 200), Order = 11 },
 	},

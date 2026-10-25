@@ -212,7 +212,7 @@ local function buildRow(parent: Instance, order: number, entry: any, isAchieveme
 		Text = formatNumber(math.floor(entry.Progress)) .. "/" .. formatNumber(entry.Target),
 	})
 	-- Recompensa y acción
-	local rewardText = if entry.Reward and entry.Reward > 0 then "+" .. formatNumber(entry.Reward) .. " ⚡" else "Insignia"
+	local rewardText = if entry.Reward and entry.Reward > 0 then "+" .. formatNumber(entry.Reward) .. " 💎" else "Insignia"
 	UiKit.text(row, "Reward", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -12, 0, 8),
@@ -410,7 +410,7 @@ function QuestController.start()
 				local def = typeof(notice) == "table" and definitions[notice.Id]
 				if def then
 					if notice.Type == "Achievement" then
-						local reward = if typeof(notice.Reward) == "number" and notice.Reward > 0 then ("  +%s ⚡"):format(formatNumber(notice.Reward)) else ""
+						local reward = if typeof(notice.Reward) == "number" and notice.Reward > 0 then ("  +%s 💎"):format(formatNumber(notice.Reward)) else ""
 						notify("🏆 Logro: " .. def.Title .. reward, VIOLET)
 					elseif notice.Type == "Daily" then
 						notify("★ Diaria completada: " .. def.Title .. " — ¡reclámala!", TURQUOISE)
@@ -432,9 +432,9 @@ function QuestController.start()
 		end
 		if success then
 			local def = typeof(questId) == "string" and definitions[questId]
-			local text = ("+%s ⚡"):format(formatNumber(if typeof(amount) == "number" then amount else 0))
+			local text = ("+%s 💎"):format(formatNumber(if typeof(amount) == "number" then amount else 0))
 			setFeedback(("¡Recompensa recibida! %s"):format(text), THEME.BuyHighlight)
-			notify(("⚡ %s  %s"):format(if def then def.Title else "Recompensa", text), THEME.Gold)
+			notify(("💎 %s  %s"):format(if def then def.Title else "Recompensa", text), THEME.Gold)
 		else
 			setFeedback(MESSAGES[code] or tostring(code), THEME.Error)
 			if PanelManager.isOpen(PANEL_NAME) then

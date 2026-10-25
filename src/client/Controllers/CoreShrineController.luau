@@ -285,7 +285,7 @@ local function apply(rig: Rig, unlocked: { [string]: boolean }, selected: string
 			rig.State.Text = "Despierto"
 			rig.State.TextColor3 = look.Glow
 		else
-			rig.State.Text = "🔒 " .. formatNumber(unlockCost(rig.Order)) .. " ⚡"
+			rig.State.Text = "🔒 " .. formatNumber(unlockCost(rig.Order)) .. " 💎"
 			rig.State.TextColor3 = MUTED
 		end
 	end

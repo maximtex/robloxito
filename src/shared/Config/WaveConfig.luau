@@ -8,7 +8,7 @@
 -- no te atacan) y solo ves y golpeas los de tu partida; otros jugadores pueden jugar la suya
 -- en el mismo círculo a la vez sin verse los enemigos. Quien pulse E durante la cuenta atrás
 -- de otra partida se une a ella (para jugar con amigos).
--- Cada enemigo revienta en orbes de ⚡ y 💰 (EnemyService), matar sin parar sube la racha,
+-- Cada enemigo revienta en 💎 y 💰 (EnemyService), matar sin parar sube la racha,
 -- cada CardEvery oleadas eliges 1 de 3 mejoras que duran esa partida y en la última oleada
 -- sale el jefe (uno para cada partida).
 -- Lógica pura en WaveLogic; servidor en WaveService; cliente en WaveController y
@@ -40,7 +40,29 @@ local WaveConfig = {
 	Places = {
 		-- Sala 3 de la Cueva de los Espinillos (CaveConfig.Rooms[3], centro (-1220, -20) del
 		-- mundo; aquí relativo al centro del Bosque).
-		Forest = { Zone = "Forest", Offset = Vector2.new(-1220, 5), Arena = "Forest", Cave = true },
+		-- En la cueva los bichos salen por varios sitios de la sala (SpawnPoints, relativos al
+		-- altar: el pasillo de la Galería, las paredes norte y sur y junto a las esquinas) y
+		-- van a por ti desde allí (LeashRadius: hasta dónde te siguen, toda la sala).
+		Forest = {
+			Zone = "Forest",
+			Offset = Vector2.new(-1220, 5),
+			Arena = "Forest",
+			Cave = true,
+			SpawnPoints = {
+				Vector2.new(48, 0),
+				Vector2.new(0, -48),
+				Vector2.new(0, 48),
+				Vector2.new(30, -46),
+				Vector2.new(-30, -46),
+				Vector2.new(30, 46),
+				Vector2.new(-30, 46),
+			},
+			SpawnJitter = 2.5,
+			LeashRadius = 72,
+			-- Dentro de la partida se cuenta toda la sala (no solo el círculo): para ir a por
+			-- los que salen de las paredes sin perder la partida.
+			InsideRadius = 64,
+		},
 		-- Pradera oeste, a unos 90 studs a la izquierda del spawn (que está en (0, 43)), con el
 		-- borde del mapa a 15 studs del círculo: la práctica del tutorial.
 		Practice = { Zone = "Forest", Offset = Vector2.new(-69, 98), Arena = "Tutorial", Practice = true },
@@ -143,9 +165,9 @@ local WaveConfig = {
 			Hints = {
 				Countdown = "¡Los enemigos van a salir a tu alrededor! Tu arma dispara SOLA.",
 				[1] = "🔫 Tu arma dispara sola. Muévete (WASD) para que no te alcancen.",
-				[2] = "Cada enemigo suelta ⚡ y 💰. ¡Mata sin parar para subir la 🔥 RACHA!",
+				[2] = "Cada enemigo suelta 💰 y 💎. ¡Mata sin parar para subir la 🔥 RACHA!",
 				[3] = "¡Última oleada! Acaba con todos.",
-				Victory = "🏆 ¡Bien hecho! Las oleadas son la mejor forma de ganar ⚡: vuelve cuando quieras.",
+				Victory = "🏆 ¡Bien hecho! Las oleadas son la mejor forma de ganar 💎: vuelve cuando quieras.",
 			},
 		},
 	},
@@ -187,16 +209,20 @@ local WaveConfig = {
 	-- Vida del jefe con varios jugadores (además de la de su configuración)
 	BossPlayerHealth = 0.6,
 	-- Dinero de los enemigos de las oleadas (golpes y derrota) frente a los del mundo: las
-	-- oleadas dan mucha ⚡ pero el 💰 se queda normal.
+	-- oleadas dan muchos 💎 pero el 💰 se queda normal.
 	MoneyMultiplier = 0.3,
 
 	-- Premio al limpiar cada oleada (para cada jugador de la partida), por el número de la
-	-- oleada:  ⚡ = ClearEnergy · w · poder de energía     💰 = ClearMoney · w
-	ClearEnergy = 6,
+	-- oleada:  💎 = ClearEnergy · w · poder de diamantes     💰 = ClearMoney · w
+	-- (los "Energy" de aquí son 💎: EconomyConfig)
+	ClearEnergy = 1,
 	ClearMoney = 15,
 	-- Premio de victoria (además del botín del jefe y su arma la primera vez):
-	VictoryEnergy = 150, -- · poder de energía
+	VictoryEnergy = 40, -- 💎 · poder de diamantes
 	VictoryMoney = 600,
+	-- Poder de diamantes (WaveLogic.diamondPower): 1 + DiamondPowerScale · √(poder de energía − 1).
+	-- Sube despacio: poder 2 -> ×1.25, 11 -> ×1.8, 101 -> ×3.5, 1 001 -> ×8.9.
+	DiamondPowerScale = 0.25,
 
 	-- Modo infinito (los modos con jefe; Endless = false en un modo lo quita): al caer el
 	-- jefe se cobra la victoria y cada jugador tiene ChoiceSeconds para elegir si sigue. Las
@@ -211,18 +237,18 @@ local WaveConfig = {
 	CardChoices = 3,
 
 	-- Racha (en TODO el juego, no solo en las oleadas): cada enemigo que derrotas en menos
-	-- de Window segundos desde el anterior la sube. Multiplica el botín (⚡ y 💰):
+	-- de Window segundos desde el anterior la sube. Multiplica el botín (💎 y 💰):
 	--   ×(1 + min(floor(racha / Step) · StepBonus, MaxBonus))   (x10 = ×1.1 … x100 = ×2)
 	Streak = { Window = 2.5, Step = 10, StepBonus = 0.1, MaxBonus = 1 },
 
-	-- Orbe dorado: a veces un enemigo (nunca un jefe) suelta el botín multiplicado.
+	-- Gema dorada: a veces un enemigo (nunca un jefe) suelta el botín multiplicado.
 	GoldenOrb = { Chance = 0.03, Multiplier = 10 },
 
 	-- Mejoras de la partida. MaxLevel = veces que se puede coger. Efectos (por nivel):
 	--   Damage (+fracción de daño del arma), Cooldown (·factor del tiempo entre disparos),
 	--   Chain (+saltos a otros enemigos), Splash (los disparos explotan: radio y fracción),
 	--   Twin (probabilidad de un disparo extra), Explode (al matar, explosión: radio y
-	--   veces el daño del disparo), Loot (+fracción de ⚡ y 💰), Heal (vida por enemigo),
+	--   veces el daño del disparo), Loot (+fracción de 💎 y 💰), Heal (vida por enemigo),
 	--   StreakSeconds (+segundos de ventana de la racha).
 	Cards = {
 		Fury = { Order = 1, Icon = "🔥", Name = "Furia", Text = "+25 % de daño", MaxLevel = 3, Damage = 0.25 },
@@ -231,7 +257,7 @@ local WaveConfig = {
 		Blast = { Order = 4, Icon = "💥", Name = "Estallido", Text = "Tus disparos explotan en área", MaxLevel = 3, Splash = { Radius = 5, RadiusPerLevel = 2, Fraction = 0.4 } },
 		Twin = { Order = 5, Icon = "🎯", Name = "Doble disparo", Text = "25 % de disparar dos veces", MaxLevel = 3, Twin = 0.25 },
 		Detonate = { Order = 6, Icon = "☄️", Name = "Reacción en cadena", Text = "Lo que matas explota", MaxLevel = 2, Explode = { Radius = 8, ShotMultiplier = 2 } },
-		Greed = { Order = 7, Icon = "💰", Name = "Codicia", Text = "+30 % de ⚡ y 💰 en esta partida", MaxLevel = 3, Loot = 0.3 },
+		Greed = { Order = 7, Icon = "💰", Name = "Codicia", Text = "+30 % de 💎 y 💰 en esta partida", MaxLevel = 3, Loot = 0.3 },
 		Vampire = { Order = 8, Icon = "🩸", Name = "Vampiro", Text = "+3 de vida por enemigo", MaxLevel = 3, Heal = 3 },
 		LongStreak = { Order = 9, Icon = "⏱️", Name = "Racha larga", Text = "La racha aguanta 1 s más", MaxLevel = 2, StreakSeconds = 1 },
 	},

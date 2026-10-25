@@ -57,6 +57,10 @@ function EnemyService.applyControl(enemy, kind, seconds, factor)
 	return true
 end
 function EnemyService.onClicked() end
+local knockbacks = 0
+function EnemyService.knockback()
+	knockbacks += 1
+end
 
 -- Números de combate del arma (PlayerDataService.combatStats) con el WeaponLogic real
 PlayerDataService.combatStats = function(profile)
@@ -309,7 +313,14 @@ table.clear(fired)
 now = run(now, 1)
 local punches = shots(ana)
 -- Láser: 20 DPS · 1.5 = 30 DPS en golpes de 0.35 s = 10.5 por golpe, sin crítico
-check(("Puños: golpes rápidos de 10.5 (%d en 1 s) y sin efecto del arma"):format(#punches), #punches >= 2 and #punches <= 4 and near2(damageOf(closeFist), 10.5 * #punches) and punches[1].Style == "Fists" and punches[1].Splash == nil)
+local hooks = 0
+for _, punch in punches do
+	if punch.Combo then
+		hooks += 1
+	end
+end
+check(("Puños: golpes rápidos de 10.5 (%d en 1 s, %d gancho ×2) y sin efecto del arma"):format(#punches, hooks), #punches >= 2 and #punches <= 4 and near2(damageOf(closeFist), 10.5 * (#punches + hooks)) and punches[1].Style == "Fists" and punches[1].Splash == nil)
+check("combo de golpes: el 3.º puñetazo seguido es un gancho (y empuja)", #punches >= 3 and punches[1].Combo == nil and punches[2].Combo == nil and punches[3].Combo == "¡Gancho!" and knockbacks >= 1)
 
 reset()
 local magic = profileWith("Laser")

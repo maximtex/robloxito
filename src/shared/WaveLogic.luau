@@ -345,6 +345,21 @@ function WaveLogic.killEnergy(share: number, killShare: number, power: number): 
 	return positive(share) * positive(killShare) * math.max(1, positive(power))
 end
 
+-- Poder de 💎 a partir del "poder de energía" (profile.ProductionPerSecond): sube despacio
+-- (1 + WaveConfig.DiamondPowerScale · √(poder − 1)) para que los diamantes sigan siendo
+-- escasos con la Resonancia, los núcleos y las mascotas.
+function WaveLogic.diamondPower(power: number): number
+	return 1 + math.sqrt(math.max(0, positive(power) - 1)) * positive(WaveConfig.DiamondPowerScale or 0)
+end
+
+-- Un número de 💎 con decimales -> entero: lo que falta para el siguiente es su probabilidad
+-- (`roll` en [0, 1)). 1.3 da 1 o 2 (un 30 % de las veces 2).
+function WaveLogic.roundDiamonds(amount: number, roll: number): number
+	local value = positive(amount)
+	local whole = math.floor(value)
+	return whole + (if positive(roll) < value - whole then 1 else 0)
+end
+
 -- Récords del jugador (campo Waves del guardado, v10) --------------------------------------
 -- Cleared: oleadas superadas en total (clasificación "Oleadas superadas"); Best: la oleada
 -- más alta superada en cada modo (las del modo infinito cuentan: 11, 12...). La práctica

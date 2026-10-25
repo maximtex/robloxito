@@ -6,7 +6,7 @@ local EggLogic = {}
 
 export type PetEntry = { Uid: string, PetId: string }
 export type PetData = { Pets: { PetEntry }, Equipped: { string }, NextPetUid: number, UnlockedZones: { string }? }
-export type ProfileLike = { Energy: number, UpgradeLevels: { [string]: number }, PetData: PetData }
+export type ProfileLike = { Money: number, UpgradeLevels: { [string]: number }, PetData: PetData }
 -- UnlockLevel (opcional): nivel que cuenta para RequiredLevel si no es el actual de la
 -- mejora (con renacimientos, el mejor nivel con el que se renació).
 export type Limits = { MaxInventory: number, MaxEquipped: number, UnlockUpgradeId: string, UnlockLevel: number? }
@@ -124,12 +124,13 @@ function EggLogic.purchaseMany(profile: ProfileLike, egg, rolls: { number }, lim
 	if #petData.Pets + count > limits.MaxInventory then
 		return codes.InventoryFull, nil
 	end
+	-- Los huevos se pagan con 💰 (economía 2: EconomyConfig)
 	local total = egg.Cost * count
-	if profile.Energy < total then
-		return codes.InsufficientEnergy, nil
+	if (profile.Money or 0) < total then
+		return codes.InsufficientMoney, nil
 	end
 
-	profile.Energy -= total
+	profile.Money -= total
 	local grants = {}
 	for _, rollValue in rolls do
 		table.insert(grants, grant(petData, EggLogic.roll(egg, rollValue), limits.MaxEquipped))

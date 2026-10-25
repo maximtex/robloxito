@@ -74,13 +74,19 @@ local CHAIN_DEFAULT = { Range = 14, Fraction = 0.5 } -- salto de la mejora "Rebo
 local MAX_TWIN_SHOTS = 1
 -- Ráfaga (habilidad de Armas): os.clock() hasta el que dispara más rápido.
 local burstUntil: { [Player]: number } = {}
+local burstScale: { [Player]: number } = {}
+-- Combo de golpes de cada jugador (StyleLogic.countHit)
+local hitCombos: { [Player]: { Count: number, Last: number } } = {}
 -- Azar de los críticos (las pruebas lo sustituyen para que sea determinista).
 PetCombatService.random = function(): number
 	return math.random()
 end
 
-function PetCombatService.setBurst(player: Player, untilClock: number)
+-- Ráfaga (Armas) o Furia (Puños): hasta `untilClock` el tiempo entre golpes se multiplica
+-- por `scale` (0.5 = el doble de rápido).
+function PetCombatService.setBurst(player: Player, untilClock: number, scale: number?)
 	burstUntil[player] = untilClock
+	burstScale[player] = if type(scale) == "number" and scale > 0 and scale <= 1 then scale else 0.5
 end
 
 -- Estilo de pelea del perfil (uno válido siempre).
@@ -315,14 +321,22 @@ local function fire(player: Player, root: BasePart, target: any, stats, mods: an
 	local hits = {}
 	-- Puntería (Armas): algunos disparos son críticos (solo el golpe principal)
 	local crit = StyleLogic.critMultiplier(style, PetCombatService.random())
-	local killed = hitWith(player, target, stats.Shot * crit, effect.Slow, hits)
+	-- Combo de golpes: cada pocos golpes seguidos, uno especial (tiro cargado, gancho, gran orbe)
+	local comboState = hitCombos[player] or { Count = 0, Last = 0 }
+	hitCombos[player] = comboState
+	local combo = StyleLogic.countHit(style, comboState, os.clock())
+	local power = if combo then combo.Multiplier or 2 else 1
+	local killed = hitWith(player, target, stats.Shot * crit * power, effect.Slow, hits)
+	if combo and combo.Knockback and not killed and EnemyService.isAlive(target) then
+		EnemyService.knockback(target, root.Position, combo.Knockback)
+	end
 
 	local splashRadius = nil
 	if effect.Splash then
-		splashRadius = effect.Splash.Radius
-		for _, other in EnemyService.findInRadius(targetPosition, effect.Splash.Radius, MAX_EFFECT_TARGETS, player) do
+		splashRadius = effect.Splash.Radius * (if combo and combo.SplashScale then combo.SplashScale else 1)
+		for _, other in EnemyService.findInRadius(targetPosition, splashRadius, MAX_EFFECT_TARGETS, player) do
 			if other ~= target then
-				hitWith(player, other, stats.Shot * effect.Splash.Fraction, effect.Slow, hits)
+				hitWith(player, other, stats.Shot * effect.Splash.Fraction * power, effect.Slow, hits)
 			end
 		end
 	end
@@ -371,6 +385,7 @@ local function fire(player: Player, root: BasePart, target: any, stats, mods: an
 		Hits = hits,
 		Chain = chain,
 		Splash = splashRadius,
+		Combo = combo and combo.Name,
 	})
 	return killed
 end
@@ -395,8 +410,7 @@ function PetCombatService.step(now: number)
 		local style = styleOf(profile)
 		stats = styledStats(profile, stats)
 		if (burstUntil[player] or 0) > now then
-			local scale = StyleConfig.Styles.Weapons.Ability.CooldownScale or 0.5
-			stats.Cooldown = math.max(0.05, stats.Cooldown * scale)
+			stats.Cooldown = math.max(0.05, stats.Cooldown * (burstScale[player] or 0.5))
 		end
 		if player:GetAttribute(Constants.Attributes.AutoFire) ~= auto then
 			player:SetAttribute(Constants.Attributes.AutoFire, auto)
@@ -571,6 +585,8 @@ function PetCombatService.start()
 		reset(player)
 		states[player] = nil
 		burstUntil[player] = nil
+		burstScale[player] = nil
+		hitCombos[player] = nil
 		autoLimiter:remove(player)
 	end)
 

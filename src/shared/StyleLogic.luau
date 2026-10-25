@@ -5,6 +5,7 @@
 -- usan PetCombatService, StyleService, PlayerDataService y el cliente (solo para mostrar).
 
 local StyleConfig = require(script.Parent.Config.StyleConfig)
+local SkillLogic = require(script.Parent.SkillLogic)
 
 local StyleLogic = {}
 
@@ -54,15 +55,24 @@ function StyleLogic.applyStats(stats: { [string]: any }, styleId: any, baseCoold
 	return result
 end
 
--- Efecto de cada golpe: Armas usa el del arma; Puños ninguno; Magia su explosión.
+-- Efecto de cada golpe: Armas usa el del arma; Puños, el de sus guantes (si tienen);
+-- Magia, su explosión más el efecto del bastón (frena, salta; un área más grande manda).
 function StyleLogic.effect(styleId: any, weaponEffect: { [string]: any }?): { [string]: any }
 	local def = StyleLogic.definition(styleId)
 	if styleId == "Weapons" or not def then
 		return weaponEffect or {}
-	elseif def.Splash then
-		return { Splash = { Radius = def.Splash.Radius, Fraction = def.Splash.Fraction } }
 	end
-	return {}
+	local result = {}
+	for key, value in weaponEffect or {} do
+		result[key] = table.clone(value)
+	end
+	if def.Splash then
+		local gear = result.Splash
+		if not (gear and finite(gear.Radius) and gear.Radius >= def.Splash.Radius) then
+			result.Splash = { Radius = def.Splash.Radius, Fraction = def.Splash.Fraction }
+		end
+	end
+	return result
 end
 
 -- Multiplicador de un golpe (crítico de Armas). `roll` en [0, 1).
@@ -92,6 +102,35 @@ function StyleLogic.walkSpeed(styleId: any): number
 	return if finite(factor) then math.clamp(factor, 0.5, 2) else 1
 end
 
+-- Combo de golpes: con el contador `state` ({ Count, Last, Style }) y la hora `now`, cuenta
+-- este golpe y devuelve el combo del estilo si toca (cada HitCombo.Every golpes seguidos del
+-- mismo estilo, sin parar más de Window segundos). Cambia `state`.
+function StyleLogic.countHit(styleId: any, state: { [string]: any }, now: number): { [string]: any }?
+	local def = StyleLogic.definition(styleId)
+	local combo = def and def.HitCombo
+	if not (combo and finite(now)) then
+		return nil
+	end
+	if not finite(state.Last) or now - state.Last > (combo.Window or 1.5) or state.Style ~= styleId then
+		state.Count = 0
+		state.Style = styleId
+	end
+	state.Last = now
+	state.Count = (if finite(state.Count) then state.Count else 0) + 1
+	if state.Count >= (combo.Every or 3) then
+		state.Count = 0
+		return combo
+	end
+	return nil
+end
+
+-- Multiplicador de la vida máxima con este estilo (Puños: +50 %).
+function StyleLogic.maxHealth(styleId: any): number
+	local def = StyleLogic.definition(styleId)
+	local factor = def and def.MaxHealth
+	return if finite(factor) then math.clamp(factor, 0.5, 3) else 1
+end
+
 -- Curación por un golpe que ha hecho `dealt` de daño (Magia), con su tope por golpe.
 function StyleLogic.lifeSteal(styleId: any, dealt: number, maxHealth: number): number
 	local def = StyleLogic.definition(styleId)
@@ -103,22 +142,26 @@ function StyleLogic.lifeSteal(styleId: any, dealt: number, maxHealth: number): n
 	return math.min(dealt * passive.LifeSteal, cap)
 end
 
--- Habilidad `slot` del estilo: 1 = Ability (Z), 2 = Ability2 (X). nil si no la tiene.
-function StyleLogic.ability(styleId: any, slot: any): { [string]: any }?
+-- Habilidad puesta en el hueco `slot` del estilo (1 = Z, 2 = X): su definición y su id. Con
+-- `skills` (PetData.Skills, SkillLogic) la que tenga puesta el jugador; sin ellos, las
+-- iniciales del estilo. nil si no hay.
+function StyleLogic.ability(styleId: any, slot: any, skills: any?): ({ [string]: any }?, string?)
 	local def = StyleLogic.definition(styleId)
 	if not def then
-		return nil
+		return nil, nil
 	end
-	return if slot == 2 then def.Ability2 else def.Ability
+	local skillId = SkillLogic.equipped(skills, styleId, if slot == 2 then 2 else 1)
+	local ability = skillId and def.Skills and def.Skills[skillId]
+	return ability, if ability then skillId else nil
 end
 
--- Daño de la habilidad a cada enemigo alcanzado: DamageRatio × DPS del estilo.
-function StyleLogic.abilityDamage(styleId: any, styleDps: number, slot: any?): number
-	local ability = StyleLogic.ability(styleId, slot or 1)
+-- Daño de la habilidad a cada enemigo alcanzado: DamageRatio × DPS del estilo (× su nivel).
+function StyleLogic.abilityDamage(styleId: any, styleDps: number, slot: any?, skills: any?, level: number?): number
+	local ability = StyleLogic.ability(styleId, slot or 1, skills)
 	if not (ability and finite(ability.DamageRatio) and finite(styleDps)) then
 		return 0
 	end
-	return math.max(0, styleDps) * ability.DamageRatio
+	return math.max(0, styleDps) * ability.DamageRatio * SkillLogic.power(level)
 end
 
 -- ¿Alcanza la embestida de (ax, az) a (bx, bz), de medio ancho `halfWidth`, a algo en

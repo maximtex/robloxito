@@ -4,8 +4,7 @@
 -- - Pases (MonetizationConfig.GamePasses): icono, qué hace y precio en Robux (lo da Roblox),
 --   «✓ Tuyo» si ya lo tiene o «Próximamente» si aún no tiene Id. La mejora automática
 --   tiene su interruptor.
--- - Energía (MonetizationConfig.Products): cuánta energía da AHORA (minutos de tu
---   producción actual, con mínimo) y su precio.
+-- - Diamantes (MonetizationConfig.Products): cuántos 💎 da y su precio.
 -- - Mascotas exclusivas (MonetizationConfig.PetProducts): se compran en el mundo, con la
 --   interacción que lleva el atributo PetProduct (el altar del Jardín de los Huevos).
 -- - Al confirmarse una compra, aviso en la pila común y la tienda al día.
@@ -148,7 +147,7 @@ local function buildGui()
 		TextWrapped = true,
 		TextColor3 = THEME.Muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		Text = "La energía de las bolsas crece con tu producción: cuanto más avanzas, más da.",
+		Text = "Los 💎 compran habilidades nuevas y sus mejoras (botón Mejoras de tu estilo).",
 		LayoutOrder = 5,
 	})
 
@@ -302,7 +301,7 @@ function ShopController.start()
 		local production = player:GetAttribute(Constants.Attributes.ProductionPerSecond)
 		for key, card in ui.ProductCards do
 			local def = MonetizationConfig.Products[key]
-			card.Amount.Text = "+" .. formatNumber(MonetizationLogic.productEnergy(def, if typeof(production) == "number" then production else 0)) .. " ⚡"
+			card.Amount.Text = "+" .. formatNumber(MonetizationLogic.productEnergy(def, if typeof(production) == "number" then production else 0)) .. " 💎"
 			local available = typeof(def.Id) == "number" and def.Id > 0
 			if available then
 				local price = priceOf("Product", def.Id)
@@ -362,7 +361,7 @@ function ShopController.start()
 			Toasts.show(("¡Gracias! %s %s ya es tuyo"):format(def and def.Icon or "", def and def.Name or key), { Color = SHOP_COLOR, Duration = 5 })
 			Juice.sound(Juice.Sounds.HatchEpic)
 		elseif kind == "Product" and typeof(detail) == "number" then
-			Toasts.show(("+%s ⚡  ¡Gracias por tu compra!"):format(formatNumber(detail)), { Color = THEME.Gold, Duration = 5 })
+			Toasts.show(("+%s 💎  ¡Gracias por tu compra!"):format(formatNumber(detail)), { Color = THEME.Gold, Duration = 5 })
 			Juice.sound(Juice.Sounds.HatchRare)
 		end
 		if PanelManager.isOpen(PANEL_NAME) then

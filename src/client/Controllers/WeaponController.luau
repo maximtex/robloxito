@@ -1,5 +1,7 @@
 -- Armería (panel "Armory") con el diseño «Armería Roblox»: cabecera naranja a rayas con
--- ARMERÍA, el dinero y la X roja; debajo, una tarjeta por arma (cuatro a la vista; las
+-- ARMERÍA (o GUANTES / BASTONES: cada estilo de pelea tiene su tienda y solo se ve la de tu
+-- estilo, WeaponConfig.Category), el botón ⚡ MEJORAS (habilidades del estilo,
+-- SkillsController), el dinero y la X roja; debajo, una tarjeta por arma (cuatro a la vista; las
 -- flechas pasan al resto) con su arte, su rareza, sus números y sus botones: comprar con
 -- dinero o con Robux, equipar y mejorar. Se abre en el puesto del pueblo, con la tecla L o
 -- con el botón "Armas" del menú. Solo muestra y pide: el servidor valida y cobra
@@ -20,6 +22,7 @@ local MonetizationConfig = require(Shared.Config.MonetizationConfig)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local WeaponLogic = require(Shared.WeaponLogic)
+local StyleLogic = require(Shared.StyleLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Icons = require(script.Parent.Parent.UI.Icons)
@@ -63,10 +66,10 @@ local Codes = Constants.PurchaseCodes
 
 local MESSAGES = {
 	[Codes.InsufficientMoney] = "Te falta 💰 dinero: derrota enemigos",
-	[Codes.AlreadyOwned] = "Ya tienes esa arma",
-	[Codes.NotForSale] = "Esa arma la suelta un jefe",
+	[Codes.AlreadyOwned] = "Ya lo tienes",
+	[Codes.NotForSale] = "Eso lo suelta un jefe",
 	[Codes.Locked] = "Primero desbloquea su zona",
-	[Codes.NotOwned] = "Aún no tienes esa arma",
+	[Codes.NotOwned] = "Aún no lo tienes",
 	[Codes.MaxLevel] = "Nivel máximo alcanzado",
 	[Codes.TooFast] = "Demasiado rápido, espera un momento",
 	[Codes.NotReady] = "Cargando datos, inténtalo de nuevo",
@@ -87,9 +90,17 @@ local function ownedWeapons(): { [string]: number }
 		end
 	end
 	if next(owned) == nil then
-		owned[WeaponConfig.StarterWeapon] = 0
+		for _, starter in WeaponConfig.Starters or { Weapons = WeaponConfig.StarterWeapon } do
+			owned[starter] = 0
+		end
 	end
 	return owned
+end
+
+-- Tienda que se ve: la del estilo de pelea (Armas, Puños o Magia)
+local function currentCategory(): string
+	local styleId = player:GetAttribute(Constants.Attributes.CombatStyle)
+	return if typeof(styleId) == "string" and WeaponConfig.Categories[styleId] then styleId else "Weapons"
 end
 
 local function unlockedZones(): { string }
@@ -445,6 +456,7 @@ local function buildCard(row: ScrollingFrame, weaponId: string, def, order: numb
 	}, 3)
 
 	return {
+		Frame = card,
 		Def = def,
 		RingStroke = ringStroke,
 		TagText = tagText,
@@ -588,9 +600,11 @@ local function buildGui()
 		BackgroundTransparency = 1,
 		ZIndex = 3,
 	}, window)
+	-- Icono de la cabecera: el dibujo de la Armería (armas) o el emoji de la tienda (🥊, ✨)
 	local headerArt = WeaponConfig.ArmoryArt.Header
+	local headerImage = nil
 	if headerArt then
-		UiKit.create("ImageLabel", {
+		headerImage = UiKit.create("ImageLabel", {
 			Name = "Icon",
 			Position = UDim2.fromOffset(12, -5),
 			Size = UDim2.fromOffset(102, 96),
@@ -599,25 +613,43 @@ local function buildGui()
 			ScaleType = Enum.ScaleType.Fit,
 			ZIndex = 3,
 		}, header)
-	else
-		UiKit.text(header, "Icon", {
-			Position = UDim2.fromOffset(12, 0),
-			Size = UDim2.fromOffset(102, HEADER_HEIGHT - 5),
-			TextSize = 64,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			Text = "⚔️",
-			ZIndex = 3,
-		})
 	end
-	outlinedText(header, "Title", {
+	local headerEmoji = UiKit.text(header, "IconEmoji", {
+		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.fromOffset(102, HEADER_HEIGHT - 5),
+		TextSize = 64,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "⚔️",
+		Visible = headerImage == nil,
+		ZIndex = 3,
+	})
+	local title = outlinedText(header, "Title", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 126, 0.5, -3),
-		Size = UDim2.fromOffset(420, 70),
+		Size = UDim2.fromOffset(380, 70),
 		Font = DISPLAY,
 		TextSize = 60,
 		TextColor3 = WHITE,
 		Text = "ARMERÍA",
 	}, 5, 5)
+
+	-- ⚡ MEJORAS: las habilidades de tu estilo (comprar con 💎, subir de nivel y equipar)
+	local skills = chunkyButton(header, "Skills", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 520, 0.5, 0),
+		Size = UDim2.fromOffset(210, 58),
+		ZIndex = 4,
+	}, 12, 4)
+	fill(skills, PURPLE, 58)
+	outlinedText(skills, "Label", {
+		Size = UDim2.fromScale(1, 1),
+		Font = DISPLAY,
+		TextSize = 30,
+		TextColor3 = WHITE,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "⚡ MEJORAS",
+		ZIndex = 5,
+	}, 3.5)
 
 	local close = chunkyButton(header, "Close", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -726,6 +758,10 @@ local function buildGui()
 		FitScale = fitScale,
 		PopScale = popScale,
 		Header = header,
+		HeaderImage = headerImage,
+		HeaderEmoji = headerEmoji,
+		Title = title,
+		Skills = skills,
 		Close = close,
 		Money = moneyLabel,
 		Row = row,
@@ -785,6 +821,7 @@ function WeaponController.start()
 		end
 	end
 
+	local shownCategory = ""
 	local function refresh()
 		local money = numberAttribute(Constants.Attributes.Money)
 		ui.Money.Text = "$" .. short(money)
@@ -793,17 +830,37 @@ function WeaponController.start()
 		local zones = unlockedZones()
 		local pets = numberAttribute(Constants.Attributes.PetMultiplier)
 		local cadence = numberAttribute(Constants.Attributes.UpgradeLevelPrefix .. WeaponConfig.CadenceUpgradeId)
+		local category = currentCategory()
+		local info = WeaponConfig.Categories[category]
+		ui.Title.Text = info.Title
+		local useImage = ui.HeaderImage ~= nil and category == "Weapons"
+		if ui.HeaderImage then
+			ui.HeaderImage.Visible = useImage
+		end
+		ui.HeaderEmoji.Visible = not useImage
+		ui.HeaderEmoji.Text = info.Icon
+		if category ~= shownCategory then
+			shownCategory = category
+			ui.Row.CanvasPosition = Vector2.zero -- otra tienda: a la primera página
+		end
 
 		for weaponId, card in ui.Cards do
 			local def = card.Def
+			card.Frame.Visible = WeaponLogic.category(weaponId) == category
 			local level = owned[weaponId]
 			local has = level ~= nil
 			local isEquipped = equipped == weaponId
 			card.RingStroke.Transparency = if isEquipped then 0 else 0.7
 			card.TagText.Text = if has then ("Nv. %d/%d"):format(level, WeaponConfig.MaxLevel) else def.Tagline or ""
-			card.Stats[1].Text = short(WeaponLogic.shotDamage(weaponId, level or 0, pets)) .. " por disparo"
-			card.Stats[2].Text = ("Velocidad de ataque: %.2f s"):format(WeaponLogic.cooldown(weaponId, cadence))
-			card.Stats[3].Text = ("%d de alcance"):format(def.Range)
+			-- Números con el ritmo y el alcance de su estilo (Puños: cuerpo a cuerpo)
+			local styled = StyleLogic.applyStats({
+				Shot = WeaponLogic.shotDamage(weaponId, level or 0, pets),
+				Cooldown = WeaponLogic.cooldown(weaponId, cadence),
+				Range = def.Range,
+			}, category, def.Cooldown)
+			card.Stats[1].Text = short(styled.Shot) .. " " .. info.Hit
+			card.Stats[2].Text = ("Velocidad de ataque: %.2f s"):format(styled.Cooldown)
+			card.Stats[3].Text = if category == "Fists" then "Cuerpo a cuerpo" else ("%d de alcance"):format(styled.Range)
 
 			-- Principal: texto grande, texto pequeño debajo, color y qué hace
 			local label, sub, size, colors, onPrimary = "", "", 28, GREEN, function() end
@@ -842,7 +899,7 @@ function WeaponController.start()
 				local boss = EnemyConfig.Types[def.BossDrop]
 				label, sub, size, colors = "💀 DERROTA AL JEFE", if boss then boss.DisplayName else "", 20, DARK
 				onPrimary = function()
-					say("Esa arma la suelta un jefe", false)
+					say("Lo suelta ese jefe si lo derrotas con este estilo", false)
 				end
 			elseif not WeaponLogic.meetsRequirement(weaponId, zones) then
 				local zone = ZoneConfig.Zones[def.Requires.Zone]
@@ -950,7 +1007,7 @@ function WeaponController.start()
 			return
 		end
 		local position = Vector2.new(input.Position.X, input.Position.Y)
-		if inside(ui.Header, position) and not inside(ui.Close, position) then
+		if inside(ui.Header, position) and not inside(ui.Close, position) and not inside(ui.Skills, position) then
 			windowDrag = { Input = input, Start = position, From = ui.Panel.Position }
 		elseif isMouse and inside(ui.Row, position) then
 			rowDrag = { Start = position.X, From = ui.Row.CanvasPosition.X, Moved = false }
@@ -996,7 +1053,8 @@ function WeaponController.start()
 		pending = false
 		local def = WeaponConfig.Weapons[weaponId]
 		if code == "BossDrop" and def then
-			Toasts.show(("%s %s ya es tuya. Equípala en la Armería (L)."):format(def.Icon, def.DisplayName), { Title = "🏆 ¡Nueva arma!", Color = Theme.Colors.Gold })
+			local info = WeaponConfig.Categories[WeaponLogic.category(weaponId)] or WeaponConfig.Categories.Weapons
+			Toasts.show(("%s %s ya es tuyo. Equípalo en la tienda de tu estilo (L)."):format(def.Icon, def.DisplayName), { Title = ("🏆 ¡Nuevo: %s!"):format(info.Item), Color = Theme.Colors.Gold })
 			Juice.sound(Juice.Sounds.Upgrade, 1.1)
 		elseif code == "Robux" and def then
 			say("¡Comprada con Robux y equipada!", true)
@@ -1005,7 +1063,7 @@ function WeaponController.start()
 			end
 			Juice.sound(Juice.Sounds.Upgrade, 1.1)
 		elseif success then
-			say(if action == "Buy" then "¡Comprada y equipada!" elseif action == "Upgrade" then "¡Arma mejorada!" else "Equipada", true)
+			say(if action == "Buy" then "¡Comprado y equipado!" elseif action == "Upgrade" then "¡Mejorado!" else "Equipado", true)
 			Juice.sound(Juice.Sounds.Upgrade, if action == "Upgrade" then 1.05 else 1)
 		else
 			say(MESSAGES[code] or tostring(code), false)
@@ -1033,7 +1091,11 @@ function WeaponController.start()
 	ui.Close.Activated:Connect(function()
 		PanelManager.close(PANEL_NAME)
 	end)
-	MenuBar.add({
+	ui.Skills.Activated:Connect(function()
+		PanelManager.close(PANEL_NAME)
+		PanelManager.open("Skills")
+	end)
+	local menuEntry = MenuBar.add({
 		Id = "Armory",
 		Order = 0,
 		Icon = "⚔️",
@@ -1044,6 +1106,13 @@ function WeaponController.start()
 			PanelManager.toggle(PANEL_NAME)
 		end,
 	})
+	-- El azulejo dice qué tienda abre (Armas, Guantes o Bastones)
+	local MENU_WORDS = { Weapons = "Armas", Fists = "Guantes", Magic = "Bastones" }
+	local function refreshMenuLabel()
+		menuEntry.setLabel(MENU_WORDS[currentCategory()] or "Armas")
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.CombatStyle):Connect(refreshMenuLabel)
+	refreshMenuLabel()
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.KeyCode == Enum.KeyCode.L then
 			PanelManager.toggle(PANEL_NAME)
@@ -1057,6 +1126,7 @@ function WeaponController.start()
 		Constants.Attributes.UnlockedZones,
 		Constants.Attributes.PetMultiplier,
 		Constants.Attributes.UpgradeLevelPrefix .. WeaponConfig.CadenceUpgradeId,
+		Constants.Attributes.CombatStyle,
 	} do
 		player:GetAttributeChangedSignal(attribute):Connect(refresh)
 	end

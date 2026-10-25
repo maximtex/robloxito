@@ -37,7 +37,7 @@ check("cada arma se compra o la suelta un jefe que existe", dropOK)
 check("las zonas que piden existen", zoneOK)
 
 print("-- Progresión de poder")
-local order = WeaponLogic.ordered()
+local order = WeaponLogic.ordered("Weapons")
 check("orden de la Armería: empieza por el láser", order[1] == WeaponConfig.StarterWeapon and #order == 7)
 local growing = true
 for index = 2, #order do
@@ -46,6 +46,39 @@ for index = 2, #order do
 	end
 end
 check("cada arma hace más daño por segundo que la anterior", growing)
+check("sin categoría: todas (armas, guantes y bastones)", #WeaponLogic.ordered() == 21)
+for _, category in { "Fists", "Magic" } do
+	local list = WeaponLogic.ordered(category)
+	local up, sameTiers = true, true
+	for index = 2, #list do
+		if WeaponLogic.dps(list[index], 0) <= WeaponLogic.dps(list[index - 1], 0) then
+			up = false
+		end
+	end
+	for index, id in list do
+		-- el mismo DPS que el arma de su mismo puesto (la progresión de cada estilo va igual)
+		if math.abs(WeaponLogic.dps(id, 0) / WeaponLogic.dps(order[index], 0) - 1) > 0.02 then
+			sameTiers = false
+		end
+	end
+	check(("%s: 7, empieza por %s (gratis), cada uno pega más y al ritmo de las armas"):format(category, WeaponConfig.Starters[category]),
+		#list == 7 and list[1] == WeaponConfig.Starters[category] and WeaponConfig.Weapons[list[1]].Price == 0 and up and sameTiers)
+end
+local bossDrops = {}
+for weaponId, def in WeaponConfig.Weapons do
+	if def.BossDrop then
+		bossDrops[def.BossDrop] = bossDrops[def.BossDrop] or {}
+		bossDrops[def.BossDrop][WeaponLogic.category(weaponId)] = weaponId
+	end
+end
+local dropsOk = true
+for _, boss in { "ForestWarden", "AmethystColossus", "CalderaTitan" } do
+	local drops = bossDrops[boss]
+	if not (drops and drops.Weapons and drops.Fists and drops.Magic) then
+		dropsOk = false
+	end
+end
+check("cada jefe suelta un arma, unos guantes y un bastón (el de tu estilo)", dropsOk)
 check("láser nivel 0: 8 por disparo, 20/s y poder 10 (como el antiguo golpe)", WeaponLogic.shotDamage("Laser", 0) == 8 and WeaponLogic.dps("Laser", 0) == 20 and WeaponLogic.power("Laser", 0) == 10)
 check("cada nivel suma un 15 %", WeaponLogic.shotDamage("Laser", 10) == 20)
 check("mascotas ×1.5 → +25 % (la mitad de su bonificación)", WeaponLogic.shotDamage("Laser", 0, 1.5) == 10)
@@ -78,6 +111,20 @@ check("el siguiente nivel cuesta más", WeaponLogic.upgradeCost("Laser", 1) == m
 check("no se mejora un arma que no tiene", (WeaponLogic.upgrade(data, "MagmaHeart", 1e12)) == "NotOwned")
 data.Levels.Laser = WeaponConfig.MaxLevel
 check("al nivel máximo: MaxLevel y sin coste", (WeaponLogic.upgrade(data, "Laser", 1e12)) == "MaxLevel" and WeaponLogic.upgradeCost("Laser", WeaponConfig.MaxLevel) == nil)
+
+print("-- Guantes y bastones (el progreso de cada estilo, aparte)")
+local gear = WeaponLogic.empty()
+check("datos nuevos: el láser, los guantes de cuero y la varita, cada uno equipado en su estilo", WeaponLogic.owns(gear, "Laser") and WeaponLogic.owns(gear, "LeatherGloves") and WeaponLogic.owns(gear, "ApprenticeWand")
+	and WeaponLogic.equippedFor(gear, "Weapons") == "Laser" and WeaponLogic.equippedFor(gear, "Fists") == "LeatherGloves" and WeaponLogic.equippedFor(gear, "Magic") == "ApprenticeWand")
+check("los guantes se compran con 💰 como las armas", (WeaponLogic.buy(gear, "IronKnuckles", {}, 4000)) == "Success" and WeaponLogic.equip(gear, "IronKnuckles") == "Success")
+check("equipar unos guantes no cambia el arma ni el bastón", gear.Equipped == "Laser" and WeaponLogic.equippedFor(gear, "Fists") == "IronKnuckles" and WeaponLogic.equippedFor(gear, "Magic") == "ApprenticeWand")
+check("y cada uno tiene su nivel", (WeaponLogic.upgrade(gear, "IronKnuckles", 1e6)) == "Success" and WeaponLogic.level(gear, "IronKnuckles") == 1 and WeaponLogic.level(gear, "Laser") == 0)
+local gearBack = WeaponLogic.sanitize(WeaponLogic.serialize(gear))
+check("se guarda lo equipado de cada estilo", gearBack.Slots.Fists == "IronKnuckles" and gearBack.Slots.Magic == "ApprenticeWand" and gearBack.Equipped == "Laser" and gearBack.Levels.IronKnuckles == 1)
+local oldSave = WeaponLogic.sanitize({ Owned = { "Laser", "PlasmaBlaster" }, Levels = { PlasmaBlaster = 2 }, Equipped = "PlasmaBlaster" })
+check("partida de antes (sin guantes ni bastón): recibe los iniciales y conserva su arma", oldSave.Equipped == "PlasmaBlaster" and WeaponLogic.owns(oldSave, "LeatherGloves") and WeaponLogic.equippedFor(oldSave, "Magic") == "ApprenticeWand")
+local mixed = WeaponLogic.sanitize({ Owned = { "Laser", "IronKnuckles" }, Equipped = "IronKnuckles", Slots = { Fists = "Laser", Magic = "VoidStaff" } })
+check("datos cruzados (guantes como arma, un arma como guantes, un bastón que no tiene): cada uno a lo suyo", mixed.Equipped == "Laser" and mixed.Slots.Fists == "LeatherGloves" and mixed.Slots.Magic == "ApprenticeWand")
 
 print("-- Guardado")
 local saved = WeaponLogic.serialize(data)

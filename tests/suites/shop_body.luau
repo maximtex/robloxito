@@ -42,18 +42,18 @@ for offset = 3, 9 do
 	RewardLogic.claim(r, D + offset)
 end
 check("7 días seguidos: el 7.º es el gran premio y el 8.º vuelve a la casilla 1", r.Streak == 7 and RewardLogic.cycleDay(7) == 7 and RewardLogic.status(r, D + 10).Day == 1 and RewardLogic.status(r, D + 10).NextStreak == 8)
-check("el día 7 da mascota y energía", RewardLogic.streakReward(7).Pet == true and RewardLogic.streakReward(7).Energy ~= nil)
+check("el día 7 da mascota y 💰", RewardLogic.streakReward(7).Pet == true and RewardLogic.streakReward(7).Money ~= nil)
 local future = RewardLogic.empty()
 future.Streak, future.LastDay = 3, D + 5
 check("reloj atrasado (último premio «en el futuro»): no se reclama", RewardLogic.claim(future, D) == "AlreadyClaimed" and future.Streak == 3)
-check("energía: N minutos de producción, nunca menos del mínimo", RewardLogic.energyAmount({ Minutes = 10, Min = 500 }, 0) == 500 and RewardLogic.energyAmount({ Minutes = 10, Min = 500 }, 100) == 60000 and RewardLogic.energyAmount({ Minutes = 10, Min = 500 }, 0 / 0) == 500)
+check("💰: N minutos del poder · RewardMoneyRate, nunca menos del mínimo", RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 0) == 500 and RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 100) == 60000 * EconomyConfig.RewardMoneyRate and RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 0 / 0) == 500)
 local dirty = RewardLogic.sanitize({ Streak = -4, LastDay = "ayer", Claims = 1 / 0, Codes = { OK = true, [5] = true, MAL = "sí", ["DEMASIADOLARGODEMASIADOLARGO"] = true } })
 check("saneado: números raros a 0 y solo códigos válidos", dirty.Streak == 0 and dirty.LastDay == 0 and dirty.Claims == 0 and dirty.Codes.OK == true and count(dirty.Codes) == 1)
 
 print("-- 2. Códigos (puros)")
 check("normaliza: minúsculas, espacios y signos", RewardLogic.normalizeCode(" bien-venido! ") == "BIENVENIDO" and RewardLogic.normalizeCode("") == nil and RewardLogic.normalizeCode(42) == nil and RewardLogic.normalizeCode("ñ") == nil)
 local testCodes = {
-	HOLA = { Reward = { Energy = { Minutes = 1, Min = 10 } } },
+	HOLA = { Reward = { Money = { Minutes = 1, Min = 10 } } },
 	VIEJO = { Reward = {}, Until = { Year = 2020, Month = 1, Day = 1 } },
 	VIP = { Reward = {}, MinRebirths = 2 },
 	FIN = { Reward = {}, Until = { Year = 2027, Month = 1, Day = 31 } },
@@ -121,26 +121,26 @@ local function eggProfile(energy, level, zones, pets)
 	for index = 1, pets or 0 do
 		table.insert(list, { Uid = tostring(index), PetId = "Sproutling" })
 	end
-	return { Energy = energy, UpgradeLevels = { GeneratorPower = level }, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1, UnlockedZones = zones or {} } }
+	return { Money = energy, Energy = 0, UpgradeLevels = { GeneratorPower = level }, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1, UnlockedZones = zones or {} } }
 end
 local limits = { MaxInventory = 60, MaxEquipped = 3, UnlockUpgradeId = "GeneratorPower" }
 local forest = EggConfig.Eggs.ForestEgg
 local poor = eggProfile(forest.Cost * 2, 0)
-check("×3 sin energía para los tres: no cobra ni da nada", EggLogic.purchaseMany(poor, forest, { 1, 2, 3 }, limits, Codes) == Codes.InsufficientEnergy and poor.Energy == forest.Cost * 2 and #poor.PetData.Pets == 0)
+check("×3 sin 💰 para los tres: no cobra ni da nada", EggLogic.purchaseMany(poor, forest, { 1, 2, 3 }, limits, Codes) == Codes.InsufficientMoney and poor.Money == forest.Cost * 2 and #poor.PetData.Pets == 0)
 local full = eggProfile(1e6, 0, nil, 58)
 check("×3 sin sitio para las tres: InventoryFull", EggLogic.purchaseMany(full, forest, { 1, 2, 3 }, limits, Codes) == Codes.InventoryFull and #full.PetData.Pets == 58)
 local rich = eggProfile(1e6, 0)
 local mc, grants = EggLogic.purchaseMany(rich, forest, { 1, 50, 99 }, limits, Codes)
-check("×3: cobra 3 veces, 3 mascotas, Uids distintos y se equipan las que caben", mc == Codes.Success and #grants == 3 and rich.Energy == 1e6 - forest.Cost * 3 and #rich.PetData.Pets == 3 and #rich.PetData.Equipped == 3 and grants[1].Uid ~= grants[2].Uid and grants[2].Uid ~= grants[3].Uid)
+check("×3: cobra 3 veces, 3 mascotas, Uids distintos y se equipan las que caben", mc == Codes.Success and #grants == 3 and rich.Money == 1e6 - forest.Cost * 3 and #rich.PetData.Pets == 3 and #rich.PetData.Equipped == 3 and grants[1].Uid ~= grants[2].Uid and grants[2].Uid ~= grants[3].Uid)
 local single = eggProfile(forest.Cost, 0)
-check("abrir uno sigue igual (purchase)", select(1, EggLogic.purchase(single, forest, 10, limits, Codes)) == Codes.Success and single.Energy == 0)
+check("abrir uno sigue igual (purchase)", select(1, EggLogic.purchase(single, forest, 10, limits, Codes)) == Codes.Success and single.Money == 0)
 local gift = eggProfile(0, 0)
 local gc, gg = EggLogic.grantFree(gift, forest, 10, limits, Codes)
-check("regalo: sin cobrar", gc == Codes.Success and gg and gift.Energy == 0 and #gift.PetData.Pets == 1)
+check("regalo: sin cobrar", gc == Codes.Success and gg and gift.Money == 0 and #gift.PetData.Pets == 1)
 check("regalo con el inventario lleno: InventoryFull", EggLogic.grantFree(eggProfile(0, 0, nil, 60), forest, 10, limits, Codes) == Codes.InventoryFull)
 local paid = eggProfile(0, 0, nil, 60)
 local paidGrant = EggLogic.grantPet(paid.PetData, "Haxigator", 3)
-check("mascota pagada con Robux: se entrega aunque el inventario esté lleno, sin cobrar energía", paidGrant.PetId == "Haxigator" and #paid.PetData.Pets == 61 and paid.Energy == 0 and paidGrant.AutoEquipped)
+check("mascota pagada con Robux: se entrega aunque el inventario esté lleno, sin cobrar 💰", paidGrant.PetId == "Haxigator" and #paid.PetData.Pets == 61 and paid.Money == 0 and paidGrant.AutoEquipped)
 -- Los huevos del bosque no piden nivel; los de las otras zonas están apagados (Enabled = false)
 -- y, encendidos, piden su zona desbloqueada.
 local eggsOn = { Eggs = table.clone(EggConfig.Eggs) }
@@ -202,13 +202,13 @@ join(p1)
 advance(1)
 check("al cargar: premio disponible (insignia DailyReady)", p1:GetAttribute("DailyReady") == true)
 local state = lastResult("RewardState", p1)
-local day1Energy = RewardLogic.energyAmount(RewardConfig.Streak[1].Energy, PlayerDataService.get(p1).ProductionPerSecond)
-check("estado al cliente: día 1 con la energía calculada", state and state[1].Ready and state[1].CanClaim and state[1].Day == 1 and state[1].Days[1].Energy == day1Energy and day1Energy >= RewardConfig.Streak[1].Energy.Min)
-local before = PlayerDataService.get(p1).Energy
+local day1Money = RewardLogic.moneyAmount(RewardConfig.Streak[1].Money, PlayerDataService.get(p1).ProductionPerSecond)
+check("estado al cliente: día 1 con el 💰 calculado", state and state[1].Ready and state[1].CanClaim and state[1].Day == 1 and state[1].Days[1].Money == day1Money and day1Money >= RewardConfig.Streak[1].Money.Min)
+local before = PlayerDataService.get(p1).Money
 fireServer("RewardAction", p1, "Claim")
 advance(1)
 local result = lastResult("RewardResult", p1)
-check("reclamar: Success, la energía del día 1 y se guarda en seguida", result and result[1] == true and result[3] == "Claim" and result[4].Energy == day1Energy and PlayerDataService.get(p1).Energy >= before + day1Energy and record(1) and record(1).Rewards and record(1).Rewards.Streak == 1)
+check("reclamar: Success, el 💰 del día 1 y se guarda en seguida", result and result[1] == true and result[3] == "Claim" and result[4].Money == day1Money and PlayerDataService.get(p1).Money >= before + day1Money and record(1) and record(1).Rewards and record(1).Rewards.Streak == 1)
 check("después: sin premio hasta mañana", p1:GetAttribute("DailyReady") == false)
 fireServer("RewardAction", p1, "Claim")
 advance(2)
@@ -230,13 +230,13 @@ for _ = 4, 7 do
 end
 result = lastResult("RewardResult", p1)
 local p1Pets = PlayerDataService.get(p1).PetData.Pets
-check("día 7: mascota del mejor huevo (además de la inicial) y energía", result and result[1] == true and result[4].Day == 7 and type(result[4].PetId) == "string" and result[4].Energy and #p1Pets == 2 and p1Pets[2].PetId == result[4].PetId)
+check("día 7: mascota del mejor huevo (además de la inicial) y 💰", result and result[1] == true and result[4].Day == 7 and type(result[4].PetId) == "string" and result[4].Money and #p1Pets == 2 and p1Pets[2].PetId == result[4].PetId)
 
 print("-- 7. Códigos en el servidor")
 fireServer("RewardAction", p1, "Redeem", "  bienvenido ")
 advance(3)
 result = lastResult("RewardResult", p1)
-check("BIENVENIDO: energía y bendición", result and result[1] == true and result[3] == "Redeem" and result[4].Code == "BIENVENIDO" and result[4].Energy and result[4].Blessings.Abundance == 1)
+check("BIENVENIDO: 💰 y bendición", result and result[1] == true and result[3] == "Redeem" and result[4].Code == "BIENVENIDO" and result[4].Money and result[4].Blessings.Abundance == 1)
 fireServer("RewardAction", p1, "Redeem", "BIENVENIDO")
 advance(3)
 result = lastResult("RewardResult", p1)
@@ -329,13 +329,13 @@ local p5 = newPlayer("Eva", 5)
 join(p5)
 advance(2)
 local profile5 = PlayerDataService.get(p5)
-profile5.Energy = 1000
+profile5.Money = 1000
 advance(1.5)
 local level5 = profile5.UpgradeLevels.GeneratorPower
 check("con el pase sube sola la Resonancia (hasta 5 por tick)", level5 >= 5 and p5:GetAttribute("AutoUpgrade") == true)
 fireServer("ShopAction", p5, "SetAuto", false)
 advance(0.1)
-profile5.Energy = 1e6
+profile5.Money = 1e6
 advance(3)
 check("apagada: no sube y el interruptor se guarda", profile5.UpgradeLevels.GeneratorPower == level5 and profile5.PetData.Shop.AutoUpgrade == false and p5:GetAttribute("AutoUpgrade") == false)
 fireServer("ShopAction", p5, "SetAuto", "sí")
@@ -343,7 +343,7 @@ advance(0.6)
 check("interruptor con un valor raro: se ignora", profile5.PetData.Shop.AutoUpgrade == false)
 local profile1 = PlayerDataService.get(p1)
 local level1 = profile1.UpgradeLevels.GeneratorPower
-profile1.Energy = 1e6
+profile1.Money = 1e6
 advance(2)
 check("sin el pase: nunca sube sola", profile1.UpgradeLevels.GeneratorPower == level1)
 
@@ -365,16 +365,16 @@ ChestService.setClock(function()
 end)
 local chestDef = ChestConfig.get("Waterfall")
 local chestProfile = PlayerDataService.get(p1)
-local chestBefore = chestProfile.Energy
+local chestBefore = chestProfile.Money
 local blessingsBefore = chestProfile.PetData.Adventure.Blessings.Abundance or 0
 local chestCode, chestDetail = ChestService.open(p1, "Waterfall")
-local chestEnergy = RewardLogic.energyAmount(chestDef.Reward.Energy, chestProfile.ProductionPerSecond)
-check("cofre: se abre con su energía y su bendición", chestCode == Codes.Success and chestDetail.Energy == chestEnergy and chestProfile.Energy == chestBefore + chestEnergy and chestDetail.Blessings and chestDetail.Blessings.Abundance == 1 and chestProfile.PetData.Adventure.Blessings.Abundance == blessingsBefore + 1)
+local chestEnergy = RewardLogic.moneyAmount(chestDef.Reward.Money, chestProfile.ProductionPerSecond)
+check("cofre: se abre con su 💰 y su bendición", chestCode == Codes.Success and chestDetail.Money == chestEnergy and chestProfile.Money == chestBefore + chestEnergy and chestDetail.Blessings and chestDetail.Blessings.Abundance == 1 and chestProfile.PetData.Adventure.Blessings.Abundance == blessingsBefore + 1)
 check("cofre: cuenta los abiertos (1 de todos)", chestDetail.Opened == 1 and chestDetail.Total == #ChestConfig.Chests and chestDetail.ReadyAt == now + ChestConfig.Cooldown)
 advance(1)
 check("cofre: la espera se guarda en seguida", record(1).Rewards.Chests and record(1).Rewards.Chests.Waterfall == now + ChestConfig.Cooldown)
 local chestAgain = ChestService.open(p1, "Waterfall")
-check("cofre: otra vez durante la espera -> ChestCooldown y nada más", chestAgain == Codes.ChestCooldown and chestProfile.Energy == chestBefore + chestEnergy)
+check("cofre: otra vez durante la espera -> ChestCooldown y nada más", chestAgain == Codes.ChestCooldown and chestProfile.Money == chestBefore + chestEnergy)
 check("cofre: id que no existe -> InvalidRequest", ChestService.open(p1, "Tesoro") == Codes.InvalidRequest and ChestService.open(p1, 42) == Codes.InvalidRequest)
 local chestStranger = newPlayer("Nadie", 77)
 check("cofre: jugador sin datos cargados -> NotReady", ChestService.open(chestStranger, "Ruins") == Codes.NotReady)

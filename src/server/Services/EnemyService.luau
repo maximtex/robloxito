@@ -59,6 +59,7 @@ local AdventureConfig = require(Shared.Config.AdventureConfig)
 local AdventureLogic = require(Shared.AdventureLogic)
 local CombatConfig = require(Shared.Config.CombatConfig)
 local ItemLogic = require(Shared.ItemLogic)
+local MonetizationLogic = require(Shared.MonetizationLogic)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local WaveLogic = require(Shared.WaveLogic)
 local WaveConfig = require(Shared.Config.WaveConfig)
@@ -799,7 +800,7 @@ local function onDeath(enemy: Enemy)
 	enemy.Model:SetAttribute("DiedAt", Workspace:GetServerTimeNow())
 
 	-- Recompensa: una sola vez por vida (solo llega aquí el golpe que lo mató).
-	-- 💰 y ⚡ para cada uno según su daño, por la racha, el orbe dorado y las mejoras.
+	-- 💰 y 💎 para cada uno según su daño, por la racha, el botín dorado y las mejoras.
 	local reward = math.floor(enemy.Def.Reward * enemy.RewardMultiplier)
 	local isBoss = enemy.Kind == "Boss"
 	local position = enemy.Root.Position
@@ -815,9 +816,12 @@ local function onDeath(enemy: Enemy)
 			local bonus = WaveLogic.streakMultiplier(count) * WaveLogic.goldenMultiplier(golden) * lootBonus
 			local earned = math.floor(amount * lootMultiplier(profile) * bonus * enemy.MoneyMultiplier)
 			profile.Money += earned
-			-- ⚡ (con la Poción de Energía del inventario, mientras dura)
-			local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time())
-			local energy = EnergyService.grant(player, WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare, profile.ProductionPerSecond) * bonus * potion)
+			-- ×2 con la Poción de Diamantes del inventario (mientras dura) y con el pase Diamantes ×2
+			local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time()) * MonetizationLogic.energyMultiplier(profile.Passes)
+			-- 💎 (en el código, Energy): pocos, con el poder de diamantes; lo que no llega a uno
+			-- entero es su probabilidad
+			local diamonds = WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare, WaveLogic.diamondPower(profile.ProductionPerSecond)) * bonus * potion
+			local energy = EnergyService.grant(player, WaveLogic.roundDiamonds(diamonds, math.random()))
 			if energy <= 0 then
 				PlayerDataService.replicate(player) -- grant ya replica si ha sumado energía
 			end
@@ -947,6 +951,11 @@ function EnemyService.applyControl(enemy: Enemy, kind: string, seconds: number, 
 		enemy.Humanoid:MoveTo(enemy.Root.Position) -- se para en seco
 	end
 	return true
+end
+
+-- ¿Está aturdido o congelado ahora? (combos de las habilidades de los estilos)
+function EnemyService.isStunned(enemy: Enemy): boolean
+	return EnemyService.isAlive(enemy) and EnemyLogic.isStunned(enemy.Control, os.clock())
 end
 
 -- Marca elemental para los combos (AbilityService). Devuelve la activa o nil.

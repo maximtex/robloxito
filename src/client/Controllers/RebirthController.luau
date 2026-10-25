@@ -620,20 +620,20 @@ function RebirthController.start()
 		ui.Subtitle.Text = if count > 0
 			then ("Renacimientos: %d (%s)  ·  🪙 %s"):format(count, RebirthLogic.numeral(count), tokensText(data.Tokens))
 			else ("Aún no has renacido  ·  🪙 %s"):format(tokensText(data.Tokens))
-		ui.Bonus.Text = ("Tu bonificación:  ⚡ %s energía   ⚔ %s daño"):format(
+		ui.Bonus.Text = ("Tu bonificación:  ✦ %s poder   ⚔ %s daño"):format(
 			multiplierText(RebirthLogic.energyMultiplierAt(count)),
 			multiplierText(RebirthLogic.damageMultiplierAt(count, strike))
 		)
 		ui.Requirement.Text = ("Para renacer: %s nivel %d"):format(UPGRADE_NAME, required)
 		ui.Fill.Size = UDim2.fromScale(progress, 1)
 		ui.TrackText.Text = if ready then "¡Listo para renacer!" else ("Nivel %d / %d"):format(level, required)
-		ui.Gain.Text = ("Al renacer:  ⚡ %s energía  ·  ⚔ %s daño  ·  🪙 +%s"):format(
+		ui.Gain.Text = ("Al renacer:  ✦ %s poder  ·  ⚔ %s daño  ·  🪙 +%s"):format(
 			multiplierText(RebirthLogic.energyMultiplierAt(count + 1)),
 			multiplierText(RebirthLogic.damageMultiplierAt(count + 1, strike)),
 			tokensText(RebirthLogic.tokensFor(count))
 		)
 		local startLevel = RebirthLogic.headStartLevel(data, RebirthLogic.requiredLevel(count + 1))
-		ui.Resets.Text = ("Se reinician tu energía, tu dinero, el nivel de tus armas y la %s (vuelve al nivel %d). Te quedas tus armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos, misiones y los huevos ya desbloqueados."):format(UPGRADE_NAME, startLevel)
+		ui.Resets.Text = ("Se reinician tu 💰, el nivel de tus armas y la %s (vuelve al nivel %d). Te quedas tus 💎, habilidades, armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos, misiones y los huevos ya desbloqueados."):format(UPGRADE_NAME, startLevel)
 
 		local confirming = ready and os.clock() < confirmUntil
 		if pending then
@@ -732,7 +732,7 @@ function RebirthController.start()
 		TweenService:Create(ui.Flash, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1, BackgroundColor3 = color }):Play()
 		ui.BigTitle.Text = "✨ RENACIMIENTO " .. RebirthLogic.numeral(count) .. " ✨"
 		ui.BigTitle.TextColor3 = color
-		ui.BigSubtitle.Text = ("⚡ %s energía para siempre  ·  🪙 +%s"):format(multiplierText(RebirthLogic.energyMultiplierAt(count)), tokensText(tokens))
+		ui.BigSubtitle.Text = ("✦ %s poder para siempre  ·  🪙 +%s"):format(multiplierText(RebirthLogic.energyMultiplierAt(count)), tokensText(tokens))
 		ui.BigTitle.TextTransparency = 0
 		ui.TitleStroke.Transparency = 0
 		ui.BigSubtitle.TextTransparency = 0

@@ -1,21 +1,34 @@
--- Estilos de pelea (StyleConfig): elegir estilo, sus pasivas fuera del disparo y sus dos
--- habilidades. El disparo de cada estilo (alcance, ritmo, daño, crítico, robo de vida) lo
--- hace PetCombatService; aquí:
+-- Estilos de pelea (StyleConfig): elegir estilo, sus pasivas fuera del disparo, sus
+-- habilidades (4 por estilo, 2 puestas: SkillLogic), los combos y el dash de Puños. El
+-- disparo de cada estilo (alcance, ritmo, daño, crítico, robo de vida y los combos de golpes)
+-- lo hace PetCombatService; aquí:
 -- - StyleAction("Set", styleId): cambia el estilo (con una espera corta entre cambios), se
---   guarda en PetData.Style y se replica (atributo CombatStyle; la velocidad al caminar la
---   pone PlayerDataService con StyleLogic.walkSpeed).
--- - StyleAction("Ability", slot): usa la habilidad 1 (Z) o 2 (X) del estilo si está lista.
---   Todo lo decide el servidor:
---     Armas:  Ráfaga (PetCombatService.setBurst) y Granada (cae en tu objetivo y explota).
---     Puños:  Terremoto (daño alrededor, aturde y empuja) y Embestida (te lanzas hacia
---             delante, sin cruzar paredes ni puertas cerradas de la cueva, y golpeas a todos
---             los de la franja).
---     Magia:  Meteoros (caen uno tras otro alrededor del objetivo) y Nova de hielo (daña y
---             congela a los de alrededor).
---   El daño son múltiplos del DPS del estilo y pasa por EnemyService.damage (mismas
---   recompensas y muertes). La recarga es por estilo y habilidad (cambiar de estilo no la
---   reinicia) y se replica en StyleReadyAt (1) y StyleReadyAt2 (2).
--- - Daño que recibe el jugador según el estilo (Puños menos, Armas más): EnemyService.
+--   guarda en PetData.Style y se replica (atributo CombatStyle; la velocidad al caminar y la
+--   vida las pone PlayerDataService con StyleLogic).
+-- - StyleAction("Pick", styleId): la elección del estilo al empezar (StylePicker): lo pone y
+--   marca PetData.Skills.Picked (ya no se vuelve a preguntar).
+-- - StyleAction("Ability", slot): usa la habilidad puesta en la Z (1) o la X (2) si está
+--   lista. Todo lo decide el servidor:
+--     Armas:  Ráfaga, Granada, Rayo perforante (franja recta hacia el objetivo) y Torreta
+--             (dispara sola al más cercano un rato).
+--     Puños:  Terremoto, Embestida, Furia (pegas más rápido y recibes la mitad) y Torbellino
+--             (4 golpes alrededor que atraen).
+--     Magia:  Meteoros, Nova de hielo, Cadena de rayos (salta de enemigo en enemigo y aturde)
+--             y Agujero negro (atrae y daña, y al final explota).
+--   El daño son múltiplos del DPS del estilo × el nivel de la habilidad (SkillLogic.power)
+--   y pasa por EnemyService.damage (mismas recompensas y muertes). La recarga es por
+--   habilidad (cambiar de estilo o de hueco no la reinicia; la acorta su nivel) y se replica
+--   en StyleReadyAt (Z) y StyleReadyAt2 (X).
+-- - StyleAction("BuySkill" | "UpgradeSkill", skillId) y ("EquipSkill", skillId, slot):
+--   comprar y subir con 💎 (profile.Energy) y ponerla en la Z o la X (SkillLogic valida).
+-- - StyleAction("Dash"): el dash de Puños (StyleConfig.Styles.Fists.Dash): un salto corto
+--   hacia donde te mueves, sin cruzar paredes ni puertas cerradas; DashReadyAt.
+-- - Combos de habilidades (COMBO): una habilidad que da a un enemigo aturdido o congelado
+--   (Terremoto, Embestida, Nova, Cadena de rayos) hace ×1.5 («¡Remate!», «¡Hielo roto!»…);
+--   con tu Ráfaga o tu Furia activas, las demás habilidades hacen ×1.4; y a un enemigo con
+--   la marca de un elemento (las habilidades elementales Q/R, AbilityService) le hace ×1.5 y
+--   gasta la marca («¡Combo elemental!»). Se multiplican, hasta ×COMBO.Max.
+-- - Daño que recibe el jugador según el estilo (Puños menos, Armas más; la Furia, la mitad).
 -- - StyleEvent: efectos ya resueltos a quien la usa y a los cercanos; "Result" solo a él.
 
 local Players = game:GetService("Players")
@@ -26,6 +39,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local StyleConfig = require(Shared.Config.StyleConfig)
 local StyleLogic = require(Shared.StyleLogic)
+local SkillLogic = require(Shared.SkillLogic)
 local AbilityLogic = require(Shared.AbilityLogic)
 local CaveLogic = require(Shared.CaveLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -39,14 +53,33 @@ local BROADCAST_RANGE = 150
 local DASH_STEP = 2 -- la embestida se comprueba cada tantos studs (suelo y puertas)
 local DASH_WALL_GAP = 2.5 -- se para a esta distancia de una pared
 local SLOT_ATTRIBUTES = { Constants.Attributes.StyleReadyAt, Constants.Attributes.StyleReadyAt2 }
+local Codes = Constants.PurchaseCodes
+
+-- Combos de las habilidades (ver la cabecera)
+local COMBO = {
+	Stunned = 1.5, -- a un enemigo aturdido o congelado
+	Buffed = 1.4, -- con tu Ráfaga o tu Furia activas
+	Element = 1.5, -- a un enemigo con marca elemental (la gasta)
+	Max = 2.5,
+	Names = {
+		Stunned = { Weapons = "¡Tiro certero!", Fists = "¡Remate!", Magic = "¡Hielo roto!" },
+		Buffed = { Weapons = "¡Ráfaga cargada!", Fists = "¡Furia desatada!", Magic = "¡Poder arcano!" },
+		Element = "¡Combo elemental!",
+	},
+}
 
 local StyleService = {}
 
 local eventRemote: RemoteEvent
 local limiter = RateLimiter.new(0.15, 3, 8)
+local shopLimiter = RateLimiter.new(0.25, 3, 10)
 local lastSwitch: { [Player]: number } = {}
 local readyAt: { [Player]: { [string]: number } } = {}
-local generation: { [Player]: number } = {} -- cambia al salir o morir: anula meteoros y granadas pendientes
+local buffUntil: { [Player]: number } = {} -- Ráfaga o Furia activa (os.clock)
+local rageUntil: { [Player]: number } = {} -- Furia: recibes menos daño
+local rageTaken: { [Player]: number } = {}
+local dashReadyAt: { [Player]: number } = {}
+local generation: { [Player]: number } = {} -- cambia al salir o morir: anula lo pendiente
 
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
@@ -86,91 +119,105 @@ local function styleOf(player: Player): (string?, any)
 	return StyleLogic.sanitize(profile.PetData.Style), profile
 end
 
+local function skillsOf(profile): SkillLogic.SkillData
+	local skills = profile.PetData.Skills
+	if not skills then
+		skills = SkillLogic.empty()
+		profile.PetData.Skills = skills
+	end
+	return skills
+end
+
 -- DPS del estilo (con el arma, la cadencia, mascotas y bonificaciones)
 local function styleDps(profile, style: string): number
 	local stats = PlayerDataService.combatStats(profile)
 	return StyleLogic.dps(stats.Dps, style)
 end
 
--- Daño a un enemigo con la habilidad (cuenta como golpe del jugador para su objetivo)
-local function hit(player: Player, enemy: any, damage: number, hits: { any }): boolean
-	local dealt, killed = EnemyService.damage(enemy, player, damage)
+-- Lo que comparten los golpes de una habilidad: quién, su estilo y su nivel, y el primer
+-- combo que salta (para avisarlo una vez).
+type Cast = {
+	Player: Player,
+	Style: string,
+	SkillId: string,
+	Damage: number, -- daño base de cada golpe (DPS × DamageRatio × nivel)
+	Buffed: boolean,
+	Combo: string?,
+	ComboAt: Vector3?,
+}
+
+-- Multiplicador de los combos para un golpe de la habilidad a `enemy` (y su nombre).
+local function comboFor(cast: Cast, enemy: any, ignoreStun: boolean?): (number, string?)
+	local multiplier, name = 1, nil
+	if not ignoreStun and EnemyService.isStunned(enemy) then
+		multiplier *= COMBO.Stunned
+		name = COMBO.Names.Stunned[cast.Style]
+	end
+	if cast.Buffed then
+		multiplier *= COMBO.Buffed
+		name = name or COMBO.Names.Buffed[cast.Style]
+	end
+	local aura = EnemyService.auraOf(enemy)
+	if aura then
+		multiplier *= COMBO.Element
+		name = COMBO.Names.Element
+		EnemyService.setAura(enemy, nil) -- se gasta
+	end
+	return math.min(multiplier, COMBO.Max), name
+end
+
+-- Un golpe de la habilidad a un enemigo (cuenta como golpe del jugador para su objetivo).
+-- `scale`: parte del daño base (los golpes de cada momento del agujero negro).
+local function hit(cast: Cast, enemy: any, hits: { any }, scale: number?, ignoreStun: boolean?): boolean
+	local multiplier, name = comboFor(cast, enemy, ignoreStun)
+	local dealt, killed = EnemyService.damage(enemy, cast.Player, cast.Damage * (scale or 1) * multiplier)
 	if dealt > 0 then
-		table.insert(hits, { Position = enemy.Root.Position, Damage = dealt, Killed = killed, Kind = enemy.Kind })
+		table.insert(hits, { Position = enemy.Root.Position, Damage = dealt, Killed = killed, Kind = enemy.Kind, Combo = name })
+		if name and not cast.Combo then
+			cast.Combo = name
+			cast.ComboAt = enemy.Root.Position
+		end
 		if not killed then
-			CombatService.reportHit(player, enemy)
+			CombatService.reportHit(cast.Player, enemy)
 		end
 	end
 	return killed
 end
 
-local function readyKey(style: string, slot: number): string
-	return style .. ":" .. slot
-end
-
--- Habilidades ----------------------------------------------------------------------------
-
--- Armas 1: Ráfaga
-local function burst(player: Player, ability: any, root: BasePart): boolean
-	PetCombatService.setBurst(player, os.clock() + ability.Duration)
-	player:SetAttribute(Constants.Attributes.StyleBurstUntil, serverNow() + ability.Duration)
-	broadcast(player, root.Position, { Kind = "Burst", Duration = ability.Duration })
-	return true
-end
-
--- Armas 2: Granada (vuela hasta tu objetivo y explota al llegar)
-local function grenade(player: Player, ability: any, root: BasePart, profile, style: string): boolean
-	local target = EnemyService.findInRadius(root.Position, ability.Range, 1, player)[1]
-	if not target then
-		return false
+-- Aviso del combo (una vez por habilidad)
+local function announceCombo(cast: Cast)
+	if cast.Combo and cast.ComboAt then
+		broadcast(cast.Player, cast.ComboAt, { Kind = "Combo", Name = cast.Combo, Position = cast.ComboAt, Style = cast.Style })
+		cast.ComboAt = nil
 	end
-	local landing = target.Root.Position
-	local damage = StyleLogic.abilityDamage(style, styleDps(profile, style), 2)
-	local token = generation[player] or 0
-	broadcast(player, root.Position, {
-		Kind = "Grenade",
-		From = root.Position + Vector3.new(0, 1.5, 0),
-		To = landing,
-		Delay = ability.Delay,
-		Radius = ability.Radius,
-	})
-	task.delay(ability.Delay, function()
-		if not player.Parent or (generation[player] or 0) ~= token then
-			return
-		end
-		local hits = {}
-		for _, enemy in EnemyService.findInRadius(landing, ability.Radius, ability.MaxTargets, player) do
-			if EnemyService.canInteract(player, enemy) then
-				local killed = hit(player, enemy, damage, hits)
-				if not killed and EnemyService.isAlive(enemy) then
-					EnemyService.knockback(enemy, landing, ability.Knockback)
-				end
-			end
-		end
-		broadcast(player, landing, { Kind = "GrenadeHit", Position = landing, Radius = ability.Radius, Hits = hits })
-	end)
-	return true
 end
 
--- Puños 1: Terremoto
-local function quake(player: Player, ability: any, root: BasePart, profile, style: string): boolean
-	local damage = StyleLogic.abilityDamage(style, styleDps(profile, style), 1)
-	local hits = {}
-	for _, enemy in EnemyService.findInRadius(root.Position, ability.Radius, ability.MaxTargets, player) do
+-- Enemigos válidos alrededor de `center` para el jugador
+local function targetsAround(player: Player, center: Vector3, radius: number, maxTargets: number): { any }
+	local list = {}
+	for _, enemy in EnemyService.findInRadius(center, radius, maxTargets, player) do
 		if EnemyService.canInteract(player, enemy) then
-			local killed = hit(player, enemy, damage, hits)
-			if not killed and EnemyService.isAlive(enemy) then
-				local seconds = AbilityLogic.control("Stun", ability.Stun, nil, enemy.Kind == "Boss")
-				EnemyService.applyControl(enemy, "Stun", seconds)
-				EnemyService.knockback(enemy, root.Position, ability.Knockback)
-			end
+			table.insert(list, enemy)
 		end
 	end
-	broadcast(player, root.Position, { Kind = "Quake", Position = root.Position, Radius = ability.Radius, Hits = hits })
-	return true
+	return list
 end
 
--- Hasta dónde llega la embestida desde `origin` hacia `direction`: sin atravesar paredes, sin
+local function nearestTarget(player: Player, center: Vector3, range: number): any?
+	return targetsAround(player, center, range, 1)[1]
+end
+
+-- Atrae a `enemy` hacia `center` (el retroceso de EnemyService, hacia dentro)
+local function pull(enemy: any, center: Vector3, force: number)
+	local position = enemy.Root.Position
+	local away = Vector3.new(position.X - center.X, 0, position.Z - center.Z)
+	if away.Magnitude < 1.5 then
+		return
+	end
+	EnemyService.knockback(enemy, position + away.Unit * 2, force)
+end
+
+-- Hasta dónde se puede ir desde `origin` hacia `direction`: sin atravesar paredes, sin
 -- salirse del suelo y sin cruzar una puerta cerrada de la cueva.
 local function dashReach(player: Player, origin: Vector3, direction: Vector3, distance: number): number
 	local params = RaycastParams.new()
@@ -213,32 +260,170 @@ local function dashReach(player: Player, origin: Vector3, direction: Vector3, di
 	return reach
 end
 
--- Puños 2: Embestida
-local function dash(player: Player, ability: any, root: BasePart, profile, style: string): boolean
+-- Hacia donde se mueve el personaje (o hacia donde mira si está quieto), en plano
+local function moveDirection(player: Player, root: BasePart): Vector3
 	local character = player.Character :: Model
 	local humanoid = character:FindFirstChildOfClass("Humanoid") :: Humanoid
-	-- Hacia donde te mueves (o hacia donde miras si estás quieto)
 	local move = humanoid.MoveDirection
 	local look = root.CFrame.LookVector
 	local direction = if move.Magnitude > 0.1 then Vector3.new(move.X, 0, move.Z) else Vector3.new(look.X, 0, look.Z)
-	direction = if direction.Magnitude > 0.05 then direction.Unit else Vector3.new(0, 0, -1)
+	return if direction.Magnitude > 0.05 then direction.Unit else Vector3.new(0, 0, -1)
+end
+
+local function stun(enemy: any, seconds: number)
+	if EnemyService.isAlive(enemy) then
+		EnemyService.applyControl(enemy, "Stun", (AbilityLogic.control("Stun", seconds, nil, enemy.Kind == "Boss")))
+	end
+end
+
+-- Habilidades ----------------------------------------------------------------------------
+-- Cada una: (cast, ability, root, level) -> true si se ha usado (false: sin objetivo).
+
+local HANDLERS = {}
+
+-- Armas: Ráfaga
+function HANDLERS.Burst(cast: Cast, ability: any, root: BasePart, level: number): boolean
+	local player = cast.Player
+	local duration = SkillLogic.duration(ability, level)
+	PetCombatService.setBurst(player, os.clock() + duration, ability.CooldownScale)
+	buffUntil[player] = os.clock() + duration
+	player:SetAttribute(Constants.Attributes.StyleBurstUntil, serverNow() + duration)
+	broadcast(player, root.Position, { Kind = "Burst", Duration = duration })
+	return true
+end
+
+-- Armas: Granada (vuela hasta tu objetivo y explota al llegar)
+function HANDLERS.Grenade(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local target = nearestTarget(player, root.Position, ability.Range)
+	if not target then
+		return false
+	end
+	local landing = target.Root.Position
+	local token = generation[player] or 0
+	broadcast(player, root.Position, {
+		Kind = "Grenade",
+		From = root.Position + Vector3.new(0, 1.5, 0),
+		To = landing,
+		Delay = ability.Delay,
+		Radius = ability.Radius,
+	})
+	task.delay(ability.Delay, function()
+		if not player.Parent or (generation[player] or 0) ~= token then
+			return
+		end
+		local hits = {}
+		for _, enemy in targetsAround(player, landing, ability.Radius, ability.MaxTargets) do
+			local killed = hit(cast, enemy, hits)
+			if not killed and EnemyService.isAlive(enemy) then
+				EnemyService.knockback(enemy, landing, ability.Knockback)
+			end
+		end
+		broadcast(player, landing, { Kind = "GrenadeHit", Position = landing, Radius = ability.Radius, Hits = hits })
+		announceCombo(cast)
+	end)
+	return true
+end
+
+-- Armas: Rayo perforante (franja recta hacia el objetivo más cercano)
+function HANDLERS.Pierce(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
 	local origin = root.Position
-	local reach = dashReach(player, origin, direction, ability.Distance)
-	local finish = origin + direction * reach
-	local damage = StyleLogic.abilityDamage(style, styleDps(profile, style), 2)
+	local target = nearestTarget(player, origin, ability.Length)
+	if not target then
+		return false
+	end
+	local toward = target.Root.Position - origin
+	local direction = Vector3.new(toward.X, 0, toward.Z)
+	direction = if direction.Magnitude > 0.05 then direction.Unit else Vector3.new(0, 0, -1)
+	local finish = origin + direction * ability.Length
 	local hits = {}
 	local middle = (origin + finish) / 2
-	local candidates = EnemyService.findInRadius(middle, reach / 2 + ability.Width, ability.MaxTargets * 2, player)
-	for _, enemy in candidates do
+	for _, enemy in targetsAround(player, middle, ability.Length / 2 + ability.Width, ability.MaxTargets * 2) do
 		if #hits >= ability.MaxTargets then
 			break
 		end
 		local p = enemy.Root.Position
-		if EnemyService.canInteract(player, enemy) and StyleLogic.inStrip(origin.X, origin.Z, finish.X, finish.Z, ability.Width / 2, p.X, p.Z, enemy.Radius) then
-			local killed = hit(player, enemy, damage, hits)
+		if StyleLogic.inStrip(origin.X, origin.Z, finish.X, finish.Z, ability.Width / 2, p.X, p.Z, enemy.Radius) then
+			hit(cast, enemy, hits)
+		end
+	end
+	broadcast(player, origin, { Kind = "Pierce", From = origin + Vector3.new(0, 1.2, 0), To = finish + Vector3.new(0, 1.2, 0), Width = ability.Width, Hits = hits })
+	announceCombo(cast)
+	return true
+end
+
+-- Armas: Torreta (dispara sola al más cercano mientras dura)
+function HANDLERS.Turret(cast: Cast, ability: any, root: BasePart, level: number): boolean
+	local player = cast.Player
+	local look = root.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	local base = root.Position + (if flat.Magnitude > 0.05 then flat.Unit else Vector3.new(0, 0, -1)) * 3
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character :: Model }
+	local floor = Workspace:Raycast(base + Vector3.new(0, 3, 0), Vector3.new(0, -12, 0), params)
+	local spot = if floor then floor.Position else base - Vector3.new(0, 2.5, 0)
+	local duration = SkillLogic.duration(ability, level)
+	local token = generation[player] or 0
+	local gun = spot + Vector3.new(0, 2.6, 0)
+	broadcast(player, spot, { Kind = "Turret", Position = spot, Duration = duration })
+	task.spawn(function()
+		local elapsed = 0
+		while elapsed < duration do
+			task.wait(ability.Interval)
+			elapsed += ability.Interval
+			if not player.Parent or (generation[player] or 0) ~= token then
+				break
+			end
+			local target = nearestTarget(player, gun, ability.Range)
+			if target then
+				local hits = {}
+				hit(cast, target, hits)
+				broadcast(player, gun, { Kind = "TurretShot", From = gun, To = target.Root.Position, Hits = hits })
+				announceCombo(cast)
+			end
+		end
+		broadcast(player, spot, { Kind = "TurretEnd", Position = spot })
+	end)
+	return true
+end
+
+-- Puños: Terremoto
+function HANDLERS.Quake(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local hits = {}
+	for _, enemy in targetsAround(player, root.Position, ability.Radius, ability.MaxTargets) do
+		local killed = hit(cast, enemy, hits)
+		if not killed and EnemyService.isAlive(enemy) then
+			stun(enemy, ability.Stun)
+			EnemyService.knockback(enemy, root.Position, ability.Knockback)
+		end
+	end
+	broadcast(player, root.Position, { Kind = "Quake", Position = root.Position, Radius = ability.Radius, Hits = hits })
+	announceCombo(cast)
+	return true
+end
+
+-- Puños: Embestida
+function HANDLERS.Dash(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local character = player.Character :: Model
+	local direction = moveDirection(player, root)
+	local origin = root.Position
+	local reach = dashReach(player, origin, direction, ability.Distance)
+	local finish = origin + direction * reach
+	local hits = {}
+	local middle = (origin + finish) / 2
+	for _, enemy in targetsAround(player, middle, reach / 2 + ability.Width, ability.MaxTargets * 2) do
+		if #hits >= ability.MaxTargets then
+			break
+		end
+		local p = enemy.Root.Position
+		if StyleLogic.inStrip(origin.X, origin.Z, finish.X, finish.Z, ability.Width / 2, p.X, p.Z, enemy.Radius) then
+			local killed = hit(cast, enemy, hits)
 			if not killed and EnemyService.isAlive(enemy) then
-				local seconds = AbilityLogic.control("Stun", ability.Stun, nil, enemy.Kind == "Boss")
-				EnemyService.applyControl(enemy, "Stun", seconds)
+				stun(enemy, ability.Stun)
 				-- Se apartan a los lados de tu camino
 				local along = math.clamp((p - origin):Dot(direction), 0, reach)
 				EnemyService.knockback(enemy, origin + direction * along, ability.Knockback)
@@ -250,12 +435,56 @@ local function dash(player: Player, ability: any, root: BasePart, profile, style
 		root.AssemblyLinearVelocity = Vector3.zero
 	end
 	broadcast(player, origin, { Kind = "Dash", From = origin, To = finish, Hits = hits })
+	announceCombo(cast)
 	return true
 end
 
--- Magia 1: Meteoros
-local function meteors(player: Player, ability: any, root: BasePart, profile, style: string): boolean
-	local target = EnemyService.findInRadius(root.Position, ability.Range, 1, player)[1]
+-- Puños: Furia (pegas más rápido y recibes la mitad de daño)
+function HANDLERS.Rage(cast: Cast, ability: any, root: BasePart, level: number): boolean
+	local player = cast.Player
+	local duration = SkillLogic.duration(ability, level)
+	local untilClock = os.clock() + duration
+	PetCombatService.setBurst(player, untilClock, ability.CooldownScale)
+	buffUntil[player] = untilClock
+	rageUntil[player] = untilClock
+	rageTaken[player] = ability.DamageTaken or 0.5
+	player:SetAttribute(Constants.Attributes.StyleRageUntil, serverNow() + duration)
+	broadcast(player, root.Position, { Kind = "Rage", Duration = duration })
+	return true
+end
+
+-- Puños: Torbellino (varios golpes alrededor que atraen hacia ti)
+function HANDLERS.Whirlwind(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local token = generation[player] or 0
+	broadcast(player, root.Position, { Kind = "Whirl", Radius = ability.Radius, Pulses = ability.Pulses, Interval = ability.Interval })
+	task.spawn(function()
+		for pulse = 1, ability.Pulses do
+			if pulse > 1 then
+				task.wait(ability.Interval)
+			end
+			local here = rootOf(player)
+			if not here or (generation[player] or 0) ~= token then
+				return
+			end
+			local hits = {}
+			for _, enemy in targetsAround(player, here.Position, ability.Radius, ability.MaxTargets) do
+				local killed = hit(cast, enemy, hits)
+				if not killed and EnemyService.isAlive(enemy) and pulse < ability.Pulses then
+					pull(enemy, here.Position, ability.Pull)
+				end
+			end
+			broadcast(player, here.Position, { Kind = "WhirlHit", Position = here.Position, Radius = ability.Radius, Hits = hits })
+			announceCombo(cast)
+		end
+	end)
+	return true
+end
+
+-- Magia: Meteoros
+function HANDLERS.Meteors(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local target = nearestTarget(player, root.Position, ability.Range)
 	if not target then
 		return false -- sin nadie a tiro no se gasta
 	end
@@ -264,7 +493,6 @@ local function meteors(player: Player, ability: any, root: BasePart, profile, st
 	for _, offset in StyleLogic.meteorOffsets(ability.Count, ability.Spread) do
 		table.insert(points, center + Vector3.new(offset.X, 0, offset.Y))
 	end
-	local damage = StyleLogic.abilityDamage(style, styleDps(profile, style), 1)
 	local token = generation[player] or 0
 	broadcast(player, root.Position, {
 		Kind = "Meteor",
@@ -280,41 +508,115 @@ local function meteors(player: Player, ability: any, root: BasePart, profile, st
 				return
 			end
 			local hits = {}
-			for _, enemy in EnemyService.findInRadius(point, ability.Radius, ability.MaxTargets, player) do
-				if EnemyService.canInteract(player, enemy) then
-					hit(player, enemy, damage, hits)
-				end
+			for _, enemy in targetsAround(player, point, ability.Radius, ability.MaxTargets) do
+				hit(cast, enemy, hits)
 			end
 			broadcast(player, point, { Kind = "MeteorHit", Position = point, Radius = ability.Radius, Hits = hits })
+			announceCombo(cast)
 		end)
 	end
 	return true
 end
 
--- Magia 2: Nova de hielo (daña y congela alrededor)
-local function nova(player: Player, ability: any, root: BasePart, profile, style: string): boolean
-	local damage = StyleLogic.abilityDamage(style, styleDps(profile, style), 2)
+-- Magia: Nova de hielo (daña y congela alrededor)
+function HANDLERS.Nova(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
 	local hits, frozen = {}, {}
-	for _, enemy in EnemyService.findInRadius(root.Position, ability.Radius, ability.MaxTargets, player) do
-		if EnemyService.canInteract(player, enemy) then
-			local killed = hit(player, enemy, damage, hits)
-			if not killed and EnemyService.isAlive(enemy) then
-				local seconds = AbilityLogic.control("Stun", ability.Freeze, nil, enemy.Kind == "Boss")
-				if EnemyService.applyControl(enemy, "Stun", seconds) then
-					table.insert(frozen, { Model = enemy.Model, Seconds = seconds })
-				end
+	for _, enemy in targetsAround(player, root.Position, ability.Radius, ability.MaxTargets) do
+		local killed = hit(cast, enemy, hits)
+		if not killed and EnemyService.isAlive(enemy) then
+			local seconds = AbilityLogic.control("Stun", ability.Freeze, nil, enemy.Kind == "Boss")
+			if EnemyService.applyControl(enemy, "Stun", seconds) then
+				table.insert(frozen, { Model = enemy.Model, Seconds = seconds })
 			end
 		end
 	end
 	broadcast(player, root.Position, { Kind = "Nova", Position = root.Position, Radius = ability.Radius, Hits = hits, Frozen = frozen })
+	announceCombo(cast)
 	return true
 end
 
-local HANDLERS = {
-	Weapons = { burst, grenade },
-	Fists = { quake, dash },
-	Magic = { meteors, nova },
-}
+-- Magia: Cadena de rayos (salta al siguiente más cercano que aún no ha tocado)
+function HANDLERS.ChainLightning(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local current = nearestTarget(player, root.Position, ability.Range)
+	if not current then
+		return false
+	end
+	local points = { root.Position + Vector3.new(0, 1.5, 0) }
+	local touched = {}
+	local hits = {}
+	for _ = 1, ability.Jumps do
+		touched[current] = true
+		table.insert(points, current.Root.Position)
+		-- Primero el daño (el combo mira si ya estaba aturdido) y luego aturde
+		local killed = hit(cast, current, hits)
+		if not killed then
+			stun(current, ability.Stun)
+		end
+		local nextEnemy = nil
+		local best = math.huge
+		for _, candidate in targetsAround(player, current.Root.Position, ability.JumpRange, 12) do
+			if not touched[candidate] then
+				local distance = (candidate.Root.Position - current.Root.Position).Magnitude
+				if distance < best then
+					best = distance
+					nextEnemy = candidate
+				end
+			end
+		end
+		if not nextEnemy then
+			break
+		end
+		current = nextEnemy
+	end
+	broadcast(player, root.Position, { Kind = "Lightning", Points = points, Hits = hits })
+	announceCombo(cast)
+	return true
+end
+
+-- Magia: Agujero negro (atrae y daña un rato y luego explota)
+function HANDLERS.BlackHole(cast: Cast, ability: any, root: BasePart, level: number): boolean
+	local player = cast.Player
+	local target = nearestTarget(player, root.Position, ability.Range)
+	if not target then
+		return false
+	end
+	local center = target.Root.Position
+	local duration = SkillLogic.duration(ability, level)
+	local token = generation[player] or 0
+	local tickScale = (ability.TickRatio or 0.5) / math.max(0.01, ability.DamageRatio)
+	broadcast(player, center, { Kind = "BlackHole", Position = center, Radius = ability.Radius, Duration = duration })
+	task.spawn(function()
+		local elapsed = 0
+		while elapsed < duration do
+			task.wait(ability.Interval)
+			elapsed += ability.Interval
+			if not player.Parent or (generation[player] or 0) ~= token then
+				return
+			end
+			local hits = {}
+			for _, enemy in targetsAround(player, center, ability.Radius, ability.MaxTargets) do
+				local killed = hit(cast, enemy, hits, tickScale, true)
+				if not killed and EnemyService.isAlive(enemy) then
+					pull(enemy, center, ability.Pull)
+				end
+			end
+			if #hits > 0 then
+				broadcast(player, center, { Kind = "BlackHoleTick", Position = center, Hits = hits })
+			end
+		end
+		local hits = {}
+		for _, enemy in targetsAround(player, center, ability.Radius, ability.MaxTargets) do
+			hit(cast, enemy, hits)
+		end
+		broadcast(player, center, { Kind = "BlackHoleBlast", Position = center, Radius = ability.Radius, Hits = hits })
+		announceCombo(cast)
+	end)
+	return true
+end
+
+StyleService.Handlers = HANDLERS
 
 local function useAbility(player: Player, slot: number)
 	local style, profile = styleOf(player)
@@ -322,85 +624,196 @@ local function useAbility(player: Player, slot: number)
 	if not (style and profile and root) then
 		return
 	end
-	local ability = StyleLogic.ability(style, slot)
-	local handler = HANDLERS[style] and HANDLERS[style][slot]
-	if not (ability and handler) then
+	local skills = skillsOf(profile)
+	local ability, skillId = StyleLogic.ability(style, slot, skills)
+	local handler = skillId and HANDLERS[skillId]
+	if not (ability and skillId and handler) then
 		return
 	end
+	local level = math.max(1, SkillLogic.level(skills, skillId))
 	local now = os.clock()
 	local own = readyAt[player] or {}
 	readyAt[player] = own
-	local key = readyKey(style, slot)
-	if (own[key] or 0) > now then
-		result(player, { Success = false, Code = "NotReady", Style = style, Slot = slot, ReadyAt = serverNow() + (own[key] - now) })
+	if (own[skillId] or 0) > now then
+		result(player, { Success = false, Code = "NotReady", Style = style, Slot = slot, ReadyAt = serverNow() + (own[skillId] - now) })
 		return
 	end
-	if not handler(player, ability, root, profile, style) then
+	local cast: Cast = {
+		Player = player,
+		Style = style,
+		SkillId = skillId,
+		Damage = styleDps(profile, style) * (ability.DamageRatio or 0) * SkillLogic.power(level),
+		-- La Ráfaga y la Furia no se potencian a sí mismas
+		Buffed = (buffUntil[player] or 0) > now and skillId ~= "Burst" and skillId ~= "Rage",
+	}
+	if not handler(cast, ability, root, level) then
 		result(player, { Success = false, Code = "NoTarget", Style = style, Slot = slot })
 		return
 	end
-	own[key] = now + ability.Cooldown
-	local ready = serverNow() + ability.Cooldown
+	local cooldown = SkillLogic.cooldown(ability, level)
+	own[skillId] = now + cooldown
+	local ready = serverNow() + cooldown
 	player:SetAttribute(SLOT_ATTRIBUTES[slot], ready)
-	result(player, { Success = true, Code = "Success", Style = style, Slot = slot, ReadyAt = ready })
+	result(player, { Success = true, Code = "Success", Style = style, Slot = slot, ReadyAt = ready, Cooldown = cooldown })
 end
 
--- Recargas de las dos habilidades del estilo `style` en los atributos del jugador.
+-- Recargas de las dos habilidades puestas del estilo `style` en los atributos del jugador.
 local function publishCooldowns(player: Player, style: string)
+	local profile = PlayerDataService.get(player)
 	local own = readyAt[player]
 	local now = os.clock()
 	for slot, attribute in SLOT_ATTRIBUTES do
-		local at = own and own[readyKey(style, slot)]
+		local skillId = profile and SkillLogic.equipped(skillsOf(profile), style, slot)
+		local at = own and skillId and own[skillId]
 		player:SetAttribute(attribute, serverNow() + (if at then math.max(0, at - now) else 0))
 	end
 end
 
-local function setStyle(player: Player, styleId: any)
+local function setStyle(player: Player, styleId: any, pick: boolean?)
 	local profile = PlayerDataService.get(player)
 	if not (profile and type(styleId) == "string" and StyleLogic.definition(styleId)) then
 		return
 	end
+	local skills = skillsOf(profile)
+	if pick then
+		if skills.Picked then
+			return -- ya eligió: se cambia con "Set"
+		end
+		skills.Picked = true
+		PlayerDataService.markDirty(player)
+	end
 	local now = os.clock()
 	if profile.PetData.Style == styleId then
+		if pick then
+			PlayerDataService.replicate(player)
+			result(player, { Success = true, Code = "Success", Action = "Pick", Style = styleId })
+		end
 		return
 	end
-	if not StyleLogic.canSwitch(lastSwitch[player], now) then
+	if not pick and not StyleLogic.canSwitch(lastSwitch[player], now) then
 		result(player, { Success = false, Code = "TooFast", Style = profile.PetData.Style })
 		return
 	end
 	lastSwitch[player] = now
 	profile.PetData.Style = styleId
 	PlayerDataService.markDirty(player)
-	PlayerDataService.replicate(player) -- también la velocidad al caminar del estilo
+	PlayerDataService.replicate(player) -- también la velocidad al caminar y la vida del estilo
 	publishCooldowns(player, styleId)
-	result(player, { Success = true, Code = "Success", Action = "Set", Style = styleId })
+	result(player, { Success = true, Code = "Success", Action = if pick then "Pick" else "Set", Style = styleId })
+end
+
+-- Comprar, subir y poner habilidades (con 💎) -------------------------------------------------
+
+-- Devuelve el código y los 💎 cobrados.
+function StyleService.skillAction(player: Player, action: string, skillId: any, slot: any): (string, number)
+	local profile = PlayerDataService.get(player)
+	if not profile or profile.DataState == "Loading" then
+		return Codes.NotReady, 0
+	end
+	if type(skillId) ~= "string" or #skillId > 40 then
+		return Codes.InvalidRequest, 0
+	end
+	local skills = skillsOf(profile)
+	local code, cost = "InvalidRequest", 0
+	if action == "BuySkill" then
+		code, cost = SkillLogic.buy(skills, skillId, profile.Energy)
+	elseif action == "UpgradeSkill" then
+		code, cost = SkillLogic.upgrade(skills, skillId, profile.Energy)
+	elseif action == "EquipSkill" then
+		code = SkillLogic.equip(skills, skillId, slot)
+	end
+	if code == "Success" then
+		profile.Energy -= cost
+		PlayerDataService.markDirty(player)
+		PlayerDataService.replicate(player)
+		local style = StyleLogic.sanitize(profile.PetData.Style)
+		publishCooldowns(player, style)
+		if action ~= "EquipSkill" then
+			PlayerDataService.saveNow(player) -- lo comprado con 💎 no se pierde con una caída
+		end
+	end
+	return Codes[code] or code, cost
+end
+
+-- Dash de Puños ---------------------------------------------------------------------------
+
+local function dash(player: Player)
+	local style = styleOf(player)
+	local root = rootOf(player)
+	local def = StyleLogic.definition(style)
+	local spec = def and def.Dash
+	if not (root and spec) then
+		return
+	end
+	local now = os.clock()
+	if (dashReadyAt[player] or 0) > now then
+		return
+	end
+	local direction = moveDirection(player, root)
+	local origin = root.Position
+	local reach = dashReach(player, origin, direction, spec.Distance)
+	dashReadyAt[player] = now + spec.Cooldown
+	player:SetAttribute(Constants.Attributes.DashReadyAt, serverNow() + spec.Cooldown)
+	local finish = origin + direction * reach
+	if reach > 0 then
+		local character = player.Character :: Model
+		character:PivotTo(CFrame.lookAt(finish, finish + direction))
+		root.AssemblyLinearVelocity = Vector3.new(direction.X * 20, 0, direction.Z * 20)
+	end
+	broadcast(player, origin, { Kind = "QuickDash", From = origin, To = finish })
 end
 
 function StyleService.start()
 	eventRemote = RemoteService.get(Constants.Remotes.StyleEvent)
 
-	RemoteService.get(Constants.Remotes.StyleAction).OnServerEvent:Connect(function(player: Player, action: any, value: any)
-		if type(action) ~= "string" or limiter:check(player) ~= "ok" then
+	RemoteService.get(Constants.Remotes.StyleAction).OnServerEvent:Connect(function(player: Player, action: any, value: any, extra: any)
+		if type(action) ~= "string" then
+			return
+		end
+		if action == "BuySkill" or action == "UpgradeSkill" or action == "EquipSkill" then
+			local rate = shopLimiter:check(player)
+			if rate == "flood" then
+				return
+			elseif rate == "cooldown" then
+				result(player, { Success = false, Code = Codes.TooFast, Action = action, Skill = value })
+				return
+			end
+			local code, cost = StyleService.skillAction(player, action, value, extra)
+			result(player, { Success = code == Codes.Success, Code = code, Action = action, Skill = value, Slot = extra, Cost = cost })
+			return
+		end
+		if limiter:check(player) ~= "ok" then
 			return
 		end
 		if action == "Set" then
 			setStyle(player, value)
+		elseif action == "Pick" then
+			setStyle(player, value, true)
 		elseif action == "Ability" then
 			useAbility(player, if value == 2 then 2 else 1)
+		elseif action == "Dash" then
+			dash(player)
 		end
 	end)
 
-	-- Daño que recibe el jugador según su estilo (Puños menos, Armas más)
+	-- Daño que recibe el jugador según su estilo (Puños menos, Armas más; con Furia, menos)
 	EnemyService.setIncomingDamageModifier(function(player: Player, amount: number): number
 		local style = styleOf(player)
-		return if style then StyleLogic.damageTaken(style, amount) else amount
+		local taken = if style then StyleLogic.damageTaken(style, amount) else amount
+		if (rageUntil[player] or 0) > os.clock() and style == "Fists" then
+			taken *= math.clamp(rageTaken[player] or 0.5, 0, 1)
+		end
+		return taken
 	end)
 
 	local function watch(player: Player)
 		player.CharacterRemoving:Connect(function()
 			generation[player] = (generation[player] or 0) + 1
 			PetCombatService.setBurst(player, 0)
+			buffUntil[player] = nil
+			rageUntil[player] = nil
 			player:SetAttribute(Constants.Attributes.StyleBurstUntil, nil)
+			player:SetAttribute(Constants.Attributes.StyleRageUntil, nil)
 		end)
 	end
 	Players.PlayerAdded:Connect(watch)
@@ -411,11 +824,17 @@ function StyleService.start()
 		lastSwitch[player] = nil
 		readyAt[player] = nil
 		generation[player] = nil
+		buffUntil[player] = nil
+		rageUntil[player] = nil
+		rageTaken[player] = nil
+		dashReadyAt[player] = nil
 		limiter:remove(player)
+		shopLimiter:remove(player)
 	end)
 end
 
 -- Para pruebas y otros servicios: el default por si un perfil no tiene estilo.
 StyleService.DefaultStyle = StyleConfig.Default
+StyleService.Combo = COMBO
 
 return StyleService

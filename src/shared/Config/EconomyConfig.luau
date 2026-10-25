@@ -1,11 +1,27 @@
 -- Valores de la economía y mejoras. El servidor es la única fuente de verdad; el cliente
 -- solo los lee para mostrar información.
--- Dos monedas: la energía (la sueltan los enemigos según tu poder de energía; paga la Resonancia del
--- Cristal, zonas y núcleos) y el dinero (lo sueltan los enemigos; paga las armas
--- (WeaponConfig) y las mejoras con Currency = "Money", las de la Armería del pueblo).
+-- Dos monedas (desde la economía 2, PetData.EconomyVersion; EconomyService convierte la de
+-- antes):
+-- - 💰 Dinero: la moneda principal. Lo sueltan los enemigos y lo dan las oleadas, los
+--   cofres, el premio diario y las aventuras. Paga TODO menos las habilidades: armas,
+--   guantes y bastones (WeaponConfig), sus mejoras, huevos (EggConfig), portales
+--   (ZoneConfig) y las mejoras de la Armería (también la Resonancia).
+-- - 💎 Diamantes: escasos. Los sueltan los enemigos (pocos), las oleadas, los jefes, las
+--   misiones y la tienda. Solo pagan lo del puesto ⚡ Mejoras (habilidades de cada estilo,
+--   StyleConfig Skills, y la Velocidad de Correr) y los núcleos de las habilidades
+--   elementales (CoreConfig).
+--   En el código (y en el guardado) los diamantes siguen llamándose Energy (profile.Energy,
+--   atributo Energy, EnergyService.grant): era la moneda que soltaban los enemigos. La
+--   energía guardada de antes se convierte en dinero una vez (EconomyService).
 -- El daño de cada arma se mejora en la propia arma (WeaponLogic.upgrade).
 
 local EconomyConfig = {
+	-- Versión de la economía (PetData.EconomyVersion). Los registros de una versión anterior
+	-- se convierten al cargar (SaveService): su ⚡ pasa a 💰 (· ConvertRate), los 💎 empiezan
+	-- en 0 y las cuentas de "energía conseguida" (misiones, título y clasificaciones), también.
+	Version = 2,
+	ConvertRate = 5,
+
 	StartingEnergy = 0,
 	StartingMoney = 0,
 
@@ -15,34 +31,40 @@ local EconomyConfig = {
 	-- Cada cuántos segundos el servidor suma energía.
 	TickInterval = 1,
 
-	-- La energía sale SOLO de matar enemigos (rediseño "solo disparar"):
-	-- - PassiveEnergy = false: el cristal y los núcleos ya no suman energía cada segundo ni
+	-- Los 💎 salen SOLO de pelear (nada pasivo):
+	-- - PassiveEnergy = false: el cristal y los núcleos ya no suman nada cada segundo ni
 	--   mientras no juegas (EnergyService, PlayerDataService). Con true vuelve lo de antes.
-	-- - Cada enemigo derrotado da ⚡ = Reward del enemigo · KillEnergyShare · "poder de
-	--   energía" (profile.ProductionPerSecond: Resonancia, núcleos, mascotas, renacimiento,
-	--   amuletos y el pase Energía ×2). Así las mejoras de siempre siguen subiendo la energía,
-	--   pero solo se cobra peleando. Con 0.15 un Espinillo (35) da ~5 ⚡ al empezar.
+	-- - Cada enemigo derrotado da 💎 = Reward del enemigo · KillEnergyShare · poder de
+	--   diamantes (WaveLogic.diamondPower del "poder de energía" profile.ProductionPerSecond:
+	--   Resonancia, núcleos, mascotas, renacimiento, amuletos y el pase ×2, que aquí suben
+	--   poco a poco). Lo que no llega a un diamante entero es una probabilidad: con 0.03 un
+	--   Espinillo (35) da 1 💎 casi siempre; un Bruto (140), unos 4.
 	PassiveEnergy = false,
-	KillEnergyShare = 0.15,
+	KillEnergyShare = 0.03,
+
+	-- Lo que antes se pagaba en ⚡ "minutos de producción" (cofres, premio diario, aventuras)
+	-- ahora se paga en 💰: esa misma cantidad · RewardMoneyRate.
+	RewardMoneyRate = 5,
 
 	-- Coste del nivel N = floor(BaseCost * CostMultiplier ^ N), en energía salvo Currency.
 	Upgrades = {
 		GeneratorPower = {
 			DisplayName = "Resonancia del Cristal",
-			Description = "Más ⚡ por cada enemigo que derrotas.",
-			BaseCost = 10,
+			Description = "Más 💎 por cada enemigo que derrotas (y la cuenta para renacer).",
+			Currency = "Money",
+			BaseCost = 60,
 			CostMultiplier = 1.45,
 			ProductionPerLevel = 1,
 			MaxLevel = 50,
 		},
 		WalkSpeed = {
 			DisplayName = "Velocidad de Correr",
-			Description = "Aumenta la velocidad al correr de tu personaje por el mapa.",
-			Currency = "Money",
-			BaseCost = 25,
-			CostMultiplier = 1.55,
+			Description = "Corres más rápido: +2.5 de velocidad por nivel.",
+			Currency = "Energy", -- 💎 (en el puesto ⚡ Mejoras, SkillsController)
+			BaseCost = 15,
+			CostMultiplier = 1.3,
 			ProductionPerLevel = 0,
-			SpeedPerLevel = 1.5,
+			SpeedPerLevel = 2.5, -- PlayerDataService: 28 + nivel · esto (antes de amuleto y estilo)
 			MaxLevel = 20,
 		},
 		PetPower = {

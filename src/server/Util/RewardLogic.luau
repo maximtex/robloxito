@@ -19,6 +19,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RewardConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.RewardConfig)
+local EconomyConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.EconomyConfig)
 
 local RewardLogic = {}
 
@@ -150,15 +151,18 @@ function RewardLogic.streakReward(day: number): any
 	return RewardConfig.Streak[day]
 end
 
--- Energía de un premio de energía con la producción actual (por segundo).
-function RewardLogic.energyAmount(spec: any, production: number): number
+-- 💰 de un premio de dinero ({ Minutes, Min }) con el poder de energía actual: N minutos
+-- de ese poder · EconomyConfig.RewardMoneyRate, nunca menos de Min.
+function RewardLogic.moneyAmount(spec: any, production: number): number
 	if type(spec) ~= "table" then
 		return 0
 	end
 	local minutes = if isFiniteNumber(spec.Minutes) and spec.Minutes > 0 then spec.Minutes else 0
 	local floor = if isFiniteNumber(spec.Min) and spec.Min > 0 then spec.Min else 0
 	local rate = if isFiniteNumber(production) and production > 0 then production else 0
-	return math.floor(math.max(floor, rate * minutes * 60))
+	local scale = EconomyConfig.RewardMoneyRate
+	scale = if isFiniteNumber(scale) and scale > 0 then scale else 1
+	return math.floor(math.max(floor, rate * minutes * 60 * scale))
 end
 
 -- Códigos ---------------------------------------------------------------------------------
@@ -263,15 +267,14 @@ function RewardLogic.chestState(data: RewardData, chestIds: { string }, now: num
 	return state
 end
 
--- Lista de premios de la racha para mostrar (el cliente calcula la energía con su
--- producción; aquí van los datos tal cual).
+-- Lista de premios de la racha para mostrar (el 💰 ya calculado con el poder de energía).
 function RewardLogic.snapshot(data: RewardData, serverTime: number, production: number): any
 	local today = RewardLogic.dayOf(serverTime)
 	local status = RewardLogic.status(data, today)
 	local days = {}
 	for index, reward in RewardConfig.Streak do
 		days[index] = {
-			Energy = if reward.Energy then RewardLogic.energyAmount(reward.Energy, production) else nil,
+			Money = if reward.Money then RewardLogic.moneyAmount(reward.Money, production) else nil,
 			Blessings = reward.Blessings,
 			Pet = reward.Pet == true,
 		}

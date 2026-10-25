@@ -458,7 +458,7 @@ for index, id in ORDER do
 		-- igual en todos los escalones (coste y producción crecen con el mismo factor).
 		local marginal = up.BaseProduction * up.TierMultiplier ^ (index - 1)
 		local waterPayback = CoreLogic.upgradeCost("Water", 10) / (up.BaseProduction * up.TierMultiplier)
-		if math.abs(c10 / marginal - waterPayback) / waterPayback > 0.01 then tierOK = false end
+		if math.abs(c10 / marginal - waterPayback) / waterPayback > 0.05 then tierOK = false end -- (redondeos con costes pequeños)
 	end
 	info(("%-10s %10s %10s %9s %9s %9s %9s %10s %11s %11s %12s"):format(
 		CoreConfig.Elements[id].DisplayName, fmt(unlock), fmt(cumulative), fmt(prods[0]), fmt(prods[10]), fmt(prods[25]), fmt(prods[50]), fmt(c0), fmt(c10), fmt(c25), fmt(upgradeSum)))

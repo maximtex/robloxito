@@ -157,9 +157,9 @@ function AdventureLogic.validateConfig(): (boolean, { string })
 			if reward.Amulet and not AdventureConfig.Amulets[reward.Amulet] then
 				table.insert(problems, name .. ": amuleto desconocido " .. tostring(reward.Amulet))
 			end
-			local energy = reward.Energy
-			if not energy or energy.Min < 0 or energy.Max < energy.Min or energy.Share < 0 then
-				table.insert(problems, name .. ": energía no válida")
+			local money = reward.Money
+			if not money or money.Min < 0 or money.Max < money.Min or money.Share < 0 then
+				table.insert(problems, name .. ": dinero no válido")
 			end
 			for _, field in { "Title", "Objective", "Offer", "Active", "Ready" } do
 				if type(step[field]) ~= "string" or step[field] == "" then
@@ -476,9 +476,9 @@ function AdventureLogic.turnIn(data: AdventureData, npcId: any): (string, any, n
 	return "Success", step, stepIndex
 end
 
--- Energía de un paso: clamp(Share · coste, Min, Max) con el coste de la siguiente mejora.
-function AdventureLogic.rewardEnergy(step: any, nextUpgradeCost: number?): number
-	local settings = step and step.Reward and step.Reward.Energy
+-- 💰 de un paso: clamp(Share · coste, Min, Max) con el coste de la siguiente mejora.
+function AdventureLogic.rewardMoney(step: any, nextUpgradeCost: number?): number
+	local settings = step and step.Reward and step.Reward.Money
 	if not settings then
 		return 0
 	end

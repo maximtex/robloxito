@@ -129,7 +129,7 @@ local function rewardText(npcId: string, st: any): string
 	end
 	local parts = {}
 	if (st.Reward or 0) > 0 then
-		table.insert(parts, ("⚡ %s"):format(formatNumber(st.Reward)))
+		table.insert(parts, ("💰 %s"):format(formatNumber(st.Reward)))
 	end
 	local blessing = step.Reward.Blessing and AdventureConfig.Blessings[step.Reward.Blessing]
 	if blessing then
@@ -1479,8 +1479,8 @@ function AdventureController.start()
 				end
 			elseif notice.Type == "Reward" then
 				local parts = {}
-				if (notice.Energy or 0) > 0 then
-					table.insert(parts, ("+%s ⚡"):format(formatNumber(notice.Energy)))
+				if (notice.Money or 0) > 0 then
+					table.insert(parts, ("+%s 💰"):format(formatNumber(notice.Money)))
 				end
 				local blessing = notice.Blessing and AdventureConfig.Blessings[notice.Blessing]
 				if blessing then

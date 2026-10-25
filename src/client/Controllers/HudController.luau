@@ -1,6 +1,7 @@
 -- HUD de Monedas estilo `HUD Rediseño (standalone).html`:
 -- - A la izquierda: pila vertical limpia con:
---     1. Icono 3D de Rayo + cantidad de Energía en crema con borde oscuro + botón cuadrado verde `+`.
+--     1. Gema + cantidad de 💎 Diamantes (atributo Energy) en crema con borde oscuro + botón
+--        cuadrado verde `+` (abre la 💎 Tienda).
 --     2. Pastilla naranja `×1.1` + texto `"Multiplicador"`.
 --     3. Icono 3D de Cristal / Tokens de Renacimiento + cantidad en lavanda con borde oscuro,
 --        y a su lado el Dinero (lo sueltan los enemigos): fajo de billetes y "$" en verde.
@@ -106,7 +107,8 @@ local function buildGui(playerGui: PlayerGui)
 		Padding = UDim.new(0, 6),
 	}, energyRow)
 
-	local boltHolder = Icons.make(energyRow, "energy", {
+	-- 💎 Diamantes (en el código, Energy)
+	local boltHolder = Icons.make(energyRow, "diamond", {
 		Name = "EnergyIcon",
 		Size = UDim2.fromOffset(60, 60),
 		Rotation = -8,

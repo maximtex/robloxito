@@ -82,19 +82,20 @@ check("misión del Valle sin el Valle -> Locked", code == "Locked")
 
 print("-- 3. Recompensa una sola vez")
 code, amount = QuestLogic.claim(data, "DefeatFive", ctx)
-check(("primera reclamación -> Success +%d"):format(amount), code == "Success" and amount == 40)
+local DEFEAT_REWARD = QuestLogic.reward(QuestLogic.Missions.DefeatFive, 0)
+check(("primera reclamación -> Success +%d 💎"):format(amount), code == "Success" and amount == DEFEAT_REWARD and amount == QuestLogic.Missions.DefeatFive.Reward.Min)
 local code2, amount2 = QuestLogic.claim(data, "DefeatFive", ctx)
 check("segunda reclamación -> AlreadyClaimed y 0", code2 == "AlreadyClaimed" and amount2 == 0)
 
 print("-- Recompensa según la etapa")
 local mission = QuestLogic.Missions.UnlockValley
-check("nivel 0 -> mínimo (400)", QuestLogic.reward(mission, 0) == 400)
+check(("nivel 0 -> mínimo (%d)"):format(mission.Reward.Min), QuestLogic.reward(mission, 0) == mission.Reward.Min)
 -- El coste sale de EconomyConfig (Economy.getUpgradeCost), no de un número fijo: si cambia
 -- la curva de la Resonancia, la recompensa la sigue.
 local cost12 = Economy.getUpgradeCost(QuestConfig.RewardUpgradeId, 12)
-local expected12 = math.floor(math.clamp(mission.Reward.Share * cost12, mission.Reward.Min, mission.Reward.Max))
-check(("nivel 12 -> coste de la mejora 12 (%d)"):format(expected12), QuestLogic.reward(mission, 12) == expected12 and expected12 > 400)
-check("nivel 50 -> tope (2500)", QuestLogic.reward(mission, 50) == 2500)
+local expected12 = math.floor(math.clamp(mission.Reward.Share * cost12 * QuestConfig.RewardCostScale, mission.Reward.Min, mission.Reward.Max))
+check(("nivel 12 -> coste de la mejora 12 · escala (%d)"):format(expected12), QuestLogic.reward(mission, 12) == expected12 and expected12 > mission.Reward.Min)
+check(("nivel 50 -> tope (%d)"):format(mission.Reward.Max), QuestLogic.reward(mission, 50) == mission.Reward.Max)
 
 print("-- 5. Logros sin duplicados")
 local adata = QuestLogic.empty()
@@ -110,7 +111,13 @@ for _ = 1, 99 do kill(adata, "Thornling") end
 local hunter = QuestLogic.evaluate(adata, ctx)
 local hunterReward, hunterCount = 0, 0
 for _, n in hunter do if n.Id == "Hunter100" then hunterReward = n.Reward hunterCount += 1 end end
-check(("Hunter100 una vez con su recompensa (+%d)"):format(hunterReward), hunterCount == 1 and hunterReward == 300)
+local HUNTER_REWARD = 0
+for _, def in QuestConfig.Achievements do
+	if def.Id == "Hunter100" then
+		HUNTER_REWARD = QuestLogic.reward(def, 0)
+	end
+end
+check(("Hunter100 una vez con su recompensa (+%d)"):format(hunterReward), hunterCount == 1 and hunterReward == HUNTER_REWARD and HUNTER_REWARD > 0)
 check("ni con más derrotas vuelve a darse", #QuestLogic.evaluate(adata, ctx) == 0 and kill(adata, "Thornling") and #QuestLogic.evaluate(adata, ctx) == 0)
 code = QuestLogic.claim(adata, "Hunter100", ctx)
 check("los logros no se pueden 'reclamar' por remote (se conceden solos)", code == "InvalidRequest")
@@ -185,9 +192,10 @@ check(("diaria que no es de hoy (%s) -> InvalidRequest"):format(tostring(notToda
 print("-- 9. Sin recompensas duplicadas ni ciclos")
 local edata = QuestLogic.empty()
 QuestLogic.ensureDay(edata, DAY, 4, ctx)
-QuestLogic.record(edata, { Type = "Energy", Amount = 1999 })
+local earnTarget = QuestLogic.Missions.EarnEnergy.Target
+QuestLogic.record(edata, { Type = "Energy", Amount = earnTarget - 1 })
 code, amount = QuestLogic.claim(edata, "EarnEnergy", ctx)
-check("EarnEnergy a 1999/2000 no se puede reclamar", code == "NotComplete")
+check(("EarnEnergy a %d/%d no se puede reclamar"):format(earnTarget - 1, earnTarget), code == "NotComplete")
 -- Reclamar otra misión (energía de recompensa) NO suma a EnergyEarned
 kill(edata, "Thornling")
 QuestLogic.evaluate(edata, ctx)
@@ -223,21 +231,21 @@ fireServer("ClaimQuest", alice, "DefeatFive")
 fireServer("ClaimQuest", alice, "DefeatFive")
 local successes = 0
 for _, r in results(alice) do if r[1] == true then successes += 1 end end
-check(("dos solicitudes simultáneas: 1 éxito, energía +%d una sola vez"):format(profile.Energy - energyBefore), successes == 1 and profile.Energy - energyBefore == 40)
+check(("dos solicitudes simultáneas: 1 éxito, energía +%d una sola vez"):format(profile.Energy - energyBefore), successes == 1 and profile.Energy - energyBefore == DEFEAT_REWARD)
 clock += 1
 fireServer("ClaimQuest", alice, "DefeatFive")
 local last = results(alice)[#results(alice)]
-check("una tercera más tarde -> AlreadyClaimed", last[1] == false and last[2] == "AlreadyClaimed" and profile.Energy - energyBefore == 40)
+check("una tercera más tarde -> AlreadyClaimed", last[1] == false and last[2] == "AlreadyClaimed" and profile.Energy - energyBefore == DEFEAT_REWARD)
 clock += 1
 fireServer("ClaimQuest", alice, { Id = "DefeatFive", Amount = 999999 })
 last = results(alice)[#results(alice)]
-check("el cliente no puede enviar cantidades (tabla -> InvalidRequest)", last[2] == "InvalidRequest" and profile.Energy - energyBefore == 40)
+check("el cliente no puede enviar cantidades (tabla -> InvalidRequest)", last[2] == "InvalidRequest" and profile.Energy - energyBefore == DEFEAT_REWARD)
 -- Ráfaga de solicitudes: límite de frecuencia
 local countBefore = #results(alice)
 for _ = 1, 20 do fireServer("ClaimQuest", alice, "DefeatFive") end
 local tooFast, answered = 0, #results(alice) - countBefore
 for i = countBefore + 1, #results(alice) do if results(alice)[i][2] == "TooFast" then tooFast += 1 end end
-check(("ráfaga de 20: %d respuestas TooFast y el resto ignorado (inundación)"):format(tooFast), answered <= 8 and tooFast >= 1 and profile.Energy - energyBefore == 40)
+check(("ráfaga de 20: %d respuestas TooFast y el resto ignorado (inundación)"):format(tooFast), answered <= 8 and tooFast >= 1 and profile.Energy - energyBefore == DEFEAT_REWARD)
 -- Datos sin cargar: nada se registra ni se concede
 local bob = { Name = "Bob", UserId = 12 }
 profiles[bob] = { Energy = 0, UpgradeLevels = { GeneratorPower = 0 }, PetData = SaveServiceSanitize(nil), DataState = "Loading", Dirty = false }
@@ -259,7 +267,7 @@ for _ = 1, 95 do defeatListener(alice, { TypeId = "Thornling", Kind = "Normal", 
 local e1 = profile.Energy
 for _ = 1, 5 do clock += 1 producedListener(alice, 1) end
 local e2 = profile.Energy
-check(("Hunter100 concedido una vez (+%d) aunque se evalúe muchas veces"):format(e1 - e0), profile.PetData.Quests.Achievements.Hunter100 == true and e1 - e0 == 300 and e2 == e1)
+check(("Hunter100 concedido una vez (+%d) aunque se evalúe muchas veces"):format(e1 - e0), profile.PetData.Quests.Achievements.Hunter100 == true and e1 - e0 == HUNTER_REWARD and e2 == e1)
 -- Guardado real (SaveService) con los misiones, y carga posterior
 local saved = SaveService.save(alice.UserId, profile.PetData, true)
 local status, loaded = SaveService.load(alice.UserId)

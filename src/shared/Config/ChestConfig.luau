@@ -1,6 +1,6 @@
 -- Cofres escondidos del Bosque (ChestService): rincones que premian explorar el mapa.
--- Cada cofre se abre con su aviso de proximidad (tecla E) y da energía (minutos de TU
--- producción actual, con un mínimo; como el premio diario) y a veces una bendición. Luego
+-- Cada cofre se abre con su aviso de proximidad (tecla E) y da 💰 (minutos de TU
+-- poder de energía, con un mínimo; como el premio diario) y a veces una bendición. Luego
 -- se cierra para ese jugador durante Cooldown segundos (se guarda en su registro, campo
 -- Rewards.Chests); cada jugador ve sus cofres abiertos o cerrados.
 --
@@ -23,7 +23,7 @@ local ChestConfig = {
 			Position = V2(-63.4, -120.3),
 			Yaw = 0,
 			Ledge = true, -- sobre la repisa de piedra de detrás del agua (encima de la poza)
-			Reward = { Energy = { Minutes = 12, Min = 800 }, Blessings = { Abundance = 1 } },
+			Reward = { Money = { Minutes = 12, Min = 4000 }, Blessings = { Abundance = 1 } },
 		},
 		{
 			Id = "Ruins",
@@ -31,7 +31,7 @@ local ChestConfig = {
 			Hint = "Al otro lado del río, entre columnas antiguas.",
 			Position = V2(3.3, -131),
 			Yaw = 0,
-			Reward = { Energy = { Minutes = 12, Min = 800 }, Blessings = { Fortune = 1 } },
+			Reward = { Money = { Minutes = 12, Min = 4000 }, Blessings = { Fortune = 1 } },
 		},
 		{
 			Id = "Spire",
@@ -39,7 +39,7 @@ local ChestConfig = {
 			Hint = "En lo alto de la colina del cristal gigante.",
 			Position = V2(98, 95),
 			Yaw = -60,
-			Reward = { Energy = { Minutes = 10, Min = 700 }, Blessings = { Fury = 1 } },
+			Reward = { Money = { Minutes = 10, Min = 3500 }, Blessings = { Fury = 1 } },
 		},
 		{
 			Id = "Camp",
@@ -47,7 +47,7 @@ local ChestConfig = {
 			Hint = "Junto a la tienda del explorador, cerca del lago.",
 			Position = V2(86, -71),
 			Yaw = -90,
-			Reward = { Energy = { Minutes = 8, Min = 500 } },
+			Reward = { Money = { Minutes = 8, Min = 2500 } },
 		},
 		{
 			Id = "Grove",
@@ -55,7 +55,7 @@ local ChestConfig = {
 			Hint = "A la sombra de las setas gigantes.",
 			Position = V2(-83.4, -100.3),
 			Yaw = 180,
-			Reward = { Energy = { Minutes = 8, Min = 500 } },
+			Reward = { Money = { Minutes = 8, Min = 2500 } },
 		},
 		{
 			Id = "Watchtower",
@@ -63,7 +63,7 @@ local ChestConfig = {
 			Hint = "Al pie de la torre del vigía.",
 			Position = V2(-48.6, 87.3),
 			Yaw = 30,
-			Reward = { Energy = { Minutes = 6, Min = 400 } },
+			Reward = { Money = { Minutes = 6, Min = 2000 } },
 		},
 		{
 			Id = "Meadow",
@@ -71,7 +71,7 @@ local ChestConfig = {
 			Hint = "Escondido en la hierba alta del oeste.",
 			Position = V2(-122.4, 16.9),
 			Yaw = 45,
-			Reward = { Energy = { Minutes = 6, Min = 400 } },
+			Reward = { Money = { Minutes = 6, Min = 2000 } },
 		},
 		{
 			Id = "Pond",
@@ -79,7 +79,7 @@ local ChestConfig = {
 			Hint = "En la orilla del estanque, junto al pueblo.",
 			Position = V2(64, 70), -- en la hierba, al lado del patio del Jardín de los Huevos
 			Yaw = -120,
-			Reward = { Energy = { Minutes = 5, Min = 300 } },
+			Reward = { Money = { Minutes = 5, Min = 1500 } },
 		},
 	},
 

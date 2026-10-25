@@ -88,7 +88,7 @@ local maxed = { Count = RebirthConfig.MaxRebirths, Tokens = 0, Shop = {}, BestLe
 check("tope de renacimientos: MaxLevel", RebirthLogic.rebirth(maxed, 50, 1) == "MaxLevel" and maxed.Count == RebirthConfig.MaxRebirths)
 
 print("-- 4. Huevos: el nivel que cuenta tras renacer")
-local eggProfile = { Energy = 1e6, UpgradeLevels = { GeneratorPower = 0 }, PetData = { Pets = {}, Equipped = {}, NextPetUid = 1, UnlockedZones = {} } }
+local eggProfile = { Energy = 0, Money = 1e6, UpgradeLevels = { GeneratorPower = 0 }, PetData = { Pets = {}, Equipped = {}, NextPetUid = 1, UnlockedZones = {} } }
 -- Los huevos del mapa ya no piden nivel: se prueba con una copia que pide nivel 16.
 local ancient = table.clone(EggConfig.Eggs.AncientEgg)
 ancient.RequiredLevel = 16
@@ -118,12 +118,14 @@ profile.UpgradeLevels.GeneratorPower = 22
 profile.PetMultiplier = 1.5
 PlayerDataService.recalculateProduction(p1)
 local pushedBefore = PetService.Pushed
+profile.Money = 777
+local diamondsBefore = profile.Energy
 advance(RebirthConfig.RebirthCooldown + 0.1)
 fireServer("Rebirth", p1)
 advance(0)
 args = lastResult("RebirthResult", p1)
 check("Resonancia 22: renace", args[1] == true and args[2] == Codes.Success and args[4].Count == 1 and args[4].Tokens == 1 and args[4].Level == 0)
-check("en el mismo paso: energía a la inicial y Resonancia a 0", profile.Energy == EconomyConfig.StartingEnergy and profile.UpgradeLevels.GeneratorPower == 0)
+check("en el mismo paso: 💰 al inicial y Resonancia a 0; los 💎 se quedan", profile.Money == EconomyConfig.StartingMoney and profile.Energy == diamondsBefore and profile.UpgradeLevels.GeneratorPower == 0)
 check("1 renacimiento, 1 ficha y mejor nivel 22 (atributos para el cliente)",
 	p1:GetAttribute("Rebirths") == 1 and p1:GetAttribute("RebirthTokens") == 1 and p1:GetAttribute("RebirthBestLevel") == 22 and p1:GetAttribute("UpgradeLevel_GeneratorPower") == 0)
 local expectedProduction = CoreLogic.effectiveProduction(profile.PetData.Cores, profile.UpgradeLevels, profile.PetMultiplier) * 1.5
@@ -134,7 +136,7 @@ check("aviso a todos: quién y cuántos", broadcast and broadcast.Name == "Rebir
 check("inventario de mascotas reenviado (huevos y espacios al día)", PetService.Pushed == pushedBefore + 1)
 advance(0)
 local saved = record(1)
-check("guardado en seguida: Version 12 y Rebirth en el registro", saved and saved.Version == 12 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1 and saved.Rebirth.BestLevel == 22)
+check("guardado en seguida: Version 13 y Rebirth en el registro", saved and saved.Version == 13 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1 and saved.Rebirth.BestLevel == 22)
 
 fireServer("Rebirth", p1)
 advance(0)

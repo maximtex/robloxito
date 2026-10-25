@@ -108,7 +108,7 @@ local function sessionOf(player: Player): Session
 	return session
 end
 
--- Energía de misiones y logros: se suma directamente y NO cuenta como progreso.
+-- 💎 de misiones y logros: se suman directamente y NO cuentan como progreso.
 local function grant(player: Player, profile: PlayerDataService.Profile, amount: number)
 	if amount > 0 then
 		profile.Energy += amount

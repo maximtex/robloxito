@@ -36,6 +36,16 @@ function WaveLogic.arena(arenaId: string): any?
 	return WaveConfig.Arenas[arenaId]
 end
 
+-- Modo de la práctica del tutorial (el que tiene Tutorial = true), o nil.
+function WaveLogic.tutorialArena(): string?
+	for arenaId, arena in WaveConfig.Arenas do
+		if arena.Tutorial then
+			return arenaId
+		end
+	end
+	return nil
+end
+
 -- Número total de oleadas de un modo (las de hordas + la del jefe, si tiene).
 function WaveLogic.waveCount(arenaId: string): number
 	local arena = WaveConfig.Arenas[arenaId]
@@ -93,6 +103,23 @@ function WaveLogic.healthMultiplier(wave: number, players: number): number
 	return (1 + WaveConfig.HealthGrowth * (w - 1)) * (1 + WaveConfig.PlayerHealth * (n - 1))
 end
 
+-- Enemigos vivos a la vez como mucho en la oleada `wave` (las primeras, menos).
+function WaveLogic.maxAlive(wave: number): number
+	local w = math.max(1, math.floor(positive(wave)))
+	local start = WaveConfig.AliveStart or WaveConfig.MaxAlive
+	local growth = WaveConfig.AliveGrowth or 0
+	return math.max(1, math.min(WaveConfig.MaxAlive, math.floor(start + growth * (w - 1))))
+end
+
+-- Daño de los enemigos de la oleada `wave` frente al de su configuración.
+function WaveLogic.damageMultiplier(wave: number): number
+	local w = math.max(1, math.floor(positive(wave)))
+	local start = WaveConfig.DamageStart or 1
+	local growth = WaveConfig.DamageGrowth or 0
+	local cap = WaveConfig.DamageMax or start
+	return math.min(cap, start + growth * (w - 1))
+end
+
 function WaveLogic.bossHealthMultiplier(players: number): number
 	local n = math.max(1, math.floor(positive(players)))
 	return 1 + WaveConfig.BossPlayerHealth * (n - 1)
@@ -103,19 +130,27 @@ function WaveLogic.rewardMultiplier(wave: number): number
 	return 1 + WaveConfig.RewardGrowth * (w - 1)
 end
 
--- Premio por limpiar la oleada `wave` (⚡, 💰) con un poder de energía `power`.
-function WaveLogic.clearReward(wave: number, power: number): (number, number)
+-- Multiplicador de los premios de un modo (RewardScale: zonas más altas, más premio).
+local function rewardScale(arenaId: string?): number
+	local arena = arenaId and WaveConfig.Arenas[arenaId]
+	return if arena and arena.RewardScale ~= nil then positive(arena.RewardScale) else 1
+end
+
+-- Premio por limpiar la oleada `wave` (⚡, 💰) con un poder de energía `power` en el modo
+-- `arenaId` (opcional).
+function WaveLogic.clearReward(wave: number, power: number, arenaId: string?): (number, number)
 	local w = math.max(1, math.floor(positive(wave)))
 	local p = math.max(1, positive(power))
-	return math.floor(WaveConfig.ClearEnergy * w * p), math.floor(WaveConfig.ClearMoney * w)
+	local scale = rewardScale(arenaId)
+	return math.floor(WaveConfig.ClearEnergy * w * p * scale), math.floor(WaveConfig.ClearMoney * w * scale)
 end
 
 -- Premio de victoria (⚡, 💰) con un poder de energía `power`; cada modo puede escalarlo
--- (VictoryScale: la práctica del tutorial da menos).
+-- (RewardScale y VictoryScale: la práctica del tutorial da menos).
 function WaveLogic.victoryReward(power: number, arenaId: string?): (number, number)
 	local p = math.max(1, positive(power))
 	local arena = arenaId and WaveConfig.Arenas[arenaId]
-	local scale = if arena and arena.VictoryScale ~= nil then positive(arena.VictoryScale) else 1
+	local scale = (if arena and arena.VictoryScale ~= nil then positive(arena.VictoryScale) else 1) * rewardScale(arenaId)
 	return math.floor(WaveConfig.VictoryEnergy * p * scale), math.floor(WaveConfig.VictoryMoney * scale)
 end
 

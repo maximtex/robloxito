@@ -1,6 +1,7 @@
 -- Oleadas: la mecánica principal del rediseño "solo disparar".
--- En la pradera oeste del Bosque (a la izquierda del spawn) hay un círculo con un altar y una
--- columna de luz: pulsas E y empieza TU partida.
+-- En cada zona hay un círculo con un altar y una columna de luz (Places): en el Bosque, en la
+-- pradera oeste (a la izquierda del spawn); en el Valle y la Caldera, a la derecha de la
+-- llegada. Pulsas E y empieza TU partida, con los enemigos y el jefe de esa zona.
 -- Las partidas son PRIVADAS: mientras juegas, los enemigos normales desaparecen para ti (y
 -- no te atacan) y solo ves y golpeas los de tu partida; otros jugadores pueden jugar la suya
 -- en el mismo círculo a la vez sin verse los enemigos. Quien pulse E durante la cuenta atrás
@@ -12,29 +13,40 @@
 -- WaveVisibility (quién ve qué).
 --
 -- [PROVISIONAL] Todos los números son un primer balance para probar la sensación en
--- Studio (enemigos y armas actuales del Bosque). Se ajustan jugando.
+-- Studio. Se ajustan jugando.
 
 local WaveConfig = {
-	-- El círculo de las oleadas (uno para todas las partidas). Offset relativo al centro de
-	-- su zona, como el resto del mapa: (-69, 98) es la pradera oeste, a unos 90 studs a la
-	-- izquierda del spawn (que está en (0, 43)), con el borde del mapa a 15 studs del círculo.
-	-- Es zona segura para los enemigos del mundo (EnemyConfig.Zones.Forest.SafeZones) y
-	-- ninguno sale dentro ni cerca (prueba "waves").
+	-- Medidas de todos los círculos.
 	Place = {
-		Zone = "Forest",
-		Offset = Vector2.new(-69, 98),
 		-- Dentro de este radio se cuenta como dentro de la partida (con un margen al salir).
 		AreaRadius = 18,
-		-- Los enemigos salen en un anillo alrededor del altar (que está en el centro).
-		SpawnRadius = { Min = 8, Max = 15 },
+		-- Los enemigos salen en un anillo alrededor del altar (que está en el centro), no
+		-- pegados a ti: da un segundo para verlos venir.
+		SpawnRadius = { Min = 11, Max = 16 },
 		-- Para pulsar E en el altar.
 		PromptDistance = 12,
 	},
 
-	-- Modos de partida. El altar elige el modo: "Tutorial" para quien está en ese paso del
-	-- tutorial (TutorialConfig, paso "Waves"); "Forest" para todos los demás.
+	-- Los círculos (uno por zona; varias partidas a la vez en cada uno) y el modo que se juega
+	-- en cada uno. Offset relativo al centro de su zona, como el resto del mapa. Cada círculo
+	-- es zona segura para los enemigos del mundo (EnemyConfig.Zones.*.SafeZones) y ninguno
+	-- sale dentro ni cerca (prueba "waves").
+	Places = {
+		-- Pradera oeste, a unos 90 studs a la izquierda del spawn (que está en (0, 43)), con el
+		-- borde del mapa a 15 studs del círculo. Aquí también se juega la práctica del tutorial.
+		Forest = { Zone = "Forest", Offset = Vector2.new(-69, 98), Arena = "Forest" },
+		-- A la derecha de la llegada desde el portal ((0, -132) en las dos zonas).
+		CrystalValley = { Zone = "CrystalValley", Offset = Vector2.new(36, -124), Arena = "CrystalValley" },
+		EmberCaldera = { Zone = "EmberCaldera", Offset = Vector2.new(36, -124), Arena = "EmberCaldera" },
+	},
+
+	-- Modos de partida. Cada altar juega el de su círculo (Places.*.Arena), salvo el del Bosque
+	-- con quien está en el paso del tutorial (TutorialConfig, paso "Waves"): "Tutorial".
+	-- RewardScale multiplica los premios de limpiar oleadas y de victoria (zonas más altas,
+	-- más premio); VictoryScale, solo el de victoria.
 	Arenas = {
 		Forest = {
+			Place = "Forest",
 			Zone = "Forest", -- de qué zona son los enemigos
 			DisplayName = "Oleadas del Guardián",
 			Boss = "ForestWarden",
@@ -45,10 +57,11 @@ local WaveConfig = {
 			Pool = { StarterThornling = 70, Thornling = 80, Barkbrute = 20, ForestWarden = 6 },
 			-- Oleadas 1..9: cuántos de cada tipo. La última (10) es el jefe con escolta.
 			Waves = {
-				{ StarterThornling = 10 },
-				{ StarterThornling = 12, Thornling = 2 },
-				{ StarterThornling = 10, Thornling = 6 },
-				{ StarterThornling = 8, Thornling = 10 },
+				-- Las 4 primeras se pueden con el arma inicial; desde la 5 hacen falta mejoras.
+				{ StarterThornling = 8 },
+				{ StarterThornling = 10, Thornling = 1 },
+				{ StarterThornling = 10, Thornling = 4 },
+				{ StarterThornling = 8, Thornling = 8 },
 				{ Thornling = 12, Barkbrute = 1 },
 				{ StarterThornling = 12, Thornling = 10, Barkbrute = 2 },
 				{ Thornling = 16, Barkbrute = 2 },
@@ -57,8 +70,53 @@ local WaveConfig = {
 			},
 			BossEscort = { StarterThornling = 6, Thornling = 2 },
 		},
+		-- Valle Morado: Fragmentos y Gólems de Geoda; el Coloso de Amatista solo sale aquí.
+		CrystalValley = {
+			Place = "CrystalValley",
+			Zone = "CrystalValley",
+			DisplayName = "Oleadas del Coloso",
+			Boss = "AmethystColossus",
+			BossOnlyInWaves = true,
+			Pool = { Shardling = 80, GeodeGolem = 30, AmethystColossus = 6 },
+			Waves = {
+				{ Shardling = 8 },
+				{ Shardling = 10 },
+				{ Shardling = 10, GeodeGolem = 1 },
+				{ Shardling = 10, GeodeGolem = 2 },
+				{ Shardling = 12, GeodeGolem = 2 },
+				{ Shardling = 12, GeodeGolem = 3 },
+				{ Shardling = 14, GeodeGolem = 3 },
+				{ Shardling = 14, GeodeGolem = 4 },
+				{ Shardling = 16, GeodeGolem = 5 },
+			},
+			BossEscort = { Shardling = 6, GeodeGolem = 2 },
+			RewardScale = 3,
+		},
+		-- Caldera de Brasas: Chispas y Gólems de Magma; el Titán de la Caldera solo sale aquí.
+		EmberCaldera = {
+			Place = "EmberCaldera",
+			Zone = "EmberCaldera",
+			DisplayName = "Oleadas del Titán",
+			Boss = "CalderaTitan",
+			BossOnlyInWaves = true,
+			Pool = { Cinderling = 80, MagmaGolem = 30, CalderaTitan = 6 },
+			Waves = {
+				{ Cinderling = 8 },
+				{ Cinderling = 10 },
+				{ Cinderling = 10, MagmaGolem = 1 },
+				{ Cinderling = 10, MagmaGolem = 2 },
+				{ Cinderling = 12, MagmaGolem = 2 },
+				{ Cinderling = 12, MagmaGolem = 3 },
+				{ Cinderling = 14, MagmaGolem = 3 },
+				{ Cinderling = 14, MagmaGolem = 4 },
+				{ Cinderling = 16, MagmaGolem = 5 },
+			},
+			BossEscort = { Cinderling = 6, MagmaGolem = 2 },
+			RewardScale = 8,
+		},
 		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla.
 		Tutorial = {
+			Place = "Forest",
 			Zone = "Forest",
 			DisplayName = "Oleada de práctica",
 			Tutorial = true,
@@ -91,10 +149,22 @@ local WaveConfig = {
 	BreakSeconds = 1, -- entre oleadas
 	CardSeconds = 10, -- para elegir mejora (luego se elige una al azar)
 	LeaveGrace = 6, -- sin nadie dentro (o todos caídos) durante esto: se pierde
-	-- Aparición: de BatchSize en BatchSize cada SpawnInterval, sin pasar de MaxAlive vivos.
+	-- Aparición: de BatchSize en BatchSize cada SpawnInterval, sin pasar de los vivos a la
+	-- vez de la oleada: AliveStart en la 1.ª y AliveGrowth más en cada una, hasta MaxAlive
+	-- (las primeras no te rodean de golpe).
 	SpawnInterval = 0.6,
 	BatchSize = 4,
+	AliveStart = 7,
+	AliveGrowth = 2,
 	MaxAlive = 18,
+	-- Al limpiar cada oleada recuperas esta parte de tu vida máxima.
+	ClearHeal = 0.35,
+	-- Daño que hacen los enemigos de la oleada w (el jefe, el suyo):
+	--   DamageStart + DamageGrowth · (w - 1), hasta DamageMax
+	-- Las primeras pegan flojo (se aprenden con el arma inicial); desde la 6 más que en el mundo.
+	DamageStart = 0.5,
+	DamageGrowth = 0.1,
+	DamageMax = 1.3,
 	-- La escolta del jefe sale poco a poco mientras el jefe siga vivo.
 	EscortInterval = 8,
 
@@ -108,7 +178,7 @@ local WaveConfig = {
 	BossPlayerHealth = 0.6,
 	-- Dinero de los enemigos de las oleadas (golpes y derrota) frente a los del mundo: las
 	-- oleadas dan mucha ⚡ pero el 💰 se queda normal.
-	MoneyMultiplier = 0.4,
+	MoneyMultiplier = 0.3,
 
 	-- Premio al limpiar cada oleada (para cada jugador de la partida), por el número de la
 	-- oleada:  ⚡ = ClearEnergy · w · poder de energía     💰 = ClearMoney · w

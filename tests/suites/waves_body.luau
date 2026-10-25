@@ -19,41 +19,88 @@ local function near(a, b)
 	return math.abs(a - b) < 1e-9
 end
 
-print("-- El círculo de las oleadas")
+print("-- Los círculos de las oleadas")
 local place = WaveConfig.Place
-local zone = ZoneConfig.Zones[place.Zone]
-check("su zona existe", zone ~= nil)
 check("los enemigos salen dentro del círculo", place.SpawnRadius.Min > 0 and place.SpawnRadius.Max > place.SpawnRadius.Min and place.SpawnRadius.Max < place.AreaRadius)
 check("el altar se usa desde dentro del círculo", place.PromptDistance > 0 and place.PromptDistance < place.AreaRadius)
-check("el círculo cabe en su zona", math.abs(place.Offset.X) + place.AreaRadius < zone.Radius and math.abs(place.Offset.Y) + place.AreaRadius < zone.Radius)
 local function distance(a, b)
 	return math.sqrt((a.X - b.X) ^ 2 + (a.Y - b.Y) ^ 2)
 end
-local portalsClear = true
-for _, portal in ZoneConfig.Portals do
-	if portal.Zone == place.Zone and distance(portal.Offset, place.Offset) < place.AreaRadius + 20 then
-		portalsClear = false
+local placeCount = 0
+local placesOK, insideOK, portalsClear, bossClear, spawnsClear, guardedAll, arrivalClear = true, true, true, true, true, true, true
+local placeOfZone = {}
+for placeId, spot in WaveConfig.Places do
+	placeCount += 1
+	local zone = ZoneConfig.Zones[spot.Zone]
+	local mode = WaveConfig.Arenas[spot.Arena]
+	if not (zone and mode and mode.Zone == spot.Zone and mode.Place == placeId and not mode.Tutorial) then
+		placesOK = false
+		print("  círculo mal configurado: " .. placeId)
+	end
+	if placeOfZone[spot.Zone] then
+		placesOK = false
+		print("  dos círculos en la zona " .. spot.Zone)
+	end
+	placeOfZone[spot.Zone] = placeId
+	if zone and not (math.abs(spot.Offset.X) + place.AreaRadius < zone.Radius and math.abs(spot.Offset.Y) + place.AreaRadius < zone.Radius) then
+		insideOK = false
+	end
+	if zone and distance(Vector2.new(zone.Arrival.X, zone.Arrival.Z), spot.Offset) <= place.AreaRadius + 4 then
+		arrivalClear = false
+		print("  la llegada a " .. spot.Zone .. " cae dentro del círculo")
+	end
+	for _, portal in ZoneConfig.Portals do
+		if portal.Zone == spot.Zone and distance(portal.Offset, spot.Offset) < place.AreaRadius + 20 then
+			portalsClear = false
+		end
+	end
+	local zoneEnemies = EnemyConfig.Zones[spot.Zone]
+	local bossArena = zoneEnemies and zoneEnemies.Boss and zoneEnemies.Boss.Arena
+	if bossArena and distance(bossArena.Center, spot.Offset) <= bossArena.Radius + place.AreaRadius then
+		bossClear = false
+	end
+	for _, spawn in (zoneEnemies and zoneEnemies.Spawns) or {} do
+		if distance(spawn.Offset, spot.Offset) <= place.AreaRadius + 10 then
+			spawnsClear = false
+			print("  enemigo del mundo junto al círculo de " .. placeId .. ": " .. spawn.Type .. " en " .. tostring(spawn.Offset))
+		end
+	end
+	local guarded = false
+	for _, safe in (zoneEnemies and zoneEnemies.SafeZones) or {} do
+		if distance(safe.Center, spot.Offset) + place.AreaRadius <= safe.Radius then
+			guarded = true
+		end
+	end
+	if not guarded then
+		guardedAll = false
+		print("  el círculo de " .. placeId .. " no es zona segura")
 	end
 end
+check("un círculo en cada zona con enemigos (Bosque, Valle y Caldera)", placeCount == 3 and placeOfZone.Forest ~= nil and placeOfZone.CrystalValley ~= nil and placeOfZone.EmberCaldera ~= nil)
+check("cada círculo juega el modo de su zona", placesOK)
+check("los círculos caben en su zona", insideOK)
+check("la llegada a cada zona queda fuera del círculo", arrivalClear)
 check("lejos de los portales de su zona", portalsClear)
-local bossArena = EnemyConfig.Zones[place.Zone] and EnemyConfig.Zones[place.Zone].Boss and EnemyConfig.Zones[place.Zone].Boss.Arena
-check("no pisa la arena del jefe de la zona", bossArena == nil or distance(bossArena.Center, place.Offset) > bossArena.Radius + place.AreaRadius)
-local zoneEnemies = EnemyConfig.Zones[place.Zone]
-local spawnsClear = true
-for _, spawn in (zoneEnemies and zoneEnemies.Spawns) or {} do
-	if distance(spawn.Offset, place.Offset) <= place.AreaRadius + 10 then
-		spawnsClear = false
-		print("  enemigo del mundo junto al círculo: " .. spawn.Type .. " en " .. tostring(spawn.Offset))
+check("no pisan la arena del jefe de la zona", bossClear)
+check("ningún enemigo del mundo sale dentro ni cerca de un círculo", spawnsClear)
+check("cada círculo es zona segura para los enemigos del mundo", guardedAll)
+local tutorialMode = WaveLogic.tutorialArena()
+check("la práctica del tutorial se juega en el círculo del Bosque", tutorialMode ~= nil and WaveConfig.Arenas[tutorialMode].Place == "Forest" and WaveConfig.Places.Forest ~= nil)
+local aliveOK = WaveLogic.maxAlive(1) == WaveConfig.AliveStart and WaveLogic.maxAlive(1) < WaveConfig.MaxAlive
+for wave = 2, 12 do
+	if WaveLogic.maxAlive(wave) < WaveLogic.maxAlive(wave - 1) or WaveLogic.maxAlive(wave) > WaveConfig.MaxAlive then
+		aliveOK = false
 	end
 end
-check("ningún enemigo del mundo sale dentro ni cerca del círculo", spawnsClear)
-local guarded = false
-for _, safe in (zoneEnemies and zoneEnemies.SafeZones) or {} do
-	if distance(safe.Center, place.Offset) + place.AreaRadius <= safe.Radius then
-		guarded = true
+check("las primeras oleadas no te rodean de golpe (vivos a la vez crecen hasta el tope)", aliveOK and WaveLogic.maxAlive(99) == WaveConfig.MaxAlive)
+local damageOK = WaveLogic.damageMultiplier(1) < 1 and WaveLogic.damageMultiplier(WaveLogic.waveCount("Forest")) > 1
+for wave = 2, 12 do
+	if WaveLogic.damageMultiplier(wave) < WaveLogic.damageMultiplier(wave - 1) or WaveLogic.damageMultiplier(wave) > WaveConfig.DamageMax then
+		damageOK = false
 	end
 end
-check("el círculo es zona segura para los enemigos del mundo", guarded)
+check("los enemigos pegan flojo al principio y más fuerte al final", damageOK)
+check("al limpiar una oleada se recupera parte de la vida", WaveConfig.ClearHeal > 0 and WaveConfig.ClearHeal < 1)
 check("partidas a la vez y jugadores por partida", WaveConfig.MaxRuns >= 1 and WaveConfig.MaxPlayersPerRun >= 1)
 check("el dinero de las oleadas se queda normal (multiplicador entre 0 y 1)", WaveConfig.MoneyMultiplier > 0 and WaveConfig.MoneyMultiplier <= 1)
 
@@ -83,6 +130,41 @@ end
 check("las oleadas solo piden enemigos normales o fuertes que existen", typesOK)
 check("cada tipo de las oleadas tiene sitio en la reserva", poolOK)
 check("10 oleadas: 9 de hordas y la del jefe", WaveLogic.waveCount("Forest") == 10 and WaveLogic.isBossWave("Forest", 10) and not WaveLogic.isBossWave("Forest", 9))
+local zonesOK = true
+for arenaId, mode in WaveConfig.Arenas do
+	local zoneEnemies = EnemyConfig.Zones[mode.Zone]
+	local function fromZone(counts)
+		for typeId in counts do
+			local found = false
+			for _, spawn in (zoneEnemies and zoneEnemies.Spawns) or {} do
+				if spawn.Type == typeId then
+					found = true
+				end
+			end
+			if not found then
+				zonesOK = false
+				print("  " .. arenaId .. ": " .. typeId .. " no es de su zona")
+			end
+		end
+	end
+	for _, counts in mode.Waves do
+		fromZone(counts)
+	end
+	fromZone(mode.BossEscort or {})
+	if mode.Boss and not (zoneEnemies and zoneEnemies.Boss and zoneEnemies.Boss.Type == mode.Boss and (mode.Pool[mode.Boss] or 0) >= 1) then
+		zonesOK = false
+		print("  " .. arenaId .. ": su jefe no es el de su zona")
+	end
+end
+check("cada modo usa los enemigos y el jefe de su zona", zonesOK)
+check("Valle y Caldera: 10 oleadas con su jefe", WaveLogic.waveCount("CrystalValley") == 10 and WaveLogic.isBossWave("CrystalValley", 10) and WaveLogic.waveCount("EmberCaldera") == 10 and WaveLogic.isBossWave("EmberCaldera", 10))
+local fE, fM = WaveLogic.clearReward(3, 2, "Forest")
+local vE, vM = WaveLogic.clearReward(3, 2, "CrystalValley")
+local cE, cM = WaveLogic.clearReward(3, 2, "EmberCaldera")
+local wE, wM = WaveLogic.victoryReward(2, "Forest")
+local xE, xM = WaveLogic.victoryReward(2, "EmberCaldera")
+check("las zonas altas dan más premio (limpiar y ganar)", fE < vE and vE < cE and fM < vM and vM < cM and wE < xE and wM < xM)
+check("el premio sin modo es el de siempre", WaveLogic.clearReward(3, 2) == fE)
 
 local practice = WaveConfig.Arenas.Tutorial
 check("existe la práctica del tutorial", practice ~= nil and practice.Tutorial == true)

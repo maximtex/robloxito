@@ -1,5 +1,5 @@
--- Oleadas: la mecánica principal (WaveConfig). Partidas PRIVADAS en el círculo de la pradera
--- oeste del Bosque (WaveConfig.Place):
+-- Oleadas: la mecánica principal (WaveConfig). Partidas PRIVADAS en el círculo de cada zona
+-- (WaveConfig.Places: Bosque, Valle y Caldera), con los enemigos y el jefe de esa zona:
 -- 1. Se empieza con E en el altar del centro (ProximityPrompt) o con WaveAction ("Start").
 --    Cada jugador juega SU partida; quien pulse E durante la cuenta atrás de otra (del mismo
 --    modo) se une a ella, para jugar con amigos. Varias partidas pueden ir a la vez.
@@ -54,7 +54,6 @@ local GROUND = GeneratorConfig.Position.Y
 local CARD_BREAK = 1.5 -- pausa tras elegir mejoras
 local RESTART_LOCK = 3 -- tras terminar, segundos sin poder empezar otra (no repetir sin querer)
 local HINT_SECONDS = 7
-local NORMAL_MODE = "Forest"
 
 -- Paso del tutorial que se juega con la partida de práctica.
 local TUTORIAL_STEP: number? = nil
@@ -63,12 +62,9 @@ for index, step in TutorialConfig.Steps do
 		TUTORIAL_STEP = index
 	end
 end
-local TUTORIAL_MODE: string? = nil
-for arenaId, arena in WaveConfig.Arenas do
-	if arena.Tutorial then
-		TUTORIAL_MODE = arenaId
-	end
-end
+local TUTORIAL_MODE: string? = WaveLogic.tutorialArena()
+-- Círculo donde se juega la práctica (el de su modo).
+local TUTORIAL_PLACE: string? = if TUTORIAL_MODE then WaveConfig.Arenas[TUTORIAL_MODE].Place else nil
 
 type Participant = {
 	Player: Player,
@@ -86,6 +82,8 @@ type Run = {
 	Id: number,
 	ArenaId: string, -- modo (WaveConfig.Arenas)
 	Arena: any,
+	PlaceId: string, -- círculo (WaveConfig.Places)
+	Slot: number, -- hueco 1..MaxRuns (grupo de colisión de sus enemigos)
 	ZoneId: string,
 	Center: Vector3,
 	Phase: string, -- "Countdown" | "Wave" | "Break" | "Cards" | "Boss" | "Done"
@@ -107,6 +105,8 @@ type Run = {
 }
 
 type Place = {
+	Id: string,
+	ArenaId: string, -- modo que se juega aquí (salvo la práctica del tutorial)
 	ZoneId: string,
 	Center: Vector3,
 	StatusLabel: TextLabel?,
@@ -115,12 +115,12 @@ type Place = {
 
 local WaveService = {}
 
-local place: Place? = nil
+local places: { [string]: Place } = {}
 local runs: { [number]: Run } = {}
 local runOf: { [Player]: Run } = {}
 local lockedUntil: { [Player]: number } = {}
 local nextRunId = 0
-local best = 0 -- mejor oleada superada en este servidor (modo normal)
+local best: { [string]: number } = {} -- mejor oleada superada en este servidor, por modo
 local eventRemote: RemoteEvent
 local actionLimiter = RateLimiter.new(WaveConfig.ActionCooldown, 3, 12)
 
@@ -199,35 +199,45 @@ local function stateOf(run: Run)
 		Players = participantCount(run),
 		Center = run.Center,
 		Radius = WaveConfig.Place.AreaRadius,
-		Best = best,
+		Best = best[run.ArenaId] or 0,
 		Boss = if run.Phase == "Boss" and run.Arena.Boss then (EnemyConfig.Types[run.Arena.Boss] or {}).DisplayName else nil,
 	}
 end
 
--- Cartel del altar (lo ven todos): cómo jugar, partidas en marcha y récord.
-local function updateSign()
-	if not place then
-		return
-	end
-	local countdown: Run? = nil
+-- Cuenta atrás de una partida de este círculo a la que aún se puede unir alguien.
+local function joinableRun(placeId: string, arenaId: string): Run?
 	for _, run in runs do
-		if run.Phase == "Countdown" and run.ArenaId == NORMAL_MODE and participantCount(run) < WaveConfig.MaxPlayersPerRun then
-			countdown = run
+		if run.PlaceId == placeId and run.ArenaId == arenaId and run.Phase == "Countdown" and participantCount(run) < WaveConfig.MaxPlayersPerRun then
+			return run
 		end
 	end
-	if place.StatusLabel then
-		place.StatusLabel.Text = if countdown then ("¡Pulsa E para unirte! (%d)"):format(math.max(1, math.ceil(countdown.EndsAt - os.clock()))) else "Pulsa E para jugar"
-	end
-	if place.InfoLabel then
-		local playing = runCount()
-		local parts = {}
-		if playing > 0 then
-			table.insert(parts, if playing == 1 then "1 partida en marcha" else ("%d partidas en marcha"):format(playing))
+	return nil
+end
+
+-- Carteles de los altares (los ven todos): cómo jugar, partidas en marcha y récord.
+local function updateSign()
+	for placeId, place in places do
+		local countdown = joinableRun(placeId, place.ArenaId)
+		if place.StatusLabel then
+			place.StatusLabel.Text = if countdown then ("¡Pulsa E para unirte! (%d)"):format(math.max(1, math.ceil(countdown.EndsAt - os.clock()))) else "Pulsa E para jugar"
 		end
-		if best > 0 then
-			table.insert(parts, ("Récord: oleada %d"):format(best))
+		if place.InfoLabel then
+			local playing = 0
+			for _, run in runs do
+				if run.PlaceId == placeId then
+					playing += 1
+				end
+			end
+			local parts = {}
+			if playing > 0 then
+				table.insert(parts, if playing == 1 then "1 partida en marcha" else ("%d partidas en marcha"):format(playing))
+			end
+			local record = best[place.ArenaId] or 0
+			if record > 0 then
+				table.insert(parts, ("Récord: oleada %d"):format(record))
+			end
+			place.InfoLabel.Text = if #parts > 0 then table.concat(parts, "  ·  ") else "Hordas, mejoras y un jefe al final"
 		end
-		place.InfoLabel.Text = if #parts > 0 then table.concat(parts, "  ·  ") else "Hordas, mejoras y un jefe al final"
 	end
 end
 
@@ -321,6 +331,8 @@ local function spawnOne(run: Run, typeId: string, wave: number): boolean
 		OnDeath = onEnemyDeath(run, run.Id),
 		Run = run.Id,
 		MoneyMultiplier = WaveConfig.MoneyMultiplier,
+		DamageMultiplier = WaveLogic.damageMultiplier(wave),
+		CollisionSlot = run.Slot,
 	})
 	if not enemy then
 		return false
@@ -371,6 +383,7 @@ local function spawnBoss(run: Run): boolean
 		PoolLimit = (arena.Pool and arena.Pool[arena.Boss]) or 4,
 		Run = id,
 		MoneyMultiplier = WaveConfig.MoneyMultiplier,
+		CollisionSlot = run.Slot,
 		Arena = { Center = run.Center, Radius = area, Name = arena.DisplayName },
 		Territory = area + 4,
 		OnDeath = function()
@@ -467,15 +480,23 @@ end
 
 local function waveCleared(run: Run)
 	local wave = run.Wave
-	if run.ArenaId == NORMAL_MODE then
-		best = math.max(best, wave)
+	if not run.Arena.Tutorial then
+		best[run.ArenaId] = math.max(best[run.ArenaId] or 0, wave)
 	end
 	for _, participant in run.Participants do
 		local profile = PlayerDataService.get(participant.Player)
 		if profile then
-			local energy, money = WaveLogic.clearReward(wave, profile.ProductionPerSecond)
+			local energy, money = WaveLogic.clearReward(wave, profile.ProductionPerSecond, run.ArenaId)
 			local given, coins = pay(participant, energy, money)
-			eventRemote:FireClient(participant.Player, "Cleared", { Wave = wave, Energy = given, Money = coins })
+			-- Respiro: recupera parte de la vida (solo quien sigue en pie)
+			local healed = false
+			local _, humanoid = rootOf(participant.Player)
+			if humanoid and humanoid.Health > 0 and WaveConfig.ClearHeal and WaveConfig.ClearHeal > 0 then
+				local before = humanoid.Health
+				humanoid.Health = math.min(humanoid.MaxHealth, before + humanoid.MaxHealth * WaveConfig.ClearHeal)
+				healed = humanoid.Health > before
+			end
+			eventRemote:FireClient(participant.Player, "Cleared", { Wave = wave, Energy = given, Money = coins, Healed = healed })
 		end
 	end
 	if wave >= run.Waves then
@@ -493,8 +514,8 @@ function finish(run: Run, victory: boolean)
 		return
 	end
 	local reached = run.Wave
-	if victory and run.ArenaId == NORMAL_MODE then
-		best = math.max(best, run.Waves)
+	if victory and not run.Arena.Tutorial then
+		best[run.ArenaId] = math.max(best[run.ArenaId] or 0, run.Waves)
 	end
 	-- Lo que quede se retira sin botín (el jefe derrotado ya se fue solo).
 	run.Boss = if victory then nil else run.Boss
@@ -528,7 +549,7 @@ function finish(run: Run, victory: boolean)
 				BestStreak = participant.BestStreak,
 				VictoryEnergy = energy,
 				VictoryMoney = money,
-				Best = best,
+				Best = best[run.ArenaId] or 0,
 			})
 		end
 		if runOf[player] == run then
@@ -562,26 +583,33 @@ local function wantsTutorial(player: Player): boolean
 	return type(tutorial) == "table" and tutorial.Status == "Active" and type(tutorial.Step) == "number" and tutorial.Step < TUTORIAL_STEP
 end
 
--- Empezar (o unirse a una cuenta atrás). true si ahora juega una partida.
-local function tryStart(player: Player): boolean
-	if not place or runOf[player] or (lockedUntil[player] or 0) > os.clock() then
+-- Empezar (o unirse a una cuenta atrás) en el círculo `placeId` (o en el que esté el
+-- jugador). true si ahora juega una partida.
+local function tryStart(player: Player, placeId: string?): boolean
+	if runOf[player] or (lockedUntil[player] or 0) > os.clock() then
 		return false
 	end
 	local root = rootOf(player)
 	if not (root and PlayerDataService.get(player)) then
 		return false
 	end
-	if flatDistance(root.Position, place.Center) > WaveConfig.Place.AreaRadius + 2 then
+	-- Hay que estar dentro del círculo (del que se pulsó, o de cualquiera)
+	local place: Place? = nil
+	for id, candidate in places do
+		if (placeId == nil or id == placeId) and flatDistance(root.Position, candidate.Center) <= WaveConfig.Place.AreaRadius + 2 then
+			place = candidate
+		end
+	end
+	if not place then
 		return false
 	end
-	local mode = if wantsTutorial(player) then TUTORIAL_MODE :: string else NORMAL_MODE
+	local mode = if place.Id == TUTORIAL_PLACE and wantsTutorial(player) then TUTORIAL_MODE :: string else place.ArenaId
 	-- Unirse a la cuenta atrás de otra partida del mismo modo (la práctica es solo suya)
 	if not WaveConfig.Arenas[mode].Tutorial then
-		for _, run in runs do
-			if run.Phase == "Countdown" and run.ArenaId == mode and participantCount(run) < WaveConfig.MaxPlayersPerRun then
-				addParticipant(run, player)
-				return true
-			end
+		local countdown = joinableRun(place.Id, mode)
+		if countdown then
+			addParticipant(countdown, player)
+			return true
 		end
 	end
 	if runCount() >= WaveConfig.MaxRuns then
@@ -589,11 +617,22 @@ local function tryStart(player: Player): boolean
 		return false
 	end
 	local arena = WaveConfig.Arenas[mode]
+	-- Hueco libre (como mucho MaxRuns partidas a la vez)
+	local used = {}
+	for _, other in runs do
+		used[other.Slot] = true
+	end
+	local slot = 1
+	while used[slot] do
+		slot += 1
+	end
 	nextRunId += 1
 	local run: Run = {
 		Id = nextRunId,
 		ArenaId = mode,
 		Arena = arena,
+		PlaceId = place.Id,
+		Slot = slot,
 		ZoneId = arena.Zone,
 		Center = place.Center,
 		Phase = "Countdown",
@@ -701,7 +740,8 @@ local function step(run: Run, now: number)
 		if #run.Queue > 0 and now >= run.NextSpawnAt then
 			run.NextSpawnAt = now + WaveConfig.SpawnInterval
 			local spawned = 0
-			while spawned < WaveConfig.BatchSize and #run.Queue > 0 and run.AliveCount < WaveConfig.MaxAlive do
+			local limit = WaveLogic.maxAlive(run.Wave)
+			while spawned < WaveConfig.BatchSize and #run.Queue > 0 and run.AliveCount < limit do
 				if not spawnOne(run, run.Queue[1], run.Wave) then
 					break -- reserva llena: se espera a que mueran algunos
 				end
@@ -772,9 +812,15 @@ local function label(parent: Instance, position: UDim2, size: UDim2, color: Colo
 	return textLabel
 end
 
+-- Cara de arriba del suelo en (x, z) del mundo (los caminos sobresalen: StudFloor.raiseAt).
+local function floorAt(x: number, z: number): number
+	return GROUND + StudFloor.BaseTop + StudFloor.raiseAt(x, z)
+end
+
 local function buildPlace(info: Place, parent: Instance)
 	local model = Instance.new("Model")
-	model.Name = "WavePedestal"
+	model.Name = "WavePedestal_" .. info.Id
+	model:SetAttribute("Place", info.Id)
 	local center = info.Center
 	local ground = center.Y
 	local stone = Color3.fromRGB(110, 112, 100)
@@ -809,11 +855,13 @@ local function buildPlace(info: Place, parent: Instance)
 	beam.Transparency = 0.45
 	beam.CastShadow = false
 
-	-- Borde del círculo en el suelo: aquí dentro se juega
+	-- Borde del círculo en el suelo: aquí dentro se juega (cada losa, a la altura del suelo
+	-- que pisa: puede cruzar un camino)
 	local tiles = 32
 	for index = 1, tiles do
 		local angle = (index / tiles) * math.pi * 2
-		local position = Vector3.new(center.X + math.cos(angle) * area, ground, center.Z + math.sin(angle) * area)
+		local tx, tz = center.X + math.cos(angle) * area, center.Z + math.sin(angle) * area
+		local position = Vector3.new(tx, floorAt(tx, tz), tz)
 		local tile = PartFactory.part(model, "EdgeRune" .. index, {
 			Size = Vector3.new(1.4, 0.2, 3),
 			CFrame = CFrame.lookAt(position, Vector3.new(center.X, position.Y, center.Z)) * CFrame.new(0, 0.12, 0),
@@ -828,14 +876,14 @@ local function buildPlace(info: Place, parent: Instance)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "WavePrompt"
 	prompt.ActionText = "Jugar oleadas"
-	prompt.ObjectText = "⚔ Oleadas"
+	prompt.ObjectText = "⚔ " .. tostring((WaveConfig.Arenas[info.ArenaId] or {}).DisplayName or "Oleadas")
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
 	prompt.HoldDuration = 0.3
 	prompt.MaxActivationDistance = WaveConfig.Place.PromptDistance
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = column
 	prompt.Triggered:Connect(function(player: Player)
-		tryStart(player)
+		tryStart(player, info.Id)
 	end)
 
 	-- Cartel flotante: qué es, cómo empezar y lo que pasa
@@ -856,19 +904,20 @@ end
 
 -- Arranque ------------------------------------------------------------------------------
 
-local function buildPlaceInfo(): Place?
-	local settings = WaveConfig.Place
+local function buildPlaceInfo(placeId: string, settings): Place?
 	local zone = ZoneConfig.Zones[settings.Zone]
-	if not zone then
-		warn("[WaveService] La zona de las oleadas no existe: " .. tostring(settings.Zone))
+	if not (zone and WaveConfig.Arenas[settings.Arena]) then
+		warn(("[WaveService] El círculo %s no tiene zona o modo válidos"):format(placeId))
 		return nil
 	end
 	local base = GeneratorConfig.Position
 	local x = base.X + zone.Center.X + settings.Offset.X
 	local z = base.Z + zone.Center.Y + settings.Offset.Y
 	return {
+		Id = placeId,
+		ArenaId = settings.Arena,
 		ZoneId = settings.Zone,
-		Center = Vector3.new(x, GROUND + StudFloor.BaseTop + StudFloor.raiseAt(x, z), z), -- cara de arriba del suelo
+		Center = Vector3.new(x, floorAt(x, z), z), -- cara de arriba del suelo
 		StatusLabel = nil,
 		InfoLabel = nil,
 	}
@@ -881,9 +930,12 @@ function WaveService.start()
 	folder.Name = FOLDER_NAME
 	folder.Parent = Workspace
 
-	place = buildPlaceInfo()
-	if place then
-		buildPlace(place, folder)
+	for placeId, settings in WaveConfig.Places do
+		local info = buildPlaceInfo(placeId, settings)
+		if info then
+			places[placeId] = info
+			buildPlace(info, folder)
+		end
 	end
 	for _, arena in WaveConfig.Arenas do
 		if arena.BossOnlyInWaves and arena.Boss then

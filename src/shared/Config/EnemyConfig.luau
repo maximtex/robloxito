@@ -214,7 +214,7 @@ local EnemyConfig = {
 			},
 			SafeZones = {
 				{ Center = Vector2.new(38, 85), Radius = 20 }, -- Jardín de los Huevos (EggConfig.Gardens.Forest)
-				-- Círculo de las oleadas (WaveConfig.Place, radio AreaRadius + 4): los del mundo no
+				-- Círculo de las oleadas (WaveConfig.Places.Forest, radio AreaRadius + 4): los del mundo no
 				-- entran a por nadie ni atacan a quien espera junto al altar.
 				{ Center = Vector2.new(-69, 98), Radius = 22 },
 			},
@@ -232,7 +232,7 @@ local EnemyConfig = {
 				{ Type = "Thornling", Offset = Vector2.new(72, 125) },
 
 				-- Pradera izquierda (al oeste de las parcelas y tiendas), a ambos lados del círculo
-				-- de las oleadas (WaveConfig.Place, en (-69, 98)), lejos de su zona segura.
+				-- de las oleadas (WaveConfig.Places.Forest, en (-69, 98)), lejos de su zona segura.
 				{ Type = "Thornling", Offset = Vector2.new(-60, 134) },
 				{ Type = "Thornling", Offset = Vector2.new(-70, 136) },
 				{ Type = "Thornling", Offset = Vector2.new(-62, 62) },
@@ -273,6 +273,7 @@ local EnemyConfig = {
 			RewardMultiplier = 1,
 			SafeZones = {
 				{ Center = Vector2.new(18, 8), Radius = 11 },
+				{ Center = Vector2.new(36, -124), Radius = 22 }, -- círculo de las oleadas (WaveConfig.Places)
 			},
 			Spawns = {
 				{ Type = "Shardling", Offset = Vector2.new(-55, -85) },
@@ -300,6 +301,7 @@ local EnemyConfig = {
 			RewardMultiplier = 1,
 			SafeZones = {
 				{ Center = Vector2.new(24, 10), Radius = 11 },
+				{ Center = Vector2.new(36, -124), Radius = 22 }, -- círculo de las oleadas (WaveConfig.Places)
 			},
 			Spawns = {
 				{ Type = "Cinderling", Offset = Vector2.new(-60, -72) },

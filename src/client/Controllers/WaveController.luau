@@ -3,7 +3,8 @@
 --   juegas una partida: oleada, enemigos que quedan y cuenta atrás. En la del jefe se
 --   esconde y se ve la barra del jefe.
 -- - Anuncios grandes en el centro: cuenta atrás, "OLEADA 4", "¡JEFE!".
--- - Consejos de la partida de práctica del tutorial ("Hint"), en un cartel bajo el anuncio.
+-- - Consejos de la partida de práctica del tutorial ("Hint"), en un cartel abajo, justo
+--   encima de la fila del menú: el centro queda libre para ver al personaje y los avisos.
 -- - Las partidas son privadas: el servidor solo manda el estado de la tuya (y el altar
 --   esconde su "Pulsa E" mientras juegas). Qué enemigos ves lo decide WaveVisibility.
 -- - Mejoras: tres tarjetas para elegir (clic o teclas 1, 2, 3) con su tiempo.
@@ -154,11 +155,11 @@ local function buildHud()
 	announceStroke.Transparency = 1
 	local announceScale = UiKit.create("UIScale", {}, announce)
 
-	-- Consejo (partida de práctica): cartel bajo el anuncio
+	-- Consejo (partida de práctica): cartel abajo, encima de la fila del menú (placeHint)
 	local hintBox = UiKit.create("Frame", {
 		Name = "WaveHint",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.42),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -150),
 		Size = UDim2.fromOffset(560, 64),
 		BackgroundColor3 = INK,
 		BackgroundTransparency = 0.15,
@@ -186,6 +187,33 @@ local function buildHud()
 	end
 	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(placePanel)
 	placePanel()
+	-- El consejo se apoya sobre la fila de abajo del menú (MenuBar: "BottomDock"), con
+	-- hueco para el porcentaje de Renacer que asoma por encima; si no está, a 150 px del borde.
+	local watchedDock: GuiObject? = nil
+	local function placeHint()
+		local menuGui = playerGui:FindFirstChild("MenuDockHud")
+		local dock = menuGui and menuGui:FindFirstChild("BottomDock", true)
+		if menuGui and menuGui:IsA("ScreenGui") and dock and dock:IsA("GuiObject") then
+			if watchedDock ~= dock then
+				watchedDock = dock
+				dock:GetPropertyChangedSignal("AbsolutePosition"):Connect(placeHint)
+			end
+			-- Distancia al borde de abajo (igual en los dos ScreenGui aunque uno ignore la barra
+			-- de arriba de Roblox)
+			local scale = UiKit.computeScale(hud.AbsoluteSize)
+			local bottom = menuGui.AbsoluteSize.Y - dock.AbsolutePosition.Y + 34 * scale
+			hintBox.Position = UDim2.new(0.5, 0, 1, -math.floor(bottom))
+		else
+			hintBox.Position = UDim2.new(0.5, 0, 1, -150)
+		end
+	end
+	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeHint)
+	playerGui.ChildAdded:Connect(function(child)
+		if child.Name == "MenuDockHud" then
+			task.defer(placeHint)
+		end
+	end)
+	placeHint()
 
 	-- Ventanas: mejoras y resumen (por encima del resto del HUD)
 	local modal = UiKit.create("ScreenGui", {
@@ -475,12 +503,17 @@ function WaveController.start()
 		end)
 	end
 
-	-- El "Pulsa E" del altar no se ve mientras juegas (es local: los demás lo siguen viendo).
+	-- El "Pulsa E" de los altares no se ve mientras juegas (es local: los demás lo siguen viendo).
 	local function refreshPrompt()
 		local arenas = Workspace:FindFirstChild("WaveArenas")
-		local prompt = arenas and arenas:FindFirstChild("WavePrompt", true)
-		if prompt and prompt:IsA("ProximityPrompt") then
-			prompt.Enabled = player:GetAttribute(Constants.Attributes.WaveRun) == nil
+		if not arenas then
+			return
+		end
+		local free = player:GetAttribute(Constants.Attributes.WaveRun) == nil
+		for _, prompt in arenas:GetDescendants() do
+			if prompt.Name == "WavePrompt" and prompt:IsA("ProximityPrompt") then
+				prompt.Enabled = free
+			end
 		end
 	end
 
@@ -560,6 +593,9 @@ function WaveController.start()
 			return
 		end
 		cardData = data
+		-- Las tarjetas ya explican cómo elegir: fuera el consejo que hubiera debajo
+		hintToken += 1
+		ui.HintBox.Visible = false
 		for index, card in ui.Cards do
 			local info = data.Cards[index]
 			card.Button.Visible = info ~= nil
@@ -703,7 +739,8 @@ function WaveController.start()
 			task.delay(0.35, closeCards)
 		elseif kind == "Cleared" then
 			if type(data) == "table" then
-				Toasts.show(("✅ Oleada %d superada  +%s ⚡  +%s 💰"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0)), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
+				local heal = if data.Healed == true then "  +❤️" else ""
+				Toasts.show(("✅ Oleada %d superada  +%s ⚡  +%s 💰%s"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0), heal), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
 			end
 		elseif kind == "Result" then
 			current = nil

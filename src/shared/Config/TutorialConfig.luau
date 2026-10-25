@@ -11,7 +11,7 @@
 -- Sin recompensas: las mismas acciones ya las premian las misiones.
 --
 -- Guide: a dónde apunta la guía del cliente ("Crystal", "Waves" (el altar de las oleadas,
--- WaveConfig.Place), "Egg:<EggId>", "Arena:<zona del jefe>", "Portal:<PortalId>") o qué
+-- WaveConfig.Places), "Egg:<EggId>", "Arena:<zona del jefe>", "Portal:<PortalId>") o qué
 -- parte de la interfaz se señala ("ArmoryButton", "PetsButton").
 
 local TutorialConfig = {

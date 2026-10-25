@@ -59,6 +59,7 @@ local CombatConfig = require(Shared.Config.CombatConfig)
 local ItemLogic = require(Shared.ItemLogic)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local WaveLogic = require(Shared.WaveLogic)
+local WaveConfig = require(Shared.Config.WaveConfig)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local EnergyService = require(script.Parent.EnergyService)
 local RemoteService = require(script.Parent.RemoteService)
@@ -140,6 +141,7 @@ type Enemy = {
 	LastHitBy: Player?, -- quién dio el último golpe (solo para OnWaveDeath)
 	Run: number?, -- partida de oleadas a la que pertenece (nil = el mundo normal)
 	MoneyMultiplier: number, -- dinero que suelta (golpes y derrota); la ⚡ no cambia
+	DamageMultiplier: number?, -- daño que hace (oleadas; nil = 1)
 	Territory: number?, -- territorio del jefe (si no, Def.Brain.Territory)
 }
 
@@ -166,8 +168,13 @@ local clickListeners: { (Player, Enemy) -> () } = {}
 
 -- Oleadas privadas (WaveService) ------------------------------------------------------------
 local RUN_ATTRIBUTE = Constants.Attributes.WaveRun
-local WAVE_GROUP = "WaveEnemies" -- grupo de colisión de los de las partidas
+local WAVE_GROUP = "WaveEnemies" -- grupo de colisión de los de la reserva (sin partida)
 local CHARACTER_GROUP = "Characters" -- personajes de los jugadores
+-- Un grupo por partida a la vez ("WaveRun1".."WaveRunN", N = WaveConfig.MaxRuns): los de la
+-- misma partida chocan entre ellos (rodean al jugador en vez de amontonarse en un punto),
+-- pero no con los de otras partidas ni con los personajes.
+local WAVE_SLOT_PREFIX = "WaveRun"
+local waveSlots = 0 -- grupos de partida registrados
 
 -- Partida que juega un jugador (nil = el mundo normal).
 local function runOfPlayer(player: Player): number?
@@ -978,11 +985,11 @@ local function damagePlayer(enemy: Enemy, player: Player, humanoid: Humanoid, am
 	if not sameWorld(enemy, player) then
 		return -- de otra partida (o del mundo normal mientras juegas una): no te alcanza
 	end
-	local final = amount
+	local final = amount * (enemy.DamageMultiplier or 1) -- oleadas: suave al principio, fuerte al final
 	if incomingModifier then
-		local ok, result = pcall(incomingModifier, player, amount)
+		local ok, result = pcall(incomingModifier, player, final)
 		if ok and type(result) == "number" and result == result then
-			final = math.clamp(result, 0, amount) -- nunca más daño ni curación
+			final = math.clamp(result, 0, final) -- nunca más daño ni curación
 		end
 	end
 	humanoid:TakeDamage(final) -- respeta el escudo de aparición
@@ -2090,6 +2097,8 @@ export type WaveSpawnOptions = {
 	OnDeath: ((any, Player?, Vector3) -> ())?,
 	Run: number?, -- partida (oleadas privadas): solo la ven y lo golpean sus jugadores
 	MoneyMultiplier: number?, -- dinero que suelta (la ⚡ no cambia)
+	DamageMultiplier: number?, -- daño que hace a los jugadores
+	CollisionSlot: number?, -- hueco de la partida (1..MaxRuns): chocan los del mismo hueco
 	-- Jefes: su arena (para la barra del jefe del cliente) y su territorio
 	Arena: { Center: Vector3, Radius: number, Name: string }?,
 	Territory: number?,
@@ -2132,6 +2141,9 @@ function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vect
 	enemy.Run = opts.Run
 	enemy.Model:SetAttribute(RUN_ATTRIBUTE, opts.Run)
 	enemy.MoneyMultiplier = if opts.MoneyMultiplier ~= nil then math.clamp(finiteOr(opts.MoneyMultiplier, 1), 0, 10) else 1
+	enemy.DamageMultiplier = if opts.DamageMultiplier ~= nil then math.clamp(finiteOr(opts.DamageMultiplier, 1), 0.1, 10) else nil
+	local slot = opts.CollisionSlot
+	setCollisionGroup(enemy.Model, if type(slot) == "number" and slot >= 1 and slot <= waveSlots then WAVE_SLOT_PREFIX .. math.floor(slot) else WAVE_GROUP)
 	enemy.Territory = if opts.Territory ~= nil then finiteOr(opts.Territory, def.Brain and def.Brain.Territory or 20) else nil
 	local arena = opts.Arena
 	enemy.Model:SetAttribute("ArenaCenter", if arena then arena.Center else nil)
@@ -2228,9 +2240,10 @@ function EnemyService.start()
 	arenas.Parent = workspace
 	rewardRemote = RemoteService.get(Constants.Remotes.CombatReward)
 
-	-- Oleadas privadas: los enemigos de las partidas no chocan con los personajes ni entre
-	-- ellos (así nadie tropieza con enemigos que no ve).
-	for _, group in { WAVE_GROUP, CHARACTER_GROUP } do
+	-- Oleadas privadas: los enemigos de las partidas no chocan con los personajes ni con los
+	-- de otras partidas (así nadie tropieza con enemigos que no ve); los de una misma partida
+	-- sí chocan entre ellos.
+	local function register(group: string): boolean
 		local ok, err = pcall(function()
 			if not PhysicsService:IsCollisionGroupRegistered(group) then
 				PhysicsService:RegisterCollisionGroup(group)
@@ -2239,10 +2252,29 @@ function EnemyService.start()
 		if not ok then
 			warn("[EnemyService] Grupo de colisión " .. group .. ": " .. tostring(err))
 		end
+		return ok
 	end
+	register(WAVE_GROUP)
+	register(CHARACTER_GROUP)
 	pcall(function()
 		PhysicsService:CollisionGroupSetCollidable(WAVE_GROUP, WAVE_GROUP, false)
 		PhysicsService:CollisionGroupSetCollidable(WAVE_GROUP, CHARACTER_GROUP, false)
+	end)
+	for slot = 1, math.max(1, WaveConfig.MaxRuns) do
+		if not register(WAVE_SLOT_PREFIX .. slot) then
+			break
+		end
+		waveSlots = slot
+	end
+	pcall(function()
+		for slot = 1, waveSlots do
+			local group = WAVE_SLOT_PREFIX .. slot
+			PhysicsService:CollisionGroupSetCollidable(group, CHARACTER_GROUP, false)
+			PhysicsService:CollisionGroupSetCollidable(group, WAVE_GROUP, false)
+			for other = slot + 1, waveSlots do
+				PhysicsService:CollisionGroupSetCollidable(group, WAVE_SLOT_PREFIX .. other, false)
+			end
+		end
 	end)
 	local function watchCharacter(character: Model)
 		setCollisionGroup(character, CHARACTER_GROUP)

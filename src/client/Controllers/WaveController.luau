@@ -37,6 +37,7 @@ local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Toasts = require(script.Parent.Parent.UI.Toasts)
 local Juice = require(script.Parent.Parent.UI.Juice)
 local WaveFx = require(script.Parent.WaveFx)
+local WaveChest = require(script.Parent.WaveChest)
 
 local HudDock = require(script.Parent.Parent.UI.HudDock)
 
@@ -1047,6 +1048,8 @@ function WaveController.start()
 			if type(data) == "table" and data.Kind == "Explode" and typeof(data.Position) == "Vector3" then
 				explosion(data.Position, tonumber(data.Radius) or 6)
 			end
+		elseif kind == "Chest" then
+			WaveChest.show(data) -- cofre de victoria de las mazmorras
 		end
 	end)
 

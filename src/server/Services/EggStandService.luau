@@ -91,11 +91,12 @@ end
 -- Pedestal de pedestales-huevos.glb (EggGardenData[variant]) con la base en `base` (cara de
 -- arriba del suelo), mirando al altar del jardín como en el diseño. Devuelve su placa de luz
 -- (donde va la interacción) y el centro de su cara de arriba, donde se apoya el huevo.
-local function buildPedestal(parent: Instance, base: Vector3, variant: string): (BasePart, Vector3)
+-- faceToward: a dónde mira (en el mundo); sin él, al altar del Jardín de los Huevos.
+local function buildPedestal(parent: Instance, base: Vector3, variant: string, faceToward: Vector3?): (BasePart, Vector3)
 	local data = EggGardenData[variant] or EggGardenData.Comun
 	local altarAt = EggConfig.Gardens.Forest.AltarOffset
-	local altar = world(altarAt.X, base.Y, altarAt.Y)
-	local parts = GlbParts.build(parent, data, CFrame.lookAt(base, altar))
+	local altar = faceToward or world(altarAt.X, base.Y, altarAt.Y)
+	local parts = GlbParts.build(parent, data, CFrame.lookAt(base, Vector3.new(altar.X, base.Y, altar.Z)))
 	return parts.glow_pad, base + Vector3.new(0, EggGardenData.Top[variant] or EggGardenData.Top.Comun, 0)
 end
 
@@ -179,7 +180,13 @@ local function buildShrine(parent: Instance, eggId: string, egg)
 
 	local neonColor = look.Accent or Color3.fromRGB(45, 215, 255)
 	local base = onFloor(position) + Vector3.new(0, StudFloor.BaseTop, 0)
-	local pedestal, top = buildPedestal(model, base, egg.Pedestal or "Comun")
+	-- FaceToward (relativo al centro de su zona, como StandOffset): a dónde mira el pedestal
+	local faceToward = nil
+	if egg.FaceToward then
+		local stand = egg.StandOffset
+		faceToward = position + Vector3.new(egg.FaceToward.X - stand.X, 0, egg.FaceToward.Y - stand.Y)
+	end
+	local pedestal, top = buildPedestal(model, base, egg.Pedestal or "Comun", faceToward)
 
 	local eggCenter = top + Vector3.new(0, EGG_ABOVE_TOP, 0)
 	buildEgg(model, eggCenter, look)

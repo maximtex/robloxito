@@ -99,7 +99,8 @@ for placeId, spot in WaveConfig.Places do
 		print("  el círculo de " .. placeId .. " no es zona segura")
 	end
 end
-check("un círculo de oleadas en cada zona con enemigos (Bosque, Valle y Caldera)", placeCount == 3 and placeOfZone.Forest ~= nil and placeOfZone.CrystalValley ~= nil and placeOfZone.EmberCaldera ~= nil)
+-- (La Fortaleza Goblin no tiene: su jefe, el Rey Goblin, está en su Sala del Trono)
+check("un círculo de oleadas en cada zona con mazmorra (Bosque, Valle, Caldera y Tundra)", placeCount == 4 and placeOfZone.Forest ~= nil and placeOfZone.CrystalValley ~= nil and placeOfZone.EmberCaldera ~= nil and placeOfZone.FrozenTundra ~= nil and placeOfZone.GoblinFortress == nil)
 check("cada círculo juega el modo de su zona", placesOK)
 check("los círculos caben en su zona", insideOK)
 check("la llegada a cada zona queda fuera del círculo", arrivalClear)
@@ -185,7 +186,17 @@ for arenaId, mode in WaveConfig.Arenas do
 	end
 end
 check("cada modo usa los enemigos y el jefe de su zona", zonesOK)
-check("Valle y Caldera: 10 oleadas con su jefe", WaveLogic.waveCount("CrystalValley") == 10 and WaveLogic.isBossWave("CrystalValley", 10) and WaveLogic.waveCount("EmberCaldera") == 10 and WaveLogic.isBossWave("EmberCaldera", 10))
+check("más oleadas en las mazmorras de arriba: Bosque 10, Valle 12 y Caldera 15, la última con su jefe", WaveLogic.waveCount("Forest") == 10 and WaveLogic.waveCount("CrystalValley") == 12 and WaveLogic.isBossWave("CrystalValley", 12) and not WaveLogic.isBossWave("CrystalValley", 10)
+	and WaveLogic.waveCount("EmberCaldera") == 15 and WaveLogic.isBossWave("EmberCaldera", 15))
+
+print("-- Mazmorras: élites y cofre")
+check("élites solo en el Valle y la Caldera", not WaveLogic.isElite("Forest", 0) and WaveLogic.isElite("CrystalValley", 0.01) and not WaveLogic.isElite("CrystalValley", 0.5) and WaveLogic.isElite("EmberCaldera", 0.1) and not WaveLogic.isElite("Tutorial", 0))
+local potions = { "Energy", "Damage", "Money", "Luck" }
+local fm, fp = WaveLogic.chestReward("Forest", 0.99, 0, potions)
+local vm, vp = WaveLogic.chestReward("CrystalValley", 0, 0.99, potions)
+local cm = WaveLogic.chestReward("EmberCaldera", 0.99, 0, potions)
+check("cofre: más 💰 en cada zona y a veces una poción", fm > 0 and vm > fm and cm > vm and fp == nil and vp == "Luck")
+check("sin cofre en la práctica del tutorial ni sin pociones", WaveLogic.chestReward("Tutorial", 0, 0, potions) == 0 and select(2, WaveLogic.chestReward("Forest", 0, 0, {})) == nil)
 local fE, fM = WaveLogic.clearReward(3, 2, "Forest")
 local vE, vM = WaveLogic.clearReward(3, 2, "CrystalValley")
 local cE, cM = WaveLogic.clearReward(3, 2, "EmberCaldera")

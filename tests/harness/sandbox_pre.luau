@@ -1,7 +1,7 @@
 -- Interruptor y "¿estamos en Studio?" controlables por la prueba.
 local isStudio = false
 services.RunService = { IsStudio = function() return isStudio end }
-local DevConfig = { TutorialSandbox = true, SandboxStartingEnergy = 3000 }
+local DevConfig = { TutorialSandbox = true, SandboxStartingMoney = 15000 }
 -- Cuenta TODAS las operaciones de DataStore (lectura, bloqueo y escritura pasan por aquí).
 local storeCalls = 0
 local getStoreCalls = 0

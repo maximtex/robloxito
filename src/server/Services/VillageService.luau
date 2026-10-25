@@ -560,4 +560,9 @@ function VillageService.start()
 	buildFreeClaimChest(root, VillageConfig.ClaimChest.Position, VillageConfig.ClaimChest.FaceToward)
 end
 
+-- Para el pueblo del Mundo 2 (World2Service): los mismos puestos y la Máquina de Evolución, en
+-- coordenadas del mundo.
+VillageService.buildStall = buildStall
+VillageService.buildEvolutionMachine = buildEvolutionMachine
+
 return VillageService

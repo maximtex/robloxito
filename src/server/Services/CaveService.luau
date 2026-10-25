@@ -1,23 +1,29 @@
--- Cueva de los Espinillos (CaveConfig): el viaje entre la boca de la cueva (en la colina oeste
--- del Bosque) y la cueva de dentro (lejos del mapa; la construye CaveDungeon):
--- - Quien cruza la bruma del fondo de la boca (CaveLogic.inEntrance) aparece en la sala 1,
---   junto al portal de salida (CaveConfig.Arrival).
+-- Mazmorras (CaveConfig: una cueva por zona): el viaje entre la boca de cada cueva (en su
+-- zona) y la cueva de dentro (lejos del mapa; la construye CaveDungeon), sus puertas y sus
+-- trampas:
+-- - Quien cruza la bruma del fondo de una boca (CaveLogic.inEntrance) aparece en la sala 1 de
+--   esa cueva, junto al portal de salida (Caves.*.Arrival).
 -- - Quien pisa un portal de salida (CaveLogic.exitAt, en la sala 1 y en la 3) aparece fuera,
---   en el camino delante de la boca (CaveConfig.Entrance.Exit).
+--   delante de la boca de su cueva (Caves.*.Entrance.Exit).
 -- Lo comprueba el servidor cada poco con la posición real del personaje (el cliente no pide
--- nada). CaveEvent avisa a ese jugador para el fundido a negro: ("Fade", { Inside }) antes de
--- moverlo y ("Arrived", { Inside, Position, Facing }) al llegar (CaveController gira la cámara
--- hacia Facing, para que al seguir andando no vuelvas a cruzar). Al llegar se para el paso que
--- llevara (no sigue andando hacia un portal) y hay una espera entre dos viajes.
--- Puertas (CaveConfig.Gates): cada bicho de una sala que derrotas (o en el que has hecho
--- daño) cuenta para la puerta de esa sala (CaveLogic.countKill); el progreso se guarda en
--- PetData.Cave y se replica en el atributo CaveGates ("15,3"). Las puertas las dibuja cada
--- cliente (solo cierran a quien no las tiene abiertas); por si alguien se cuela, quien esté
--- detrás de una puerta cerrada vuelve delante de ella (Gates.*.Back) con un aviso
--- ("Blocked", { Index }).
+-- nada). CaveEvent avisa a ese jugador para el fundido a negro: ("Fade", { Inside, Cave })
+-- antes de moverlo y ("Arrived", { Inside, Cave, Position, Facing }) al llegar (CaveController
+-- gira la cámara hacia Facing, para que al seguir andando no vuelvas a cruzar). Al llegar se
+-- para el paso que llevara (no sigue andando hacia un portal) y hay una espera entre viajes.
+-- Puertas (CaveConfig.Gates, de todas las cuevas): cada bicho de una sala que derrotas (o en
+-- el que has hecho daño) cuenta para la puerta de esa sala (CaveLogic.countKill; las de
+-- mini-jefe, solo él); el progreso se guarda en PetData.Cave y se replica en el atributo
+-- CaveGates ("15,3,0,0,0,0"). Las puertas las dibuja cada cliente (solo cierran a quien no las
+-- tiene abiertas); por si alguien se cuela, quien esté detrás de una puerta cerrada vuelve
+-- delante de ella (Gates.*.Back) con un aviso ("Blocked", { Index }).
+-- Trampas (Caves.*.Traps, Valle y Caldera): a cada jugador dentro de esa cueva (salvo junto a
+-- donde llega) le sale una cada poco a su lado; se avisa a todos los de la cueva ("Trap",
+-- { Kind, Position, Radius, StrikeAt, Color }) y, pasado el aviso, quita una parte de la vida
+-- máxima a quien siga dentro del círculo.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
@@ -32,12 +38,16 @@ local StudWorld = require(script.Parent.Parent.Util.StudWorld)
 local STREAM_TIMEOUT = 6
 local SYNC_SECONDS = 1 -- cada cuánto se repasa el atributo de las puertas (al cargar los datos)
 local CLOSED = CaveLogic.sanitizeProgress(nil) -- sin datos aún: todas cerradas
+local ARRIVAL_SAFE = 10 -- sin trampas a esta distancia de donde llegas
+local FIRST_TRAP = 3 -- segundos de calma al entrar
 
 local CaveService = {}
 
 local eventRemote: RemoteEvent
 local traveling: { [Player]: boolean } = {}
 local readyAt: { [Player]: number } = {}
+local nextTrapAt: { [Player]: number } = {}
+local random = Random.new()
 
 local function characterOf(player: Player): (Model?, BasePart?, Humanoid?)
 	local character = player.Character
@@ -55,8 +65,13 @@ local function spotCFrame(position: Vector3, facing: Vector3): CFrame
 	return CFrame.lookAt(ground, ground + Vector3.new(facing.X, 0, facing.Z))
 end
 
-local ARRIVAL = spotCFrame(CaveConfig.Arrival.Position, CaveConfig.Arrival.Facing)
-local OUTSIDE = spotCFrame(CaveConfig.Entrance.Exit.Position, CaveConfig.Entrance.Exit.Facing)
+-- Llegada (dentro) y salida (fuera) de cada cueva
+local ARRIVAL: { [string]: CFrame } = {}
+local OUTSIDE: { [string]: CFrame } = {}
+for caveId, cave in CaveConfig.Caves do
+	ARRIVAL[caveId] = spotCFrame(cave.Arrival.Position, cave.Arrival.Facing)
+	OUTSIDE[caveId] = spotCFrame(cave.Entrance.Exit.Position, cave.Entrance.Exit.Facing)
+end
 
 -- Progreso de las puertas del jugador (el mismo de sus datos) o nil si aún no han cargado.
 local function progressOf(player: Player): { number }?
@@ -89,7 +104,7 @@ local function onDefeated(player: Player, info)
 	if not progress then
 		return
 	end
-	local gate, opened = CaveLogic.countKill(progress, info.Home.X, info.Home.Z)
+	local gate, opened = CaveLogic.countKill(progress, info.Home.X, info.Home.Z, info.MiniBoss == true)
 	if gate then
 		PlayerDataService.markDirty(player)
 		syncAttribute(player)
@@ -114,9 +129,9 @@ local function sendBack(player: Player, index: number)
 	eventRemote:FireClient(player, "Blocked", { Index = index })
 end
 
-local function travel(player: Player, destination: CFrame, inside: boolean)
+local function travel(player: Player, destination: CFrame, inside: boolean, caveId: string)
 	traveling[player] = true
-	eventRemote:FireClient(player, "Fade", { Inside = inside })
+	eventRemote:FireClient(player, "Fade", { Inside = inside, Cave = caveId })
 	task.wait(CaveConfig.Travel.FadeSeconds)
 	pcall(function()
 		player:RequestStreamAroundAsync(destination.Position, STREAM_TIMEOUT)
@@ -132,10 +147,71 @@ local function travel(player: Player, destination: CFrame, inside: boolean)
 		humanoid:MoveTo(destination.Position + Vector3.new(0, lift, 0)) -- se queda donde llega
 	end
 	if player.Parent then
-		eventRemote:FireClient(player, "Arrived", { Inside = inside, Position = destination.Position, Facing = destination.LookVector })
+		eventRemote:FireClient(player, "Arrived", { Inside = inside, Cave = caveId, Position = destination.Position, Facing = destination.LookVector })
 	end
 	readyAt[player] = os.clock() + CaveConfig.Travel.Cooldown
+	nextTrapAt[player] = os.clock() + FIRST_TRAP
 	traveling[player] = nil
+end
+
+-- Trampas --------------------------------------------------------------------------------
+
+-- Lanza una trampa junto a `root` en la sala `room` de la cueva `caveId`.
+local function launchTrap(caveId: string, cave, room, root: BasePart)
+	local traps = cave.Traps
+	local spot = CaveLogic.trapSpot(room, root.Position.X, root.Position.Z, traps.Spread or 4, random:NextNumber(), random:NextNumber())
+	local floorY = StudWorld.FloorTop
+	local strikeAt = Workspace:GetServerTimeNow() + traps.Warning
+	local event = {
+		Kind = traps.Kind,
+		Cave = caveId,
+		Position = Vector3.new(spot.X, floorY, spot.Y),
+		Radius = traps.Radius,
+		StrikeAt = strikeAt,
+		Warning = traps.Warning,
+		Color = traps.Color,
+	}
+	-- A todos los que estén en esta cueva (para que vean las de los demás)
+	for _, other in Players:GetPlayers() do
+		local _, otherRoot = characterOf(other)
+		if otherRoot and (CaveLogic.caveAt(otherRoot.Position.X, otherRoot.Position.Z, 4)) == caveId then
+			eventRemote:FireClient(other, "Trap", event)
+		end
+	end
+	task.delay(traps.Warning, function()
+		for _, other in Players:GetPlayers() do
+			local _, otherRoot, humanoid = characterOf(other)
+			if otherRoot and humanoid and not traveling[other] and CaveLogic.trapHits(spot, traps.Radius, otherRoot.Position, floorY) then
+				humanoid:TakeDamage(humanoid.MaxHealth * traps.Damage) -- respeta el escudo de aparición
+			end
+		end
+	end)
+end
+
+local function checkTraps(player: Player, root: BasePart, now: number)
+	local caveId, cave = CaveLogic.caveAt(root.Position.X, root.Position.Z)
+	if not (caveId and cave and cave.Traps) then
+		nextTrapAt[player] = nil
+		return
+	end
+	local _, room = CaveLogic.roomAt(root.Position.X, root.Position.Z)
+	if not room then
+		return -- en los pasillos no salen
+	end
+	local arrival = cave.Arrival.Position
+	if (Vector2.new(root.Position.X, root.Position.Z) - Vector2.new(arrival.X, arrival.Z)).Magnitude < ARRIVAL_SAFE then
+		return
+	end
+	local due = nextTrapAt[player]
+	if not due then
+		nextTrapAt[player] = now + FIRST_TRAP
+		return
+	end
+	if now < due then
+		return
+	end
+	nextTrapAt[player] = now + CaveLogic.trapDelay(cave.Traps, random:NextNumber())
+	launchTrap(caveId, cave, room, root)
 end
 
 local function check()
@@ -149,15 +225,22 @@ local function check()
 			continue
 		end
 		local position = root.Position
-		if CaveLogic.inEntrance(position, StudWorld.FloorTop) then
-			task.spawn(travel, player, ARRIVAL, true)
-		elseif CaveLogic.exitAt(position) then
-			task.spawn(travel, player, OUTSIDE, false)
+		local entrance = CaveLogic.inEntrance(position, StudWorld.FloorTop)
+		local exitIndex = if entrance then nil else CaveLogic.exitAt(position)
+		if entrance then
+			task.spawn(travel, player, ARRIVAL[entrance], true, entrance)
+		elseif exitIndex then
+			local caveId = CaveConfig.Exits[exitIndex].Cave
+			task.spawn(travel, player, OUTSIDE[caveId], false, caveId)
 		elseif CaveLogic.inside(position.X, position.Z) then
 			local blocked = CaveLogic.blockedAt(position.X, position.Z, progressOf(player) or CLOSED)
 			if blocked then
 				sendBack(player, blocked)
+			else
+				checkTraps(player, root, now)
 			end
+		else
+			nextTrapAt[player] = nil
 		end
 	end
 end
@@ -179,6 +262,7 @@ function CaveService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		traveling[player] = nil
 		readyAt[player] = nil
+		nextTrapAt[player] = nil
 	end)
 	task.spawn(function()
 		local lastSync = 0

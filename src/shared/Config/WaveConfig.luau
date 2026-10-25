@@ -1,9 +1,10 @@
 -- Oleadas: la mecánica principal del rediseño "solo disparar".
--- En cada zona hay un círculo con un altar y una columna de luz (Places): en el Bosque, en la
--- sala 3 de la Cueva de los Espinillos (CaveConfig: se entra por la boca de la colina oeste
--- y se cruzan las salas de los pequeños y de los medianos); en el Valle y la Caldera, a la
--- derecha de la llegada. Pulsas E y empieza TU partida, con los enemigos y el jefe de esa
--- zona. En la pradera oeste del Bosque queda el altar de la práctica del tutorial.
+-- En cada zona hay un círculo con un altar y una columna de luz (Places), en la sala 3 de su
+-- mazmorra (CaveConfig: Cueva de los Espinillos, Cueva de Amatista y Forja de Magma; se
+-- entra por su boca y se cruzan las salas de los pequeños y de los medianos). Pulsas E y
+-- empieza TU partida, con los enemigos y el jefe de esa zona; al ganar sale un cofre con 💰
+-- y a veces una poción (Arenas.*.Chest). En la pradera oeste del Bosque queda el altar de la
+-- práctica del tutorial.
 -- Las partidas son PRIVADAS: mientras juegas, los enemigos normales desaparecen para ti (y
 -- no te atacan) y solo ves y golpeas los de tu partida; otros jugadores pueden jugar la suya
 -- en el mismo círculo a la vez sin verse los enemigos. Quien pulse E durante la cuenta atrás
@@ -16,6 +17,19 @@
 --
 -- [PROVISIONAL] Todos los números son un primer balance para probar la sensación en
 -- Studio. Se ajustan jugando.
+
+-- Por dónde salen los bichos de las oleadas en la sala del altar de las mazmorras (relativo
+-- al altar: el pasillo de la sala 2, las paredes norte y sur y junto a las esquinas). Las tres
+-- cuevas tienen la misma forma.
+local CAVE_SPAWN_POINTS = {
+	Vector2.new(48, 0),
+	Vector2.new(0, -48),
+	Vector2.new(0, 48),
+	Vector2.new(30, -46),
+	Vector2.new(-30, -46),
+	Vector2.new(30, 46),
+	Vector2.new(-30, 46),
+}
 
 local WaveConfig = {
 	-- Medidas de todos los círculos.
@@ -48,15 +62,7 @@ local WaveConfig = {
 			Offset = Vector2.new(-1220, 5),
 			Arena = "Forest",
 			Cave = true,
-			SpawnPoints = {
-				Vector2.new(48, 0),
-				Vector2.new(0, -48),
-				Vector2.new(0, 48),
-				Vector2.new(30, -46),
-				Vector2.new(-30, -46),
-				Vector2.new(30, 46),
-				Vector2.new(-30, 46),
-			},
+			SpawnPoints = CAVE_SPAWN_POINTS,
 			SpawnJitter = 2.5,
 			LeashRadius = 72,
 			-- Dentro de la partida se cuenta toda la sala (no solo el círculo): para ir a por
@@ -66,9 +72,39 @@ local WaveConfig = {
 		-- Pradera oeste, a unos 90 studs a la izquierda del spawn (que está en (0, 43)), con el
 		-- borde del mapa a 15 studs del círculo: la práctica del tutorial.
 		Practice = { Zone = "Forest", Offset = Vector2.new(-69, 98), Arena = "Tutorial", Practice = true },
-		-- A la derecha de la llegada desde el portal ((0, -132) en las dos zonas).
-		CrystalValley = { Zone = "CrystalValley", Offset = Vector2.new(36, -124), Arena = "CrystalValley" },
-		EmberCaldera = { Zone = "EmberCaldera", Offset = Vector2.new(36, -124), Arena = "EmberCaldera" },
+		-- Sala 3 de la Cueva de Amatista y de la Forja de Magma (CaveConfig.Caves: la misma cueva
+		-- movida a cada zona, así que el mismo Offset relativo a su zona).
+		CrystalValley = {
+			Zone = "CrystalValley",
+			Offset = Vector2.new(-1220, 5),
+			Arena = "CrystalValley",
+			Cave = true,
+			SpawnPoints = CAVE_SPAWN_POINTS,
+			SpawnJitter = 2.5,
+			LeashRadius = 72,
+			InsideRadius = 64,
+		},
+		EmberCaldera = {
+			Zone = "EmberCaldera",
+			Offset = Vector2.new(-1220, 5),
+			Arena = "EmberCaldera",
+			Cave = true,
+			SpawnPoints = CAVE_SPAWN_POINTS,
+			SpawnJitter = 2.5,
+			LeashRadius = 72,
+			InsideRadius = 64,
+		},
+		-- Sala 3 de la Gruta Glacial (Tundra Helada)
+		FrozenTundra = {
+			Zone = "FrozenTundra",
+			Offset = Vector2.new(-1220, 5),
+			Arena = "FrozenTundra",
+			Cave = true,
+			SpawnPoints = CAVE_SPAWN_POINTS,
+			SpawnJitter = 2.5,
+			LeashRadius = 72,
+			InsideRadius = 64,
+		},
 	},
 
 	-- Modos de partida. Cada altar juega el de su círculo (Places.*.Arena); el de la práctica
@@ -100,6 +136,9 @@ local WaveConfig = {
 				{ Thornling = 20, Barkbrute = 4 },
 			},
 			BossEscort = { StarterThornling = 6, Thornling = 2 },
+			-- Cofre al ganar (para cada jugador): 💰 Money y, con PotionChance, una poción al azar
+			-- (ItemConfig.Potions) para el inventario.
+			Chest = { Money = 1500, PotionChance = 0.3 },
 		},
 		-- Valle Morado: Fragmentos y Gólems de Geoda; el Coloso de Amatista solo sale aquí.
 		CrystalValley = {
@@ -109,6 +148,7 @@ local WaveConfig = {
 			Boss = "AmethystColossus",
 			BossOnlyInWaves = true,
 			Pool = { Shardling = 80, GeodeGolem = 30, AmethystColossus = 6 },
+			-- Oleadas 1..11 y la 12, el jefe (más que en el Bosque)
 			Waves = {
 				{ Shardling = 8 },
 				{ Shardling = 10 },
@@ -119,9 +159,16 @@ local WaveConfig = {
 				{ Shardling = 14, GeodeGolem = 3 },
 				{ Shardling = 14, GeodeGolem = 4 },
 				{ Shardling = 16, GeodeGolem = 5 },
+				{ Shardling = 18, GeodeGolem = 5 },
+				{ Shardling = 20, GeodeGolem = 6 },
 			},
 			BossEscort = { Shardling = 6, GeodeGolem = 2 },
 			RewardScale = 3,
+			-- Parte de los bichos de las oleadas que salen élite (EnemyConfig.Elite), como mucho
+			-- EliteMax a la vez en cada tipo
+			EliteChance = 0.08,
+			EliteMax = 6,
+			Chest = { Money = 6000, PotionChance = 0.4 },
 		},
 		-- Caldera de Brasas: Chispas y Gólems de Magma; el Titán de la Caldera solo sale aquí.
 		EmberCaldera = {
@@ -131,6 +178,7 @@ local WaveConfig = {
 			Boss = "CalderaTitan",
 			BossOnlyInWaves = true,
 			Pool = { Cinderling = 80, MagmaGolem = 30, CalderaTitan = 6 },
+			-- Oleadas 1..14 y la 15, el jefe
 			Waves = {
 				{ Cinderling = 8 },
 				{ Cinderling = 10 },
@@ -141,9 +189,51 @@ local WaveConfig = {
 				{ Cinderling = 14, MagmaGolem = 3 },
 				{ Cinderling = 14, MagmaGolem = 4 },
 				{ Cinderling = 16, MagmaGolem = 5 },
+				{ Cinderling = 18, MagmaGolem = 5 },
+				{ Cinderling = 18, MagmaGolem = 6 },
+				{ Cinderling = 20, MagmaGolem = 6 },
+				{ Cinderling = 20, MagmaGolem = 7 },
+				{ Cinderling = 22, MagmaGolem = 8 },
 			},
 			BossEscort = { Cinderling = 6, MagmaGolem = 2 },
 			RewardScale = 8,
+			EliteChance = 0.12,
+			EliteMax = 8,
+			Chest = { Money = 20000, PotionChance = 0.5 },
+		},
+		-- Tundra Helada: Lobos de Escarcha y Yetis; el Gólem de Hielo solo sale aquí.
+		FrozenTundra = {
+			Place = "FrozenTundra",
+			Zone = "FrozenTundra",
+			DisplayName = "Oleadas del Gólem de Hielo",
+			Boss = "IceGolem",
+			BossOnlyInWaves = true,
+			Pool = { FrostWolf = 90, Yeti = 34, IceGolem = 6 },
+			-- Oleadas 1..17 y la 18, el jefe
+			Waves = {
+				{ FrostWolf = 8 },
+				{ FrostWolf = 10 },
+				{ FrostWolf = 10, Yeti = 1 },
+				{ FrostWolf = 12, Yeti = 1 },
+				{ FrostWolf = 12, Yeti = 2 },
+				{ FrostWolf = 12, Yeti = 3 },
+				{ FrostWolf = 14, Yeti = 3 },
+				{ FrostWolf = 14, Yeti = 4 },
+				{ FrostWolf = 16, Yeti = 4 },
+				{ FrostWolf = 16, Yeti = 5 },
+				{ FrostWolf = 18, Yeti = 5 },
+				{ FrostWolf = 18, Yeti = 6 },
+				{ FrostWolf = 20, Yeti = 6 },
+				{ FrostWolf = 20, Yeti = 7 },
+				{ FrostWolf = 22, Yeti = 7 },
+				{ FrostWolf = 22, Yeti = 8 },
+				{ FrostWolf = 24, Yeti = 9 },
+			},
+			BossEscort = { FrostWolf = 8, Yeti = 3 },
+			RewardScale = 20,
+			EliteChance = 0.15,
+			EliteMax = 10,
+			Chest = { Money = 70000, PotionChance = 0.6 },
 		},
 		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla, en el altar de
 		-- la pradera (Places.Practice).

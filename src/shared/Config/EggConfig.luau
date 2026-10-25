@@ -5,6 +5,12 @@
 -- 3. Huevo Ancestral (💰 20,000): Tortuga Cristalina, Cervatillo Esmeralda, Dragón de Amatista
 -- 4. Huevo Clásico (💰 7,500): Perrito, Conejito, Osito y Dragoncito (modelos 3D de
 --    mascotas-clasico.glb). Va en el pedestal rosa del Arcoíris (Gardens.Forest.RainbowOffset).
+-- Tundra Helada (en la plaza de los Huevos de Hielo; hay que tener la zona):
+-- 5. Huevo de Escarcha (💰 150,000) y 6. Huevo Glaciar (💰 600,000).
+-- Mundo 2 (Jardín Celestial, junto a la plaza del pueblo; hay que haber llegado al Mundo 2):
+-- 7. Huevo Estelar (💰 2.5 M), 8. Huevo Celestial (💰 9 M) y 9. Huevo Cósmico (💰 30 M).
+-- FaceToward: hacia dónde mira el pedestal (relativo al centro de su zona); sin él, al altar
+-- del Jardín de los Huevos del Bosque.
 
 local EggConfig = {
 	MaxPurchaseDistance = 20,
@@ -73,6 +79,140 @@ local EggConfig = {
 	},
 
 	Eggs = {
+		-- Tundra Helada ----------------------------------------------------------------------
+		FrostEgg = {
+			DisplayName = "Huevo de Escarcha",
+			RarityTitle = "ESCARCHA",
+			TitleColor = Color3.fromRGB(150, 220, 255),
+			Enabled = true,
+			Order = 6,
+			Cost = 150000,
+			RequiredLevel = 0,
+			Zone = "FrozenTundra",
+			RequiredZone = "FrozenTundra",
+			Chances = {
+				{ PetId = "FrostFox", Chance = 55 },
+				{ PetId = "SnowOwl", Chance = 33 },
+				{ PetId = "IceTurtle", Chance = 12 },
+			},
+			StandOffset = Vector2.new(30, -1),
+			FaceToward = Vector2.new(0, -1),
+			Pedestal = "Raro",
+			Look = {
+				Style = "Lightning",
+				Shell = Color3.fromRGB(205, 238, 255),
+				Spots = Color3.fromRGB(255, 255, 255),
+				Accent = Color3.fromRGB(120, 210, 255),
+				BaseColor = Color3.fromRGB(42, 86, 148),
+			},
+		},
+		GlacierEgg = {
+			DisplayName = "Huevo Glaciar",
+			RarityTitle = "GLACIAR",
+			TitleColor = Color3.fromRGB(110, 180, 255),
+			Enabled = true,
+			Order = 7,
+			Cost = 600000,
+			RequiredLevel = 0,
+			Zone = "FrozenTundra",
+			RequiredZone = "FrozenTundra",
+			Chances = {
+				{ PetId = "PolarFawn", Chance = 55 },
+				{ PetId = "AuroraFox", Chance = 33 },
+				{ PetId = "FrostDragon", Chance = 12 },
+			},
+			StandOffset = Vector2.new(30, 19),
+			FaceToward = Vector2.new(0, 19),
+			Pedestal = "Raro",
+			Look = {
+				Style = "Lightning",
+				Shell = Color3.fromRGB(90, 160, 240),
+				Spots = Color3.fromRGB(200, 240, 255),
+				Accent = Color3.fromRGB(170, 230, 255),
+				BaseColor = Color3.fromRGB(42, 86, 148),
+			},
+		},
+
+		-- Mundo 2 ---------------------------------------------------------------------------
+		StarEgg = {
+			DisplayName = "Huevo Estelar",
+			RarityTitle = "ESTELAR",
+			TitleColor = Color3.fromRGB(255, 226, 90),
+			Enabled = true,
+			Order = 8,
+			Cost = 2500000,
+			RequiredLevel = 0,
+			Zone = "World2",
+			RequiredZone = "World2",
+			Chances = {
+				{ PetId = "StarFox", Chance = 55 },
+				{ PetId = "MoonMushroom", Chance = 33 },
+				{ PetId = "CometOwl", Chance = 12 },
+			},
+			StandOffset = Vector2.new(-22, -62),
+			FaceToward = Vector2.new(0, -20),
+			Pedestal = "Raro",
+			Look = {
+				Style = "Lightning",
+				Shell = Color3.fromRGB(70, 70, 150),
+				Spots = Color3.fromRGB(255, 226, 90),
+				Accent = Color3.fromRGB(255, 226, 90),
+				BaseColor = Color3.fromRGB(42, 86, 148),
+			},
+		},
+		CelestialEgg = {
+			DisplayName = "Huevo Celestial",
+			RarityTitle = "CELESTIAL",
+			TitleColor = Color3.fromRGB(255, 240, 190),
+			Enabled = true,
+			Order = 9,
+			Cost = 9000000,
+			RequiredLevel = 0,
+			Zone = "World2",
+			RequiredZone = "World2",
+			Chances = {
+				{ PetId = "CelestialFawn", Chance = 55 },
+				{ PetId = "SunTurtle", Chance = 33 },
+				{ PetId = "CelestialDragon", Chance = 12 },
+			},
+			StandOffset = Vector2.new(0, -74),
+			FaceToward = Vector2.new(0, -20),
+			Pedestal = "Arcoiris",
+			Look = {
+				Style = "Lightning",
+				Shell = Color3.fromRGB(255, 248, 228),
+				Spots = Color3.fromRGB(255, 210, 90),
+				Accent = Color3.fromRGB(255, 210, 90),
+				BaseColor = Color3.fromRGB(242, 48, 128),
+			},
+		},
+		CosmicEgg = {
+			DisplayName = "Huevo Cósmico",
+			RarityTitle = "CÓSMICO",
+			TitleColor = Color3.fromRGB(220, 130, 255),
+			Enabled = true,
+			Order = 10,
+			Cost = 30000000,
+			RequiredLevel = 0,
+			Zone = "World2",
+			RequiredZone = "World2",
+			Chances = {
+				{ PetId = "GalaxyFox", Chance = 55 },
+				{ PetId = "CosmicSprout", Chance = 33 },
+				{ PetId = "CosmicDragon", Chance = 12 },
+			},
+			StandOffset = Vector2.new(22, -62),
+			FaceToward = Vector2.new(0, -20),
+			Pedestal = "Arcoiris",
+			Look = {
+				Style = "Rainbow",
+				Shell = Color3.fromRGB(150, 90, 230),
+				Spots = Color3.fromRGB(255, 120, 230),
+				Accent = Color3.fromRGB(220, 130, 255),
+				BaseColor = Color3.fromRGB(242, 48, 128),
+			},
+		},
+
 		ForestEgg = {
 			DisplayName = "COMÚN",
 			RarityTitle = "COMÚN",

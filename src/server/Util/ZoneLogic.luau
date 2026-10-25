@@ -7,15 +7,34 @@ local ZoneLogic = {}
 export type ProfileLike = { Money: number, PetData: { UnlockedZones: { string }, Bosses: { [string]: number }? } }
 export type Codes = { [string]: string }
 
+-- Las zonas sin precio están abiertas, salvo las que piden un jefe (RequiredBoss, como el
+-- Mundo 2): esas se abren solas al derrotarlo (BossRewardService la apunta en UnlockedZones).
 function ZoneLogic.isUnlocked(profile: ProfileLike, zoneConfig, zoneId: string): boolean
 	local zone = zoneConfig.Zones[zoneId]
 	if not zone then
 		return false
 	end
-	if (zone.UnlockCost or 0) <= 0 then
+	if table.find(profile.PetData.UnlockedZones, zoneId) ~= nil then
 		return true
 	end
-	return table.find(profile.PetData.UnlockedZones, zoneId) ~= nil
+	if (zone.UnlockCost or 0) <= 0 then
+		return zone.RequiredBoss == nil or ZoneLogic.bossDefeated(profile, zoneConfig, zoneId)
+	end
+	return false
+end
+
+-- Zonas sin precio que abre este jefe al derrotarlo (las que aún no estaban en la lista se
+-- añaden a UnlockedZones). Devuelve las que se acaban de abrir.
+function ZoneLogic.unlockByBoss(profile: ProfileLike, zoneConfig, bossType: string): { string }
+	local opened = {}
+	for zoneId, zone in zoneConfig.Zones do
+		if zone.RequiredBoss == bossType and (zone.UnlockCost or 0) <= 0 and not table.find(profile.PetData.UnlockedZones, zoneId) then
+			table.insert(profile.PetData.UnlockedZones, zoneId)
+			table.insert(opened, zoneId)
+		end
+	end
+	table.sort(opened)
+	return opened
 end
 
 -- Renacimientos que pide una zona además de su precio (0 si ninguno).

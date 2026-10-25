@@ -91,7 +91,8 @@ local STORE_NAME = "RebirthCity_PlayerData_v1"
 --     en 💰 al cargar; ver migrateEconomy) y Skills (habilidades de los estilos; sin el campo,
 --     las iniciales, y quien ya jugaba no vuelve a elegir estilo).
 -- 14: añade Classes (clases de los estilos; sin el campo, la gratis de cada estilo).
-local SCHEMA_VERSION = 14
+-- 15: añade World (mundo en el que estabas, 1 o 2: apareces allí; sin el campo, el 1).
+local SCHEMA_VERSION = 15
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -137,6 +138,7 @@ export type PetData = {
 	EconomyVersion: number, -- versión de la economía de este registro (EconomyConfig.Version)
 	Skills: SkillLogic.SkillData, -- habilidades de cada estilo, niveles y las puestas (StyleService)
 	Classes: ClassLogic.ClassData, -- clases de cada estilo, niveles y la activa (StyleService)
+	World: number, -- mundo en el que estabas (1 o 2; ZoneService: apareces allí)
 	-- Solo en memoria (no se guarda): lo convertido al cargar, para avisar al jugador.
 	EconomyConverted: { Energy: number, Money: number }?,
 }
@@ -221,6 +223,7 @@ function SaveService.emptyData(): PetData
 		EconomyVersion = EconomyConfig.Version,
 		Skills = SkillLogic.empty(),
 		Classes = ClassLogic.empty(),
+		World = 1,
 	}
 end
 
@@ -453,6 +456,8 @@ local function sanitize(raw: any): PetData
 	end
 	-- Clases: sin el campo (v13 o anteriores), la gratis de cada estilo.
 	result.Classes = ClassLogic.sanitize(raw.Classes)
+	-- Mundo: sin el campo (v14 o anteriores) o uno que no existe, el 1.
+	result.World = if raw.World == 2 then 2 else 1
 
 	return result
 end
@@ -546,6 +551,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local economyVersion = if isFiniteNumber(data.EconomyVersion) then data.EconomyVersion else EconomyConfig.Version
 	local skills = SkillLogic.serialize(data.Skills or SkillLogic.empty())
 	local classes = ClassLogic.serialize(data.Classes or ClassLogic.empty())
+	local world = if data.World == 2 then 2 else 1
 	local key = keyFor(userId)
 
 	for attempt = 1, SAVE_ATTEMPTS do
@@ -592,6 +598,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.EconomyVersion = economyVersion
 				stored.Skills = skills
 				stored.Classes = classes
+				stored.World = world
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)

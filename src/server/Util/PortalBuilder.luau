@@ -6,7 +6,9 @@
 -- del hueco del arco, sus chispas y la luz.
 --
 -- Estilos: Ancient (bosque -> Valle, el diseño tal cual), Return (vuelta al bosque: piedra
--- lavanda y energía verde) y Ember (Valle -> Caldera: basalto, ceniza y energía de lava).
+-- lavanda y energía verde), Ember (Valle -> Caldera: basalto, ceniza y energía de lava) y
+-- Goblin (el portal gigante de la Fortaleza al Mundo 2: piedra oscura con musgo, oro y
+-- energía verde).
 
 local PortalDesign = require(script.Parent.PortalDesign)
 
@@ -57,6 +59,28 @@ local STYLES = {
 			edge = { Color = RGB(200, 255, 196), Material = M.Neon },
 			rune_ring1 = { Color = RGB(150, 236, 150), Material = M.Neon },
 			crystal_blue = { Color = RGB(120, 232, 180), Material = M.Neon },
+		},
+	},
+	Goblin = {
+		Energy = RGB(120, 255, 110),
+		Sparks = RGB(255, 220, 90),
+		Looks = {
+			darkstone = { Color = RGB(58, 62, 52), Material = M.Slate },
+			warmstone = { Color = RGB(96, 100, 82), Material = M.Slate },
+			stone = { Color = RGB(78, 82, 70), Material = M.Slate },
+			ancient = { Color = RGB(92, 96, 80), Material = M.Slate },
+			ancient_dark = { Color = RGB(64, 68, 56), Material = M.Slate },
+			gold = { Color = RGB(240, 196, 70), Material = M.Metal },
+			moss = { Color = RGB(80, 140, 50), Material = M.Grass },
+			moss_light = { Color = RGB(110, 170, 64), Material = M.Grass },
+			rune = { Color = RGB(120, 255, 110), Material = M.Neon },
+			edge = { Color = RGB(200, 255, 170), Material = M.Neon },
+			rune_ring1 = { Color = RGB(120, 255, 110), Material = M.Neon },
+			rune_ring2 = { Color = RGB(255, 220, 90), Material = M.Neon },
+			rune_ring3 = { Color = RGB(255, 120, 80), Material = M.Neon },
+			crystal_blue = { Color = RGB(110, 255, 140), Material = M.Neon },
+			crystal_violet = { Color = RGB(255, 210, 80), Material = M.Neon },
+			crystal_gold = { Color = RGB(255, 236, 120), Material = M.Neon },
 		},
 	},
 	Ember = {

@@ -5,6 +5,8 @@
 --   (capas cada vez más opacas) con chispas moradas: al cruzarla, CaveService te lleva dentro
 --   de la cueva (CaveConfig, lejos del mapa; la construye CaveDungeon).
 -- - Antorchas a los lados de la boca y el cartel encima.
+-- buildMound: la boca de las otras mazmorras (Valle y Caldera, CaveConfig.Caves.*.Entrance.Mound):
+-- un montículo de roca de bloques con el túnel en medio, la misma bruma, antorchas y cartel.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -158,6 +160,83 @@ function ForestCave.build(parent: Instance, layout)
 
 	-- 4. Cartel encima de la boca, en la cara de la colina que mira a la pradera
 	ForestCave.sign(model, "CartelCueva", Vector3.new(0.6, 5.2, 18), CFrame.new(opening.MaxX + 0.35, doorTop + 3.4, midZ), Enum.NormalId.Right, "⚠ " .. string.upper(cave.Name))
+
+	model.Parent = parent
+	return model
+end
+
+-- Boca de una mazmorra fuera del Bosque: montículo de Depth × Span (bloques de 8) y 3 filas de
+-- alto (más una joroba encima), con un túnel de Width × Height desde el frente (Front, que
+-- mira hacia Facing) hasta el bloque del fondo; dentro, la bruma que lleva a la cueva
+-- (CaveService: Entrance.Trigger, en el fondo del túnel).
+function ForestCave.buildMound(parent: Instance, cave)
+	local spec = cave.Entrance.Mound
+	local theme = cave.Theme or {}
+	local rock = theme.Rock or ROCK
+	local mistColor = theme.Mist or MIST
+	local facing = Vector3.new(spec.Facing.X, 0, spec.Facing.Z).Unit
+	local floorTop = StudWorld.FloorTop
+	-- Marco: -Z local mira hacia fuera (Facing); X local a lo ancho; el montículo va hacia +Z
+	local front = Vector3.new(spec.Front.X, GROUND, spec.Front.Z)
+	local frame = CFrame.lookAt(front, front + facing)
+	local model = Instance.new("Model")
+	model.Name = "BocaCueva_" .. tostring(cave.Id)
+	local cols = math.round(spec.Span / B)
+	local deep = math.round(spec.Depth / B)
+	local tunnelCols = math.round(spec.Width / B)
+	local tunnelRows = math.round(spec.Height / B)
+	local firstTunnel = math.floor((cols - tunnelCols) / 2) + 1
+	local rocks = PartFactory.folder(model, "Roca")
+	for d = 1, deep do
+		for c = 1, cols do
+			for row = 1, tunnelRows + 1 do
+				local inTunnel = c >= firstTunnel and c < firstTunnel + tunnelCols and row <= tunnelRows and d < deep
+				if not inTunnel then
+					local offset = CFrame.new((c - (cols + 1) / 2) * B, (row - 0.5) * B, (d - 0.5) * B)
+					local part = block(rocks, ("roca_%d_%d_%d"):format(d, c, row), Vector3.new(B, B, B), frame * offset, rock[(d + c + row) % 2 + 1], true)
+					StudWorld.studFace(part, Enum.NormalId.Front, B, B)
+					StudWorld.studFace(part, Enum.NormalId.Top, B, B)
+				end
+			end
+		end
+	end
+	-- Joroba encima (más estrecha)
+	for d = 1, deep - 1 do
+		for c = 2, cols - 1 do
+			local offset = CFrame.new((c - (cols + 1) / 2) * B, (tunnelRows + 1.5) * B, (d + 0.5) * B)
+			local part = block(rocks, ("joroba_%d_%d"):format(d, c), Vector3.new(B, B, B), frame * offset, rock[(d + c) % 2 + 1], true)
+			StudWorld.studFace(part, Enum.NormalId.Top, B, B)
+		end
+	end
+
+	-- Bruma: capas oscuras cada vez más opacas hacia el fondo del túnel, con chispas
+	local mist = PartFactory.folder(model, "Bruma")
+	local back = (deep - 1) * B -- fondo del túnel (en Z local)
+	local layers = { { 0.6, 0.86 }, { 2.8, 0.68 }, { 5, 0.42 }, { 7.4, 0.12 } }
+	local deepest: Part? = nil
+	local tunnelHeight = tunnelRows * B
+	local lift = floorTop - GROUND
+	for index, layer in layers do
+		local z = back - B + layer[1]
+		local part = block(mist, "Bruma" .. index, Vector3.new(spec.Width, tunnelHeight - lift, 0.2), frame * CFrame.new(0, (tunnelHeight + lift) / 2, z), DARK, false)
+		part.Material = Enum.Material.SmoothPlastic
+		part.Transparency = layer[2]
+		part.CastShadow = false
+		deepest = part
+	end
+	if deepest then
+		ForestCave.motes(deepest, mistColor, Enum.NormalId.Front, 14)
+		light(deepest, mistColor, 14, 0.8)
+	end
+
+	-- Antorchas a los lados de la boca y cartel encima
+	local torches = PartFactory.folder(model, "Torches")
+	for _, side in { -1, 1 } do
+		local p = frame * CFrame.new(side * (spec.Width / 2 + 2.5), lift + 1.7, -1.2)
+		ForestCave.torch(torches, p.Position)
+	end
+	local signCFrame = frame * CFrame.new(0, tunnelHeight + 3.4, -0.35)
+	ForestCave.sign(model, "CartelCueva", Vector3.new(18, 5.2, 0.6), signCFrame, Enum.NormalId.Front, ("⚠ %s %s"):format(cave.Icon or "", string.upper(cave.Name)))
 
 	model.Parent = parent
 	return model

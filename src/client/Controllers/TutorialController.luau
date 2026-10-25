@@ -76,11 +76,11 @@ local function guideTarget(guide: string?): (Vector3?, string?)
 		-- Fuera: la boca de la cueva. Dentro: la primera puerta cerrada (delante de ella) o, con
 		-- todas abiertas, el altar de las Oleadas del Guardián.
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		local inside = root ~= nil and root:IsA("BasePart") and CaveLogic.inside(root.Position.X, root.Position.Z, 4)
+		local inside = root ~= nil and root:IsA("BasePart") and (CaveLogic.caveAt(root.Position.X, root.Position.Z, 4)) == CaveConfig.Zone
 		if inside then
 			local progress = CaveLogic.parseProgress(player:GetAttribute(Attributes.CaveGates))
 			for index, gate in CaveConfig.Gates do
-				if not CaveLogic.isOpen(progress, index) then
+				if gate.Cave == CaveConfig.Zone and not CaveLogic.isOpen(progress, index) then
 					local front = gate.Position + gate.Facing * 4
 					return Vector3.new(front.X, GeneratorConfig.Position.Y + 6, front.Z), CaveConfig.Zone
 				end

@@ -83,6 +83,14 @@ for portalId, portal in ZoneConfig.Portals do
 	end
 	reach[portal.Target] = true
 end
+-- Los portales entre mundos (el arco gigante al Mundo 2 y el de vuelta) también llevan a zonas
+for portalId, portal in ZoneConfig.WorldPortals or {} do
+	if not ZoneConfig.Zones[portal.Zone] or not ZoneConfig.Zones[portal.Target] or portal.Zone == portal.Target then
+		portalsOk = false
+		print("  portal entre mundos mal definido: " .. portalId)
+	end
+	reach[portal.Target] = true
+end
 check("cada portal está en una zona y lleva a otra", portalsOk)
 local reachOk = true
 for zoneId in ZoneConfig.Zones do
@@ -254,5 +262,85 @@ for portalId, portal in ZoneConfig.Portals do
 end
 check("las llegadas quedan fuera de los portales y los portales no se pisan", roomOk)
 check("cada portal entero es zona protegida de los enemigos", guardOk)
+
+print("-- 5. Tundra Helada, Fortaleza Goblin y Mundo 2")
+local tundra, fortress, world2 = ZoneConfig.Zones.FrozenTundra, ZoneConfig.Zones.GoblinFortress, ZoneConfig.Zones.World2
+check("la Tundra pide al Titán y la Fortaleza al Gólem de Hielo, y cada una cuesta más que la anterior",
+	tundra.RequiredBoss == "CalderaTitan" and fortress.RequiredBoss == "IceGolem" and tundra.UnlockCost > caldera.UnlockCost and fortress.UnlockCost > tundra.UnlockCost
+		and EnemyConfig.Types.IceGolem.Kind == "Boss" and EnemyConfig.Types.GoblinKing.Kind == "Boss")
+check("el Rey Goblin es el más duro y el más rápido (corre más que tú: 28)", EnemyConfig.Types.GoblinKing.MaxHealth > EnemyConfig.Types.IceGolem.MaxHealth and EnemyConfig.Types.GoblinKing.WalkSpeed > 28
+	and EnemyConfig.Types.GoblinKing.Charge and EnemyConfig.Types.GoblinKing.Leap and EnemyConfig.Types.GoblinKing.Volley and EnemyConfig.Types.GoblinKing.Slam and EnemyConfig.Zones.GoblinFortress.Boss.Type == "GoblinKing")
+local w = profile(0, {}, { ForestWarden = 1 })
+check("el Mundo 2 no tiene precio pero está cerrado sin derrotar al Rey Goblin", world2.UnlockCost == 0 and world2.RequiredBoss == "GoblinKing" and not ZoneLogic.isUnlocked(w, ZoneConfig, "World2"))
+check("y no se puede comprar: BossLocked", ZoneLogic.unlock(w, ZoneConfig, "World2", Codes, 0) == Codes.BossLocked and #w.PetData.UnlockedZones == 0)
+check("otro jefe no lo abre", #ZoneLogic.unlockByBoss(w, ZoneConfig, "CalderaTitan") == 0 and not ZoneLogic.isUnlocked(w, ZoneConfig, "World2"))
+w.PetData.Bosses.GoblinKing = 1
+local opened = ZoneLogic.unlockByBoss(w, ZoneConfig, "GoblinKing")
+check("el Rey Goblin lo abre y queda en UnlockedZones (para los huevos y las armas del Mundo 2)", #opened == 1 and opened[1] == "World2" and table.find(w.PetData.UnlockedZones, "World2") ~= nil and ZoneLogic.isUnlocked(w, ZoneConfig, "World2"))
+check("matarlo otra vez no lo apunta dos veces", #ZoneLogic.unlockByBoss(w, ZoneConfig, "GoblinKing") == 0 and #w.PetData.UnlockedZones == 1)
+check("las zonas sin jefe ni precio siguen abiertas (el bosque)", ZoneLogic.isUnlocked(profile(0, {}, {}), ZoneConfig, "Forest"))
+local portal = ZoneConfig.WorldPortals.World2Portal
+check("el portal gigante está al fondo de la Fortaleza y lleva al Mundo 2; el de vuelta, al Mundo 1", portal.Zone == "GoblinFortress" and portal.Target == "World2" and (portal.Scale or 0) >= 4
+	and ZoneConfig.WorldPortals.ReturnPortal.Zone == "World2" and ZoneConfig.WorldPortals.ReturnPortal.Target == ZoneConfig.DefaultZone)
+
+-- Mapas de bloques: todo en bordes de bloque (8k ± 4) y lo importante, sobre el suelo
+local function edge(v: number): boolean
+	return (v - 4) % 8 == 0 or (v + 4) % 8 == 0
+end
+local edgesOk = true
+for zoneId, layout in StudFloor.Zones do
+	local values = { layout.MinX, layout.MaxX, layout.MinZ, layout.MaxZ }
+	for _, r in layout.Paths do
+		table.move(r, 1, 4, #values + 1, values)
+	end
+	for _, row in layout.Outline or {} do
+		table.move(row, 1, 3, #values + 1, values)
+	end
+	for _, v in values do
+		if not edge(v) then
+			edgesOk = false
+			print("  fuera de borde de bloque en " .. zoneId .. ": " .. v)
+		end
+	end
+end
+check("los mapas de bloques (también los nuevos) van en bordes de bloque", edgesOk)
+local base = GeneratorConfig.Position
+local function worldOf(zoneId: string, offset): (number, number)
+	local zone = ZoneConfig.Zones[zoneId]
+	return base.X + zone.Center.X + offset.X, base.Z + zone.Center.Y + (offset.Z or offset.Y)
+end
+local floorOk = true
+local function onFloor(zoneId: string, offset, what: string, margin: number?)
+	local layout = StudFloor.Zones[zoneId]
+	local x, z = worldOf(zoneId, offset)
+	if not (layout and StudFloor.onFloor(layout, x, z, margin)) then
+		floorOk = false
+		print(("  %s de %s fuera del suelo (%.0f, %.0f)"):format(what, zoneId, x, z))
+	end
+end
+for _, zoneId in { "FrozenTundra", "GoblinFortress", "World2" } do
+	onFloor(zoneId, ZoneConfig.Zones[zoneId].Arrival, "la llegada", 4)
+	local enemies = EnemyConfig.Zones[zoneId]
+	for _, spawn in (enemies and enemies.Spawns) or {} do
+		if math.abs(spawn.Offset.X) < 400 then -- (los de la mazmorra están lejos del mapa)
+			onFloor(zoneId, spawn.Offset, spawn.Type, 2)
+		end
+	end
+	if enemies and enemies.Boss then
+		onFloor(zoneId, enemies.Boss.Arena.Center, "la arena del jefe", enemies.Boss.Arena.Radius)
+	end
+end
+for eggId, egg in EggConfig.Eggs do
+	if egg.Enabled ~= false and (egg.Zone == "FrozenTundra" or egg.Zone == "World2") then
+		onFloor(egg.Zone, egg.StandOffset, eggId, 4)
+	end
+end
+for portalId, p in ZoneConfig.WorldPortals do
+	onFloor(p.Zone, p.Offset, portalId, 8)
+end
+for portalId, p in ZoneConfig.Portals do
+	onFloor(p.Target, Vector2.new(0, -150), "el paso de " .. portalId, 4)
+end
+check("llegadas, enemigos, arenas, huevos y portales de las zonas nuevas caen en su suelo", floorOk)
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

@@ -162,6 +162,7 @@ type Enemy = {
 	MoneyMultiplier: number, -- dinero que suelta (golpes y derrota); la ⚡ no cambia
 	DamageMultiplier: number?, -- daño que hace (oleadas; nil = 1)
 	Territory: number?, -- territorio del jefe (si no, Def.Brain.Territory)
+	Variant: string?, -- "Elite" o "MiniBoss" (mazmorras: más grande, brilla, más vida y botín)
 }
 
 local EnemyService = {}
@@ -169,6 +170,9 @@ local EnemyService = {}
 local enemies: { Enemy } = {}
 -- Reserva de enemigos de las oleadas: "<zona>/<tipo>" -> libres y cuántos se han creado.
 local pools: { [string]: { Enemy } } = {}
+-- Élites de las salas de las mazmorras: cuántos pequeños lleva cada cueva (uno de cada
+-- round(1 / EliteChance) es élite: siempre los mismos)
+local eliteCount: { [string]: number } = {}
 local poolCreated: { [string]: number } = {}
 -- Jefe de cada zona (para las oleadas).
 local bossByZone: { [string]: Enemy } = {}
@@ -461,20 +465,168 @@ function BUILDERS.Golem(rig: Rig, look)
 end
 
 -- Coloso de Amatista (jefe): gigante de pizarra con corona de amatista y núcleo brillante.
+-- look.Material (nombre de Enum.Material) cambia la piedra: el Gólem de Hielo es de hielo glaciar.
 function BUILDERS.Colossus(rig: Rig, look)
-	box(rig, "Torso", Vector3.new(7, 8, 5), CFrame.new(0, 8, 0), look.Primary, Enum.Material.Slate)
-	box(rig, "Head", Vector3.new(3, 2.4, 2.6), CFrame.new(0, 13.2, -0.4), look.Primary, Enum.Material.Slate)
+	local stone = if type(look.Material) == "string" then (Enum.Material :: any)[look.Material] else Enum.Material.Slate
+	box(rig, "Torso", Vector3.new(7, 8, 5), CFrame.new(0, 8, 0), look.Primary, stone)
+	box(rig, "Head", Vector3.new(3, 2.4, 2.6), CFrame.new(0, 13.2, -0.4), look.Primary, stone)
 	orb(rig, "CoreGem", 1.8, Vector3.new(0, 8.5, -2.55), look.Secondary, Enum.Material.Neon)
 	for index, spec in { { Vector3.new(0, 15.4, -0.4), Vector3.zero, 3.2 }, { Vector3.new(-1.1, 14.9, -0.3), Vector3.new(0, 0, 0.4), 2.4 }, { Vector3.new(1.1, 14.9, -0.3), Vector3.new(0, 0, -0.4), 2.4 }, { Vector3.new(-3.6, 12.6, 0.5), Vector3.new(0, 0, 0.5), 2.8 }, { Vector3.new(3.6, 12.6, 0.5), Vector3.new(0, 0, -0.5), 2.8 } } do
 		crystalSpike(rig, "Crown" .. index, Vector3.new(0.9, spec[3], 0.9), spec[1], spec[2], look.Secondary)
 	end
 	for side = -1, 1, 2 do
 		eye(rig, "Eye" .. side, 0.6, Vector3.new(side * 0.8, 13.4, -1.72), look.Eyes)
-		orb(rig, "Shoulder" .. side, 3, Vector3.new(side * 4.6, 10.5, 0), look.Primary, Enum.Material.Slate)
-		limb(rig, "Arm" .. side, Vector3.new(side * 4.6, 10.5, 0), Vector3.new(side * 5.2, 4.2, -1.5), 2, look.Primary, Enum.Material.Slate)
-		orb(rig, "Fist" .. side, 3.4, Vector3.new(side * 5.2, 4, -1.5), look.Primary, Enum.Material.Slate)
-		box(rig, "Leg" .. side, Vector3.new(2.2, 3.8, 2.2), CFrame.new(side * 1.6, 1.9, 0), look.Primary, Enum.Material.Slate)
+		orb(rig, "Shoulder" .. side, 3, Vector3.new(side * 4.6, 10.5, 0), look.Primary, stone)
+		limb(rig, "Arm" .. side, Vector3.new(side * 4.6, 10.5, 0), Vector3.new(side * 5.2, 4.2, -1.5), 2, look.Primary, stone)
+		orb(rig, "Fist" .. side, 3.4, Vector3.new(side * 5.2, 4, -1.5), look.Primary, stone)
+		box(rig, "Leg" .. side, Vector3.new(2.2, 3.8, 2.2), CFrame.new(side * 1.6, 1.9, 0), look.Primary, stone)
 	end
+end
+
+local function darker(color: Color3, amount: number): Color3
+	return color:Lerp(Color3.new(0, 0, 0), amount)
+end
+local function lighter(color: Color3, amount: number): Color3
+	return color:Lerp(Color3.new(1, 1, 1), amount)
+end
+local GOLD = Color3.fromRGB(255, 200, 70)
+local IVORY = Color3.fromRGB(246, 236, 210)
+local STEEL = Color3.fromRGB(176, 182, 196)
+local WOOD_DARK = Color3.fromRGB(104, 70, 44)
+
+-- Lobo de Escarcha: lobo de pelo blanco azulado a cuatro patas con cristales de hielo en el
+-- lomo, hocico, orejas de punta, cola y ojos que brillan. Las patas de delante son el grupo
+-- Leg y las de atrás "Hind" (también Leg, con su pivote): trota en diagonal.
+function BUILDERS.Wolf(rig: Rig, look)
+	local fur, frost = look.Primary, look.Secondary
+	box(rig, "Torso", Vector3.new(2.2, 1.9, 3.6), CFrame.new(0, 2.7, 0.2), fur, Enum.Material.SmoothPlastic)
+	orb(rig, "Chest", 2.3, Vector3.new(0, 2.65, -1.35), lighter(fur, 0.4), Enum.Material.SmoothPlastic)
+	box(rig, "Head", Vector3.new(1.7, 1.5, 1.6), CFrame.new(0, 3.65, -2.15), fur, Enum.Material.SmoothPlastic)
+	box(rig, "Snout", Vector3.new(0.95, 0.75, 1.05), CFrame.new(0, 3.3, -3.25), lighter(fur, 0.5), Enum.Material.SmoothPlastic)
+	orb(rig, "Nose", 0.42, Vector3.new(0, 3.55, -3.8), Color3.fromRGB(40, 44, 60), Enum.Material.SmoothPlastic)
+	box(rig, "Fangs", Vector3.new(0.7, 0.18, 0.12), CFrame.new(0, 2.95, -3.72), IVORY, Enum.Material.SmoothPlastic)
+	for side = -1, 1, 2 do
+		box(rig, "Ear" .. side, Vector3.new(0.45, 0.85, 0.3), CFrame.new(side * 0.5, 4.65, -2.0) * CFrame.Angles(0, 0, math.rad(-side * 14)), fur, Enum.Material.SmoothPlastic)
+		box(rig, "EarIn" .. side, Vector3.new(0.25, 0.5, 0.06), CFrame.new(side * 0.5, 4.6, -2.17) * CFrame.Angles(0, 0, math.rad(-side * 14)), frost, Enum.Material.SmoothPlastic)
+		eye(rig, "Eye" .. side, 0.34, Vector3.new(side * 0.45, 3.9, -2.95), look.Eyes)
+		box(rig, "Brow" .. side, Vector3.new(0.55, 0.14, 0.2), CFrame.new(side * 0.45, 4.18, -2.96) * CFrame.Angles(0, 0, math.rad(side * 20)), darker(frost, 0.4), Enum.Material.SmoothPlastic)
+		-- Delanteras (Leg) y traseras (Hind): la delantera derecha y la trasera izquierda a la vez
+		box(rig, "Leg" .. side, Vector3.new(0.6, 2.1, 0.6), CFrame.new(side * 0.72, 1.05, -1.25), fur, Enum.Material.SmoothPlastic)
+		box(rig, "Hind" .. side, Vector3.new(0.65, 2.1, 0.65), CFrame.new(-side * 0.72, 1.05, 1.45), darker(fur, 0.08), Enum.Material.SmoothPlastic)
+	end
+	box(rig, "Tail", Vector3.new(0.55, 0.55, 1.9), CFrame.new(0, 3.15, 2.75) * CFrame.Angles(math.rad(28), 0, 0), fur, Enum.Material.SmoothPlastic)
+	box(rig, "TailTip", Vector3.new(0.6, 0.6, 0.6), CFrame.new(0, 3.6, 3.6), frost, Enum.Material.SmoothPlastic)
+	for index, spec in { { Vector3.new(0, 3.95, -0.7), Vector3.new(-0.2, 0, 0) }, { Vector3.new(0.35, 3.85, 0.4), Vector3.new(0.2, 0, -0.4) }, { Vector3.new(-0.35, 3.8, 1.3), Vector3.new(0.3, 0, 0.4) } } do
+		crystalSpike(rig, "Ice" .. index, Vector3.new(0.45, 1.2, 0.45), spec[1], spec[2], frost)
+	end
+end
+
+-- Yeti: mole de pelo blanco con la cara y las manos azuladas, cuernos de marfil y cejas de
+-- enfado; brazos largos que aplastan.
+function BUILDERS.Yeti(rig: Rig, look)
+	local fur, skin = look.Primary, look.Secondary
+	box(rig, "Torso", Vector3.new(4, 4.2, 3), CFrame.new(0, 4.5, 0), fur, Enum.Material.SmoothPlastic)
+	orb(rig, "Belly", 3, Vector3.new(0, 4.2, -0.75), lighter(skin, 0.55), Enum.Material.SmoothPlastic)
+	orb(rig, "Fluff", 3.6, Vector3.new(0, 6.3, 0.2), fur, Enum.Material.SmoothPlastic)
+	box(rig, "Head", Vector3.new(2.3, 2.1, 2.1), CFrame.new(0, 7.6, -0.45), fur, Enum.Material.SmoothPlastic)
+	box(rig, "Face", Vector3.new(1.8, 1.4, 0.2), CFrame.new(0, 7.45, -1.52), skin, Enum.Material.SmoothPlastic)
+	box(rig, "Mouth", Vector3.new(1, 0.22, 0.1), CFrame.new(0, 6.98, -1.64), darker(skin, 0.6), Enum.Material.SmoothPlastic)
+	for side = -1, 1, 2 do
+		box(rig, "Fang" .. side, Vector3.new(0.18, 0.32, 0.1), CFrame.new(side * 0.3, 7.08, -1.66), IVORY, Enum.Material.SmoothPlastic)
+		eye(rig, "Eye" .. side, 0.38, Vector3.new(side * 0.42, 7.62, -1.66), look.Eyes)
+		box(rig, "Brow" .. side, Vector3.new(0.7, 0.2, 0.22), CFrame.new(side * 0.42, 7.98, -1.66) * CFrame.Angles(0, 0, math.rad(side * 22)), darker(skin, 0.45), Enum.Material.SmoothPlastic)
+		limb(rig, "Horn" .. side, Vector3.new(side * 0.95, 8.4, -0.4), Vector3.new(side * 1.75, 9.4, 0.1), 0.45, IVORY, Enum.Material.SmoothPlastic)
+		orb(rig, "Shoulder" .. side, 2, Vector3.new(side * 2.55, 5.9, 0), fur, Enum.Material.SmoothPlastic)
+		limb(rig, "Arm" .. side, Vector3.new(side * 2.6, 5.9, 0), Vector3.new(side * 2.9, 2.5, -0.6), 1.5, fur, Enum.Material.SmoothPlastic)
+		orb(rig, "Fist" .. side, 1.9, Vector3.new(side * 2.9, 2.3, -0.6), skin, Enum.Material.SmoothPlastic)
+		box(rig, "Leg" .. side, Vector3.new(1.4, 2.3, 1.4), CFrame.new(side * 1.05, 1.15, 0), fur, Enum.Material.SmoothPlastic)
+		box(rig, "Foot" .. side, Vector3.new(1.5, 0.5, 1.9), CFrame.new(side * 1.05, 0.25, -0.25), skin, Enum.Material.SmoothPlastic)
+	end
+end
+
+-- Goblin: bajito y verde, orejas largas, nariz de punta, chaleco de cuero y una daga.
+function BUILDERS.Goblin(rig: Rig, look)
+	local skin, leather = look.Primary, look.Secondary
+	box(rig, "Torso", Vector3.new(1.8, 1.8, 1.2), CFrame.new(0, 2.6, 0), leather, Enum.Material.SmoothPlastic)
+	box(rig, "Belt", Vector3.new(1.9, 0.3, 1.3), CFrame.new(0, 1.85, 0), darker(leather, 0.4), Enum.Material.SmoothPlastic)
+	box(rig, "Head", Vector3.new(1.7, 1.5, 1.5), CFrame.new(0, 4.2, -0.1), skin, Enum.Material.SmoothPlastic)
+	box(rig, "Nose", Vector3.new(0.35, 0.35, 0.65), CFrame.new(0, 4.05, -1.1) * CFrame.Angles(math.rad(-12), 0, 0), darker(skin, 0.15), Enum.Material.SmoothPlastic)
+	box(rig, "Teeth", Vector3.new(0.7, 0.16, 0.1), CFrame.new(0, 3.72, -0.88), IVORY, Enum.Material.SmoothPlastic)
+	cartoonEyes(rig, Vector3.new(0, 4.4, -0.7), 0.4, 0.62, look)
+	for side = -1, 1, 2 do
+		box(rig, "Ear" .. side, Vector3.new(1.3, 0.35, 0.5), CFrame.new(side * 1.25, 4.5, 0) * CFrame.Angles(0, math.rad(side * 15), math.rad(side * 22)), skin, Enum.Material.SmoothPlastic)
+		limb(rig, "Arm" .. side, Vector3.new(side * 1.1, 3.2, 0), Vector3.new(side * 1.3, 1.95, -0.45), 0.45, skin, Enum.Material.SmoothPlastic)
+		orb(rig, "Fist" .. side, 0.6, Vector3.new(side * 1.3, 1.9, -0.45), skin, Enum.Material.SmoothPlastic)
+		box(rig, "Leg" .. side, Vector3.new(0.55, 1.3, 0.55), CFrame.new(side * 0.45, 0.65, 0), darker(leather, 0.25), Enum.Material.SmoothPlastic)
+		box(rig, "Foot" .. side, Vector3.new(0.65, 0.3, 0.95), CFrame.new(side * 0.45, 0.15, -0.18), darker(skin, 0.3), Enum.Material.SmoothPlastic)
+	end
+	-- Daga en la mano derecha (va con el brazo: grupo Arm)
+	box(rig, "Hand1", Vector3.new(0.18, 0.3, 0.5), CFrame.new(1.3, 1.9, -0.75), WOOD_DARK, Enum.Material.Wood)
+	box(rig, "Hand1", Vector3.new(0.12, 0.3, 1.2), CFrame.new(1.3, 1.95, -1.6), STEEL, Enum.Material.Metal)
+end
+
+-- Goblin Bruto: un goblin enorme con casco con cuernos, peto de hierro, colmillos y un garrote.
+function BUILDERS.GoblinBrute(rig: Rig, look)
+	local skin, iron = look.Primary, look.Secondary
+	box(rig, "Torso", Vector3.new(3.2, 3.2, 2.4), CFrame.new(0, 4.4, 0), skin, Enum.Material.SmoothPlastic)
+	box(rig, "Armor", Vector3.new(3.35, 1.9, 2.55), CFrame.new(0, 5, 0), iron, Enum.Material.Metal)
+	box(rig, "Belt", Vector3.new(3.4, 0.5, 2.6), CFrame.new(0, 3.1, 0), WOOD_DARK, Enum.Material.SmoothPlastic)
+	box(rig, "Head", Vector3.new(2.2, 1.9, 2), CFrame.new(0, 7, -0.2), skin, Enum.Material.SmoothPlastic)
+	box(rig, "Helmet", Vector3.new(2.4, 0.7, 2.2), CFrame.new(0, 8.15, -0.2), iron, Enum.Material.Metal)
+	box(rig, "Nose", Vector3.new(0.5, 0.5, 0.7), CFrame.new(0, 6.95, -1.45), darker(skin, 0.15), Enum.Material.SmoothPlastic)
+	cartoonEyes(rig, Vector3.new(0, 7.35, -1.05), 0.52, 0.75, look)
+	for side = -1, 1, 2 do
+		limb(rig, "HelmHorn" .. side, Vector3.new(side * 1.1, 8.3, -0.2), Vector3.new(side * 1.9, 9.4, -0.4), 0.4, IVORY, Enum.Material.SmoothPlastic)
+		box(rig, "Ear" .. side, Vector3.new(1.4, 0.4, 0.6), CFrame.new(side * 1.5, 7.3, -0.1) * CFrame.Angles(0, math.rad(side * 12), math.rad(side * 20)), skin, Enum.Material.SmoothPlastic)
+		box(rig, "Tusk" .. side, Vector3.new(0.22, 0.55, 0.22), CFrame.new(side * 0.55, 6.35, -1.18), IVORY, Enum.Material.SmoothPlastic)
+		orb(rig, "Shoulder" .. side, 1.7, Vector3.new(side * 2.05, 5.6, 0), iron, Enum.Material.Metal)
+		limb(rig, "Arm" .. side, Vector3.new(side * 2.05, 5.6, 0), Vector3.new(side * 2.35, 2.8, -0.6), 1, skin, Enum.Material.SmoothPlastic)
+		orb(rig, "Fist" .. side, 1.35, Vector3.new(side * 2.35, 2.7, -0.6), skin, Enum.Material.SmoothPlastic)
+		box(rig, "Leg" .. side, Vector3.new(1.1, 2, 1.1), CFrame.new(side * 0.8, 1, 0), darker(skin, 0.2), Enum.Material.SmoothPlastic)
+	end
+	-- Garrote con pinchos (va con el brazo derecho)
+	limb(rig, "Hand1", Vector3.new(2.35, 2.5, -0.6), Vector3.new(2.5, 5.4, -2.6), 0.6, WOOD_DARK, Enum.Material.Wood)
+	orb(rig, "Hand1", 1.5, Vector3.new(2.5, 5.6, -2.75), Color3.fromRGB(130, 90, 56), Enum.Material.Wood)
+	for index = 1, 4 do
+		local a = index / 4 * math.pi * 2
+		box(rig, "Hand1", Vector3.new(0.25, 0.7, 0.25), CFrame.new(Vector3.new(2.5, 5.6, -2.75) + Vector3.new(math.cos(a) * 0.75, 0.2, math.sin(a) * 0.75)) * CFrame.Angles(math.sin(a) * 0.9, 0, -math.cos(a) * 0.9), STEEL, Enum.Material.Metal)
+	end
+end
+
+-- Rey Goblin (jefe final del Mundo 1): un goblin gigante con corona de oro y joyas, armadura
+-- real, capa roja y un hacha enorme. Ojos rojos que brillan.
+function BUILDERS.GoblinKing(rig: Rig, look)
+	local skin, royal = look.Primary, look.Secondary
+	box(rig, "Torso", Vector3.new(7, 7, 4.6), CFrame.new(0, 9.6, 0), skin, Enum.Material.SmoothPlastic)
+	box(rig, "Robe", Vector3.new(7.3, 4.2, 4.9), CFrame.new(0, 8.4, 0), royal, Enum.Material.Fabric)
+	box(rig, "Chest", Vector3.new(5.2, 2.6, 0.4), CFrame.new(0, 11.2, -2.45), GOLD, Enum.Material.Metal)
+	orb(rig, "Gem", 1.3, Vector3.new(0, 11.2, -2.7), look.Eyes, Enum.Material.Neon)
+	box(rig, "Belt", Vector3.new(7.5, 0.9, 5), CFrame.new(0, 6.6, 0), GOLD, Enum.Material.Metal)
+	box(rig, "Cape", Vector3.new(7.2, 9.5, 0.4), CFrame.new(0, 8.4, 2.75) * CFrame.Angles(math.rad(-6), 0, 0), royal, Enum.Material.Fabric)
+	box(rig, "Head", Vector3.new(4.6, 4, 4.2), CFrame.new(0, 15.2, -0.3), skin, Enum.Material.SmoothPlastic)
+	box(rig, "Nose", Vector3.new(0.9, 0.9, 1.5), CFrame.new(0, 14.8, -2.7) * CFrame.Angles(math.rad(-12), 0, 0), darker(skin, 0.15), Enum.Material.SmoothPlastic)
+	box(rig, "Mouth", Vector3.new(2.4, 0.4, 0.2), CFrame.new(0, 13.75, -2.42), darker(skin, 0.6), Enum.Material.SmoothPlastic)
+	cartoonEyes(rig, Vector3.new(0, 15.7, -2.0), 1.05, 1.5, look)
+	-- Corona: aro de oro con picos y joyas
+	box(rig, "Crown", Vector3.new(4.9, 1.1, 4.5), CFrame.new(0, 17.7, -0.3), GOLD, Enum.Material.Metal)
+	for index = 1, 5 do
+		local x = (index - 3) * 1.1
+		box(rig, "CrownSpike" .. index, Vector3.new(0.7, if index == 3 then 2 else 1.4, 0.7), CFrame.new(x, 18.6 + (if index == 3 then 0.3 else 0), -2.1) * CFrame.Angles(0, math.rad(45), 0), GOLD, Enum.Material.Metal)
+		orb(rig, "CrownGem" .. index, 0.5, Vector3.new(x, 17.7, -2.6), if index % 2 == 1 then look.Eyes else Color3.fromRGB(80, 200, 255), Enum.Material.Neon)
+	end
+	for side = -1, 1, 2 do
+		box(rig, "Ear" .. side, Vector3.new(3.2, 0.7, 1.1), CFrame.new(side * 3.5, 15.8, 0) * CFrame.Angles(0, math.rad(side * 14), math.rad(side * 20)), skin, Enum.Material.SmoothPlastic)
+		box(rig, "Tusk" .. side, Vector3.new(0.45, 1.1, 0.45), CFrame.new(side * 0.9, 13.4, -2.45), IVORY, Enum.Material.SmoothPlastic)
+		orb(rig, "Shoulder" .. side, 3.3, Vector3.new(side * 4.6, 12.2, 0), GOLD, Enum.Material.Metal)
+		limb(rig, "Arm" .. side, Vector3.new(side * 4.6, 12.2, 0), Vector3.new(side * 5.4, 6, -1.6), 2, skin, Enum.Material.SmoothPlastic)
+		orb(rig, "Fist" .. side, 2.6, Vector3.new(side * 5.4, 5.8, -1.6), skin, Enum.Material.SmoothPlastic)
+		box(rig, "Leg" .. side, Vector3.new(2.4, 4.2, 2.4), CFrame.new(side * 1.75, 2.1, 0), darker(skin, 0.2), Enum.Material.SmoothPlastic)
+		box(rig, "Foot" .. side, Vector3.new(2.6, 1, 3.2), CFrame.new(side * 1.75, 0.5, -0.4), WOOD_DARK, Enum.Material.SmoothPlastic)
+	end
+	-- Hacha enorme en la mano derecha (va con el brazo)
+	limb(rig, "Hand1", Vector3.new(5.4, 3.6, -1.6), Vector3.new(5.6, 15.5, -3.4), 0.85, WOOD_DARK, Enum.Material.Wood)
+	box(rig, "Hand1", Vector3.new(0.5, 4.2, 3.4), CFrame.new(5.62, 14.2, -4.9) * CFrame.Angles(math.rad(-9), 0, 0), STEEL, Enum.Material.Metal)
+	box(rig, "Hand1", Vector3.new(0.6, 4.4, 0.4), CFrame.new(5.62, 14.2, -6.55) * CFrame.Angles(math.rad(-9), 0, 0), lighter(STEEL, 0.4), Enum.Material.Metal)
 end
 
 -- Tamaño de la raíz (hitbox de movimiento), altura de cadera y radio de golpe por estilo.
@@ -487,6 +639,12 @@ local SHAPES = {
 	Shard = { Root = Vector3.new(2.6, 2.8, 2.6), Hip = 1.2, Radius = 1.7, BarHeight = 5.8, Pivots = { Body = Vector3.new(0, 2.6, 0), Leg = Vector3.new(0.55, 1.2, 0) } },
 	Golem = { Root = Vector3.new(3.4, 3.6, 2.6), Hip = 1.8, Radius = 2.2, BarHeight = 8.2, Pivots = { Body = Vector3.new(0, 1.9, 0), Arm = Vector3.new(2.4, 5, 0), Leg = Vector3.new(0.9, 1.9, 0) } },
 	Colossus = { Root = Vector3.new(6, 8, 4.5), Hip = 3.5, Radius = 4.5, BarHeight = 18, Pivots = { Body = Vector3.new(0, 3.8, 0), Arm = Vector3.new(4.6, 10.5, 0), Leg = Vector3.new(1.6, 3.8, 0) } },
+	-- Hind: pivote de las patas de atrás (cuadrúpedos; si no, el de Leg)
+	Wolf = { Root = Vector3.new(2.6, 2.4, 4), Hip = 1.4, Radius = 2, BarHeight = 5.8, Pivots = { Body = Vector3.new(0, 2.4, 0), Leg = Vector3.new(0.72, 2.1, -1.25), Hind = Vector3.new(0.72, 2.1, 1.45) } },
+	Yeti = { Root = Vector3.new(3.6, 4, 3), Hip = 2.2, Radius = 2.5, BarHeight = 10.6, Pivots = { Body = Vector3.new(0, 2.3, 0), Arm = Vector3.new(2.6, 5.9, 0), Leg = Vector3.new(1.05, 2.3, 0) } },
+	Goblin = { Root = Vector3.new(2.2, 2.6, 2), Hip = 1.3, Radius = 1.6, BarHeight = 6.2, Pivots = { Body = Vector3.new(0, 1.3, 0), Arm = Vector3.new(1.1, 3.2, 0), Leg = Vector3.new(0.45, 1.3, 0) } },
+	GoblinBrute = { Root = Vector3.new(3.4, 4, 3), Hip = 2, Radius = 2.4, BarHeight = 10.8, Pivots = { Body = Vector3.new(0, 2, 0), Arm = Vector3.new(2.05, 5.6, 0), Leg = Vector3.new(0.8, 2, 0) } },
+	GoblinKing = { Root = Vector3.new(7, 9, 5), Hip = 4.2, Radius = 4.8, BarHeight = 22, Pivots = { Body = Vector3.new(0, 4.2, 0), Arm = Vector3.new(4.6, 12.2, 0), Leg = Vector3.new(1.75, 4.2, 0) } },
 }
 
 -- Enemigos del Bosque con los modelos 3D (.glb) de Santiago: Util.ModelosZona1
@@ -497,17 +655,17 @@ ModelosZona1.register(BUILDERS, SHAPES)
 -- grupos escribiendo Motor6D.Transform (solo en su pantalla, sin tocar la IA ni la física).
 -- Las raíces del Guardián quedan soldadas: están clavadas en el suelo.
 local ARM_PARTS = { Arm = true, Fist = true, Hand = true, UpperArm = true, LowerArm = true, Shoulder = true }
-local LEG_PARTS = { Leg = true, Foot = true }
+local LEG_PARTS = { Leg = true, Foot = true, Hind = true }
 
-local function poseGroup(partName: string): (string, number)
+local function poseGroup(partName: string): (string, number, string?)
 	if partName:sub(1, 4) == "Root" then
 		return "Static", 0
 	end
 	local base, side = partName:match("^(%a+)(%-?1)$")
 	if base and ARM_PARTS[base] then
-		return "Arm", tonumber(side) or 1
+		return "Arm", tonumber(side) or 1, base
 	elseif base and LEG_PARTS[base] then
-		return "Leg", tonumber(side) or 1
+		return "Leg", tonumber(side) or 1, base
 	end
 	return "Body", 0
 end
@@ -517,7 +675,7 @@ local function addJoints(rig: Rig, pivots: { [string]: Vector3 })
 		if not part:IsA("BasePart") or part == rig.Root then
 			continue
 		end
-		local group, side = poseGroup(part.Name)
+		local group, side, base = poseGroup(part.Name)
 		if group ~= "Static" and not pivots[group] then
 			group, side = "Body", 0 -- el estilo no anima ese grupo: va con el cuerpo
 		end
@@ -528,7 +686,8 @@ local function addJoints(rig: Rig, pivots: { [string]: Vector3 })
 			weld.Parent = part
 			continue
 		end
-		local pivot = pivots[group]
+		-- Patas de atrás de los cuadrúpedos: grupo Leg con su propio pivote (Pivots.Hind)
+		local pivot = if group == "Leg" and base == "Hind" and pivots.Hind then pivots.Hind else pivots[group]
 		if side ~= 0 then
 			pivot = Vector3.new(pivot.X * side, pivot.Y, pivot.Z)
 		end
@@ -786,7 +945,7 @@ local function release(enemy: Enemy)
 		return
 	end
 	enemy.InPool = true
-	local key = enemy.ZoneId .. "/" .. enemy.TypeId
+	local key = enemy.ZoneId .. "/" .. enemy.TypeId .. (if enemy.Variant == "Elite" then "/Elite" else "")
 	pools[key] = pools[key] or {}
 	table.insert(pools[key], enemy)
 end
@@ -841,6 +1000,8 @@ local function onDeath(enemy: Enemy)
 				Streak = count,
 				Home = enemy.Home,
 				Wave = enemy.Pooled or enemy.WaveControlled,
+				Elite = enemy.Variant == "Elite",
+				MiniBoss = enemy.Variant == "MiniBoss", -- abre la puerta de su sala (CaveService)
 			}
 			for _, listener in defeatListeners do
 				task.spawn(listener, player, info)
@@ -2143,6 +2304,80 @@ local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSe
 	return enemy
 end
 
+-- Mazmorras: élites y mini-jefes ------------------------------------------------------------
+
+-- Lo visible de un élite o un mini-jefe (una sola vez, al crearlo): más grande (Scale), una
+-- luz y chispas de su color alrededor y su nombre en la barra. Lo de más vida, daño y botín lo
+-- pone quien lo crea.
+-- Más grande (s veces): el modelo, su cadera, su radio de golpe y la barra encima
+local function scaleEnemy(enemy: Enemy, s: number)
+	if s == 1 then
+		return
+	end
+	local model = enemy.Model
+	local hip = enemy.Humanoid.HipHeight
+	local offset = enemy.Billboard.StudsOffset
+	local ok = pcall(function()
+		model:ScaleTo(model:GetScale() * s)
+	end)
+	if ok then
+		enemy.Humanoid.HipHeight = hip * s
+		enemy.RootHeight *= s
+		enemy.Radius *= s
+		enemy.Billboard.StudsOffset = offset * s
+	end
+end
+
+local function dressVariant(enemy: Enemy, variant: string, scale: number?, color: Color3, name: string)
+	enemy.Variant = variant
+	local model = enemy.Model
+	local s = if type(scale) == "number" and scale > 0 then scale else 1
+	scaleEnemy(enemy, s)
+	local glow = Instance.new("PointLight")
+	glow.Name = "VariantGlow"
+	glow.Color = color
+	glow.Range = 12 * s
+	glow.Brightness = 1.6
+	glow.Shadows = false
+	glow.Parent = enemy.Root
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Name = "VariantSparkles"
+	sparkles.Color = ColorSequence.new(color)
+	sparkles.LightEmission = 1
+	sparkles.LightInfluence = 0
+	sparkles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.45 * s), NumberSequenceKeypoint.new(1, 0) })
+	sparkles.Transparency = NumberSequence.new(0.15)
+	sparkles.Lifetime = NumberRange.new(0.8, 1.4)
+	sparkles.Rate = if variant == "MiniBoss" then 22 else 12
+	sparkles.Speed = NumberRange.new(1.5, 3)
+	sparkles.SpreadAngle = Vector2.new(180, 180)
+	sparkles.Acceleration = Vector3.new(0, 3, 0)
+	sparkles.Parent = enemy.Root
+	local label = enemy.Billboard:FindFirstChild("EnemyName")
+	if label and label:IsA("TextLabel") then
+		label.Text = name
+		label.TextColor3 = color
+	end
+	enemy.Billboard.Size = if variant == "MiniBoss" then BAR_SIZES.Boss else BAR_SIZES.Strong
+	model:SetAttribute("DisplayName", name)
+	model:SetAttribute("Variant", variant)
+end
+
+-- Más vida, daño y botín (×) de golpe, para los del mundo (los de las oleadas lo llevan en
+-- spawnPooled).
+local function strengthen(enemy: Enemy, health: number?, damage: number?, reward: number?)
+	enemy.Status.MaxHealth = math.max(1, math.floor(enemy.Status.MaxHealth * (health or 1)))
+	enemy.Status.Health = enemy.Status.MaxHealth
+	enemy.DamageMultiplier = (enemy.DamageMultiplier or 1) * (damage or 1)
+	enemy.RewardMultiplier *= reward or 1
+	syncHealth(enemy)
+end
+
+local function makeElite(enemy: Enemy)
+	local elite = EnemyConfig.Elite
+	dressVariant(enemy, "Elite", elite.Scale, elite.Color, (elite.Prefix or "") .. enemy.Def.DisplayName)
+end
+
 -- Oleadas ------------------------------------------------------------------------------
 
 export type WaveSpawnOptions = {
@@ -2157,6 +2392,7 @@ export type WaveSpawnOptions = {
 	MoneyMultiplier: number?, -- dinero que suelta (la ⚡ no cambia)
 	DamageMultiplier: number?, -- daño que hace a los jugadores
 	CollisionSlot: number?, -- hueco de la partida (1..MaxRuns): chocan los del mismo hueco
+	Elite: boolean?, -- élite (EnemyConfig.Elite): de su propia reserva, más grande y más fuerte
 	-- Jefes: su arena (para la barra del jefe del cliente) y su territorio
 	Arena: { Center: Vector3, Radius: number, Name: string }?,
 	Territory: number?,
@@ -2173,7 +2409,8 @@ function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vect
 	if not (zoneSettings and EnemyConfig.Types[typeId] and ZoneConfig.Zones[zoneId]) then
 		return nil
 	end
-	local key = zoneId .. "/" .. typeId
+	local elite = opts.Elite == true
+	local key = zoneId .. "/" .. typeId .. (if elite then "/Elite" else "")
 	local free = pools[key]
 	local enemy = if free then table.remove(free) else nil
 	if not enemy then
@@ -2184,22 +2421,29 @@ function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vect
 		if not enemy then
 			return nil
 		end
+		if elite then
+			makeElite(enemy)
+		end
 		poolCreated[key] = (poolCreated[key] or 0) + 1
 	end
+	local eliteSpec = if enemy.Variant == "Elite" then EnemyConfig.Elite else nil
 	local def = enemy.Def
 	enemy.InPool = false
 	enemy.Home = position
 	enemy.LeashCenter = opts.LeashCenter or position
 	enemy.LeashRadius = finiteOr(opts.LeashRadius, def.LeashRange)
 	enemy.DetectRange = finiteOr(opts.DetectRange, def.DetectRange)
-	enemy.RewardMultiplier = finiteOr(opts.RewardMultiplier, 1)
-	enemy.Status.MaxHealth = math.max(1, math.floor(def.MaxHealth * finiteOr(opts.HealthMultiplier, 1)))
+	enemy.RewardMultiplier = finiteOr(opts.RewardMultiplier, 1) * (if eliteSpec then eliteSpec.Reward else 1)
+	enemy.Status.MaxHealth = math.max(1, math.floor(def.MaxHealth * finiteOr(opts.HealthMultiplier, 1) * (if eliteSpec then eliteSpec.Health else 1)))
 	enemy.OnWaveDeath = opts.OnDeath
 	enemy.LastHitBy = nil
 	enemy.Run = opts.Run
 	enemy.Model:SetAttribute(RUN_ATTRIBUTE, opts.Run)
 	enemy.MoneyMultiplier = if opts.MoneyMultiplier ~= nil then math.clamp(finiteOr(opts.MoneyMultiplier, 1), 0, 10) else 1
 	enemy.DamageMultiplier = if opts.DamageMultiplier ~= nil then math.clamp(finiteOr(opts.DamageMultiplier, 1), 0.1, 10) else nil
+	if eliteSpec then
+		enemy.DamageMultiplier = (enemy.DamageMultiplier or 1) * eliteSpec.Damage
+	end
 	local slot = opts.CollisionSlot
 	setCollisionGroup(enemy.Model, if type(slot) == "number" and slot >= 1 and slot <= waveSlots then WAVE_SLOT_PREFIX .. math.floor(slot) else WAVE_GROUP)
 	enemy.Territory = if opts.Territory ~= nil then finiteOr(opts.Territory, def.Brain and def.Brain.Territory or 20) else nil
@@ -2369,15 +2613,24 @@ function EnemyService.start()
 				continue
 			end
 			local enemy = createEnemy(zoneId, spawn.Type, home, zoneSettings, nil, nil)
-			-- Los de la Cueva de los Espinillos (lejos del mapa): más vida, más daño y más botín
-			if enemy and CaveLogic.inside(home.X, home.Z) then
-				local strength = CaveConfig.Strength
-				enemy.Status.MaxHealth = math.max(1, math.floor(enemy.Def.MaxHealth * (strength.Health or 1)))
-				enemy.Status.Health = enemy.Status.MaxHealth
-				enemy.DamageMultiplier = strength.Damage
-				enemy.RewardMultiplier *= strength.Reward or 1
-				enemy.Model:SetAttribute("Cave", true)
-				syncHealth(enemy)
+			-- Los de las mazmorras (lejos del mapa): más vida, más daño y más botín, y en las del
+			-- Valle y la Caldera algunos de los pequeños son élite (los medianos no: el más duro
+			-- de su sala es el mini-jefe)
+			local caveId, cave = CaveLogic.caveAt(home.X, home.Z)
+			if enemy and cave then
+				local strength = cave.Strength or {}
+				strengthen(enemy, strength.Health, strength.Damage, strength.Reward)
+				enemy.Model:SetAttribute("Cave", caveId)
+				local every = if cave.EliteChance and cave.EliteChance > 0 then math.max(1, math.round(1 / cave.EliteChance)) else 0
+				if every > 0 and enemy.Kind == "Normal" then
+					eliteCount[caveId] = (eliteCount[caveId] or 0) + 1
+				end
+				if every > 0 and enemy.Kind == "Normal" and eliteCount[caveId] % every == 0 then
+					local elite = EnemyConfig.Elite
+					strengthen(enemy, elite.Health, elite.Damage, elite.Reward)
+					makeElite(enemy)
+					place(enemy) -- de nuevo, ya con su tamaño
+				end
 			end
 		end
 		local boss = zoneSettings.Boss
@@ -2385,11 +2638,37 @@ function EnemyService.start()
 			local arenaCenter = center + Vector3.new(boss.Arena.Center.X, 0, boss.Arena.Center.Y)
 			local enemy = createEnemy(zoneId, boss.Type, arenaCenter, zoneSettings, arenaCenter, boss.Arena.Radius)
 			if enemy then
+				-- Jefes más grandes que su modelo (Scale: el Rey Goblin es enorme)
+				local scale = enemy.Def.Scale
+				if type(scale) == "number" and scale > 0 and scale ~= 1 then
+					scaleEnemy(enemy, scale)
+					place(enemy)
+				end
 				enemy.Model:SetAttribute("ArenaCenter", arenaCenter)
 				enemy.Model:SetAttribute("ArenaRadius", boss.Arena.Radius)
 				enemy.Model:SetAttribute("ArenaName", boss.Arena.Name)
 				bossByZone[zoneId] = enemy
 			end
+		end
+	end
+
+	-- Mini-jefes de las mazmorras (CaveConfig.Caves.*.MiniBoss): uno en la sala 2 de cada una
+	-- que lo tenga; abre la puerta del altar (CaveService). Reaparece como los demás.
+	for caveId, cave in CaveConfig.Caves do
+		local spec = cave.MiniBoss
+		local zoneSettings = EnemyConfig.Zones[cave.Zone]
+		if not (spec and zoneSettings and ZoneConfig.Zones[cave.Zone]) then
+			continue
+		end
+		local center = zoneCenter(cave.Zone)
+		local home = Vector3.new(spec.Position.X, center.Y, spec.Position.Z)
+		local enemy = createEnemy(cave.Zone, spec.Type, home, zoneSettings, nil, nil)
+		if enemy then
+			local strength = cave.Strength or {}
+			strengthen(enemy, (strength.Health or 1) * (spec.Health or 1), (strength.Damage or 1) * (spec.Damage or 1), (strength.Reward or 1) * (spec.Reward or 1))
+			enemy.Model:SetAttribute("Cave", caveId)
+			dressVariant(enemy, "MiniBoss", spec.Scale, cave.Theme and cave.Theme.Portal or Color3.fromRGB(255, 200, 80), spec.Name)
+			place(enemy) -- de nuevo, ya con su tamaño
 		end
 	end
 

@@ -16,7 +16,10 @@
 -- 5. La última oleada trae un jefe (uno para cada partida) con escolta. Si cae: victoria y
 --    premio (WaveLogic.victoryReward), además de su botín de siempre (BossRewardService:
 --    cuenta para abrir la zona siguiente y su arma la primera vez). Los modos sin jefe (la
---    práctica del tutorial) se ganan al limpiar la última oleada.
+--    práctica del tutorial) se ganan al limpiar la última oleada. En las mazmorras, además,
+--    un COFRE para cada uno (Arenas.*.Chest: 💰 y a veces una poción; "Chest" al cliente,
+--    que lo dibuja delante del altar y lo abre). En el Valle y la Caldera algunos bichos de
+--    las hordas salen élite (Arenas.*.EliteChance; EnemyService, su propia reserva).
 -- 6. Si no queda nadie de la partida dentro y vivo durante LeaveGrace segundos, se pierde:
 --    los enemigos se retiran sin botín (lo ganado hasta ahí se queda).
 -- Modos: "Tutorial" en el altar de la práctica (Places.Practice, en la pradera) para quien
@@ -49,6 +52,7 @@ local PetCombatService = require(script.Parent.PetCombatService)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local GameEvents = require(script.Parent.Parent.Util.GameEvents)
+local ItemService = require(script.Parent.ItemService)
 
 local FOLDER_NAME = "WaveArenas"
 local TICK_SECONDS = 0.2
@@ -372,11 +376,12 @@ local function spawnPoint(run: Run): Vector3
 	return run.Center + Vector3.new(math.cos(angle) * distance, 0, math.sin(angle) * distance)
 end
 
-local function spawnOne(run: Run, typeId: string, wave: number): boolean
+-- `allowElite`: las hordas pueden sacar élites (la escolta del jefe no).
+local function spawnOne(run: Run, typeId: string, wave: number, allowElite: boolean?): boolean
 	local area = WaveConfig.Place.AreaRadius
 	local place = places[run.PlaceId]
 	local leash = (place and place.LeashRadius) or (area + INSIDE_SLACK + 2)
-	local enemy = EnemyService.spawnPooled(run.ZoneId, typeId, spawnPoint(run), {
+	local options = {
 		LeashCenter = run.Center,
 		LeashRadius = leash,
 		DetectRange = math.max(area * 2.5, leash * 1.6),
@@ -388,7 +393,16 @@ local function spawnOne(run: Run, typeId: string, wave: number): boolean
 		MoneyMultiplier = WaveConfig.MoneyMultiplier,
 		DamageMultiplier = WaveLogic.damageMultiplier(wave),
 		CollisionSlot = run.Slot,
-	})
+	}
+	local position = spawnPoint(run)
+	local enemy = nil
+	if allowElite and WaveLogic.isElite(run.ArenaId, math.random()) then
+		local eliteOptions = table.clone(options)
+		eliteOptions.Elite = true
+		eliteOptions.PoolLimit = run.Arena.EliteMax or 4
+		enemy = EnemyService.spawnPooled(run.ZoneId, typeId, position, eliteOptions)
+	end
+	enemy = enemy or EnemyService.spawnPooled(run.ZoneId, typeId, position, options)
 	if not enemy then
 		return false
 	end
@@ -598,6 +612,35 @@ local function waveCleared(run: Run)
 	end
 end
 
+-- Cofre de las mazmorras para un jugador: 💰 y, a veces, una poción para el inventario. Se
+-- cobra ya; el cliente lo dibuja delante del altar y lo abre ("Chest").
+local function giveChest(run: Run, participant: Participant)
+	local player = participant.Player
+	local profile = PlayerDataService.get(player)
+	local items = profile and ItemLogic.ofProfile(profile)
+	local money, potion = WaveLogic.chestReward(run.ArenaId, math.random(), math.random(), ItemLogic.potionOrder())
+	if money <= 0 and not potion then
+		return
+	end
+	local _, coins = pay(participant, 0, money)
+	if potion and not (items and ItemLogic.addPotion(items, potion, 1) > 0) then
+		potion = nil
+	end
+	if potion then
+		PlayerDataService.markDirty(player)
+		pcall(ItemService.push, player)
+	end
+	if player.Parent then
+		eventRemote:FireClient(player, "Chest", {
+			Position = run.Center + Vector3.new(0, 0, WaveConfig.Place.AreaRadius * 0.45),
+			Facing = Vector3.new(0, 0, -1),
+			Money = coins,
+			Potion = potion,
+			Arena = run.Arena.DisplayName,
+		})
+	end
+end
+
 -- Premio de victoria para todos los de la partida (una sola vez).
 local function payVictory(run: Run)
 	if run.VictoryPaid then
@@ -609,6 +652,10 @@ local function payVictory(run: Run)
 		local profile = PlayerDataService.get(player)
 		if profile then
 			participant.VictoryEnergy, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(WaveLogic.diamondPower(profile.ProductionPerSecond), run.ArenaId))
+			local ok, err = pcall(giveChest, run, participant)
+			if not ok then
+				warn("[WaveService] Cofre: " .. tostring(err))
+			end
 		end
 		GameEvents.fire("WaveWon", player, run.ArenaId)
 	end
@@ -902,7 +949,7 @@ local function step(run: Run, now: number)
 			local spawned = 0
 			local limit = WaveLogic.maxAlive(run.Wave)
 			while spawned < WaveConfig.BatchSize and #run.Queue > 0 and run.AliveCount < limit do
-				if not spawnOne(run, run.Queue[1], run.Wave) then
+				if not spawnOne(run, run.Queue[1], run.Wave, true) then
 					break -- reserva llena: se espera a que mueran algunos
 				end
 				table.remove(run.Queue, 1)

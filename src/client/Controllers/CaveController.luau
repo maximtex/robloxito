@@ -1,12 +1,12 @@
--- Cueva de los Espinillos en este cliente (CaveConfig; el viaje lo hace CaveService):
+-- Mazmorras en este cliente (CaveConfig: una cueva por zona; el viaje lo hace CaveService):
 -- - Fundido a negro al cruzar la boca o un portal de salida ("Fade"), con el nombre de a
 --   dónde vas, y vuelta a ver al llegar ("Arrived"; si no llegara, se quita solo). Al llegar
 --   la cámara mira hacia donde apuntas (Facing): seguir andando te aleja de la boca o del
 --   portal en vez de devolverte.
 -- - Cartel grande al entrar en cada sala ("SALA 2 · LA GALERÍA" y lo que hay dentro).
--- - Dentro (y en la boca): eco de cueva y un tinte un poco más frío.
+-- - Dentro (y en la boca): eco de cueva y el tinte de cada cueva (Theme.Tint).
 -- - Las puertas entre salas las lleva CaveGates (aquí se arranca y se le pasa el aviso
---   "Blocked").
+--   "Blocked") y las trampas, CaveTraps ("Trap").
 -- Solo decorativo: nada se replica.
 
 local Lighting = game:GetService("Lighting")
@@ -22,7 +22,9 @@ local Constants = require(Shared.Constants)
 local CaveConfig = require(Shared.Config.CaveConfig)
 local CaveLogic = require(Shared.CaveLogic)
 local StudFloor = require(Shared.Util.StudFloor)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
 local CaveGates = require(script.Parent.CaveGates)
+local CaveTraps = require(script.Parent.CaveTraps)
 
 local CaveController = {}
 
@@ -135,12 +137,16 @@ local function setFade(shown: boolean, seconds: number)
 	end
 end
 
+local ZONE_ICONS = { Forest = "🌲", CrystalValley = "💎", EmberCaldera = "🌋", FrozenTundra = "❄️", GoblinFortress = "🏰", World2 = "🌍" }
+
 local function onFade(data)
 	fadeToken += 1
 	local token = fadeToken
 	local inside = type(data) == "table" and data.Inside == true
-	title.Text = if inside then "🦇 " .. string.upper(CaveConfig.Name) else "🌲 BOSQUE INICIAL"
-	subtitle.Text = if inside then "Tres salas: los pequeños, los medianos y el altar del Guardián" else "Saliendo de la cueva…"
+	local cave = (type(data) == "table" and CaveLogic.cave(data.Cave)) or CaveConfig.Caves[CaveConfig.Order[1]]
+	local zone = ZoneConfig.Zones[cave.Zone]
+	title.Text = if inside then ("%s %s"):format(cave.Icon or "🦇", string.upper(cave.Name)) else ("%s %s"):format(ZONE_ICONS[cave.Zone] or "🌲", string.upper(zone and zone.DisplayName or "Bosque Inicial"))
+	subtitle.Text = if inside then (cave.Subtitle or "") else "Saliendo de la cueva…"
 	title.TextTransparency, subtitle.TextTransparency = 1, 1
 	sound(CaveConfig.Sounds.Enter)
 	setFade(true, CaveConfig.Travel.FadeSeconds)
@@ -222,8 +228,8 @@ local function showBanner(room)
 	end)
 end
 
--- Tinte frío dentro de la cueva (en Lighting, aparte del de las oleadas)
-local function setTint(on: boolean)
+-- Tinte dentro de la cueva (el de cada una; en Lighting, aparte del de las oleadas)
+local function setTint(on: boolean, spec)
 	if on and not tint then
 		local effect = Instance.new("ColorCorrectionEffect")
 		effect.Name = "CaveTint"
@@ -235,7 +241,7 @@ local function setTint(on: boolean)
 		tint = effect
 	end
 	if tint then
-		local spec = CaveConfig.Tint
+		spec = spec or CaveConfig.Tint
 		TweenService:Create(tint, TweenInfo.new(0.8), {
 			Brightness = if on then spec.Brightness else 0,
 			Contrast = if on then spec.Contrast else 0,
@@ -257,12 +263,15 @@ function CaveController.start()
 			onArrived(data)
 		elseif kind == "Blocked" and type(data) == "table" and type(data.Index) == "number" then
 			CaveGates.blocked(data.Index)
+		elseif kind == "Trap" then
+			CaveTraps.show(data)
 		end
 	end)
 
 	-- Sala en la que estás y ambiente de cueva (cada poco)
 	local lastRoom: number? = nil
-	local reverbOn, tintOn = false, false
+	local reverbOn = false
+	local tintOn: string? = nil
 	local elapsed = 0
 	RunService.Heartbeat:Connect(function(dt: number)
 		elapsed += dt
@@ -281,15 +290,16 @@ function CaveController.start()
 			showBanner(room)
 		end
 		lastRoom = roomIndex or (if CaveLogic.inside(position.X, position.Z) then lastRoom else nil)
-		local inDungeon = CaveLogic.inside(position.X, position.Z, 4)
+		local caveId, cave = CaveLogic.caveAt(position.X, position.Z, 4)
+		local inDungeon = caveId ~= nil
 		local reverb = inDungeon or StudFloor.inCave(position.X, position.Z, 2)
 		if reverb ~= reverbOn then
 			reverbOn = reverb
 			SoundService.AmbientReverb = if reverb then Enum.ReverbType.Cave else Enum.ReverbType.NoReverb
 		end
-		if inDungeon ~= tintOn then
-			tintOn = inDungeon
-			setTint(inDungeon)
+		if caveId ~= tintOn then
+			tintOn = caveId
+			setTint(inDungeon, cave and cave.Theme and cave.Theme.Tint)
 		end
 	end)
 end

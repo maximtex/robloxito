@@ -544,6 +544,8 @@ def build_zones():
         ("LandscapeConfig", "src/shared/Config/LandscapeConfig.luau"),
         ("CalderaConfig", "src/shared/Config/CalderaConfig.luau"),
         ("PortalDesign", "src/server/Util/PortalDesign.luau"),
+        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
+        ("StudFloor", "src/shared/Util/StudFloor.luau"),
     ]]
     out.append(suite("zones_body.luau"))
     return "\n".join(out)

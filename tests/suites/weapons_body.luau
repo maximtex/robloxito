@@ -38,7 +38,7 @@ check("las zonas que piden existen", zoneOK)
 
 print("-- Progresión de poder")
 local order = WeaponLogic.ordered("Weapons")
-check("orden de la Armería: empieza por el láser", order[1] == WeaponConfig.StarterWeapon and #order == 7)
+check("orden de la Armería: empieza por el láser (12: las de la Tundra, la Fortaleza y el Mundo 2 al final)", order[1] == WeaponConfig.StarterWeapon and #order == 12)
 local growing = true
 for index = 2, #order do
 	if WeaponLogic.dps(order[index], 0) <= WeaponLogic.dps(order[index - 1], 0) then
@@ -46,7 +46,7 @@ for index = 2, #order do
 	end
 end
 check("cada arma hace más daño por segundo que la anterior", growing)
-check("sin categoría: todas (armas, guantes y bastones)", #WeaponLogic.ordered() == 21)
+check("sin categoría: todas (armas, guantes y bastones)", #WeaponLogic.ordered() == 36)
 for _, category in { "Fists", "Magic" } do
 	local list = WeaponLogic.ordered(category)
 	local up, sameTiers = true, true
@@ -61,8 +61,8 @@ for _, category in { "Fists", "Magic" } do
 			sameTiers = false
 		end
 	end
-	check(("%s: 7, empieza por %s (gratis), cada uno pega más y al ritmo de las armas"):format(category, WeaponConfig.Starters[category]),
-		#list == 7 and list[1] == WeaponConfig.Starters[category] and WeaponConfig.Weapons[list[1]].Price == 0 and up and sameTiers)
+	check(("%s: 12, empieza por %s (gratis), cada uno pega más y al ritmo de las armas"):format(category, WeaponConfig.Starters[category]),
+		#list == 12 and list[1] == WeaponConfig.Starters[category] and WeaponConfig.Weapons[list[1]].Price == 0 and up and sameTiers)
 end
 local bossDrops = {}
 for weaponId, def in WeaponConfig.Weapons do
@@ -72,7 +72,7 @@ for weaponId, def in WeaponConfig.Weapons do
 	end
 end
 local dropsOk = true
-for _, boss in { "ForestWarden", "AmethystColossus", "CalderaTitan" } do
+for _, boss in { "ForestWarden", "AmethystColossus", "CalderaTitan", "IceGolem", "GoblinKing" } do
 	local drops = bossDrops[boss]
 	if not (drops and drops.Weapons and drops.Fists and drops.Magic) then
 		dropsOk = false

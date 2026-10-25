@@ -39,6 +39,9 @@ local ZONE_HEADERS: { [string]: { Title: string, Sub: string } } = {
 	Forest = { Title = "Bosque", Sub = "ZONA 1 · PLAZA DEL CRISTAL" },
 	CrystalValley = { Title = "Valle Morado", Sub = "ZONA 2 · VALLE CRISTALINO" },
 	EmberCaldera = { Title = "Caldera", Sub = "ZONA 3 · CALDERA DE BRASAS" },
+	FrozenTundra = { Title = "Tundra", Sub = "ZONA 4 · TUNDRA HELADA" },
+	GoblinFortress = { Title = "Fortaleza", Sub = "ZONA 5 · FORTALEZA GOBLIN" },
+	World2 = { Title = "Mundo 2", Sub = "MUNDO 2 · PUEBLO CELESTIAL" },
 }
 
 local DataStatusController = {}

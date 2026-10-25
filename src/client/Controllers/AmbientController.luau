@@ -32,7 +32,7 @@ local SOUNDS = {
 	Night = { Id = "rbxassetid://9117114470", Volume = 0.2 }, -- noche: grillos e insectos
 }
 -- Volumen del ambiente por zona (1 = completo).
-local ZONE_AMBIENCE = { Forest = 1, CrystalValley = 0.55, EmberCaldera = 0 }
+local ZONE_AMBIENCE = { Forest = 1, CrystalValley = 0.55, EmberCaldera = 0, FrozenTundra = 0, GoblinFortress = 0.5, World2 = 0.9 }
 
 -- Sitios con mariposas (relativos al centro de la zona del Bosque): praderas y otros.
 local BUTTERFLY_SPOTS = {

@@ -19,7 +19,8 @@ local PetConfig = {
 		Rare = { DisplayName = "Rara", Order = 3, Color = Color3.fromRGB(96, 180, 255), Multiplier = 1.5 },
 		Epic = { DisplayName = "Épica", Order = 4, Color = Color3.fromRGB(196, 120, 255), Multiplier = 2 },
 		Legendary = { DisplayName = "Legendaria", Order = 5, Color = Color3.fromRGB(255, 200, 80), Multiplier = 3 },
-		Exclusive = { DisplayName = "Exclusiva", Order = 6, Color = Color3.fromRGB(60, 255, 120), Multiplier = 6 },
+		Mythic = { DisplayName = "Mítica", Order = 6, Color = Color3.fromRGB(255, 79, 140), Multiplier = 6 },
+		Exclusive = { DisplayName = "Exclusiva", Order = 7, Color = Color3.fromRGB(60, 255, 120), Multiplier = 6 },
 	},
 
 	Pets = {
@@ -270,5 +271,51 @@ local PetConfig = {
 		},
 	},
 }
+
+-- Mascotas de los huevos de la Tundra Helada y del Mundo 2 (EggConfig), con los estilos de
+-- siempre en colores nuevos. Cada una tiene su ★ Evo (se genera aquí: el doble de
+-- multiplicador, una rareza más y dorada).
+-- { Id, nombre, rareza, multiplicador, estilo, color principal, color secundario }
+local RGB = Color3.fromRGB
+local NEW_PETS = {
+	-- Huevo de Escarcha (Tundra)
+	{ "FrostFox", "Zorro de Escarcha", "Epic", 2.9, "Ember", RGB(222, 238, 255), RGB(110, 190, 255) },
+	{ "SnowOwl", "Búho de las Nieves", "Epic", 3.4, "Owl", RGB(244, 248, 255), RGB(150, 190, 230) },
+	{ "IceTurtle", "Tortuga de Hielo", "Legendary", 4.4, "Turtle", RGB(120, 170, 220), RGB(170, 240, 255) },
+	-- Huevo Glaciar (Tundra)
+	{ "PolarFawn", "Cervatillo Polar", "Epic", 3.8, "Fawn", RGB(236, 242, 250), RGB(120, 210, 255) },
+	{ "AuroraFox", "Zorrito Aurora", "Legendary", 4.8, "Quartz", RGB(200, 255, 236), RGB(150, 120, 255) },
+	{ "FrostDragon", "Dragón de Escarcha", "Legendary", 6, "Dragon", RGB(110, 170, 240), RGB(220, 250, 255) },
+	-- Huevo Estelar (Mundo 2)
+	{ "StarFox", "Zorro Estelar", "Legendary", 6.5, "Fox", RGB(60, 60, 120), RGB(255, 226, 90) },
+	{ "MoonMushroom", "Seta Lunar", "Legendary", 7.5, "Mushroom", RGB(120, 110, 230), RGB(230, 236, 255) },
+	{ "CometOwl", "Búho Cometa", "Mythic", 9, "Owl", RGB(70, 90, 170), RGB(120, 230, 255) },
+	-- Huevo Celestial (Mundo 2)
+	{ "CelestialFawn", "Cervatillo Celestial", "Legendary", 9.5, "Fawn", RGB(255, 240, 210), RGB(255, 200, 80) },
+	{ "SunTurtle", "Tortuga Solar", "Mythic", 11, "Turtle", RGB(255, 170, 60), RGB(255, 236, 120) },
+	{ "CelestialDragon", "Dragón Celestial", "Mythic", 14, "Dragon", RGB(250, 250, 255), RGB(255, 210, 90) },
+	-- Huevo Cósmico (Mundo 2)
+	{ "GalaxyFox", "Zorrito Galaxia", "Mythic", 15, "Quartz", RGB(60, 40, 120), RGB(255, 120, 230) },
+	{ "CosmicSprout", "Brote Cósmico", "Mythic", 18, "Sprout", RGB(110, 70, 200), RGB(110, 255, 220) },
+	{ "CosmicDragon", "Dragón Cósmico", "Mythic", 24, "Dragon", RGB(30, 26, 60), RGB(200, 110, 255) },
+}
+local EVO_RARITY = { Epic = "Legendary", Legendary = "Mythic", Mythic = "Mythic" }
+for _, spec in NEW_PETS do
+	local id, name, rarity, multiplier, style, primary, secondary = table.unpack(spec)
+	PetConfig.Pets[id] = {
+		DisplayName = name,
+		Rarity = rarity,
+		Multiplier = multiplier,
+		EvolvesInto = id .. "_Evo",
+		Look = { Style = style, Primary = primary, Secondary = secondary },
+	}
+	PetConfig.Pets[id .. "_Evo"] = {
+		DisplayName = "★ " .. name .. " Evo",
+		Rarity = EVO_RARITY[rarity] or rarity,
+		Multiplier = multiplier * 2,
+		IsEvolved = true,
+		Look = { Style = style, Primary = RGB(255, 215, 80), Secondary = secondary },
+	}
+end
 
 return PetConfig

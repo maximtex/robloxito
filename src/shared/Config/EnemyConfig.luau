@@ -11,6 +11,11 @@
 
 local EnemyConfig = {
 	AiTickSeconds = 0.15,
+
+	-- Bichos élite de las mazmorras del Valle y la Caldera (CaveConfig.Caves.*.EliteChance en
+	-- las salas y WaveConfig.Arenas.*.EliteChance en las oleadas): más grandes (Scale), brillan
+	-- (Color) y tienen más vida, pegan más y dan más botín. Su nombre lleva Prefix.
+	Elite = { Health = 3, Damage = 1.3, Reward = 3, Scale = 1.3, Color = Color3.fromRGB(255, 214, 90), Prefix = "⭐ " },
 	StuckSeconds = 6,
 
 	Types = {
@@ -200,6 +205,120 @@ local EnemyConfig = {
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
 			Look = { Style = "Colossus", Primary = Color3.fromRGB(64, 52, 52), Secondary = Color3.fromRGB(255, 118, 36), Eyes = Color3.fromRGB(255, 232, 150) },
 		},
+
+		-- Tundra Helada -------------------------------------------------------------------
+		FrostWolf = {
+			DisplayName = "Lobo de Escarcha",
+			Kind = "Normal",
+			MaxHealth = 1700,
+			Damage = 10,
+			AttackRange = 5,
+			AttackCooldown = 1.2,
+			AttackWindup = 0.28,
+			WalkSpeed = 17, -- rápidos: llegan en manada
+			DetectRange = 13,
+			LeashRange = 20,
+			Reward = 1000,
+			RespawnSeconds = 4,
+			Look = { Style = "Wolf", Primary = Color3.fromRGB(226, 236, 248), Secondary = Color3.fromRGB(120, 190, 255), Eyes = Color3.fromRGB(70, 200, 255) },
+		},
+		Yeti = {
+			DisplayName = "Yeti",
+			Kind = "Strong",
+			MaxHealth = 7000,
+			Damage = 24,
+			AttackRange = 8,
+			AttackCooldown = 2.6,
+			AttackWindup = 0.75,
+			WalkSpeed = 12,
+			DetectRange = 14,
+			LeashRange = 20,
+			Reward = 4000,
+			RespawnSeconds = 6,
+			Look = { Style = "Yeti", Primary = Color3.fromRGB(240, 246, 255), Secondary = Color3.fromRGB(110, 150, 200), Eyes = Color3.fromRGB(70, 170, 255) },
+		},
+		IceGolem = {
+			DisplayName = "Gólem de Hielo",
+			Kind = "Boss",
+			MaxHealth = 50000,
+			Damage = 32,
+			AttackRange = 10,
+			AttackCooldown = 2.2,
+			AttackWindup = 0.5,
+			WalkSpeed = 12,
+			DetectRange = 0, -- los jefes usan su arena (Zones.*.Boss.Arena)
+			LeashRange = 18,
+			Reward = 36000,
+			EnergyReward = 1000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			RespawnSeconds = 15,
+			Brain = { DetectRange = 28, Territory = 44, LockSeconds = 4, RecoverSeconds = 0.7 },
+			-- Identidad: embestidas sobre el hielo y ráfagas de carámbanos
+			Charge = { Interval = 7, Telegraph = 0.9, Distance = 30, Width = 7, Damage = 32, Speed = 50, MinRange = 8, MaxRange = 32 },
+			Volley = { Interval = 6, Count = 4, Damage = 15, Speed = 50, Telegraph = 0.55, Range = 42, Radius = 3 },
+			-- Golpe de área anunciado con un círculo en el suelo
+			Slam = { Interval = 7, Telegraph = 1.2, Radius = 14, Damage = 38 },
+			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.35, SlamIntervalMultiplier = 0.6 },
+			Look = { Style = "Colossus", Material = "Glacier", Primary = Color3.fromRGB(170, 212, 240), Secondary = Color3.fromRGB(120, 230, 255), Eyes = Color3.fromRGB(230, 250, 255) },
+		},
+
+		-- Fortaleza Goblin -------------------------------------------------------------------
+		Goblin = {
+			DisplayName = "Goblin",
+			Kind = "Normal",
+			MaxHealth = 5500,
+			Damage = 14,
+			AttackRange = 4.5,
+			AttackCooldown = 1.2,
+			AttackWindup = 0.25,
+			WalkSpeed = 18,
+			DetectRange = 16, -- te salen al paso por el camino
+			LeashRange = 24,
+			Reward = 3200,
+			RespawnSeconds = 4,
+			Look = { Style = "Goblin", Primary = Color3.fromRGB(116, 186, 72), Secondary = Color3.fromRGB(122, 86, 52), Eyes = Color3.fromRGB(255, 214, 60) },
+		},
+		GoblinBrute = {
+			DisplayName = "Goblin Bruto",
+			Kind = "Strong",
+			MaxHealth = 22000,
+			Damage = 32,
+			AttackRange = 8,
+			AttackCooldown = 2.4,
+			AttackWindup = 0.65,
+			WalkSpeed = 14,
+			DetectRange = 16,
+			LeashRange = 24,
+			Reward = 12000,
+			RespawnSeconds = 7,
+			Look = { Style = "GoblinBrute", Primary = Color3.fromRGB(96, 152, 62), Secondary = Color3.fromRGB(120, 124, 136), Eyes = Color3.fromRGB(255, 120, 60) },
+		},
+		-- Rey Goblin (jefe final del Mundo 1): enorme, SUPER rápido (corre más que tú) y duro.
+		-- Embiste, salta sobre ti, lanza dagas y golpea el suelo sin apenas descansar. Abre el
+		-- portal gigante al Mundo 2 (ZoneConfig.Zones.World2.RequiredBoss).
+		GoblinKing = {
+			DisplayName = "Rey Goblin",
+			Kind = "Boss",
+			MaxHealth = 160000,
+			Damage = 34,
+			AttackRange = 11,
+			AttackCooldown = 1.1,
+			AttackWindup = 0.35,
+			WalkSpeed = 30,
+			DetectRange = 0, -- usa su arena (Zones.*.Boss.Arena)
+			LeashRange = 18,
+			Reward = 120000,
+			EnergyReward = 3000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			RespawnSeconds = 30,
+			Brain = { DetectRange = 36, Territory = 52, LockSeconds = 3, RecoverSeconds = 0.3 },
+			Charge = { Interval = 5, Telegraph = 0.7, Distance = 36, Width = 8, Damage = 40, Speed = 85, MinRange = 8, MaxRange = 38 },
+			Leap = { Interval = 7, Telegraph = 0.8, Radius = 11, Damage = 42, MinRange = 10, MaxRange = 38 },
+			Volley = { Interval = 5, Count = 5, Damage = 14, Speed = 75, Telegraph = 0.4, Range = 46, Radius = 3 },
+			Slam = { Interval = 6, Telegraph = 0.9, Radius = 15, Damage = 48 },
+			-- Furia bajo la mitad de vida: todavía más rápido y ataques mucho más seguidos
+			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.35, SlamIntervalMultiplier = 0.55 },
+			Scale = 1.45, -- enorme: casi 30 studs de alto (EnemyService lo agranda al crearlo)
+			Look = { Style = "GoblinKing", Primary = Color3.fromRGB(104, 172, 64), Secondary = Color3.fromRGB(150, 40, 60), Eyes = Color3.fromRGB(255, 70, 50) },
+		},
 	},
 
 	Zones = {
@@ -296,9 +415,33 @@ local EnemyConfig = {
 			SafeZones = {
 				{ Center = Vector2.new(18, 8), Radius = 11 },
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal a la Caldera (ZoneConfig.Portals.CalderaPortal)
-				{ Center = Vector2.new(36, -124), Radius = 22 }, -- círculo de las oleadas (WaveConfig.Places)
+				-- Boca de la Cueva de Amatista (CaveConfig.Caves.CrystalValley.Entrance), donde
+				-- estaba el círculo de las oleadas: nadie te espera al salir.
+				{ Center = Vector2.new(36, -124), Radius = 22 },
+				-- Cueva de Amatista por dentro (relativo al centro de la zona, como la del Bosque): donde
+				-- llegas y el círculo de las oleadas en la sala 3 (WaveConfig.Places).
+				{ Center = Vector2.new(-928, 29), Radius = 12 },
+				{ Center = Vector2.new(-1220, 5), Radius = 22 },
 			},
 			Spawns = {
+				-- Cueva de Amatista por dentro (CaveConfig.Caves; la boca está a la derecha de la llegada): la
+				-- misma cueva que la del Bosque movida a esta zona, así que los mismos sitios.
+				-- Sala 1, la Cantera: los pequeños, lejos de donde llegas.
+				{ Type = "Shardling", Offset = Vector2.new(-950, 5) },
+				{ Type = "Shardling", Offset = Vector2.new(-948, 51) },
+				{ Type = "Shardling", Offset = Vector2.new(-966, 31) },
+				{ Type = "Shardling", Offset = Vector2.new(-976, 3) },
+				{ Type = "Shardling", Offset = Vector2.new(-986, 53) },
+				{ Type = "Shardling", Offset = Vector2.new(-990, 29) },
+				{ Type = "Shardling", Offset = Vector2.new(-994, 7) },
+				{ Type = "Shardling", Offset = Vector2.new(-968, 57) },
+				-- Sala 2, la Geoda: los medianos (y el mini-jefe, que crea EnemyService: CaveConfig).
+				{ Type = "GeodeGolem", Offset = Vector2.new(-1066, 29) },
+				{ Type = "GeodeGolem", Offset = Vector2.new(-1090, 63) },
+				{ Type = "GeodeGolem", Offset = Vector2.new(-1104, 31) },
+				{ Type = "GeodeGolem", Offset = Vector2.new(-1112, 5) },
+				{ Type = "GeodeGolem", Offset = Vector2.new(-1076, 3) },
+
 				{ Type = "Shardling", Offset = Vector2.new(-55, -85) },
 				{ Type = "Shardling", Offset = Vector2.new(-35, -60) },
 				{ Type = "Shardling", Offset = Vector2.new(-82, -48) },
@@ -324,9 +467,33 @@ local EnemyConfig = {
 			RewardMultiplier = 1,
 			SafeZones = {
 				{ Center = Vector2.new(24, 10), Radius = 11 },
-				{ Center = Vector2.new(36, -124), Radius = 22 }, -- círculo de las oleadas (WaveConfig.Places)
+				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal a la Tundra (ZoneConfig.Portals.TundraPortal)
+				-- Boca de la Forja de Magma (CaveConfig.Caves.EmberCaldera.Entrance)
+				{ Center = Vector2.new(36, -124), Radius = 22 },
+				-- Forja de Magma por dentro (relativo al centro de la zona, como la del Bosque): donde
+				-- llegas y el círculo de las oleadas en la sala 3 (WaveConfig.Places).
+				{ Center = Vector2.new(-928, 29), Radius = 12 },
+				{ Center = Vector2.new(-1220, 5), Radius = 22 },
 			},
 			Spawns = {
+				-- Forja de Magma por dentro (CaveConfig.Caves; la boca está a la derecha de la llegada): la
+				-- misma cueva que la del Bosque movida a esta zona, así que los mismos sitios.
+				-- Sala 1, la Fragua: los pequeños, lejos de donde llegas.
+				{ Type = "Cinderling", Offset = Vector2.new(-950, 5) },
+				{ Type = "Cinderling", Offset = Vector2.new(-948, 51) },
+				{ Type = "Cinderling", Offset = Vector2.new(-966, 31) },
+				{ Type = "Cinderling", Offset = Vector2.new(-976, 3) },
+				{ Type = "Cinderling", Offset = Vector2.new(-986, 53) },
+				{ Type = "Cinderling", Offset = Vector2.new(-990, 29) },
+				{ Type = "Cinderling", Offset = Vector2.new(-994, 7) },
+				{ Type = "Cinderling", Offset = Vector2.new(-968, 57) },
+				-- Sala 2, el Horno: los medianos (y el mini-jefe, que crea EnemyService: CaveConfig).
+				{ Type = "MagmaGolem", Offset = Vector2.new(-1066, 29) },
+				{ Type = "MagmaGolem", Offset = Vector2.new(-1090, 63) },
+				{ Type = "MagmaGolem", Offset = Vector2.new(-1104, 31) },
+				{ Type = "MagmaGolem", Offset = Vector2.new(-1112, 5) },
+				{ Type = "MagmaGolem", Offset = Vector2.new(-1076, 3) },
+
 				{ Type = "Cinderling", Offset = Vector2.new(-60, -72) },
 				{ Type = "Cinderling", Offset = Vector2.new(-36, -56) },
 				{ Type = "Cinderling", Offset = Vector2.new(46, -60) },
@@ -343,6 +510,101 @@ local EnemyConfig = {
 			Boss = {
 				Type = "CalderaTitan",
 				Arena = { Name = "Corazón de la Caldera", Center = Vector2.new(0, 95), Radius = 22 },
+			},
+		},
+
+		-- Tundra Helada: la misma forma que la Caldera, así que los mismos sitios (lejos del lago
+		-- helado y de la plaza de los huevos).
+		FrozenTundra = {
+			RewardMultiplier = 1,
+			SafeZones = {
+				{ Center = Vector2.new(30, 9), Radius = 20 }, -- plaza de los Huevos de Hielo
+				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal a la Fortaleza (ZoneConfig.Portals.FortressPortal)
+				-- Boca de la Gruta Glacial (CaveConfig.Caves.FrozenTundra.Entrance)
+				{ Center = Vector2.new(36, -124), Radius = 22 },
+				-- Gruta Glacial por dentro: donde llegas y el círculo de las oleadas (WaveConfig.Places)
+				{ Center = Vector2.new(-928, 29), Radius = 12 },
+				{ Center = Vector2.new(-1220, 5), Radius = 22 },
+			},
+			Spawns = {
+				-- Gruta Glacial por dentro (CaveConfig.Caves): sala 1, la Escarcha: los lobos.
+				{ Type = "FrostWolf", Offset = Vector2.new(-950, 5) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-948, 51) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-966, 31) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-976, 3) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-986, 53) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-990, 29) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-994, 7) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-968, 57) },
+				-- Sala 2, el Glaciar: los yetis (y el mini-jefe, que crea EnemyService: CaveConfig).
+				{ Type = "Yeti", Offset = Vector2.new(-1066, 29) },
+				{ Type = "Yeti", Offset = Vector2.new(-1090, 63) },
+				{ Type = "Yeti", Offset = Vector2.new(-1104, 31) },
+				{ Type = "Yeti", Offset = Vector2.new(-1112, 5) },
+				{ Type = "Yeti", Offset = Vector2.new(-1076, 3) },
+
+				{ Type = "FrostWolf", Offset = Vector2.new(-60, -72) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-36, -56) },
+				{ Type = "FrostWolf", Offset = Vector2.new(46, -60) },
+				{ Type = "FrostWolf", Offset = Vector2.new(82, -75) },
+				{ Type = "FrostWolf", Offset = Vector2.new(70, 40) },
+				{ Type = "FrostWolf", Offset = Vector2.new(92, 65) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-80, 40) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-95, 72) },
+				{ Type = "FrostWolf", Offset = Vector2.new(-30, 60) },
+				{ Type = "FrostWolf", Offset = Vector2.new(30, 60) },
+				{ Type = "Yeti", Offset = Vector2.new(-96, -14) },
+				{ Type = "Yeti", Offset = Vector2.new(90, -30) },
+				{ Type = "Yeti", Offset = Vector2.new(-55, 95) },
+				{ Type = "Yeti", Offset = Vector2.new(55, 95) },
+			},
+			Boss = {
+				Type = "IceGolem",
+				Arena = { Name = "Mirador del Gólem", Center = Vector2.new(0, 95), Radius = 22 },
+			},
+		},
+
+		-- Fortaleza Goblin: goblins por el prado y junto al camino (te salen al paso), brutos en
+		-- la puerta de la muralla y por el patio, y el Rey Goblin en la Sala del Trono. La tarima
+		-- del portal gigante es zona segura.
+		GoblinFortress = {
+			RewardMultiplier = 1,
+			SafeZones = {
+				{ Center = Vector2.new(0, 124), Radius = 22 }, -- portal gigante al Mundo 2 (ZoneConfig.WorldPortals)
+				{ Center = Vector2.new(0, -150), Radius = 14 }, -- llegada desde la Tundra
+			},
+			Spawns = {
+				-- El prado de los campamentos
+				{ Type = "Goblin", Offset = Vector2.new(-70, -118) },
+				{ Type = "Goblin", Offset = Vector2.new(-42, -112) },
+				{ Type = "Goblin", Offset = Vector2.new(42, -112) },
+				{ Type = "Goblin", Offset = Vector2.new(70, -118) },
+				{ Type = "Goblin", Offset = Vector2.new(-96, -82) },
+				{ Type = "Goblin", Offset = Vector2.new(-62, -78) },
+				{ Type = "Goblin", Offset = Vector2.new(62, -78) },
+				{ Type = "Goblin", Offset = Vector2.new(96, -82) },
+				-- Junto al camino a la muralla
+				{ Type = "Goblin", Offset = Vector2.new(-24, -100) },
+				{ Type = "Goblin", Offset = Vector2.new(24, -100) },
+				{ Type = "Goblin", Offset = Vector2.new(-24, -76) },
+				{ Type = "Goblin", Offset = Vector2.new(24, -76) },
+				{ Type = "GoblinBrute", Offset = Vector2.new(-32, -66) },
+				{ Type = "GoblinBrute", Offset = Vector2.new(32, -66) },
+				-- El patio, a los lados de la Sala del Trono
+				{ Type = "Goblin", Offset = Vector2.new(-56, -28) },
+				{ Type = "Goblin", Offset = Vector2.new(56, -28) },
+				{ Type = "Goblin", Offset = Vector2.new(-64, 8) },
+				{ Type = "Goblin", Offset = Vector2.new(64, 8) },
+				{ Type = "Goblin", Offset = Vector2.new(-64, 48) },
+				{ Type = "Goblin", Offset = Vector2.new(64, 48) },
+				{ Type = "Goblin", Offset = Vector2.new(-60, 86) },
+				{ Type = "Goblin", Offset = Vector2.new(60, 86) },
+				{ Type = "GoblinBrute", Offset = Vector2.new(-40, -32) },
+				{ Type = "GoblinBrute", Offset = Vector2.new(40, -32) },
+			},
+			Boss = {
+				Type = "GoblinKing",
+				Arena = { Name = "Sala del Trono", Center = Vector2.new(0, 44), Radius = 30 },
 			},
 		},
 	},

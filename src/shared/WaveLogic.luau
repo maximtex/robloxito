@@ -187,6 +187,32 @@ function WaveLogic.victoryReward(power: number, arenaId: string?): (number, numb
 	return math.floor(WaveConfig.VictoryEnergy * p * scale), math.floor(WaveConfig.VictoryMoney * scale)
 end
 
+-- Cofre de victoria de las mazmorras (Arenas.*.Chest): (💰, poción o nil). `rollPotion` y
+-- `rollWhich` en [0, 1); `potions`: las que pueden salir (ItemLogic.potionOrder()). Sin
+-- cofre en ese modo: (0, nil).
+function WaveLogic.chestReward(arenaId: string?, rollPotion: number, rollWhich: number, potions: { string }?): (number, string?)
+	local arena = arenaId and WaveConfig.Arenas[arenaId]
+	local chest = arena and arena.Chest
+	if not chest then
+		return 0, nil
+	end
+	local money = math.floor(positive(chest.Money))
+	local potion = nil
+	local list = potions or {}
+	if #list > 0 and positive(chest.PotionChance) > 0 and rollPotion < chest.PotionChance then
+		potion = list[math.clamp(math.floor(rollWhich * #list) + 1, 1, #list)]
+	end
+	return money, potion
+end
+
+-- ¿Sale élite este bicho de una oleada? (Arenas.*.EliteChance; `roll` en [0, 1)). Los jefes y
+-- la escolta, nunca (quien llama no lo pregunta).
+function WaveLogic.isElite(arenaId: string?, roll: number): boolean
+	local arena = arenaId and WaveConfig.Arenas[arenaId]
+	local chance = if arena then positive(arena.EliteChance) else 0
+	return chance > 0 and roll < chance
+end
+
 -- ¿Toca elegir mejora al terminar la oleada `wave`? (nunca tras la última; en el modo
 -- infinito siguen saliendo cada CardEvery)
 function WaveLogic.isCardWave(arenaId: string, wave: number): boolean

@@ -1,5 +1,5 @@
--- Puertas de la Cueva de los Espinillos en este cliente (CaveConfig.Gates; el progreso lo
--- cuenta y lo guarda CaveService y llega en el atributo CaveGates):
+-- Puertas de las mazmorras en este cliente (CaveConfig.Gates, de todas las cuevas; el progreso
+-- lo cuenta y lo guarda CaveService y llega en el atributo CaveGates):
 -- - Cada puerta cerrada es una losa de roca con runas moradas al principio de su pasillo.
 --   Solo existe en este cliente, así que solo te cierra el paso a ti (los que ya la abrieron
 --   pasan). En su cara se ve qué pide y cuántos llevas ("7 / 15").
@@ -154,7 +154,7 @@ local function buildDoor(index: number): Door
 	gui.LightInfluence = 0
 	gui.Parent = slab
 	label(gui, "Titulo", UDim2.fromScale(0.08, 0.08), UDim2.fromScale(0.84, 0.12), RGB(255, 236, 170), Enum.Font.FredokaOne).Text = "🔒 " .. string.upper(gate.Opens)
-	label(gui, "Pide", UDim2.fromScale(0.1, 0.2), UDim2.fromScale(0.8, 0.07), RGB(230, 220, 255), Enum.Font.GothamBold).Text = ("Derrota %d %s"):format(gate.Kills, gate.Enemies)
+	label(gui, "Pide", UDim2.fromScale(0.1, 0.2), UDim2.fromScale(0.8, 0.07), RGB(230, 220, 255), Enum.Font.GothamBold).Text = CaveLogic.gateAsk(gate)
 	local count = label(gui, "Cuenta", UDim2.fromScale(0.2, 0.54), UDim2.fromScale(0.6, 0.16), Color3.new(1, 1, 1), Enum.Font.FredokaOne)
 	local track = Instance.new("Frame")
 	track.Name = "Barra"
@@ -318,7 +318,7 @@ local function refreshPill()
 	pill.Visible = index ~= nil
 	if index and gate then
 		local kills = progress[index] or 0
-		pillText.Text = ("🔒 Abre %s: %d/%d %s"):format(gate.Opens, kills, gate.Kills, gate.Enemies)
+		pillText.Text = if gate.MiniBoss then ("🔒 Abre %s: %s"):format(gate.Opens, (CaveLogic.gateAsk(gate):gsub("^D", "d"))) else ("🔒 Abre %s: %d/%d %s"):format(gate.Opens, kills, gate.Kills, gate.Enemies)
 		pillFill.Size = UDim2.fromScale(math.clamp(kills / gate.Kills, 0, 1), 1)
 	end
 end
@@ -360,7 +360,7 @@ end
 function CaveGates.blocked(index: number)
 	local gate = CaveConfig.Gates[index]
 	if gate then
-		Toasts.show(("🔒 Puerta cerrada: derrota %d %s para abrir %s"):format(gate.Kills, gate.Enemies, gate.Opens), { Color = RUNE, Key = "CaveGate" })
+		Toasts.show(("🔒 Puerta cerrada: %s para abrir %s"):format((CaveLogic.gateAsk(gate):gsub("^D", "d")), gate.Opens), { Color = RUNE, Key = "CaveGate" })
 	end
 end
 

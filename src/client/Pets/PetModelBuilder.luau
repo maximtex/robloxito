@@ -306,7 +306,7 @@ local function light(parent: BasePart, color: Color3, brightness: number, range:
 end
 
 local function addRarityEffects(builder: Builder, rarity: string?, glow: Color3)
-	if rarity ~= "Rare" and rarity ~= "Epic" and rarity ~= "Legendary" then
+	if rarity ~= "Rare" and rarity ~= "Epic" and rarity ~= "Legendary" and rarity ~= "Mythic" then
 		return
 	end
 	local shell = effectShell(builder)
@@ -315,6 +315,11 @@ local function addRarityEffects(builder: Builder, rarity: string?, glow: Color3)
 	elseif rarity == "Epic" then
 		sparkles(shell, glow, 3, 0.26)
 		light(builder.Root, glow, 0.6, 6)
+	elseif rarity == "Mythic" then
+		-- Mítica: más chispas, aura y una luz más fuerte
+		sparkles(shell, glow, 9, 0.34)
+		aura(shell, glow)
+		light(builder.Root, glow, 1.6, 11)
 	else
 		sparkles(shell, glow, 5, 0.3)
 		aura(shell, glow)

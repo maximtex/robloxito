@@ -217,9 +217,9 @@ StudFloor.Zones = {
 		DecorSeed = 3031,
 	},
 
-	-- Caldera de Brasas: final del corredor (sin paso en el muro sur). Llegada desde el Valle,
-	-- plaza de la Forja de Huevos (24, 625), lago de lava (-46, 623) y Corazón de la Caldera
-	-- (0, 710), la arena del jefe.
+	-- Caldera de Brasas: llegada desde el Valle, plaza de la Forja de Huevos (24, 625), lago de
+	-- lava (-46, 623), Corazón de la Caldera (0, 710) y, en el muro sur, el portal a la Tundra
+	-- Helada (Z = 775).
 	EmberCaldera = {
 		MinX = -132,
 		MaxX = 132,
@@ -236,6 +236,7 @@ StudFloor.Zones = {
 		Walls = {
 			North = false,
 			South = true,
+			GateHalf = 28,
 			Base = { RGB(132, 84, 64), RGB(106, 66, 50) },
 			Top = { RGB(214, 114, 68), RGB(188, 94, 52) },
 		},
@@ -263,12 +264,11 @@ StudFloor.Zones = {
 			{ 748, 756, 60 },
 			{ 756, 772, 44 },
 		},
-		-- Paredes de roca volcánica en 5 escalones (StudWorld.buildWalls), que también cierran el
-		-- fondo del mapa (CloseSouth: el volcán más alto). El canal de lava a la altura del lago
+		-- Paredes de roca volcánica en 5 escalones (StudWorld.buildWalls); el fondo lo cierra el
+		-- muro sur con el paso del portal a la Tundra. El canal de lava a la altura del lago
 		-- las cruza: cascada al oeste (sigue por el suelo hasta el lago) y a un pozo al este.
 		Hill = {
 			Extend = 32,
-			CloseSouth = true,
 			Terraces = {
 				{ Height = 12, Colors = { RGB(168, 104, 78), RGB(154, 92, 68) } },
 				{ Height = 28, Colors = { RGB(132, 78, 58), RGB(118, 68, 50) } },
@@ -304,8 +304,219 @@ StudFloor.Zones = {
 			{ 68, 84, 708, 724 },
 			{ -28, 28, 684, 732 }, -- Corazón de la Caldera (jefe)
 			{ -76, 76, 716, 732 }, -- camino del fondo
+			{ -28, 28, 732, 780 }, -- plazoleta del portal a la Tundra (entra en el paso del muro)
 		},
 		DecorSeed = 4047,
+	},
+
+	-- Tundra Helada (zona 4): la misma forma de cráter que la Caldera (sus filas, 320 más al
+	-- sur), cubierta de nieve. Llegada desde la Caldera, plaza de los Huevos de Hielo (30, 944),
+	-- lago helado (-46, 943), el Mirador del Gólem (0, 1030: una estatua de hielo; el jefe
+	-- sale en las oleadas de su mazmorra) y el portal a la Fortaleza Goblin (Z = 1095) en el
+	-- muro sur. Suelo: la textura del camino del Valle (casi blanca) aclarada, a 16 studs
+	-- por imagen (GrassTile), y caminos de hielo con studs (StudTexture).
+	FrozenTundra = {
+		MinX = -132,
+		MaxX = 132,
+		MinZ = 780,
+		MaxZ = 1092,
+		Colors = {
+			GroundA = RGB(236, 242, 250),
+			GroundB = RGB(222, 232, 246),
+			Path = RGB(150, 204, 240),
+			Border = RGB(82, 128, 190),
+		},
+		GrassTexture = "rbxassetid://110463584344376",
+		GrassTile = 16,
+		GrassTint = RGB(245, 250, 255),
+		PathTexture = StudFloor.StudTexture,
+		Walls = {
+			North = false,
+			South = true,
+			GateHalf = 28,
+			Base = { RGB(120, 150, 200), RGB(100, 128, 180) },
+			Top = { RGB(240, 246, 252), RGB(222, 234, 246) },
+		},
+		Outline = {
+			{ 780, 796, 60 },
+			{ 796, 804, 68 },
+			{ 804, 812, 76 },
+			{ 812, 820, 84 },
+			{ 820, 828, 92 },
+			{ 828, 836, 100 },
+			{ 836, 852, 108 },
+			{ 852, 868, 116 },
+			{ 868, 892, 124 },
+			{ 892, 980, 132 },
+			{ 980, 1004, 124 },
+			{ 1004, 1020, 116 },
+			{ 1020, 1028, 108 },
+			{ 1028, 1036, 100 },
+			{ 1036, 1044, 92 },
+			{ 1044, 1052, 84 },
+			{ 1052, 1060, 76 },
+			{ 1060, 1068, 68 },
+			{ 1068, 1076, 60 },
+			{ 1076, 1092, 44 },
+		},
+		-- Montañas nevadas en 5 escalones, de la nieve al hielo azul oscuro
+		Hill = {
+			Extend = 32,
+			Terraces = {
+				{ Height = 12, Colors = { RGB(238, 244, 250), RGB(226, 236, 246) } },
+				{ Height = 28, Colors = { RGB(206, 224, 242), RGB(190, 212, 236) } },
+				{ Height = 48, Colors = { RGB(160, 190, 226), RGB(146, 178, 218) } },
+				{ Height = 72, Colors = { RGB(120, 150, 200), RGB(108, 138, 190) } },
+				{ Height = 104, Colors = { RGB(86, 108, 160), RGB(76, 96, 146) } },
+			},
+		},
+		Paths = {
+			{ -28, 28, 780, 812 }, -- llegada desde la Caldera
+			{ -12, 12, 812, 1052 }, -- avenida hacia el Mirador del Gólem
+			{ -100, 100, 836, 852 }, -- camino de la llegada (8 studs antes del borde)
+			{ -12, 52, 924, 964 }, -- plaza de los Huevos de Hielo
+			-- Rondas oeste y este: siguen los escalones del borde, 8 studs por dentro
+			{ -108, -92, 844, 868 },
+			{ 92, 108, 844, 868 },
+			{ -116, -100, 860, 900 },
+			{ 100, 116, 860, 900 },
+			{ -124, -108, 892, 980 },
+			{ 108, 124, 892, 980 },
+			{ -116, -100, 972, 1004 },
+			{ 100, 116, 972, 1004 },
+			{ -108, -92, 996, 1020 },
+			{ 92, 108, 996, 1020 },
+			{ -100, -84, 1012, 1028 },
+			{ 84, 100, 1012, 1028 },
+			{ -92, -76, 1020, 1036 },
+			{ 76, 92, 1020, 1036 },
+			{ -84, -68, 1028, 1044 },
+			{ 68, 84, 1028, 1044 },
+			{ -28, 28, 1004, 1052 }, -- Mirador del Gólem (estatua de hielo)
+			{ -76, 76, 1036, 1052 }, -- camino del fondo
+			{ -28, 28, 1052, 1100 }, -- plazoleta del portal a la Fortaleza (entra en el paso del muro)
+		},
+		DecorSeed = 5059,
+	},
+
+	-- Fortaleza Goblin (zona 5, final del Mundo 1): un prado de musgo con campamentos goblin,
+	-- la muralla con su puerta (Z = 1196 a 1204, la construye FortressService), el patio con la
+	-- Sala del Trono (arena del Rey Goblin, (0, 1299)) y al fondo, sobre su tarima, el PORTAL
+	-- GIGANTE al Mundo 2 (0, 1379). Sin paso en el muro sur: las rocas cierran el fondo. Suelo:
+	-- el damero del Bosque oscurecido (GrassTint) y caminos de tierra (el de la Caldera, PathTint).
+	GoblinFortress = {
+		MinX = -132,
+		MaxX = 132,
+		MinZ = 1100,
+		MaxZ = 1412,
+		Colors = {
+			GroundA = RGB(110, 150, 52),
+			GroundB = RGB(86, 126, 40),
+			Path = RGB(150, 124, 98),
+			Border = RGB(88, 68, 50),
+		},
+		GrassTexture = "rbxassetid://102683223562470",
+		GrassTint = RGB(190, 200, 160),
+		PathTexture = "rbxassetid://75893954638467",
+		PathTint = RGB(215, 198, 172),
+		Walls = {
+			North = false,
+			South = true,
+			Base = { RGB(84, 80, 74), RGB(70, 66, 62) },
+			Top = { RGB(110, 150, 52), RGB(86, 126, 40) },
+		},
+		Outline = {
+			{ 1100, 1116, 60 },
+			{ 1116, 1124, 76 },
+			{ 1124, 1132, 92 },
+			{ 1132, 1140, 108 },
+			{ 1140, 1156, 124 },
+			{ 1156, 1372, 132 },
+			{ 1372, 1388, 124 },
+			{ 1388, 1396, 108 },
+			{ 1396, 1404, 84 },
+			{ 1404, 1412, 60 },
+		},
+		-- Rocas y riscos oscuros con musgo, que también cierran el fondo (CloseSouth)
+		Hill = {
+			Extend = 32,
+			CloseSouth = true,
+			Terraces = {
+				{ Height = 12, Colors = { RGB(98, 122, 70), RGB(86, 110, 60) } },
+				{ Height = 28, Colors = { RGB(112, 106, 98), RGB(100, 94, 88) } },
+				{ Height = 48, Colors = { RGB(86, 82, 76), RGB(76, 72, 68) } },
+				{ Height = 72, Colors = { RGB(66, 62, 58), RGB(58, 54, 50) } },
+				{ Height = 104, Colors = { RGB(46, 44, 42), RGB(40, 38, 36) } },
+			},
+		},
+		Paths = {
+			{ -28, 28, 1100, 1132 }, -- llegada desde la Tundra
+			{ -12, 12, 1132, 1212 }, -- camino a la puerta de la muralla
+			{ -100, 100, 1148, 1164 }, -- camino de los campamentos (8 studs antes del borde)
+			{ -76, 76, 1212, 1356 }, -- patio de la fortaleza (Sala del Trono en medio)
+			{ -36, 36, 1356, 1404 }, -- tarima del portal gigante
+		},
+		DecorSeed = 6067,
+		-- Muralla de la fortaleza (FortressService): de borde a borde a esta Z, con la puerta
+		-- abierta (medio ancho GateHalf) frente al camino.
+		Rampart = { Z0 = 1196, Z1 = 1204, GateHalf = 16 },
+	},
+
+	-- Mundo 2: el pueblo nuevo, lejos de todo (centro (2000, 0); World2Service). Plaza con los
+	-- cuatro puestos, el Jardín Celestial con 3 huevos al norte y la avenida al portal de vuelta
+	-- al Mundo 1 al sur (donde se llega). Cerrado por todos los lados con terrazas (CloseNorth y
+	-- CloseSouth). CenterX: el borde a medida (Outline) es simétrico respecto a esta X.
+	World2 = {
+		CenterX = 2000,
+		MinX = 1876,
+		MaxX = 2124,
+		MinZ = -124,
+		MaxZ = 124,
+		Colors = {
+			GroundA = StudFloor.Palette.GreenLight,
+			GroundB = StudFloor.Palette.GreenDark,
+			Path = RGB(232, 222, 200),
+			Border = RGB(214, 168, 64),
+		},
+		GrassTexture = "rbxassetid://102683223562470",
+		PathTexture = "rbxassetid://110463584344376",
+		PathTint = RGB(255, 246, 222),
+		Walls = {
+			North = false,
+			South = true,
+			Base = { RGB(96, 196, 200), RGB(70, 170, 180) },
+			Top = { StudFloor.Palette.GreenLight, StudFloor.Palette.GreenDark },
+		},
+		Outline = {
+			{ -124, -116, 60 },
+			{ -116, -108, 84 },
+			{ -108, -100, 100 },
+			{ -100, -84, 108 },
+			{ -84, 84, 116 },
+			{ 84, 100, 108 },
+			{ 100, 108, 100 },
+			{ 108, 116, 84 },
+			{ 116, 124, 60 },
+		},
+		Hill = {
+			Extend = 32,
+			CloseNorth = true,
+			CloseSouth = true,
+			Terraces = {
+				{ Height = 12, Colors = { RGB(150, 226, 120), RGB(132, 212, 104) } },
+				{ Height = 28, Colors = { RGB(110, 214, 200), RGB(92, 198, 186) } },
+				{ Height = 48, Colors = { RGB(84, 176, 214), RGB(72, 160, 202) } },
+				{ Height = 72, Colors = { RGB(110, 120, 220), RGB(96, 104, 206) } },
+				{ Height = 104, Colors = { RGB(150, 110, 220), RGB(134, 96, 204) } },
+			},
+		},
+		Paths = {
+			{ 1956, 2044, -28, 28 }, -- plaza del pueblo: puestos (X = 2000 ± 36)
+			{ 1964, 2036, -92, -28 }, -- Jardín Celestial (3 huevos)
+			{ 1988, 2012, 28, 76 }, -- avenida al portal de vuelta (aquí se llega)
+			{ 1972, 2028, 76, 116 }, -- plazoleta del portal de vuelta al Mundo 1
+		},
+		DecorSeed = 7079,
 	},
 }
 
@@ -319,7 +530,7 @@ function StudFloor.onFloor(layout, x: number, z: number, margin: number?): boole
 			local inside = false
 			if layout.Outline then
 				for _, row in layout.Outline do
-					if pz >= row[1] and pz < row[2] and math.abs(px) < row[3] then
+					if pz >= row[1] and pz < row[2] and math.abs(px - (layout.CenterX or 0)) < row[3] then
 						inside = true
 						break
 					end

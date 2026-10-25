@@ -4,6 +4,10 @@
 --   en los datos del jugador (SaveService, mismo DataStore) y se guarda al momento.
 -- - Guardia: si alguien está dentro de una zona que no ha desbloqueado, se le devuelve al bosque.
 --   También mantiene el atributo CurrentZone según la posición real del personaje.
+-- - Portales entre mundos (ZoneConfig.WorldPortals): el arco gigante de la Fortaleza Goblin al
+--   Mundo 2 y el de vuelta. Los construye aquí (PortalBuilder); el cliente pide el viaje al
+--   cruzar su energía (PortalController). El mundo en que estás se guarda (PetData.World): si
+--   mueres o vuelves a entrar estando en el Mundo 2, apareces allí.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,6 +18,7 @@ local ZoneConfig = require(Shared.Config.ZoneConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local RebirthLogic = require(Shared.RebirthLogic)
+local CaveLogic = require(Shared.CaveLogic)
 local formatNumber = require(Shared.Util.FormatNumber)
 local StudFloor = require(Shared.Util.StudFloor)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -21,6 +26,7 @@ local RemoteService = require(script.Parent.RemoteService)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local ZoneLogic = require(script.Parent.Parent.Util.ZoneLogic)
+local PortalBuilder = require(script.Parent.Parent.Util.PortalBuilder)
 
 local Codes = Constants.PurchaseCodes
 local FOLDER_NAME = "ZonePortals"
@@ -47,7 +53,7 @@ function ZoneService.getZoneCenter(zoneId: string): Vector3?
 end
 
 function ZoneService.getPortalPosition(portalId: string): Vector3?
-	local portal = ZoneConfig.Portals[portalId]
+	local portal = ZoneConfig.Portals[portalId] or ZoneConfig.WorldPortals[portalId]
 	local center = portal and ZoneService.getZoneCenter(portal.Zone)
 	if not center then
 		return nil
@@ -71,7 +77,12 @@ local function flatDistance(a: Vector3, b: Vector3): number
 end
 
 -- Zona que contiene una posición (comprobación cuadrada exacta para mapas contiguos 320×320).
+-- Las mazmorras (lejos del mapa) cuentan como la zona de su cueva (CaveConfig).
 function ZoneService.zoneAt(position: Vector3): string?
+	local _, cave = CaveLogic.caveAt(position.X, position.Z, 8)
+	if cave then
+		return cave.Zone
+	end
 	local best, bestDz = nil, math.huge
 	for zoneId, zone in ZoneConfig.Zones do
 		local center = ZoneService.getZoneCenter(zoneId) :: Vector3
@@ -91,8 +102,9 @@ local function rootOf(player: Player): BasePart?
 	return if root and root:IsA("BasePart") then root else nil
 end
 
--- ¿Está el jugador junto a una puerta que lleva a `targetZone`?
-local function isNearPortalTo(player: Player, targetZone: string): boolean
+-- ¿Está el jugador junto a una puerta que lleva a `targetZone`? Devuelve también el portal
+-- entre mundos (WorldPortals) junto al que está, si es uno de esos.
+local function isNearPortalTo(player: Player, targetZone: string): (boolean, any?)
 	local root = rootOf(player)
 	if not root then
 		return false
@@ -105,7 +117,21 @@ local function isNearPortalTo(player: Player, targetZone: string): boolean
 			end
 		end
 	end
+	for portalId, portal in ZoneConfig.WorldPortals do
+		if portal.Target == targetZone then
+			local position = ZoneService.getPortalPosition(portalId)
+			if position and flatDistance(root.Position, position) <= (portal.Radius or 8) + 14 then
+				return true, portal
+			end
+		end
+	end
 	return false
+end
+
+-- Mundo de una zona (ZoneConfig.Zones.*.World; 1 si no lo dice)
+local function worldOf(zoneId: string?): number
+	local zone = zoneId and ZoneConfig.Zones[zoneId]
+	return if zone and zone.World then zone.World else 1
 end
 
 local function isValidId(value: any): boolean
@@ -118,6 +144,8 @@ end
 local GATE_STYLES = {
 	Ancient = { Glass = Color3.fromRGB(150, 226, 255), Title = Color3.fromRGB(120, 236, 255) },
 	Ember = { Glass = Color3.fromRGB(255, 176, 128), Title = Color3.fromRGB(255, 196, 120) },
+	Frost = { Glass = Color3.fromRGB(200, 236, 255), Title = Color3.fromRGB(170, 230, 255) },
+	Goblin = { Glass = Color3.fromRGB(170, 230, 120), Title = Color3.fromRGB(190, 255, 120) },
 }
 local GATE_TRANSPARENCY = 0.6
 local SIGN_PIXELS_PER_STUD = 20
@@ -205,6 +233,126 @@ local function buildPortal(parent: Instance, portalId: string)
 	model.Parent = parent
 end
 
+-- Portales entre mundos: el arco gigante (PortalBuilder) con su nombre encima ----------------
+
+local function buildWorldPortal(parent: Instance, portalId: string)
+	local portal = ZoneConfig.WorldPortals[portalId]
+	local position = ZoneService.getPortalPosition(portalId) :: Vector3
+	local target = ZoneConfig.Zones[portal.Target]
+	local facing = portal.Facing or Vector3.new(0, 0, -1)
+	local ground = Vector3.new(position.X, GROUND + StudFloor.BaseTop + StudFloor.raiseAt(position.X, position.Z), position.Z)
+	local model = Instance.new("Model")
+	model.Name = "WorldPortal_" .. portalId
+	model:SetAttribute("WorldPortalId", portalId)
+	model:SetAttribute("TargetZone", portal.Target)
+	model:SetAttribute("PortalRadius", portal.Radius or 8)
+	local anchor, veil = PortalBuilder.build(model, CFrame.lookAt(ground, ground + facing), portal.Scale or 3.2, portal.Style)
+	veil.Name = "Energy"
+	model.PrimaryPart = anchor
+
+	-- Nombre del destino y, si pide un jefe, quién lo abre (lo esconde el cliente al abrirse)
+	local sign = Instance.new("Part")
+	sign.Name = "SignAnchor"
+	sign.Anchored = true
+	sign.CanCollide = false
+	sign.CanQuery = false
+	sign.CanTouch = false
+	sign.Transparency = 1
+	sign.Size = Vector3.one * 0.2
+	sign.CFrame = CFrame.new(ground + Vector3.new(0, 7.6 * (portal.Scale or 3.2) + 4, 0))
+	sign.Parent = model
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "PortalSign"
+	billboard.Size = UDim2.fromScale(26, 7)
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 260
+	billboard.Parent = sign
+	local function line(name: string, text: string, color: Color3, y: number, h: number)
+		local label = Instance.new("TextLabel")
+		label.Name = name
+		label.BackgroundTransparency = 1
+		label.Position = UDim2.fromScale(0, y)
+		label.Size = UDim2.fromScale(1, h)
+		label.Font = Enum.Font.FredokaOne
+		label.TextScaled = true
+		label.TextColor3 = color
+		label.Text = text
+		label.Parent = billboard
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 4
+		stroke.Color = Color3.fromRGB(20, 24, 30)
+		stroke.Parent = label
+	end
+	line("Title", portal.Title or target.DisplayName, Color3.fromRGB(255, 236, 140), 0, 0.55)
+	local boss = target.RequiredBoss and EnemyConfig.Types[target.RequiredBoss]
+	if boss then
+		line("Lock", "🔒 Derrota al 👑 " .. boss.DisplayName, Color3.fromRGB(255, 150, 130), 0.58, 0.4)
+	end
+	model.Parent = parent
+end
+
+-- Coloca al jugador en el punto de llegada de una zona (o el que diga el portal)
+local function arrivalOf(zoneId: string, portal: any?): CFrame?
+	if portal and portal.Arrival then
+		local center = ZoneService.getZoneCenter(zoneId)
+		if not center then
+			return nil
+		end
+		local position = center + portal.Arrival
+		return CFrame.lookAt(position, position + (portal.ArrivalFacing or Vector3.new(0, 0, -1)))
+	end
+	return ZoneService.getArrivalCFrame(zoneId)
+end
+
+local function placeCharacter(player: Player, destination: CFrame): boolean
+	local root = rootOf(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not (root and character and humanoid and humanoid.Health > 0) then
+		return false
+	end
+	if humanoid.Sit then
+		humanoid.Sit = false
+	end
+	local lift = humanoid.HipHeight + root.Size.Y / 2 + 0.5
+	character:PivotTo(destination + Vector3.new(0, lift, 0))
+	root.AssemblyLinearVelocity = Vector3.zero
+	return true
+end
+
+-- Al aparecer (al entrar o tras morir): si estaba en el Mundo 2 (y lo tiene abierto), allí.
+local function spawnInWorld(player: Player)
+	local profile = PlayerDataService.get(player)
+	if not (profile and PlayerDataService.isPetDataReady(profile)) then
+		return
+	end
+	if profile.PetData.World ~= 2 or not ZoneLogic.isUnlocked(profile, ZoneConfig, "World2") then
+		return
+	end
+	local destination = ZoneService.getArrivalCFrame("World2")
+	if not destination then
+		return
+	end
+	traveling[player] = true
+	pcall(function()
+		player:RequestStreamAroundAsync(destination.Position, STREAM_TIMEOUT)
+	end)
+	if placeCharacter(player, destination) then
+		player:SetAttribute(Constants.Attributes.CurrentZone, "World2")
+	end
+	traveling[player] = nil
+end
+
+local function watchSpawns(player: Player)
+	player.CharacterAdded:Connect(function(character)
+		character:WaitForChild("HumanoidRootPart", 10)
+		task.wait(0.2)
+		if player.Character == character then
+			spawnInWorld(player)
+		end
+	end)
+end
+
 -- Acciones ----------------------------------------------------------------------
 
 local function unlockZone(player: Player, zoneId: any): (string, number?)
@@ -243,32 +391,29 @@ local function travel(player: Player, zoneId: any): string
 	if (zone.UnlockCost or 0) > 0 and not PlayerDataService.isPetDataReady(profile) then
 		return Codes.NotReady
 	end
-	if not isNearPortalTo(player, zoneId) then
+	local near, worldPortal = isNearPortalTo(player, zoneId)
+	if not near then
 		return Codes.TooFar
 	end
 	if not ZoneLogic.isUnlocked(profile, ZoneConfig, zoneId) then
 		return Codes.ZoneLocked
 	end
-	local destination = ZoneService.getArrivalCFrame(zoneId) :: CFrame
+	local destination = arrivalOf(zoneId, worldPortal) :: CFrame
 
 	traveling[player] = true
 	pcall(function()
 		player:RequestStreamAroundAsync(destination.Position, STREAM_TIMEOUT)
 	end)
-	local root = rootOf(player)
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not (root and character and humanoid and humanoid.Health > 0) then
+	if not placeCharacter(player, destination) then
 		traveling[player] = nil
 		return Codes.NotReady
 	end
-	if humanoid.Sit then
-		humanoid.Sit = false
-	end
-	local lift = humanoid.HipHeight + root.Size.Y / 2 + 0.5
-	character:PivotTo(destination + Vector3.new(0, lift, 0))
-	root.AssemblyLinearVelocity = Vector3.zero
 	player:SetAttribute(Constants.Attributes.CurrentZone, zoneId)
+	-- Cambio de mundo: se guarda para aparecer allí la próxima vez
+	if worldPortal and profile.PetData.World ~= worldOf(zoneId) then
+		profile.PetData.World = worldOf(zoneId)
+		PlayerDataService.markDirty(player)
+	end
 	traveling[player] = nil
 	return Codes.Success
 end
@@ -308,6 +453,12 @@ function ZoneService.start()
 	for portalId in ZoneConfig.Portals do
 		buildPortal(folder, portalId)
 	end
+	for portalId in ZoneConfig.WorldPortals do
+		local ok, err = pcall(buildWorldPortal, folder, portalId)
+		if not ok then
+			warn("[ZoneService] Portal " .. portalId .. ": " .. tostring(err))
+		end
+	end
 	folder.Parent = workspace
 
 	local zoneResult = RemoteService.get(Constants.Remotes.ZoneResult)
@@ -344,10 +495,18 @@ function ZoneService.start()
 
 	Players.PlayerAdded:Connect(function(player)
 		player:SetAttribute(Constants.Attributes.CurrentZone, ZoneConfig.DefaultZone)
+		watchSpawns(player)
 	end)
 	for _, player in Players:GetPlayers() do
 		player:SetAttribute(Constants.Attributes.CurrentZone, ZoneConfig.DefaultZone)
+		watchSpawns(player)
 	end
+	-- Al cargar sus datos: si se fue estando en el Mundo 2, vuelve a aparecer allí
+	PlayerDataService.onPetDataReady(function(player)
+		if player.Character then
+			spawnInWorld(player)
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		unlockLimiter:remove(player)
 		travelLimiter:remove(player)

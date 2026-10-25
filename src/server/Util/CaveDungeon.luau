@@ -1,13 +1,15 @@
--- Cueva de los Espinillos por dentro (CaveConfig), lejos del mapa: tres salas de piedra unidas
--- por pasillos, como la boca de la colina (ForestCave) pero en grande:
+-- Mazmorras por dentro (CaveConfig: una cueva por zona, con la misma forma y sus colores,
+-- Theme), lejos del mapa: tres salas de piedra unidas por pasillos, como la boca de la colina
+-- (ForestCave) pero en grande. Las bocas del Valle y la Caldera (montículos de roca) también:
 -- - Suelo de piedra en damero con studs, paredes de bloques con el hueco de cada pasillo y
 --   techo de bloques con claraboyas por las que entra un haz de luz (en la sala del altar, un
 --   hueco grande por el que sale la columna de luz del altar de las oleadas).
 -- - Estalactitas, estalagmitas, rocas, cristales y setas que brillan (con luces), antorchas en
 --   cada paso y carteles con el nombre de cada sala.
--- - Sala 1 (el Nido): nidos de ramas con huevos. Sala 2 (la Galería): columnas de roca del
---   suelo al techo y charcas que brillan. Sala 3 (el Altar): braseros alrededor del círculo
---   de las oleadas (WaveService pone el altar) y cristales gigantes en las esquinas.
+-- - Sala 1: nidos de ramas con huevos (Bosque), geodas (Valle) o charcos de lava (Caldera).
+--   Sala 2: columnas de roca del suelo al techo y charcas que brillan (de lava en la Caldera).
+--   Sala 3: braseros alrededor del círculo de las oleadas (WaveService pone el altar) y
+--   cristales gigantes en las esquinas.
 -- - Portales de salida (CaveConfig.Exits) y el círculo de llegada. El viaje lo hace CaveService.
 -- Con semilla fija: siempre igual. Nada sólido se pone encima de los bichos (EnemyConfig), de
 -- los caminos entre puertas, del círculo de las oleadas ni delante de los portales.
@@ -32,12 +34,25 @@ local WALL = 4 -- grosor de las paredes de las salas (por dentro) y de los pasil
 local GROUND = GeneratorConfig.Position.Y
 local SEED = 9137
 
+-- Colores de la cueva que se está construyendo (useTheme)
 local STONE = { RGB(92, 98, 128), RGB(78, 84, 112) } -- suelo
 local ROCK = { RGB(104, 108, 140), RGB(86, 90, 120) } -- paredes y techo
 local DARK = { RGB(70, 74, 100), RGB(58, 62, 86) } -- estalactitas, rocas y columnas
 local SHAFT = RGB(255, 244, 205)
 local PORTAL = RGB(150, 90, 255)
 local WOOD = RGB(120, 76, 40)
+local LAVA = RGB(255, 110, 30)
+
+local function useTheme(theme)
+	if not theme then
+		return
+	end
+	STONE = theme.Stone or STONE
+	ROCK = theme.Rock or ROCK
+	DARK = theme.Dark or DARK
+	SHAFT = theme.Shaft or SHAFT
+	PORTAL = theme.Portal or PORTAL
+end
 
 local function studs(part: BasePart, face: Enum.NormalId)
 	local size = part.Size
@@ -348,7 +363,7 @@ end
 
 -- Decoración de cada sala --------------------------------------------------------------------
 
-local function decorate(folder: Instance, room, roomIndex: number, doors, roofY: number, rng: Random)
+local function decorate(folder: Instance, room, roomIndex: number, doors, roofY: number, rng: Random, cave)
 	local r = room.Rect
 	local floorTop = StudWorld.FloorTop
 	local cx, cz = center(r)
@@ -357,10 +372,16 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 	-- Sitios ocupados (círculos en planta) y caminos que deben quedar libres
 	local blocked: { { number } } = {}
 	local lanes: { { number } } = {}
-	local zone = ZoneConfig.Zones[CaveConfig.Zone]
+	local zone = ZoneConfig.Zones[cave.Zone]
 	local originX = GeneratorConfig.Position.X + zone.Center.X
 	local originZ = GeneratorConfig.Position.Z + zone.Center.Y
-	for _, spawnInfo in EnemyConfig.Zones[CaveConfig.Zone].Spawns do
+	if cave.MiniBoss then
+		local p = cave.MiniBoss.Position
+		if p.X > r.MinX and p.X < r.MaxX and p.Z > r.MinZ and p.Z < r.MaxZ then
+			table.insert(blocked, { p.X, p.Z, 12 })
+		end
+	end
+	for _, spawnInfo in EnemyConfig.Zones[cave.Zone].Spawns do
 		local x, z = originX + spawnInfo.Offset.X, originZ + spawnInfo.Offset.Y
 		if x > r.MinX and x < r.MaxX and z > r.MinZ and z < r.MaxZ then
 			table.insert(blocked, { x, z, 7 })
@@ -391,7 +412,7 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 			table.insert(lanes, { exit.Position.X, exit.Position.Z, cx, cz })
 		end
 	end
-	local arrival = CaveConfig.Arrival.Position
+	local arrival = cave.Arrival.Position
 	if arrival.X > r.MinX and arrival.X < r.MaxX and arrival.Z > r.MinZ and arrival.Z < r.MaxZ then
 		table.insert(blocked, { arrival.X, arrival.Z, 8 })
 	end
@@ -548,7 +569,58 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 
 	-- Lo propio de cada sala
 	local special = PartFactory.folder(folder, "Special")
-	if room.Id == "Nest" then
+	if room.Id == "Nest" and cave.Id == "CrystalValley" then
+		-- Geodas: rocas abiertas con cristales dentro
+		for index = 1, 4 do
+			local x, z = spot(4, false, true)
+			if x and z then
+				for side = 1, 5 do
+					local a = side / 5 * math.pi * 2
+					local part = block(special, "Geoda", Vector3.new(2.6, rng:NextNumber(1.8, 3), 2.6), CFrame.new(x + math.cos(a) * 2.6, floorTop + 1, z + math.sin(a) * 2.6) * CFrame.Angles(0, -a, math.rad(rng:NextNumber(-12, 12))), DARK[side % 2 + 1], true)
+					studs(part, Enum.NormalId.Top)
+				end
+				crystals(x, z, room.Crystal[index % #room.Crystal + 1], 0.9, 18)
+			end
+		end
+	elseif room.Id == "Nest" and cave.Id == "EmberCaldera" then
+		-- Charcos de lava con su borde de roca
+		for _ = 1, 4 do
+			local x, z = spot(4.5, false, false)
+			if x and z then
+				local size = rng:NextNumber(6, 8)
+				local pool = PartFactory.verticalCylinder(special, "Lava", Vector3.new(x, floorTop + 0.08, z), 0.16, size, LAVA, Enum.Material.Neon, false)
+				pool.CastShadow = false
+				light(pool, LAVA, 16, 1.4)
+				local rim = PartFactory.verticalCylinder(special, "Borde", Vector3.new(x, floorTop + 0.04, z), 0.08, size + 1.6, DARK[1], Enum.Material.Slate, false)
+				rim.CastShadow = false
+				local smoke = Instance.new("Smoke")
+				smoke.Color = RGB(80, 60, 56)
+				smoke.Opacity = 0.08
+				smoke.RiseVelocity = 3
+				smoke.Size = 3
+				smoke.Parent = pool
+			end
+		end
+	elseif room.Id == "Nest" and cave.Id == "FrozenTundra" then
+		-- Montones de nieve con pinchos de hielo y carámbanos colgando del techo
+		for index = 1, 5 do
+			local x, z = spot(4, false, true)
+			if x and z then
+				local drift = PartFactory.ellipsoid(special, "Nieve", CFrame.new(x, floorTop + 0.5, z), Vector3.new(rng:NextNumber(6, 8), 2.2, rng:NextNumber(5, 7)), RGB(240, 246, 255), Enum.Material.Snow)
+				drift.CastShadow = false
+				crystals(x, z, room.Crystal[index % #room.Crystal + 1], 0.8, 16)
+			end
+		end
+		for _ = 1, 10 do
+			local x, z = spot(2, false, false)
+			if x and z then
+				local length = rng:NextNumber(2.5, 5)
+				local icicle = block(special, "Carambano", Vector3.new(0.9, length, 0.9), CFrame.new(x, roofY - length / 2, z) * CFrame.Angles(0, math.rad(45), 0), room.Crystal[2], false)
+				icicle.Material = Enum.Material.Glass
+				icicle.Transparency = 0.25
+			end
+		end
+	elseif room.Id == "Nest" then
 		-- Nidos de ramas con huevos
 		for _ = 1, 4 do
 			local x, z = spot(3.5, false, false)
@@ -588,7 +660,7 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 		for index = 1, 2 do
 			local x, z = spot(4.5, false, false)
 			if x and z then
-				local color = room.Crystal[index]
+				local color = if cave.Id == "EmberCaldera" then LAVA else room.Crystal[index]
 				local pool = PartFactory.verticalCylinder(special, "Charca", Vector3.new(x, floorTop + 0.08, z), 0.16, rng:NextNumber(7, 9), color, Enum.Material.Neon, false)
 				pool.Transparency = 0.35
 				pool.CastShadow = false
@@ -603,14 +675,16 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 			local stand = PartFactory.verticalCylinder(special, "Brasero", Vector3.new(x, floorTop + 1.6, z), 3.2, 2.6, DARK[1], Enum.Material.Slate, true)
 			stand.CastShadow = false
 			local bowl = PartFactory.verticalCylinder(special, "Cuenco", Vector3.new(x, floorTop + 3.5, z), 0.8, 4, RGB(54, 46, 44), Enum.Material.Metal, false)
-			local flame = block(special, "Llama", Vector3.new(1.6, 1.6, 1.6), CFrame.new(x, floorTop + 4.4, z), RGB(255, 160, 60), false)
+			-- En la Gruta Glacial, fuego azul
+			local icy = cave.Id == "FrozenTundra"
+			local flame = block(special, "Llama", Vector3.new(1.6, 1.6, 1.6), CFrame.new(x, floorTop + 4.4, z), if icy then RGB(110, 200, 255) else RGB(255, 160, 60), false)
 			glow(flame)
-			light(flame, RGB(255, 170, 90), 24, 1.8)
+			light(flame, if icy then RGB(140, 210, 255) else RGB(255, 170, 90), 24, 1.8)
 			local fire = Instance.new("Fire")
 			fire.Size = 4
 			fire.Heat = 6
-			fire.Color = RGB(255, 150, 60)
-			fire.SecondaryColor = RGB(255, 230, 120)
+			fire.Color = if icy then RGB(90, 180, 255) else RGB(255, 150, 60)
+			fire.SecondaryColor = if icy then RGB(220, 245, 255) else RGB(255, 230, 120)
 			fire.Parent = bowl
 		end
 		-- Cristales gigantes en las esquinas
@@ -652,8 +726,8 @@ local function doorSigns(folder: Instance, room, door, otherRoom, roomIndex: num
 end
 
 -- Círculo de llegada (runas moradas en el suelo)
-local function buildArrival(folder: Instance)
-	local position = CaveConfig.Arrival.Position
+local function buildArrival(folder: Instance, cave)
+	local position = cave.Arrival.Position
 	local floorTop = StudWorld.FloorTop
 	local model = Instance.new("Model")
 	model.Name = "Llegada"
@@ -668,11 +742,10 @@ local function buildArrival(folder: Instance)
 end
 
 function CaveDungeon.build(parent: Instance): Model
-	local model = Instance.new("Model")
-	model.Name = "CuevaDentro"
-	local rng = Random.new(SEED)
+	local root = Instance.new("Model")
+	root.Name = "CuevaDentro"
 
-	-- Pasos de cada sala (por qué lado entra cada pasillo)
+	-- Pasos de cada sala (por qué lado entra cada pasillo), de todas las cuevas
 	local doorsOf: { [number]: { any } } = {}
 	for index in CaveConfig.Rooms do
 		doorsOf[index] = {}
@@ -695,28 +768,50 @@ function CaveDungeon.build(parent: Instance): Model
 		end
 	end
 
-	for index, room in CaveConfig.Rooms do
-		local roomModel = Instance.new("Model")
-		roomModel.Name = ("Sala%d_%s"):format(index, room.Id)
-		buildFloor(PartFactory.folder(roomModel, "Floor"), room.Rect)
-		local roofY = buildRoomShell(roomModel, room, doorsOf[index])
-		decorate(roomModel, room, index, doorsOf[index], roofY, rng)
-		for _, door in doorsOf[index] do
-			doorSigns(roomModel, room, door, CaveConfig.Rooms[door.Other], index, door.Other)
+	for order, caveId in CaveConfig.Order do
+		local cave = CaveConfig.Caves[caveId]
+		useTheme(cave.Theme)
+		local rng = Random.new(SEED + order - 1)
+		local model = Instance.new("Model")
+		model.Name = "Cueva_" .. caveId
+		for index, room in CaveConfig.Rooms do
+			if room.Cave ~= caveId then
+				continue
+			end
+			local roomModel = Instance.new("Model")
+			roomModel.Name = ("Sala%d_%s"):format(room.Local, room.Id)
+			buildFloor(PartFactory.folder(roomModel, "Floor"), room.Rect)
+			local roofY = buildRoomShell(roomModel, room, doorsOf[index])
+			decorate(roomModel, room, index, doorsOf[index], roofY, rng, cave)
+			for _, door in doorsOf[index] do
+				local other = CaveConfig.Rooms[door.Other]
+				doorSigns(roomModel, room, door, other, room.Local, other.Local)
+			end
+			roomModel.Parent = model
 		end
-		roomModel.Parent = model
+		for index, corridor in CaveConfig.Corridors do
+			if corridor.Cave == caveId then
+				buildCorridor(model, corridor, index)
+			end
+		end
+		local exits = PartFactory.folder(model, "Salidas")
+		for index, exit in CaveConfig.Exits do
+			if exit.Cave == caveId then
+				buildExit(exits, exit, index)
+			end
+		end
+		buildArrival(model, cave)
+		-- La boca (montículo) de las cuevas del Valle y la Caldera, en su zona
+		if cave.Entrance.Mound then
+			ForestCave.buildMound(model, cave)
+		end
+		model.Parent = root
+		task.wait() -- una cueva por vez (no bloquear el servidor)
 	end
-	for index, corridor in CaveConfig.Corridors do
-		buildCorridor(model, corridor, index)
-	end
-	local exits = PartFactory.folder(model, "Salidas")
-	for index, exit in CaveConfig.Exits do
-		buildExit(exits, exit, index)
-	end
-	buildArrival(model)
+	useTheme(CaveConfig.Caves[CaveConfig.Order[1]].Theme)
 
-	model.Parent = parent
-	return model
+	root.Parent = parent
+	return root
 end
 
 return CaveDungeon

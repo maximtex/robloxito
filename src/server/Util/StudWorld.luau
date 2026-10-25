@@ -112,7 +112,9 @@ function StudWorld.buildFloor(parent: Instance, layout)
 	-- v = z1 - z, más OffsetStuds): con este desplazamiento queda fija al mundo, con las juntas
 	-- de sus bloques en los bordes de bloque del mapa (8k ± 4), mida lo que mida cada pieza.
 	-- raise: lo que sube la cara superior (crece hacia arriba, la de abajo no se mueve)
-	local function makePart(name: string, x0: number, x1: number, z0: number, z1: number, color: Color3, texture: string, tile: number, raise: number): BasePart
+	-- tint: color que multiplica la textura (layout.GrassTint / PathTint: aclarar u oscurecer
+	-- una textura de otra zona sin subir otra)
+	local function makePart(name: string, x0: number, x1: number, z0: number, z1: number, color: Color3, texture: string, tile: number, raise: number, tint: Color3?): BasePart
 		local p = Instance.new("Part")
 		p.Name = name
 		p.Anchored = true
@@ -134,6 +136,9 @@ function StudWorld.buildFloor(parent: Instance, layout)
 		studs.StudsPerTileV = tile
 		studs.OffsetStudsU = (B / 2 - x1) % tile
 		studs.OffsetStudsV = (B / 2 - z1) % tile
+		if tint then
+			studs.Color3 = tint
+		end
 		studs.Parent = p
 
 		p.Parent = folder
@@ -172,7 +177,7 @@ function StudWorld.buildFloor(parent: Instance, layout)
 	mergeRects(cells, cellCols, cellRows, function(i, j, w, h)
 		groundCount += 1
 		local x0, z0 = minX + (i - 1) * B, minZ + (j - 1) * B
-		makePart(("Suelo_%d"):format(groundCount), x0, x0 + w * B, z0, z0 + h * B, colors.GroundA, layout.GrassTexture, StudFloor.GrassTile, 0)
+		makePart(("Suelo_%d"):format(groundCount), x0, x0 + w * B, z0, z0 + h * B, colors.GroundA, layout.GrassTexture, layout.GrassTile or StudFloor.GrassTile, 0, layout.GrassTint)
 	end)
 
 	-- 2. Caminos en una rejilla de S x S studs (1 = camino, 2 = borde). Una casilla del anillo
@@ -218,7 +223,8 @@ function StudWorld.buildFloor(parent: Instance, layout)
 			if isBorder then colors.Border else colors.Path,
 			if isBorder then StudFloor.StudTexture else layout.PathTexture,
 			StudFloor.PathTile,
-			StudFloor.PathRaise
+			StudFloor.PathRaise,
+			if isBorder then nil else layout.PathTint
 		)
 	end)
 end
@@ -462,8 +468,9 @@ local function buildTerraces(folder: Instance, layout): { { Position: Vector3, R
 	local walls = layout.Walls
 	local hill = PartFactory.folder(folder, "Hill")
 	local x0, x1 = layout.MinX - t - hillSpec.Extend, layout.MaxX + t + hillSpec.Extend
-	local z0 = if walls.North then layout.MinZ - t else layout.MinZ
-	-- CloseSouth: las terrazas también cierran el fondo (no hay muro sur ni zona detrás)
+	-- CloseNorth / CloseSouth: las terrazas también cierran ese lado (no hay muro ni zona
+	-- detrás; el Mundo 2 está cerrado por los dos)
+	local z0 = if hillSpec.CloseNorth then layout.MinZ - t - hillSpec.Extend elseif walls.North then layout.MinZ - t else layout.MinZ
 	local z1 = if hillSpec.CloseSouth then layout.MaxZ + t + hillSpec.Extend else layout.MaxZ
 	local i0, i1 = math.round((x0 + B / 2) / B), math.round((x1 - B / 2) / B)
 	local j0, j1 = math.round((z0 + B / 2) / B), math.round((z1 - B / 2) / B)

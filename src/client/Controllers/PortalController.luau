@@ -2,6 +2,9 @@
 -- - Abre el panel de compra o permite desbloquear directamente la puerta.
 -- - Cuando una zona está desbloqueada para el jugador local, su barrera de cristal
 --   (`GateBarrier`) se vuelve invisible y sin colisión (`CanCollide = false`) para pasar caminando.
+-- - Portales entre mundos (ZoneConfig.WorldPortals: el arco gigante de la Fortaleza Goblin al
+--   Mundo 2 y el de vuelta): al cruzar su energía con el destino abierto, fundido y viaje
+--   (TravelToZone). Cerrado, su energía se ve gris y avisa de qué jefe lo abre.
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -46,10 +49,15 @@ local MESSAGES = {
 local ZONE_TINTS = {
 	CrystalValley = { TintColor = Color3.fromRGB(236, 232, 255), Saturation = 0.08, Contrast = 0.04 },
 	EmberCaldera = { TintColor = Color3.fromRGB(255, 232, 214), Saturation = 0.12, Contrast = 0.08 },
+	FrozenTundra = { TintColor = Color3.fromRGB(232, 242, 255), Saturation = -0.08, Contrast = 0.05 },
+	GoblinFortress = { TintColor = Color3.fromRGB(240, 255, 226), Saturation = 0.05, Contrast = 0.08 },
+	World2 = { TintColor = Color3.fromRGB(255, 248, 236), Saturation = 0.14, Contrast = 0.04 },
 }
 local NEUTRAL_TINT = { TintColor = Color3.new(1, 1, 1), Saturation = 0, Contrast = 0 }
 local ZONE_ATMOSPHERE = {
 	EmberCaldera = { Color = Color3.fromRGB(214, 150, 120), Decay = Color3.fromRGB(120, 70, 60), Haze = 2, Density = 0.36 },
+	FrozenTundra = { Color = Color3.fromRGB(220, 234, 250), Decay = Color3.fromRGB(150, 176, 214), Haze = 2.4, Density = 0.38 },
+	GoblinFortress = { Color = Color3.fromRGB(190, 210, 160), Decay = Color3.fromRGB(90, 110, 70), Haze = 1.6, Density = 0.32 },
 }
 local ZONE_LIGHTING = {
 	EmberCaldera = { ClockTime = 17.65, OutdoorAmbient = Color3.fromRGB(150, 112, 100), Ambient = Color3.fromRGB(90, 90, 100) },
@@ -185,13 +193,21 @@ function PortalController.start()
 		end)
 	end
 
+	-- Como ZoneLogic.isUnlocked: comprada, o sin precio (si pide un jefe, derrotado)
 	local function isUnlocked(zoneId: string): boolean
 		local zone = ZoneConfig.Zones[zoneId]
-		if zone and (zone.UnlockCost or 0) <= 0 then
+		local value = player:GetAttribute(Constants.Attributes.UnlockedZones)
+		if typeof(value) == "string" and table.find(string.split(value, ","), zoneId) ~= nil then
 			return true
 		end
-		local value = player:GetAttribute(Constants.Attributes.UnlockedZones)
-		return typeof(value) == "string" and table.find(string.split(value, ","), zoneId) ~= nil
+		if zone and (zone.UnlockCost or 0) <= 0 then
+			if not zone.RequiredBoss then
+				return true
+			end
+			local defeated = player:GetAttribute(Constants.Attributes.BossesDefeated)
+			return typeof(defeated) == "string" and table.find(string.split(defeated, ","), zone.RequiredBoss) ~= nil
+		end
+		return false
 	end
 
 	local function money(): number
@@ -217,6 +233,28 @@ function PortalController.start()
 		return EnemyConfig.Types[bossId]
 	end
 
+	-- Portales entre mundos: energía de su color si están abiertos; gris y con el aviso del
+	-- jefe que los abre si no.
+	local LOCKED_ENERGY = Color3.fromRGB(120, 120, 130)
+	local function refreshWorldPortal(model: Instance, unlocked: boolean)
+		for _, part in model:GetChildren() do
+			if part:IsA("BasePart") and (part.Name == "Energy" or part.Name == "EnergyArc" or part.Name == "EnergyGlow" or part.Name == "EnergyGlowArc") then
+				local open = part:GetAttribute("OpenColor")
+				if typeof(open) ~= "Color3" then
+					part:SetAttribute("OpenColor", part.Color)
+					open = part.Color
+				end
+				part.Color = if unlocked then open :: Color3 else LOCKED_ENERGY
+			end
+		end
+		local sign = model:FindFirstChild("SignAnchor")
+		local billboard = sign and sign:FindFirstChild("PortalSign")
+		local lock = billboard and billboard:FindFirstChild("Lock")
+		if lock and lock:IsA("TextLabel") then
+			lock.Visible = not unlocked
+		end
+	end
+
 	-- Actualiza las barreras físicas en el puente según las zonas desbloqueadas por el jugador.
 	local function refreshGates()
 		local folder = Workspace:FindFirstChild("ZonePortals")
@@ -224,6 +262,12 @@ function PortalController.start()
 			return
 		end
 		for _, model in folder:GetChildren() do
+			local worldPortalId = model:GetAttribute("WorldPortalId")
+			local worldPortal = typeof(worldPortalId) == "string" and ZoneConfig.WorldPortals[worldPortalId]
+			if worldPortal then
+				refreshWorldPortal(model, isUnlocked(worldPortal.Target))
+				continue
+			end
 			local portalId = model:GetAttribute("PortalId")
 			local portal = typeof(portalId) == "string" and ZoneConfig.Portals[portalId]
 			if not portal then
@@ -404,6 +448,64 @@ function PortalController.start()
 			end
 		end)
 	end
+
+	-- Cruzar un portal entre mundos: si su destino está abierto, fundido y viaje; si no, aviso.
+	local WORLD_CHECK = 0.12
+	local worldCooldownUntil = 0
+	local lockedNoticeAt = 0
+	local function fadeIn(text: string)
+		ui.Fade.Visible = true
+		ui.FadeLabel.Text = text
+		TweenService:Create(ui.Fade, TweenInfo.new(FADE_SECONDS), { BackgroundTransparency = 0 }):Play()
+		TweenService:Create(ui.FadeLabel, TweenInfo.new(FADE_SECONDS), { TextTransparency = 0 }):Play()
+	end
+	task.spawn(function()
+		while true do
+			task.wait(WORLD_CHECK)
+			local folder = Workspace:FindFirstChild("ZonePortals")
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if not (folder and root and root:IsA("BasePart")) or os.clock() < worldCooldownUntil then
+				continue
+			end
+			for _, model in folder:GetChildren() do
+				local portalId = model:GetAttribute("WorldPortalId")
+				local portal = typeof(portalId) == "string" and ZoneConfig.WorldPortals[portalId]
+				local energy = portal and model:FindFirstChild("Energy")
+				if not (portal and energy and energy:IsA("BasePart")) then
+					continue
+				end
+				local offset = root.Position - energy.Position
+				local radius = portal.Radius or 8
+				if Vector2.new(offset.X, offset.Z).Magnitude > radius or math.abs(offset.Y) > radius * 2 then
+					continue
+				end
+				local target = ZoneConfig.Zones[portal.Target]
+				if isUnlocked(portal.Target) then
+					worldCooldownUntil = os.clock() + TRAVEL_TIMEOUT
+					travelToken += 1
+					local token = travelToken
+					fadeIn(("✨ Viajando a %s…"):format(if target then target.DisplayName else portal.Target))
+					task.delay(FADE_SECONDS, function()
+						travelRemote:FireServer(portal.Target)
+					end)
+					task.delay(TRAVEL_TIMEOUT, function()
+						if travelToken == token then
+							fadeOut()
+						end
+					end)
+				elseif os.clock() - lockedNoticeAt > 4 then
+					lockedNoticeAt = os.clock()
+					local boss = target and target.RequiredBoss and EnemyConfig.Types[target.RequiredBoss]
+					Toasts.show(if boss then ("🔒 El portal está cerrado: derrota al 👑 %s"):format(boss.DisplayName) else "🔒 El portal está cerrado", { Color = THEME.Error })
+				end
+				break
+			end
+		end
+	end)
+	travelResultRemote.OnClientEvent:Connect(function()
+		worldCooldownUntil = os.clock() + 2.5
+	end)
 
 	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
 		local portalId = prompt:GetAttribute("PortalId")

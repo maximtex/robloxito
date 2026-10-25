@@ -214,26 +214,30 @@ local EnemyConfig = {
 			},
 			SafeZones = {
 				{ Center = Vector2.new(38, 85), Radius = 20 }, -- Jardín de los Huevos (EggConfig.Gardens.Forest)
+				-- Círculo de las oleadas (WaveConfig.Place, radio AreaRadius + 4): los del mundo no
+				-- entran a por nadie ni atacan a quien espera junto al altar.
+				{ Center = Vector2.new(-69, 98), Radius = 22 },
 			},
 			Spawns = {
 				-- Zona de inicio: enemigos para golpear desde el principio, alrededor del centro del
 				-- pueblo y justo fuera de la zona sin monstruos (al oeste, al este y al norte)
 				{ Type = "StarterThornling", Offset = Vector2.new(-54, 36) },
 				{ Type = "StarterThornling", Offset = Vector2.new(-54, 63) },
-				{ Type = "StarterThornling", Offset = Vector2.new(-80, 100) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-84, 62) },
 				{ Type = "StarterThornling", Offset = Vector2.new(80, 20) },
 				{ Type = "StarterThornling", Offset = Vector2.new(84, 62) },
 				{ Type = "StarterThornling", Offset = Vector2.new(-20, -25) },
 				{ Type = "StarterThornling", Offset = Vector2.new(20, -25) },
-				{ Type = "Thornling", Offset = Vector2.new(-56, 125) },
+				{ Type = "Thornling", Offset = Vector2.new(-54, 140) },
 				{ Type = "Thornling", Offset = Vector2.new(72, 125) },
 
-				-- Pradera izquierda (al oeste de las parcelas y tiendas)
-				{ Type = "Thornling", Offset = Vector2.new(-58, 115) },
-				{ Type = "Thornling", Offset = Vector2.new(-68, 118) },
-				{ Type = "Thornling", Offset = Vector2.new(-68, 115) },
-				{ Type = "Thornling", Offset = Vector2.new(-62, 82) },
-				{ Type = "Thornling", Offset = Vector2.new(-68, 82) },
+				-- Pradera izquierda (al oeste de las parcelas y tiendas), a ambos lados del círculo
+				-- de las oleadas (WaveConfig.Place, en (-69, 98)), lejos de su zona segura.
+				{ Type = "Thornling", Offset = Vector2.new(-60, 134) },
+				{ Type = "Thornling", Offset = Vector2.new(-70, 136) },
+				{ Type = "Thornling", Offset = Vector2.new(-62, 62) },
+				{ Type = "Thornling", Offset = Vector2.new(-76, 58) },
+				{ Type = "Thornling", Offset = Vector2.new(-96, 70) },
 				{ Type = "Thornling", Offset = Vector2.new(-60, 48) },
 				{ Type = "Thornling", Offset = Vector2.new(-68, 48) },
 				{ Type = "Thornling", Offset = Vector2.new(-62, 12) },

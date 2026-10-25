@@ -1,5 +1,6 @@
 -- Oleadas: la mecánica principal del rediseño "solo disparar".
--- Delante del spawn, en la plaza, hay un círculo con un altar: pulsas E y empieza TU partida.
+-- En la pradera oeste del Bosque (a la izquierda del spawn) hay un círculo con un altar y una
+-- columna de luz: pulsas E y empieza TU partida.
 -- Las partidas son PRIVADAS: mientras juegas, los enemigos normales desaparecen para ti (y
 -- no te atacan) y solo ves y golpeas los de tu partida; otros jugadores pueden jugar la suya
 -- en el mismo círculo a la vez sin verse los enemigos. Quien pulse E durante la cuenta atrás
@@ -15,11 +16,13 @@
 
 local WaveConfig = {
 	-- El círculo de las oleadas (uno para todas las partidas). Offset relativo al centro de
-	-- su zona, como el resto del mapa: (0, 15) es la plaza del pueblo, delante del spawn
-	-- (el spawn está en (0, 43) y mira hacia aquí).
+	-- su zona, como el resto del mapa: (-69, 98) es la pradera oeste, a unos 90 studs a la
+	-- izquierda del spawn (que está en (0, 43)), con el borde del mapa a 15 studs del círculo.
+	-- Es zona segura para los enemigos del mundo (EnemyConfig.Zones.Forest.SafeZones) y
+	-- ninguno sale dentro ni cerca (prueba "waves").
 	Place = {
 		Zone = "Forest",
-		Offset = Vector2.new(0, 15),
+		Offset = Vector2.new(-69, 98),
 		-- Dentro de este radio se cuenta como dentro de la partida (con un margen al salir).
 		AreaRadius = 18,
 		-- Los enemigos salen en un anillo alrededor del altar (que está en el centro).

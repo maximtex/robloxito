@@ -1,5 +1,5 @@
--- Oleadas: la mecánica principal (WaveConfig). Partidas PRIVADAS en el círculo de la plaza,
--- delante del spawn:
+-- Oleadas: la mecánica principal (WaveConfig). Partidas PRIVADAS en el círculo de la pradera
+-- oeste del Bosque (WaveConfig.Place):
 -- 1. Se empieza con E en el altar del centro (ProximityPrompt) o con WaveAction ("Start").
 --    Cada jugador juega SU partida; quien pulse E durante la cuenta atrás de otra (del mismo
 --    modo) se une a ella, para jugar con amigos. Varias partidas pueden ir a la vez.

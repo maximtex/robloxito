@@ -38,6 +38,22 @@ end
 check("lejos de los portales de su zona", portalsClear)
 local bossArena = EnemyConfig.Zones[place.Zone] and EnemyConfig.Zones[place.Zone].Boss and EnemyConfig.Zones[place.Zone].Boss.Arena
 check("no pisa la arena del jefe de la zona", bossArena == nil or distance(bossArena.Center, place.Offset) > bossArena.Radius + place.AreaRadius)
+local zoneEnemies = EnemyConfig.Zones[place.Zone]
+local spawnsClear = true
+for _, spawn in (zoneEnemies and zoneEnemies.Spawns) or {} do
+	if distance(spawn.Offset, place.Offset) <= place.AreaRadius + 10 then
+		spawnsClear = false
+		print("  enemigo del mundo junto al círculo: " .. spawn.Type .. " en " .. tostring(spawn.Offset))
+	end
+end
+check("ningún enemigo del mundo sale dentro ni cerca del círculo", spawnsClear)
+local guarded = false
+for _, safe in (zoneEnemies and zoneEnemies.SafeZones) or {} do
+	if distance(safe.Center, place.Offset) + place.AreaRadius <= safe.Radius then
+		guarded = true
+	end
+end
+check("el círculo es zona segura para los enemigos del mundo", guarded)
 check("partidas a la vez y jugadores por partida", WaveConfig.MaxRuns >= 1 and WaveConfig.MaxPlayersPerRun >= 1)
 check("el dinero de las oleadas se queda normal (multiplicador entre 0 y 1)", WaveConfig.MoneyMultiplier > 0 and WaveConfig.MoneyMultiplier <= 1)
 

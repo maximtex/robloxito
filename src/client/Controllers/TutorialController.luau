@@ -55,7 +55,7 @@ local function guideTarget(guide: string?): (Vector3?, string?)
 		-- Centro visual del cristal flotante del santuario.
 		return GeneratorConfig.Position + Vector3.new(0, GeneratorConfig.CoreHeight, 0), ZoneConfig.DefaultZone or "Forest"
 	elseif guide == "Waves" then
-		-- Altar de las oleadas, en el centro del círculo de la plaza.
+		-- Altar de las oleadas, en el centro de su círculo (WaveConfig.Place).
 		local settings = WaveConfig.Place
 		local center = zoneCenter(settings.Zone)
 		if center then

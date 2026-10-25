@@ -61,6 +61,20 @@ check("páginas de cada monolito: existen, la primera es la del servidor y las g
 
 print("-- 2. Sitio en el bosque")
 local obstacles = LandscapeLayout.obstacles("Forest")
+-- Lo que LandscapeLayout aún cuenta pero el mapa de bloques (StudFloor) ya no construye: el
+-- santuario y los altares de los núcleos (GeneratorService y CoreShrineService no arrancan en
+-- init.server.luau) y la decoración del terreno antiguo de WorldConfig (plaza de adoquines,
+-- árboles, rocas, columnas, setas y cristales). Comprobado en Studio: los monolitos solo
+-- rozan un montón de regalos de Navidad.
+local GONE = { "^Plaza$", "^Altar_", "^AncientTree$", "^Tree%d", "^Rock%d", "^Column%d", "^Mushrooms%d", "^Crystals%d" }
+local function gone(name: string): boolean
+	for _, pattern in GONE do
+		if string.match(name, pattern) then
+			return true
+		end
+	end
+	return false
+end
 local layout = LandscapeLayout.compute("Forest")
 local clearOk, pathOk, keepOk, scatterOk = true, true, true, true
 for _, board in LeaderboardConfig.Boards do
@@ -70,7 +84,7 @@ for _, board in LeaderboardConfig.Boards do
 		local d = math.sqrt((x - item.X) ^ 2 + (z - item.Z) ^ 2)
 		if item.Name == "KeepClear" and d < 0.5 then
 			covered = covered or item.R >= r
-		elseif d < item.R + r then
+		elseif d < item.R + r and not gone(item.Name) then
 			clearOk = false
 			print(("  %s pisa %s"):format(board.Id, item.Name))
 		end
@@ -91,8 +105,13 @@ for _, board in LeaderboardConfig.Boards do
 		end
 	end
 end
-check("los monolitos no pisan plaza, altares, spawn, jardín ni árboles", clearOk)
-check("no están sobre ningún camino", pathOk)
+check("los monolitos no pisan nada de lo que se construye (spawn, jardín, portales, enemigos...)", clearOk)
+-- Los caminos de LandscapeLayout solo existen con la decoración (LandscapeConfig.BuildsDecor).
+if LandscapeConfig.BuildsDecor ~= false then
+	check("no están sobre ningún camino", pathOk)
+else
+	print("OMIT   no están sobre ningún camino (los caminos de LandscapeLayout no se construyen)")
+end
 check("WorldConfig.KeepClear cubre cada monolito (sin flores encima)", keepOk)
 check("el paisaje al azar y los faroles no los tapan", scatterOk)
 local faceOk = true

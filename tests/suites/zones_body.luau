@@ -18,22 +18,31 @@ end
 
 print("-- 1. Desbloqueo")
 local caldera = ZoneConfig.Zones.EmberCaldera
-check("la Caldera existe, cuesta energía y pide renacimientos", caldera ~= nil and caldera.UnlockCost > 0 and ZoneLogic.requiredRebirths(ZoneConfig, "EmberCaldera") == 3)
+check("la Caldera existe y cuesta energía", caldera ~= nil and caldera.UnlockCost > 0)
+check("los renacimientos que pide cada zona salen de su configuración", ZoneLogic.requiredRebirths(ZoneConfig, "EmberCaldera") == (caldera.RequiredRebirths or 0))
 check("el bosque y el valle no piden renacimientos", ZoneLogic.requiredRebirths(ZoneConfig, "Forest") == 0 and ZoneLogic.requiredRebirths(ZoneConfig, "CrystalValley") == 0)
 
+-- Ahora la Caldera no pide renacimientos (RequiredRebirths = 0: la abre el jefe del Valle),
+-- pero el requisito sigue funcionando: se prueba con una copia que pide 3.
+local GatedConfig = table.clone(ZoneConfig)
+GatedConfig.Zones = table.clone(ZoneConfig.Zones)
+GatedConfig.Zones.EmberCaldera = table.clone(caldera)
+GatedConfig.Zones.EmberCaldera.RequiredRebirths = 3
+check("con RequiredRebirths = 3 la Caldera pide 3", ZoneLogic.requiredRebirths(GatedConfig, "EmberCaldera") == 3)
+
 local p = profile(1e9)
-local code, missing = ZoneLogic.unlock(p, ZoneConfig, "EmberCaldera", Codes, 2)
+local code, missing = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 2)
 check("con 2 renacimientos: RebirthLocked, falta 1 y no cobra", code == Codes.RebirthLocked and missing == 1 and p.Energy == 1e9 and #p.PetData.UnlockedZones == 0)
-code, missing = ZoneLogic.unlock(p, ZoneConfig, "EmberCaldera", Codes, nil)
+code, missing = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, nil)
 check("sin dato de renacimientos cuenta como 0", code == Codes.RebirthLocked and missing == 3)
-code = ZoneLogic.unlock(p, ZoneConfig, "EmberCaldera", Codes, 0 / 0)
+code = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 0 / 0)
 check("renacimientos NaN: bloqueado", code == Codes.RebirthLocked and p.Energy == 1e9)
 local poor = profile(caldera.UnlockCost - 10)
-code, missing = ZoneLogic.unlock(poor, ZoneConfig, "EmberCaldera", Codes, 3)
+code, missing = ZoneLogic.unlock(poor, GatedConfig, "EmberCaldera", Codes, 3)
 check("con 3 renacimientos pero sin energía: InsufficientEnergy (faltan 10)", code == Codes.InsufficientEnergy and missing == 10 and poor.Energy == caldera.UnlockCost - 10)
-code = ZoneLogic.unlock(p, ZoneConfig, "EmberCaldera", Codes, 3)
+code = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 3)
 check("con 3 renacimientos y energía: Success y cobra una vez", code == Codes.Success and p.Energy == 1e9 - caldera.UnlockCost and table.find(p.PetData.UnlockedZones, "EmberCaldera") ~= nil)
-code = ZoneLogic.unlock(p, ZoneConfig, "EmberCaldera", Codes, 0)
+code = ZoneLogic.unlock(p, GatedConfig, "EmberCaldera", Codes, 0)
 check("ya desbloqueada: AlreadyUnlocked sin cobrar (aunque luego tenga menos renacimientos)", code == Codes.AlreadyUnlocked and p.Energy == 1e9 - caldera.UnlockCost)
 check("desbloqueada se puede usar (isUnlocked)", ZoneLogic.isUnlocked(p, ZoneConfig, "EmberCaldera") and not ZoneLogic.isUnlocked(profile(0), ZoneConfig, "EmberCaldera"))
 code = ZoneLogic.unlock(profile(1e9), ZoneConfig, "Lava", Codes, 99)
@@ -58,14 +67,14 @@ local apartOk = true
 for i = 1, #zoneIds do
 	for j = i + 1, #zoneIds do
 		local a, b = ZoneConfig.Zones[zoneIds[i]], ZoneConfig.Zones[zoneIds[j]]
-		-- Terreno de cada zona: hasta ~330 studs del centro (montañas y volcán incluidos).
-		if (a.Center - b.Center).Magnitude < 700 then
+		-- Los mapas van pegados en +Z (cuadrados de 2·Radius), sin solaparse.
+		if (a.Center - b.Center).Magnitude < a.Radius + b.Radius - 0.01 then
 			apartOk = false
-			print("  demasiado cerca: " .. zoneIds[i] .. " y " .. zoneIds[j])
+			print("  se solapan: " .. zoneIds[i] .. " y " .. zoneIds[j])
 		end
 	end
 end
-check("las zonas están lejos entre sí (su terreno no se mezcla)", apartOk)
+check("las zonas no se solapan (cada mapa en su franja)", apartOk)
 local portalsOk, reach = true, {}
 for portalId, portal in ZoneConfig.Portals do
 	if not ZoneConfig.Zones[portal.Zone] or not ZoneConfig.Zones[portal.Target] or portal.Zone == portal.Target then
@@ -80,17 +89,21 @@ for zoneId in ZoneConfig.Zones do
 	reachOk = reachOk and (zoneId == ZoneConfig.DefaultZone or reach[zoneId] == true)
 end
 check("a todas las zonas se llega por algún portal", reachOk)
+-- Sin portales de vuelta: los mapas están pegados y el portal es un paso en el muro, así que
+-- se vuelve andando. Cada portal debe estar en la frontera con la zona a la que lleva.
 local backOk = true
-for zoneId in ZoneConfig.Zones do
-	if zoneId ~= ZoneConfig.DefaultZone then
-		local hasExit = false
-		for _, portal in ZoneConfig.Portals do
-			hasExit = hasExit or (portal.Zone == zoneId and portal.Target == ZoneConfig.DefaultZone)
+for portalId, portal in ZoneConfig.Portals do
+	local from, to = ZoneConfig.Zones[portal.Zone], ZoneConfig.Zones[portal.Target]
+	if from and to then
+		local touching = math.abs((from.Center - to.Center).Magnitude - (from.Radius + to.Radius)) < 0.01
+		local onEdge = math.abs(portal.Offset.Y) >= from.Radius - 0.01 or math.abs(portal.Offset.X) >= from.Radius - 0.01
+		if not (touching and onEdge) then
+			backOk = false
+			print("  " .. portalId .. " no está en la frontera entre sus zonas")
 		end
-		backOk = backOk and hasExit
 	end
 end
-check("desde cada zona hay un portal de vuelta al bosque", backOk)
+check("cada portal está en la frontera con su destino (se vuelve andando)", backOk)
 check("el portal de la Caldera está en el Valle (Bosque -> Valle -> Caldera)", ZoneConfig.Portals.CalderaPortal.Zone == "CrystalValley" and ZoneConfig.Portals.CalderaPortal.Target == "EmberCaldera")
 
 print("-- 3. Enemigos")

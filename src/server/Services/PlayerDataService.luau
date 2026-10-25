@@ -277,6 +277,9 @@ function PlayerDataService.replicate(player: Player)
 	local quests = profile.PetData.Quests
 	local earned = if type(quests) == "table" and type(quests.Stats) == "table" then quests.Stats.EnergyEarned else 0
 	setIfChanged(player, attributes.TotalEnergy, math.floor(if type(earned) == "number" and earned == earned then earned else 0))
+	-- Oleadas superadas en total (clasificación de oleadas; las cuenta WaveService).
+	local waves = profile.PetData.Waves
+	setIfChanged(player, attributes.WavesCleared, if type(waves) == "table" and type(waves.Cleared) == "number" then waves.Cleared else 0)
 	-- Tienda
 	setIfChanged(player, attributes.Passes, MonetizationLogic.passesText(profile.Passes))
 	setIfChanged(player, attributes.MaxInventory, MonetizationLogic.maxInventory(profile.Passes, PetConfig.MaxInventory))

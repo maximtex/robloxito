@@ -78,6 +78,9 @@ BASE = [
     # Inventario (campo Items del guardado v9): pociones, huevos guardados y títulos.
     ("ItemConfig", "src/shared/Config/ItemConfig.luau"),
     ("ItemLogic", "src/shared/ItemLogic.luau"),
+    # Récords de las oleadas (campo Waves del guardado v10).
+    ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
+    ("WaveLogic", "src/shared/WaveLogic.luau"),
 ] + [
     # Premios, tienda y semana (campos Rewards, Shop y Weekly del guardado v6).
     ("RewardConfig", "src/shared/Config/RewardConfig.luau"),
@@ -239,6 +242,8 @@ def build_quest():
         ("LeaderboardLogic", "src/server/Util/LeaderboardLogic.luau"),
         ("ItemConfig", "src/shared/Config/ItemConfig.luau"),
         ("ItemLogic", "src/shared/ItemLogic.luau"),
+        ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
+        ("WaveLogic", "src/shared/WaveLogic.luau"),
     ] + CORE + [
         ("SaveService", "src/server/Services/SaveService.luau"),
     ]
@@ -613,6 +618,18 @@ SUITES = [
 ]
 LEGACY = ["pettest", "eggtest", "zonetest", "savetest", "layouttest", "stagetest"]
 
+# Baterías de sistemas que el servidor ya no arranca: se omiten (no cuentan como fallo)
+# mientras su servicio no tenga un safeStart en src/server/init.server.luau.
+NEEDS_SERVICE = {
+    "sanctuary": "GeneratorService",  # Santuario del Núcleo Cósmico (el cristal de la plaza)
+    "shrines": "CoreShrineService",  # Círculo Elemental (altares de los núcleos)
+}
+
+
+def started_services():
+    init = read("src", "server", "init.server.luau")
+    return set(re.findall(r'safeStart\("(\w+)"', init))
+
 
 def luau_binary():
     folder = os.environ.get("LUAU_BIN") or os.path.join(ROOT, "tools", "luau")
@@ -649,9 +666,14 @@ def main(arguments):
     warn_sandbox()
 
     failures = 0
+    started = started_services()
     print("Baterías actuales (montadas desde src/):")
     for key, title, builder in SUITES:
         if selected and key not in selected:
+            continue
+        service = NEEDS_SERVICE.get(key)
+        if service and service not in started:
+            print(f"  OMITE  {key:<14} {service} no se arranca (init.server.luau)  · {title}")
             continue
         path = os.path.join(BUILD, key + ".luau")
         with open(path, "w", encoding="utf-8", newline="\n") as handle:

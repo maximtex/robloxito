@@ -240,7 +240,67 @@ for index = 1, #list do
 end
 check("con el mismo azar, el mismo orden", same)
 check("la oleada del jefe no tiene hordas", #WaveLogic.spawnList("Forest", 10, math.random) == 0)
-check("oleadas que no existen: vacías", #WaveLogic.spawnList("Forest", 0, math.random) == 0 and #WaveLogic.spawnList("Forest", 99, math.random) == 0)
+check("oleadas que no existen: vacías", #WaveLogic.spawnList("Forest", 0, math.random) == 0 and #WaveLogic.spawnList("Tutorial", 99, math.random) == 0 and #WaveLogic.spawnList("Nada", 11, math.random) == 0)
+
+print("-- Modo infinito")
+check("los modos con jefe tienen modo infinito; la práctica no", WaveLogic.hasEndless("Forest") and WaveLogic.hasEndless("CrystalValley") and WaveLogic.hasEndless("EmberCaldera") and not WaveLogic.hasEndless("Tutorial") and not WaveLogic.hasEndless("Nada"))
+check("antes del jefe no hay oleadas infinitas", WaveLogic.endlessCounts("Forest", 9) == nil and WaveLogic.endlessCounts("Forest", 10) == nil)
+local endlessOK, endlessTypesOK = true, true
+for _, arenaId in { "Forest", "CrystalValley", "EmberCaldera" } do
+	local count = WaveLogic.waveCount(arenaId)
+	local previous = 0
+	for wave = count + 1, count + 30 do
+		local list = WaveLogic.spawnList(arenaId, wave, math.random)
+		if #list == 0 or #list < previous then
+			endlessOK = false
+		end
+		local k = wave - count
+		if k % WaveConfig.Endless.StrongEvery ~= 0 then
+			previous = #list
+		end
+		local zoneSpawns = EnemyConfig.Zones[WaveConfig.Arenas[arenaId].Zone].Spawns
+		for _, typeId in list do
+			local fromZone = false
+			for _, spawn in zoneSpawns do
+				fromZone = fromZone or spawn.Type == typeId
+			end
+			if not fromZone or EnemyConfig.Types[typeId].Kind == "Boss" then
+				endlessTypesOK = false
+			end
+		end
+	end
+end
+check("tras el jefe, oleadas sin fin y cada vez con más enemigos", endlessOK)
+check("solo enemigos normales o fuertes de su zona", endlessTypesOK)
+local function strongCount(arenaId, wave)
+	local n = 0
+	for typeId, count in WaveLogic.endlessCounts(arenaId, wave) do
+		if EnemyConfig.Types[typeId].Kind == "Strong" then
+			n += count
+		end
+	end
+	return n
+end
+local every = WaveConfig.Endless.StrongEvery
+check("cada StrongEvery oleadas, el doble de fuertes", strongCount("Forest", 10 + every) > strongCount("Forest", 10 + every - 1) * 1.5)
+check("en el modo infinito siguen las mejoras cada CardEvery", WaveLogic.isCardWave("Forest", 12) and WaveLogic.isCardWave("Forest", 15) and not WaveLogic.isCardWave("Forest", 13) and not WaveLogic.isCardWave("Tutorial", 12))
+check("los enemigos del modo infinito tienen cada vez más vida", WaveLogic.healthMultiplier(20, 1) > WaveLogic.healthMultiplier(11, 1))
+local e11 = WaveLogic.clearReward(11, 2, "Forest")
+local e20 = WaveLogic.clearReward(20, 2, "Forest")
+check("y dan cada vez más premio", e20 > e11)
+
+print("-- Récords")
+local records = WaveLogic.emptyRecords()
+check("récords vacíos", records.Cleared == 0 and next(records.Best) == nil and WaveLogic.bestWave(records, "Forest") == 0)
+check("superar la 1 del Bosque: récord nuevo", WaveLogic.recordWave(records, "Forest", 1) == true and records.Cleared == 1 and WaveLogic.bestWave(records, "Forest") == 1)
+check("superar la 2: récord nuevo", WaveLogic.recordWave(records, "Forest", 2) == true and WaveLogic.bestWave(records, "Forest") == 2)
+check("otra partida que se queda en la 1: suma, pero no es récord", WaveLogic.recordWave(records, "Forest", 1) == false and records.Cleared == 3 and WaveLogic.bestWave(records, "Forest") == 2)
+check("cada modo tiene su récord", WaveLogic.recordWave(records, "CrystalValley", 1) == true and WaveLogic.bestWave(records, "Forest") == 2 and WaveLogic.bestWave(records, "CrystalValley") == 1)
+check("el modo infinito cuenta (oleada 14)", WaveLogic.recordWave(records, "Forest", 14) == true and WaveLogic.bestWave(records, "Forest") == 14)
+check("la práctica del tutorial y lo raro no cuentan", WaveLogic.recordWave(records, "Tutorial", 3) == false and WaveLogic.recordWave(records, "Nada", 3) == false and WaveLogic.recordWave(records, "Forest", 0 / 0) == false and records.Cleared == 5)
+local clean = WaveLogic.sanitizeRecords({ Cleared = 0 / 0, Best = { Forest = 12.7, Bad = -3, [5] = 2, Valley = "x" } })
+check("guardado roto: se sanea (sin NaN, negativos ni claves raras)", clean.Cleared == 0 and clean.Best.Forest == 12 and clean.Best.Bad == nil and clean.Best[5] == nil and clean.Best.Valley == nil)
+check("sin datos: vacíos; y siempre una tabla nueva", WaveLogic.sanitizeRecords(nil).Cleared == 0 and WaveLogic.sanitizeRecords("x").Cleared == 0 and WaveLogic.serializeRecords(records) ~= records and WaveLogic.serializeRecords(records).Best.Forest == 14)
 
 print("-- Dificultad y premios")
 check("oleada 1 en solitario: vida normal", near(WaveLogic.healthMultiplier(1, 1), 1))

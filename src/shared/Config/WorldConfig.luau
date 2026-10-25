@@ -227,8 +227,9 @@ local WorldConfig = {
 		Vector3.new(38, 85, 18), -- Jardín de los Huevos (EggConfig.Gardens.Forest)
 		Vector3.new(0, 131, 16), -- portal al Valle Cristalino (al final de la calle del pueblo)
 		Vector3.new(0, 17, 8), -- arco
-		Vector3.new(-15, -11, 9), -- tabla de clasificación (LeaderboardConfig)
-		Vector3.new(15, -11, 9), -- tabla de clasificación
+		Vector3.new(-23, -3, 9), -- tablas de clasificación (LeaderboardConfig)
+		Vector3.new(23, -3, 9),
+		Vector3.new(0, -8, 9),
 	},
 }
 

@@ -188,6 +188,13 @@ local WaveConfig = {
 	VictoryEnergy = 150, -- · poder de energía
 	VictoryMoney = 600,
 
+	-- Modo infinito (los modos con jefe; Endless = false en un modo lo quita): al caer el
+	-- jefe se cobra la victoria y cada jugador tiene ChoiceSeconds para elegir si sigue. Las
+	-- oleadas siguen sin fin con los enemigos de la última de hordas, CountGrowth más por cada
+	-- oleada tras el jefe (y con más vida: HealthGrowth), y cada StrongEvery el doble de
+	-- fuertes. Las mejoras siguen cada CardEvery. Se acaba cuando caen todos (sin perder nada).
+	Endless = { ChoiceSeconds = 10, CountGrowth = 0.12, StrongEvery = 5 },
+
 	-- Mejoras cada CardEvery oleadas (tras la 3, la 6 y la 9), 1 de CardChoices. Cada modo
 	-- puede cambiar CardEvery.
 	CardEvery = 3,

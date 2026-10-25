@@ -5,6 +5,7 @@
 -- el juego, una secuencia fija en las pruebas).
 
 local WaveConfig = require(script.Parent.Config.WaveConfig)
+local EnemyConfig = require(script.Parent.Config.EnemyConfig)
 
 local WaveLogic = {}
 
@@ -60,12 +61,44 @@ function WaveLogic.isBossWave(arenaId: string, wave: number): boolean
 	return arena ~= nil and arena.Boss ~= nil and wave == WaveLogic.waveCount(arenaId)
 end
 
+-- ¿Tiene modo infinito? (los modos con jefe, salvo Endless = false; la práctica no)
+function WaveLogic.hasEndless(arenaId: string): boolean
+	local arena = WaveConfig.Arenas[arenaId]
+	return arena ~= nil and arena.Boss ~= nil and not arena.Tutorial and arena.Endless ~= false and WaveConfig.Endless ~= nil
+end
+
+-- Oleadas del modo infinito: después del jefe (oleada waveCount + k, k >= 1) salen los de
+-- la última oleada de hordas, CountGrowth más por cada k; cada StrongEvery, el doble de
+-- fuertes. nil si no es una oleada infinita.
+function WaveLogic.endlessCounts(arenaId: string, wave: number): { [string]: number }?
+	local arena = WaveConfig.Arenas[arenaId]
+	local k = math.floor(positive(wave)) - WaveLogic.waveCount(arenaId)
+	if not (WaveLogic.hasEndless(arenaId) and k >= 1 and #arena.Waves > 0) then
+		return nil
+	end
+	local settings = WaveConfig.Endless
+	local base = arena.Waves[#arena.Waves]
+	local scale = 1 + positive(settings.CountGrowth) * k
+	local strongWave = (settings.StrongEvery or 0) > 0 and k % settings.StrongEvery == 0
+	local counts = {}
+	for typeId, count in base do
+		local n = math.max(1, math.floor(positive(count) * scale + 0.5))
+		local def = EnemyConfig.Types[typeId]
+		if strongWave and def and def.Kind == "Strong" then
+			n *= 2
+		end
+		counts[typeId] = n
+	end
+	return counts
+end
+
 -- Enemigos de una oleada de hordas, en orden de aparición: los tipos se reparten a lo
 -- largo de la oleada (no salen todos los fuertes juntos) y el azar solo baraja un poco
--- dentro de cada tramo. Lista vacía si la oleada no existe o es la del jefe.
+-- dentro de cada tramo. Lista vacía si la oleada no existe o es la del jefe. Las que vienen
+-- después del jefe son las del modo infinito (endlessCounts).
 function WaveLogic.spawnList(arenaId: string, wave: number, rng: () -> number): { string }
 	local arena = WaveConfig.Arenas[arenaId]
-	local counts = arena and arena.Waves[wave]
+	local counts = arena and (arena.Waves[wave] or WaveLogic.endlessCounts(arenaId, wave))
 	if not counts then
 		return {}
 	end
@@ -154,11 +187,13 @@ function WaveLogic.victoryReward(power: number, arenaId: string?): (number, numb
 	return math.floor(WaveConfig.VictoryEnergy * p * scale), math.floor(WaveConfig.VictoryMoney * scale)
 end
 
--- ¿Toca elegir mejora al terminar la oleada `wave`? (nunca tras la última)
+-- ¿Toca elegir mejora al terminar la oleada `wave`? (nunca tras la última; en el modo
+-- infinito siguen saliendo cada CardEvery)
 function WaveLogic.isCardWave(arenaId: string, wave: number): boolean
 	local arena = WaveConfig.Arenas[arenaId]
 	local every = if arena and arena.CardEvery then arena.CardEvery else WaveConfig.CardEvery
-	return every > 0 and wave >= 1 and wave % every == 0 and wave < WaveLogic.waveCount(arenaId)
+	local count = WaveLogic.waveCount(arenaId)
+	return every > 0 and wave >= 1 and wave % every == 0 and (wave < count or (wave > count and WaveLogic.hasEndless(arenaId)))
 end
 
 -- Consejo de un modo para un momento de la partida ("Countdown", "Cards", "Victory" o el
@@ -308,6 +343,67 @@ end
 -- que le toca, antes de multiplicadores), con su poder de energía.
 function WaveLogic.killEnergy(share: number, killShare: number, power: number): number
 	return positive(share) * positive(killShare) * math.max(1, positive(power))
+end
+
+-- Récords del jugador (campo Waves del guardado, v10) --------------------------------------
+-- Cleared: oleadas superadas en total (clasificación "Oleadas superadas"); Best: la oleada
+-- más alta superada en cada modo (las del modo infinito cuentan: 11, 12...). La práctica
+-- del tutorial no cuenta.
+
+export type Records = { Cleared: number, Best: { [string]: number } }
+
+local MAX_RECORD_MODES = 20
+
+function WaveLogic.emptyRecords(): Records
+	return { Cleared = 0, Best = {} }
+end
+
+-- Datos guardados (o cualquier cosa) -> récords válidos; siempre una tabla nueva.
+function WaveLogic.sanitizeRecords(raw: any): Records
+	local result = WaveLogic.emptyRecords()
+	if type(raw) ~= "table" then
+		return result
+	end
+	if isFiniteNumber(raw.Cleared) and raw.Cleared > 0 then
+		result.Cleared = math.min(math.floor(raw.Cleared), 1e9)
+	end
+	if type(raw.Best) == "table" then
+		local count = 0
+		for arenaId, wave in raw.Best do
+			if type(arenaId) == "string" and #arenaId <= 64 and isFiniteNumber(wave) and wave >= 1 and count < MAX_RECORD_MODES then
+				result.Best[arenaId] = math.min(math.floor(wave), 1e6)
+				count += 1
+			end
+		end
+	end
+	return result
+end
+
+-- Copia para guardar.
+function WaveLogic.serializeRecords(records: any): Records
+	return WaveLogic.sanitizeRecords(records)
+end
+
+-- Mejor oleada superada en un modo (0 si ninguna).
+function WaveLogic.bestWave(records: any, arenaId: string): number
+	local best = type(records) == "table" and type(records.Best) == "table" and records.Best[arenaId]
+	return if isFiniteNumber(best) and best > 0 then math.floor(best) else 0
+end
+
+-- Oleada `wave` superada en el modo `arenaId`: suma una a las superadas y sube el récord
+-- de ese modo. true si es un récord nuevo. La práctica y los modos que no existen no cuentan.
+function WaveLogic.recordWave(records: Records, arenaId: string, wave: number): boolean
+	local arena = WaveConfig.Arenas[arenaId]
+	local w = math.floor(positive(wave))
+	if not arena or arena.Tutorial or w < 1 or type(records) ~= "table" or type(records.Best) ~= "table" then
+		return false
+	end
+	records.Cleared = math.min(math.floor(positive(records.Cleared)) + 1, 1e9)
+	if w > WaveLogic.bestWave(records, arenaId) then
+		records.Best[arenaId] = math.min(w, 1e6)
+		return true
+	end
+	return false
 end
 
 return WaveLogic

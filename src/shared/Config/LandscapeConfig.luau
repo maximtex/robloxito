@@ -13,6 +13,10 @@ local V2 = Vector2.new
 
 local LandscapeConfig = {
 	ModelName = "Landscape",
+	-- El mapa estilo simulador (StudFloor) solo usa el límite invisible de cada zona: con
+	-- false, LandscapeService no construye árboles, caminos, montañas, jardines, pueblo ni
+	-- naturaleza de LandscapeLayout (la prueba "landscape" omite sus comprobaciones).
+	BuildsDecor = false,
 
 	Colors = {
 		Stone = Color3.fromRGB(152, 150, 138),

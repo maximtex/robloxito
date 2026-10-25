@@ -214,6 +214,7 @@ local EnemyConfig = {
 			},
 			SafeZones = {
 				{ Center = Vector2.new(38, 85), Radius = 20 }, -- Jardín de los Huevos (EggConfig.Gardens.Forest)
+				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal al Valle (ZoneConfig.Portals.ForestPortal)
 				-- Círculo de las oleadas (WaveConfig.Places.Forest, radio AreaRadius + 4): los del mundo no
 				-- entran a por nadie ni atacan a quien espera junto al altar.
 				{ Center = Vector2.new(-69, 98), Radius = 22 },
@@ -273,6 +274,7 @@ local EnemyConfig = {
 			RewardMultiplier = 1,
 			SafeZones = {
 				{ Center = Vector2.new(18, 8), Radius = 11 },
+				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal a la Caldera (ZoneConfig.Portals.CalderaPortal)
 				{ Center = Vector2.new(36, -124), Radius = 22 }, -- círculo de las oleadas (WaveConfig.Places)
 			},
 			Spawns = {

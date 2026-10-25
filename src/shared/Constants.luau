@@ -225,6 +225,8 @@ local Constants = {
 		DailyReady = "DailyReady",
 		-- Energía generada en total (no baja al gastar ni al renacer): clasificaciones.
 		TotalEnergy = "TotalEnergy",
+		-- Oleadas superadas en total (clasificación "Oleadas superadas"; WaveLogic.Records).
+		WavesCleared = "WavesCleared",
 		-- Racha de enemigos derrotados sin parar (EnemyService): cuántos, hora del servidor a
 		-- la que caduca y la mejor de la sesión.
 		Streak = "Streak",

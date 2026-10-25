@@ -8,6 +8,21 @@ local function check(name, ok)
 	print((ok and "OK   " or "FALLO") .. "  " .. name)
 end
 
+-- El mapa estilo simulador solo construye el límite invisible (LandscapeService): árboles,
+-- caminos, montañas, jardines, pueblo y naturaleza de LandscapeLayout NO se construyen
+-- (LandscapeConfig.BuildsDecor = false). Sus comprobaciones se omiten (no cuentan) hasta que
+-- se vuelvan a construir; las del límite, los cofres y los personajes sí cuentan.
+local decorBuilt = LandscapeConfig.BuildsDecor ~= false
+local omitted = 0
+local function decorCheck(name, ok)
+	if decorBuilt then
+		check(name, ok)
+	else
+		omitted += 1
+		print("OMIT   " .. name .. (if ok then "" else "  (fallaría)"))
+	end
+end
+
 LandscapeLayout.init({
 	LandscapeConfig = LandscapeConfig,
 	WorldConfig = WorldConfig,
@@ -96,11 +111,11 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 			end
 		end
 	end
-	check(key .. ": nada al azar encima de lo que ya hay (spawn, altares, huevos, arenas...)", okHard)
-	check(key .. ": nada sólido en la zona de los enemigos", okSolid)
-	check(key .. ": nada al azar encima de los caminos", okPaths)
-	check(key .. ": todo dentro del límite", okBoundary)
-	check(key .. ": nada se solapa", okOverlap)
+	decorCheck(key .. ": nada al azar encima de lo que ya hay (spawn, altares, huevos, arenas...)", okHard)
+	decorCheck(key .. ": nada sólido en la zona de los enemigos", okSolid)
+	decorCheck(key .. ": nada al azar encima de los caminos", okPaths)
+	decorCheck(key .. ": todo dentro del límite", okBoundary)
+	decorCheck(key .. ": nada se solapa", okOverlap)
 	local counts = {}
 	for _, item in layout.Scatter do
 		counts[item.Kind] = (counts[item.Kind] or 0) + 1
@@ -111,7 +126,7 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 		table.insert(summary, spec.Kind .. "=" .. n .. "/" .. spec.Count)
 		enough = enough and n >= math.floor(spec.Count * 0.75)
 	end
-	check(key .. ": cabe casi todo lo pedido (" .. table.concat(summary, " ") .. ")", enough)
+	decorCheck(key .. ": cabe casi todo lo pedido (" .. table.concat(summary, " ") .. ")", enough)
 
 	-- Faroles
 	local lampsOk = #layout.Lamps > 0
@@ -120,7 +135,7 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 			lampsOk = false
 		end
 	end
-	check(key .. ": " .. #layout.Lamps .. " faroles junto a los caminos, sin estorbar", lampsOk)
+	decorCheck(key .. ": " .. #layout.Lamps .. " faroles junto a los caminos, sin estorbar", lampsOk)
 
 	-- Caminos: no pasan por encima de huevos, altares, portales ni del centro de las arenas.
 	local base = LandscapeLayout.obstacles(key)
@@ -140,7 +155,7 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 			end
 		end
 	end
-	check(key .. ": los caminos respetan huevos, altares, portales y arenas", pathsOk)
+	decorCheck(key .. ": los caminos respetan huevos, altares, portales y arenas", pathsOk)
 
 	-- Lo colocado a mano no pisa lo que ya hay.
 	local plain = { Hard = {}, SolidOnly = {}, Paths = {} }
@@ -192,7 +207,7 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 	if settings.CrystalPool then
 		hand("lago de cristal", settings.CrystalPool.Center.X, settings.CrystalPool.Center.Y, settings.CrystalPool.Radius + 1)
 	end
-	check(key .. ": lo construido a mano (bancos, carteles, estanque, torre...) no pisa nada", handOk)
+	decorCheck(key .. ": lo construido a mano (bancos, carteles, estanque, torre...) no pisa nada", handOk)
 
 	-- Límite y montañas
 	local wallsOk = #layout.Boundary == LandscapeConfig.Boundary.Segments
@@ -202,6 +217,11 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 	check(key .. ": límite invisible en segmentos de menos de 120 studs (el aviso de piezas gigantes)", wallsOk)
 	local insideOk = true
 	for _, item in base.Hard do
+		-- Los portales van en la frontera entre mapas (pegados) y el límite deja un hueco ahí
+		-- (LandscapeService, GATE_CLEARANCE): no cuentan.
+		if ZoneConfig.Portals[item.Name] then
+			continue
+		end
 		if math.sqrt(item.X ^ 2 + item.Z ^ 2) + item.R > settings.BoundaryRadius then
 			insideOk = false
 			print("  fuera del límite: " .. item.Name)
@@ -215,7 +235,7 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 			mountainsOk = false
 		end
 	end
-	check(key .. ": las montañas empiezan junto al límite, lejos del juego (" .. #layout.Mountains .. ")", mountainsOk)
+	decorCheck(key .. ": las montañas empiezan junto al límite, lejos del juego (" .. #layout.Mountains .. ")", mountainsOk)
 end
 
 -- 4. Jardines de huevos ---------------------------------------------------------------------
@@ -235,10 +255,10 @@ local expected = {
 for gardenId, garden in EggConfig.Gardens do
 	local key = keyOfZone[garden.Zone]
 	local style = LandscapeConfig.Gardens[garden.Style]
-	check(gardenId .. ": zona y estilo existen", key ~= nil and style ~= nil and ZoneConfig.Zones[garden.Zone] ~= nil)
+	decorCheck(gardenId .. ": zona y estilo existen", key ~= nil and style ~= nil and ZoneConfig.Zones[garden.Zone] ~= nil)
 	local layout = LandscapeLayout.compute(key).Garden
 	local cx, cz, radius = garden.Center.X, garden.Center.Y, garden.Radius
-	check(gardenId .. ": el paisaje construye el jardín de su zona", layout ~= nil and layout.Garden == garden)
+	decorCheck(gardenId .. ": el paisaje construye el jardín de su zona", layout ~= nil and layout.Garden == garden)
 
 	-- Santuarios: todos dentro del terreno libre del jardín, separados (los carteles no se
 	-- tapan) y mirando al centro. El seto de LandscapeLayout.garden ya no se construye; lo que
@@ -251,7 +271,7 @@ for gardenId, garden in EggConfig.Gardens do
 			zoneEggs += 1
 		end
 	end
-	check(("%s: reúne los %d huevos de la zona"):format(gardenId, zoneEggs), #stands == zoneEggs and zoneEggs > 0)
+	decorCheck(("%s: reúne los %d huevos de la zona"):format(gardenId, zoneEggs), #stands == zoneEggs and zoneEggs > 0)
 	local insideOk, apartOk, facingOk = true, true, true
 	for index, stand in stands do
 		if dist(stand.X, stand.Z, cx, cz) + STAND > inner then
@@ -272,14 +292,14 @@ for gardenId, garden in EggConfig.Gardens do
 			facingOk = facingOk and math.abs(stand.FacingX - math.cos(angle)) < 1e-6 and math.abs(stand.FacingZ - math.sin(angle)) < 1e-6
 		end
 	end
-	check(gardenId .. ": cada santuario cabe en el terreno libre del jardín", insideOk)
-	check(gardenId .. ": santuarios separados (sus carteles no se tapan)", apartOk)
-	check(gardenId .. ": cada santuario mira al centro (o a la entrada)", facingOk)
+	decorCheck(gardenId .. ": cada santuario cabe en el terreno libre del jardín", insideOk)
+	decorCheck(gardenId .. ": santuarios separados (sus carteles no se tapan)", apartOk)
+	decorCheck(gardenId .. ": cada santuario mira al centro (o a la entrada)", facingOk)
 
 	-- Mobiliario: lo esperado, sin tocar santuarios, sin solaparse y sin tapar la entrada.
 	local want = expected[gardenId]
 	if want then
-		check(("%s: %d faroles, %d bancos, %d jardineras%s"):format(gardenId, want.Lamps, want.Benches, want.Planters, if want.Fountain then " y fuente" else ""),
+		decorCheck(("%s: %d faroles, %d bancos, %d jardineras%s"):format(gardenId, want.Lamps, want.Benches, want.Planters, if want.Fountain then " y fuente" else ""),
 			#layout.Lamps == want.Lamps and #layout.Benches == want.Benches and #layout.Planters == want.Planters and (layout.Fountain ~= nil) == want.Fountain)
 	end
 	local furniture = {}
@@ -308,23 +328,23 @@ for gardenId, garden in EggConfig.Gardens do
 			gateOk = false
 		end
 	end
-	check(gardenId .. ": faroles, bancos, jardineras y fuente no tocan los santuarios", clearOk)
-	check(gardenId .. ": el mobiliario no se solapa", overlapOk)
-	check(gardenId .. ": la entrada queda despejada", gateOk)
+	decorCheck(gardenId .. ": faroles, bancos, jardineras y fuente no tocan los santuarios", clearOk)
+	decorCheck(gardenId .. ": el mobiliario no se solapa", overlapOk)
+	decorCheck(gardenId .. ": la entrada queda despejada", gateOk)
 	if layout.Fountain then
 		local gap = math.huge
 		for _, stand in stands do
 			gap = math.min(gap, dist(stand.X, stand.Z, layout.Fountain.X, layout.Fountain.Z) - STAND - layout.Fountain.R)
 		end
-		check(("%s: se pasa entre la fuente y los santuarios (%.1f studs)"):format(gardenId, gap), gap >= 2)
+		decorCheck(("%s: se pasa entre la fuente y los santuarios (%.1f studs)"):format(gardenId, gap), gap >= 2)
 	end
-	check(("%s: entrada de %.1f studs entre pilares (cabe el sendero)"):format(gardenId, layout.Gate.Width), layout.Gate.Width - 1.6 >= 5)
+	decorCheck(("%s: entrada de %.1f studs entre pilares (cabe el sendero)"):format(gardenId, layout.Gate.Width), layout.Gate.Width - 1.6 >= 5)
 	local ringOk = #layout.Ring > 0
 	for _, item in layout.Ring do
 		local delta = math.abs(((item.Angle - garden.Entrance) + 180) % 360 - 180)
 		ringOk = ringOk and delta >= style.GateHalfAngle and math.abs(dist(item.X, item.Z, cx, cz) - radius) < 1e-6
 	end
-	check(("%s: %d tramos de seto/cristales, sin cerrar la entrada"):format(gardenId, #layout.Ring), ringOk)
+	decorCheck(("%s: %d tramos de seto/cristales, sin cerrar la entrada"):format(gardenId, #layout.Ring), ringOk)
 
 	-- Respeto del mapa: no pisa nada de juego ni de lo que ya hay.
 	local base = LandscapeLayout.obstacles(key)
@@ -336,18 +356,18 @@ for gardenId, garden in EggConfig.Gardens do
 			print(("  el jardín %s pisa %s (%.0f, %.0f)"):format(gardenId, item.Name, item.X, item.Z))
 		end
 	end
-	check(gardenId .. ": no pisa spawn, portales, altares, arenas, enemigos ni decorado", mapOk)
+	decorCheck(gardenId .. ": no pisa spawn, portales, altares, arenas, enemigos ni decorado", mapOk)
 	local keep = if key == "Forest" then WorldConfig.KeepClear elseif key == "Caldera" then CalderaConfig.KeepClear else ValleyConfig.KeepClear
 	local keepOk = false
 	for _, zone in keep do
 		keepOk = keepOk or (dist(zone.X, zone.Y, cx, cz) < 1 and zone.Z >= radius + 1)
 	end
-	check(gardenId .. ": sin flores sueltas dentro (KeepClear lo cubre)", keepOk)
+	decorCheck(gardenId .. ": sin flores sueltas dentro (KeepClear lo cubre)", keepOk)
 	local safeOk = false
 	for _, safe in EnemyConfig.Zones[garden.Zone].SafeZones do
 		safeOk = safeOk or (dist(safe.Center.X, safe.Center.Y, cx, cz) < 1 and safe.Radius >= radius + 3)
 	end
-	check(gardenId .. ": zona protegida de los enemigos (SafeZone cubre el jardín)", safeOk)
+	decorCheck(gardenId .. ": zona protegida de los enemigos (SafeZone cubre el jardín)", safeOk)
 	-- Caminos: llegan a la entrada y no atraviesan el seto por otro sitio.
 	-- (y ese camino sale de otro: está conectado con el resto del mapa)
 	local reached = false
@@ -363,7 +383,7 @@ for gardenId, garden in EggConfig.Gardens do
 			reached = reached or LandscapeLayout.distanceToPaths(first.X, first.Y, others) < 1.5
 		end
 	end
-	check(gardenId .. ": un camino conectado llega a la entrada", reached)
+	decorCheck(gardenId .. ": un camino conectado llega a la entrada", reached)
 	local throughOk = true
 	for _, path in LandscapeConfig[key].Paths do
 		for index = 1, #path.Points - 1 do
@@ -379,7 +399,7 @@ for gardenId, garden in EggConfig.Gardens do
 			end
 		end
 	end
-	check(gardenId .. ": ningún camino atraviesa el seto", throughOk)
+	decorCheck(gardenId .. ": ningún camino atraviesa el seto", throughOk)
 end
 
 -- Aventuras: los personajes y los objetos perdidos están en sitios despejados ------------
@@ -425,7 +445,7 @@ for key, zoneId in { Forest = "Forest", Valley = "CrystalValley", Caldera = "Emb
 			end
 		end
 	end
-	check(key .. ": nada del paisaje al azar encima de ellos", freeOfScatter)
+	decorCheck(key .. ": nada del paisaje al azar encima de ellos", freeOfScatter)
 end
 
 -- Pueblo del Renacimiento -----------------------------------------------------------------
@@ -461,7 +481,7 @@ do
 			print(("  %s choca con %s"):format(item.Name, hit))
 		end
 	end
-	check("pueblo: casitas, plaza, puestos y farolas no pisan nada del bosque", clashOk)
+	decorCheck("pueblo: casitas, plaza, puestos y farolas no pisan nada del bosque", clashOk)
 	-- Las casas se miden con su rectángulo real (VillageConfig.buildingRect); lo demás, círculos.
 	local rects = {}
 	for _, building in VillageConfig.Buildings do
@@ -513,8 +533,8 @@ do
 	for _, building in list do
 		stylesOk = stylesOk and VillageConfig.Styles[building.Style] ~= nil and (building.Facing == "East" or building.Facing == "West")
 	end
-	check("pueblo: cada casa tiene un estilo del diseño (entramado, torre o tienda)", stylesOk)
-	check("pueblo: nada se solapa (casas separadas; los puestos van dentro de la plaza)", overlapOk)
+	decorCheck("pueblo: cada casa tiene un estilo del diseño (entramado, torre o tienda)", stylesOk)
+	decorCheck("pueblo: nada se solapa (casas separadas; los puestos van dentro de la plaza)", overlapOk)
 	-- Calle y caminos: ningún camino atraviesa una casa, un puesto o el tablón.
 	local pathOk = true
 	local street = VillageConfig.Street
@@ -553,11 +573,11 @@ do
 			end
 		end
 	end
-	check("pueblo: la calle y los caminos no atraviesan casas ni puestos", pathOk)
+	decorCheck("pueblo: la calle y los caminos no atraviesan casas ni puestos", pathOk)
 	-- La calle llega del spawn hasta el escalón del portal del Valle, y el pueblo es zona protegida.
 	local portal = ZoneConfig.Portals.ForestPortal.Offset
 	local gap = portal.Y - street.To.Y
-	check("pueblo: la calle llega hasta el escalón del portal del Valle", math.abs(portal.X - street.To.X) < 1 and gap > ZoneConfig.PortalRadius - 3 and gap < ZoneConfig.PortalRadius)
+	decorCheck("pueblo: la calle llega hasta el escalón del portal del Valle", math.abs(portal.X - street.To.X) < 1 and gap > ZoneConfig.PortalRadius - 3 and gap < ZoneConfig.PortalRadius)
 	-- Las lomas (bolas de terreno hundidas 0,6 de su radio) asoman hasta 0,8 del radio.
 	local buriedOk = true
 	for _, hill in WorldConfig.Terrain.Hills do
@@ -566,7 +586,7 @@ do
 			print(("  la loma (%d, %d) tapa la tarima del portal"):format(hill.X, hill.Y))
 		end
 	end
-	check("pueblo: ninguna loma entierra la tarima del portal", buriedOk)
+	decorCheck("pueblo: ninguna loma entierra la tarima del portal", buriedOk)
 	local safeOk = false
 	for _, safe in EnemyConfig.Zones.Forest.SafeZones do
 		safeOk = safeOk or ((safe.Center.X - VillageConfig.Safe.Center.X) ^ 2 + (safe.Center.Y - VillageConfig.Safe.Center.Y) ^ 2 < 1 and safe.Radius >= VillageConfig.Safe.Radius)
@@ -591,7 +611,7 @@ do
 			print(("  %s queda fuera de la zona protegida"):format(item.Name))
 		end
 	end
-	check("pueblo: zona protegida de los enemigos que lo cubre entero", safeOk and coveredOk)
+	decorCheck("pueblo: zona protegida de los enemigos que lo cubre entero", safeOk and coveredOk)
 	local panels = { Shop = true, Rewards = true, Quests = true }
 	local panelsOk = panels[VillageConfig.Board.Panel] == true
 	for _, building in VillageConfig.Buildings do
@@ -623,7 +643,7 @@ do
 			print(("  %s choca con %s"):format(item.Name, hit))
 		end
 	end
-	check("naturaleza: cascada, lago, ruinas, campamento y puente no pisan nada", clashOk)
+	decorCheck("naturaleza: cascada, lago, ruinas, campamento y puente no pisan nada", clashOk)
 
 	-- El agua no entra en la zona de ningún enemigo ni pisa lo que ya hay.
 	local river = WildsConfig.River
@@ -645,7 +665,7 @@ do
 			print(("  el río pasa por %s en (%.0f, %.0f)"):format(hit, sample.X, sample.Z))
 		end
 	end
-	check("naturaleza: el río no pasa por zonas de enemigos ni encima de nada", waterOk)
+	decorCheck("naturaleza: el río no pasa por zonas de enemigos ni encima de nada", waterOk)
 
 	-- Los caminos solo cruzan el agua por un puente.
 	local crossOk = true
@@ -678,7 +698,7 @@ do
 			end
 		end
 	end
-	check("naturaleza: los caminos cruzan el río solo por el puente", crossOk)
+	decorCheck("naturaleza: los caminos cruzan el río solo por el puente", crossOk)
 
 	-- El puente: sobre el río, más largo que el agua y sus orillas, y en un camino.
 	local bridgeOk = #WildsConfig.Bridges > 0
@@ -693,7 +713,7 @@ do
 			print("  puente mal colocado: " .. bridge.Name)
 		end
 	end
-	check("naturaleza: el puente cruza el río de orilla a orilla en un camino", bridgeOk)
+	decorCheck("naturaleza: el puente cruza el río de orilla a orilla en un camino", bridgeOk)
 
 	-- Piedras de la poza: se saltan de una a otra y llevan a la repisa de detrás del agua.
 	local fall = WildsConfig.Waterfall
@@ -714,7 +734,7 @@ do
 	local firstGap = if falls then math.sqrt((stones[1].X - falls.X) ^ 2 + (stones[1].Y - falls.Y) ^ 2) else math.huge
 	local ledgeZ = fall.FaceZ + fall.LedgeDepth / 2
 	local lastGap = math.sqrt((stones[#stones].X - fall.X) ^ 2 + (stones[#stones].Y - ledgeZ) ^ 2)
-	check(("naturaleza: piedras a saltos cortos del sendero (%.1f) a la repisa (%.1f)"):format(firstGap, lastGap), jumpsOk and firstGap < 7 and lastGap < 4.5)
+	decorCheck(("naturaleza: piedras a saltos cortos del sendero (%.1f) a la repisa (%.1f)"):format(firstGap, lastGap), jumpsOk and firstGap < 7 and lastGap < 4.5)
 
 	-- Praderas fuera de las zonas de juego.
 	local gameplay = {}
@@ -732,7 +752,7 @@ do
 			print(("  la pradera %s pisa %s"):format(meadow.Name, tostring(hit)))
 		end
 	end
-	check("naturaleza: las praderas no pisan zonas de juego", meadowsOk)
+	decorCheck("naturaleza: las praderas no pisan zonas de juego", meadowsOk)
 
 	-- Lomas nuevas (colinas pequeñas del interior): lejos de lo que tiene altura fija.
 	local hillsOk = true
@@ -745,7 +765,7 @@ do
 			end
 		end
 	end
-	check("naturaleza: las lomas no levantan zonas de juego", hillsOk)
+	decorCheck("naturaleza: las lomas no levantan zonas de juego", hillsOk)
 
 	-- Cofres: dentro del mapa, fuera del agua, de los caminos y de las zonas de juego.
 	local chestsOk = true
@@ -782,7 +802,10 @@ do
 			end
 		end
 	end
-	check("naturaleza: ningún árbol ni roca tapa un cofre", coveredOk)
+	decorCheck("naturaleza: ningún árbol ni roca tapa un cofre", coveredOk)
 end
 
+if omitted > 0 then
+	print(("(%d comprobaciones del paisaje decorativo omitidas: LandscapeConfig.BuildsDecor = false)"):format(omitted))
+end
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

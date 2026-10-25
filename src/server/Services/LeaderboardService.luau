@@ -1,4 +1,4 @@
--- Tablas de clasificación de madera al norte de la plaza (LeaderboardConfig), construidas con
+-- Tablas de clasificación de madera al fondo de la plaza (LeaderboardConfig), construidas con
 -- las piezas de tabla-madera-leaderboard.glb (LeaderboardBoardData): el título en la placa, la
 -- página en la viga de arriba, 10 filas (oro, plata y bronce) y abajo la fila del jugador que
 -- la mira (la rellena LeaderboardController en cada cliente). En Navidad (SeasonConfig) llevan
@@ -301,6 +301,7 @@ local function publishedValues(profile: PlayerDataService.Profile): { [string]: 
 		Energy = LeaderboardLogic.storeValue(type(quests) == "table" and type(quests.Stats) == "table" and quests.Stats.EnergyEarned or 0),
 		Rebirths = LeaderboardLogic.storeValue(RebirthLogic.count(data.Rebirth)),
 		Weekly = LeaderboardLogic.storeValue(LeaderboardLogic.weeklyValue(data.Weekly, currentWeek())),
+		Waves = LeaderboardLogic.storeValue(type(data.Waves) == "table" and data.Waves.Cleared or 0),
 	}
 end
 
@@ -404,6 +405,9 @@ end
 
 -- Arranque ------------------------------------------------------------------------------------
 
+-- Clasificaciones globales que se leen (las de LeaderboardConfig.Global.Stores).
+local GLOBAL_STATS = { "Energy", "Rebirths", "Weekly", "Waves" }
+
 function LeaderboardService.start()
 	PartFactory.removeExisting(Workspace, LeaderboardConfig.ModelName)
 	local folder = Instance.new("Folder")
@@ -412,7 +416,7 @@ function LeaderboardService.start()
 		buildBoard(folder, spec)
 	end
 	folder.Parent = Workspace
-	for _, stat in { "Energy", "Rebirths", "Weekly" } do
+	for _, stat in GLOBAL_STATS do
 		globalTop[stat] = { Entries = {}, Status = "loading" }
 	end
 	refresh()
@@ -446,7 +450,7 @@ function LeaderboardService.start()
 	task.spawn(function()
 		while true do
 			local offline = false
-			for _, stat in { "Energy", "Rebirths", "Weekly" } do
+			for _, stat in GLOBAL_STATS do
 				fetch(stat)
 				offline = offline or globalTop[stat].Status == "offline"
 			end

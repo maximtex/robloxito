@@ -1,6 +1,6 @@
 -- En el mapa estilo simulador simple, LandscapeService solo construye los muros invisibles
 -- de límite (MapBoundary) de cada zona para que nadie caiga fuera del mapa, sin árboles,
--- colinas, rocas ni estanques que recarguen la vista.
+-- colinas, rocas ni estanques que recarguen la vista (LandscapeConfig.BuildsDecor = false).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")

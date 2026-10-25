@@ -76,6 +76,12 @@ type Participant = {
 	Money: number,
 	Golden: number,
 	BestStreak: number,
+	StartBest: number, -- su récord en este modo al empezar (WaveLogic.Records)
+	NewBest: boolean, -- ha superado su récord en esta partida
+	RecordShown: boolean, -- ya se le avisó del récord nuevo
+	Continue: boolean?, -- modo infinito: true sigue, false se va, nil aún no ha elegido
+	VictoryEnergy: number, -- premio de victoria ya cobrado
+	VictoryMoney: number,
 }
 
 type Run = {
@@ -86,7 +92,9 @@ type Run = {
 	Slot: number, -- hueco 1..MaxRuns (grupo de colisión de sus enemigos)
 	ZoneId: string,
 	Center: Vector3,
-	Phase: string, -- "Countdown" | "Wave" | "Break" | "Cards" | "Boss" | "Done"
+	Phase: string, -- "Countdown" | "Wave" | "Break" | "Cards" | "Boss" | "Choice" | "Done"
+	Endless: boolean, -- en el modo infinito (tras ganarle al jefe)
+	VictoryPaid: boolean, -- el premio de victoria ya se cobró (al caer el jefe)
 	Wave: number,
 	Waves: number,
 	EndsAt: number, -- os.clock() en que acaba la fase (cuenta atrás, pausa, mejoras)
@@ -153,7 +161,23 @@ local function isInside(run: Run, player: Player): boolean
 end
 
 local function newParticipant(player: Player): Participant
-	return { Player = player, Levels = {}, Mods = WaveLogic.modifiers({}), Choices = nil, Kills = 0, Energy = 0, Money = 0, Golden = 0, BestStreak = 0 }
+	return {
+		Player = player,
+		Levels = {},
+		Mods = WaveLogic.modifiers({}),
+		Choices = nil,
+		Kills = 0,
+		Energy = 0,
+		Money = 0,
+		Golden = 0,
+		BestStreak = 0,
+		StartBest = 0,
+		NewBest = false,
+		RecordShown = false,
+		Continue = nil,
+		VictoryEnergy = 0,
+		VictoryMoney = 0,
+	}
 end
 
 -- Partida (activa) en la que juega un jugador, con su ficha.
@@ -190,6 +214,7 @@ local function stateOf(run: Run)
 		Arena = run.ArenaId,
 		Name = run.Arena.DisplayName,
 		Tutorial = run.Arena.Tutorial == true,
+		Endless = run.Endless == true,
 		Phase = run.Phase,
 		Wave = run.Wave,
 		Waves = run.Waves,
@@ -369,6 +394,8 @@ end
 
 local enterBreak: (Run, number) -> ()
 local finish: (Run, boolean) -> ()
+local enterChoice: (Run) -> ()
+local recordCleared: (Run, number) -> ()
 
 -- El jefe de la partida (de la reserva: uno para cada partida), frente al altar.
 local function spawnBoss(run: Run): boolean
@@ -388,7 +415,13 @@ local function spawnBoss(run: Run): boolean
 		Territory = area + 4,
 		OnDeath = function()
 			if runs[id] == run and run.Phase == "Boss" then
-				finish(run, true)
+				recordCleared(run, run.Wave)
+				-- Con modo infinito: se cobra la victoria y cada uno elige si sigue
+				if WaveLogic.hasEndless(run.ArenaId) then
+					enterChoice(run)
+				else
+					finish(run, true)
+				end
 			end
 		end,
 	})
@@ -478,11 +511,38 @@ function enterBreak(run: Run, seconds: number)
 	broadcast(run)
 end
 
+-- Oleada `wave` superada: récord del servidor y de cada jugador (WaveLogic.recordWave), que
+-- se guarda. Aviso "Record" la primera vez que alguien supera su récord anterior.
+function recordCleared(run: Run, wave: number)
+	if run.Arena.Tutorial then
+		return
+	end
+	best[run.ArenaId] = math.max(best[run.ArenaId] or 0, wave)
+	for player, participant in run.Participants do
+		local profile = PlayerDataService.get(player)
+		if not profile then
+			continue
+		end
+		local records = profile.PetData.Waves
+		if type(records) ~= "table" then
+			records = WaveLogic.emptyRecords()
+			profile.PetData.Waves = records
+		end
+		if WaveLogic.recordWave(records, run.ArenaId, wave) then
+			participant.NewBest = true
+			if participant.StartBest > 0 and not participant.RecordShown and player.Parent then
+				participant.RecordShown = true
+				eventRemote:FireClient(player, "Record", { Wave = wave, Previous = participant.StartBest })
+			end
+		end
+		PlayerDataService.markDirty(player)
+		PlayerDataService.replicate(player)
+	end
+end
+
 local function waveCleared(run: Run)
 	local wave = run.Wave
-	if not run.Arena.Tutorial then
-		best[run.ArenaId] = math.max(best[run.ArenaId] or 0, wave)
-	end
+	recordCleared(run, wave)
 	for _, participant in run.Participants do
 		local profile = PlayerDataService.get(participant.Player)
 		if profile then
@@ -499,7 +559,7 @@ local function waveCleared(run: Run)
 			eventRemote:FireClient(participant.Player, "Cleared", { Wave = wave, Energy = given, Money = coins, Healed = healed })
 		end
 	end
-	if wave >= run.Waves then
+	if not run.Endless and wave >= run.Waves then
 		finish(run, true) -- modo sin jefe: ganada al limpiar la última
 	elseif WaveLogic.isCardWave(run.ArenaId, wave) then
 		enterCards(run)
@@ -508,14 +568,58 @@ local function waveCleared(run: Run)
 	end
 end
 
--- Fin de la partida: premios, resumen y cada uno vuelve al mundo normal.
+-- Premio de victoria para todos los de la partida (una sola vez).
+local function payVictory(run: Run)
+	if run.VictoryPaid then
+		return
+	end
+	run.VictoryPaid = true
+	hint(run, "Victory")
+	for player, participant in run.Participants do
+		local profile = PlayerDataService.get(player)
+		if profile then
+			participant.VictoryEnergy, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(profile.ProductionPerSecond, run.ArenaId))
+		end
+		GameEvents.fire("WaveWon", player, run.ArenaId)
+	end
+end
+
+-- Resumen para un jugador y vuelta al mundo normal.
+local function sendResult(run: Run, player: Player, participant: Participant, victory: boolean)
+	if player.Parent then
+		local profile = PlayerDataService.get(player)
+		eventRemote:FireClient(player, "Result", {
+			Run = run.Id,
+			Victory = victory,
+			Tutorial = run.Arena.Tutorial == true,
+			Endless = run.Endless == true,
+			Arena = run.Arena.DisplayName,
+			Wave = run.Wave,
+			Waves = run.Waves,
+			Kills = participant.Kills,
+			Energy = participant.Energy,
+			Money = participant.Money,
+			Golden = participant.Golden,
+			BestStreak = participant.BestStreak,
+			VictoryEnergy = participant.VictoryEnergy,
+			VictoryMoney = participant.VictoryMoney,
+			Best = best[run.ArenaId] or 0,
+			PersonalBest = if profile then WaveLogic.bestWave(profile.PetData.Waves, run.ArenaId) else 0,
+			NewBest = participant.NewBest and participant.StartBest > 0,
+		})
+	end
+	if runOf[player] == run then
+		runOf[player] = nil
+		setPlayerRun(player, nil)
+	end
+	lockedUntil[player] = os.clock() + RESTART_LOCK
+end
+
+-- Fin de la partida: premios, resumen y cada uno vuelve al mundo normal. En el modo infinito
+-- la victoria ya se cobró al caer el jefe: el resumen la cuenta, pero no se paga otra vez.
 function finish(run: Run, victory: boolean)
 	if run.Phase == "Done" then
 		return
-	end
-	local reached = run.Wave
-	if victory and not run.Arena.Tutorial then
-		best[run.ArenaId] = math.max(best[run.ArenaId] or 0, run.Waves)
 	end
 	-- Lo que quede se retira sin botín (el jefe derrotado ya se fue solo).
 	run.Boss = if victory then nil else run.Boss
@@ -523,47 +627,63 @@ function finish(run: Run, victory: boolean)
 	run.Phase = "Done"
 	run.EndsAt = 0
 	if victory then
-		hint(run, "Victory")
+		payVictory(run)
 	end
-	local now = os.clock()
 	for player, participant in run.Participants do
-		local energy, money = 0, 0
-		if victory then
-			local profile = PlayerDataService.get(player)
-			if profile then
-				energy, money = pay(participant, WaveLogic.victoryReward(profile.ProductionPerSecond, run.ArenaId))
-			end
-			GameEvents.fire("WaveWon", player, run.ArenaId)
-		end
-		if player.Parent then
-			eventRemote:FireClient(player, "Result", {
-				Run = run.Id,
-				Victory = victory,
-				Tutorial = run.Arena.Tutorial == true,
-				Wave = reached,
-				Waves = run.Waves,
-				Kills = participant.Kills,
-				Energy = participant.Energy,
-				Money = participant.Money,
-				Golden = participant.Golden,
-				BestStreak = participant.BestStreak,
-				VictoryEnergy = energy,
-				VictoryMoney = money,
-				Best = best[run.ArenaId] or 0,
-			})
-		end
-		if runOf[player] == run then
-			runOf[player] = nil
-			setPlayerRun(player, nil)
-		end
-		lockedUntil[player] = now + RESTART_LOCK
+		sendResult(run, player, participant, victory or run.VictoryPaid)
 	end
 	runs[run.Id] = nil
 	updateSign()
 end
 
+-- Jefe derrotado en un modo con modo infinito: se cobra la victoria y cada jugador tiene
+-- Endless.ChoiceSeconds para elegir si sigue ("Endless", true/false).
+function enterChoice(run: Run)
+	run.Boss = nil
+	despawnAll(run) -- la escolta se retira
+	payVictory(run)
+	run.Phase = "Choice"
+	run.EndsAt = os.clock() + WaveConfig.Endless.ChoiceSeconds
+	for player, participant in run.Participants do
+		participant.Continue = nil
+		participant.Choices = nil
+		if player.Parent then
+			eventRemote:FireClient(player, "Choice", {
+				EndsAt = serverTime(run.EndsAt),
+				Wave = run.Wave,
+				VictoryEnergy = participant.VictoryEnergy,
+				VictoryMoney = participant.VictoryMoney,
+			})
+		end
+	end
+	broadcast(run)
+	updateSign()
+end
+
+-- Fin de la elección: quien no sigue se lleva su resumen; con alguien que sigue, empieza el
+-- modo infinito (tras una pausa corta).
+local function resolveChoice(run: Run)
+	for player, participant in run.Participants do
+		if participant.Continue ~= true then
+			run.Participants[player] = nil
+			sendResult(run, player, participant, true)
+		end
+	end
+	if next(run.Participants) == nil then
+		run.Phase = "Done"
+		runs[run.Id] = nil
+		updateSign()
+		return
+	end
+	run.Endless = true
+	enterBreak(run, 2)
+end
+
 local function addParticipant(run: Run, player: Player)
-	run.Participants[player] = newParticipant(player)
+	local participant = newParticipant(player)
+	local profile = PlayerDataService.get(player)
+	participant.StartBest = if profile then WaveLogic.bestWave(profile.PetData.Waves, run.ArenaId) else 0
+	run.Participants[player] = participant
 	runOf[player] = run
 	setPlayerRun(player, run)
 	broadcast(run)
@@ -636,6 +756,8 @@ local function tryStart(player: Player, placeId: string?): boolean
 		ZoneId = arena.Zone,
 		Center = place.Center,
 		Phase = "Countdown",
+		Endless = false,
+		VictoryPaid = false,
 		Wave = 0,
 		Waves = WaveLogic.waveCount(mode),
 		EndsAt = os.clock() + WaveConfig.StartCountdown,
@@ -756,6 +878,18 @@ local function step(run: Run, now: number)
 	elseif run.Phase == "Break" then
 		if now >= run.EndsAt then
 			startWave(run, run.Wave + 1)
+		end
+	elseif run.Phase == "Choice" then
+		-- Modo infinito: cuando todos han elegido o se acaba el tiempo
+		local decided = true
+		for _, participant in run.Participants do
+			if participant.Continue == nil then
+				decided = false
+			end
+		end
+		if decided or now >= run.EndsAt then
+			resolveChoice(run)
+			return
 		end
 	elseif run.Phase == "Cards" then
 		if everyonePicked(run) then
@@ -988,6 +1122,15 @@ function WaveService.start()
 			local run, participant = activeParticipant(player)
 			if run and participant and run.Phase == "Cards" then
 				applyPick(run, participant, value)
+			end
+		elseif action == "Endless" then
+			-- Tras ganarle al jefe: true = seguir en el modo infinito, false = terminar
+			if type(value) ~= "boolean" then
+				return
+			end
+			local run, participant = activeParticipant(player)
+			if run and participant and run.Phase == "Choice" then
+				participant.Continue = value
 			end
 		end
 	end)

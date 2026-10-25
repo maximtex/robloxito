@@ -89,7 +89,11 @@ check("segunda reclamación -> AlreadyClaimed y 0", code2 == "AlreadyClaimed" an
 print("-- Recompensa según la etapa")
 local mission = QuestLogic.Missions.UnlockValley
 check("nivel 0 -> mínimo (400)", QuestLogic.reward(mission, 0) == 400)
-check("nivel 12 -> coste de la mejora 12 (1297)", QuestLogic.reward(mission, 12) == 1297)
+-- El coste sale de EconomyConfig (Economy.getUpgradeCost), no de un número fijo: si cambia
+-- la curva de la Resonancia, la recompensa la sigue.
+local cost12 = Economy.getUpgradeCost(QuestConfig.RewardUpgradeId, 12)
+local expected12 = math.floor(math.clamp(mission.Reward.Share * cost12, mission.Reward.Min, mission.Reward.Max))
+check(("nivel 12 -> coste de la mejora 12 (%d)"):format(expected12), QuestLogic.reward(mission, 12) == expected12 and expected12 > 400)
 check("nivel 50 -> tope (2500)", QuestLogic.reward(mission, 50) == 2500)
 
 print("-- 5. Logros sin duplicados")

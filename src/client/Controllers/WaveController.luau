@@ -8,7 +8,10 @@
 -- - Las partidas son privadas: el servidor solo manda el estado de la tuya (y el altar
 --   esconde su "Pulsa E" mientras juegas). Qué enemigos ves lo decide WaveVisibility.
 -- - Mejoras: tres tarjetas para elegir (clic o teclas 1, 2, 3) con su tiempo.
--- - Resumen al terminar (victoria o caída): enemigos, ⚡, 💰, orbes dorados y mejor racha.
+-- - Resumen al terminar (victoria o caída): enemigos, ⚡, 💰, orbes dorados, mejor racha y
+--   tu récord en ese modo (aviso "Record" en cuanto lo superas).
+-- - Modo infinito: al caer el jefe, ventana para elegir si sigues ("Endless", true/false);
+--   después las oleadas se cuentan sin tope ("♾️ OLEADA 14").
 -- - Racha: contador "x12" sobre tu cabeza mientras matas sin parar (atributos Streak y
 --   StreakUntil de EnemyService), con el multiplicador de botín que da.
 -- - Explosiones de la mejora "Reacción en cadena".
@@ -41,6 +44,7 @@ local ORANGE = Color3.fromRGB(255, 150, 60)
 local BOSS_RED = Color3.fromRGB(240, 80, 96)
 local CARD_KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three }
 local CARD_ACTION = "RebirthWaveCards"
+local CHOICE_ACTION = "RebirthWaveEndless"
 local STREAK_MIN = 3 -- la racha se ve a partir de aquí
 local STREAK_COLORS = {
 	{ Min = 0, Color = Color3.fromRGB(255, 255, 255) },
@@ -349,8 +353,62 @@ local function buildHud()
 		Text = "Continuar",
 	})
 
+	-- Modo infinito: ¿seguir tras ganarle al jefe?
+	local choicePanel, choiceScale = UiKit.panel(modal, "ChoicePanel", Vector2.new(480, 268), Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5))
+	choicePanel.Visible = false
+	UiKit.text(choicePanel, "Title", {
+		Position = UDim2.fromOffset(20, 10),
+		Size = UDim2.new(1, -40, 0, 34),
+		Font = FONTS.Display,
+		TextSize = 28,
+		TextColor3 = THEME.Gold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "🏆 ¡JEFE DERROTADO!",
+	})
+	local choiceBody = textLabel(choicePanel, "Body", {
+		Position = UDim2.fromOffset(24, 52),
+		Size = UDim2.new(1, -48, 0, 104),
+		Font = FONTS.Body,
+		TextSize = 18,
+		TextWrapped = true,
+		RichText = true,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Stroke = 1.5,
+	})
+	local choiceGo = UiKit.button(choicePanel, "Go", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(0.5, -8, 1, -34),
+		Size = UDim2.fromOffset(200, 50),
+		TextSize = 21,
+		Text = "♾️ Seguir  [1]",
+		BackgroundColor3 = THEME.BuyHighlight,
+	})
+	local choiceStop = UiKit.button(choicePanel, "Stop", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0.5, 8, 1, -34),
+		Size = UDim2.fromOffset(200, 50),
+		TextSize = 21,
+		Text = "🏁 Terminar  [2]",
+		BackgroundColor3 = THEME.Inset,
+	})
+	local choiceTimer = UiKit.create("Frame", {
+		Name = "Timer",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -14),
+		Size = UDim2.new(1, -40, 0, 10),
+		BackgroundColor3 = THEME.Inset,
+	}, choicePanel)
+	UiKit.corner(choiceTimer, 5)
+	local choiceTimerFill = UiKit.create("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = THEME.Gold,
+	}, choiceTimer)
+	UiKit.corner(choiceTimerFill, 5)
+
 	modal.Parent = playerGui
-	UiKit.bindScale(modal, { cardScale, resultScale })
+	UiKit.bindScale(modal, { cardScale, resultScale, choiceScale })
 
 	return {
 		Panel = panel,
@@ -370,6 +428,11 @@ local function buildHud()
 		ResultTitle = resultTitle,
 		ResultBody = resultBody,
 		ResultClose = resultClose,
+		ChoicePanel = choicePanel,
+		ChoiceBody = choiceBody,
+		ChoiceGo = choiceGo,
+		ChoiceStop = choiceStop,
+		ChoiceTimerFill = choiceTimerFill,
 	}
 end
 
@@ -549,7 +612,7 @@ function WaveController.start()
 			ui.Title.Text = "⚔ ¡PREPÁRATE!"
 			ui.Subtitle.Text = ("Empieza en %d…"):format(left)
 		elseif phase == "Wave" then
-			ui.Title.Text = ("⚔ OLEADA %d / %d"):format(state.Wave, state.Waves)
+			ui.Title.Text = if state.Endless then ("♾️ OLEADA %d"):format(state.Wave) else ("⚔ OLEADA %d / %d"):format(state.Wave, state.Waves)
 			local total = math.max(1, state.Total or 1)
 			local remaining = math.max(0, state.Remaining or 0)
 			ui.Subtitle.Text = if remaining == 1 then "Queda 1 enemigo" else ("Quedan %d enemigos"):format(remaining)
@@ -566,6 +629,10 @@ function WaveController.start()
 			ui.Title.Text = "💀 ¡JEFE FINAL!"
 			ui.Title.TextColor3 = BOSS_RED
 			ui.Subtitle.Text = tostring(state.Boss or "")
+		elseif phase == "Choice" then
+			ui.Title.Text = "♾️ ¿MODO INFINITO?"
+			ui.Title.TextColor3 = THEME.Gold
+			ui.Subtitle.Text = ("%d s"):format(left)
 		end
 	end
 
@@ -627,6 +694,72 @@ function WaveController.start()
 		end)
 	end
 
+	-- Modo infinito ---------------------------------------------------------------------
+	local choiceToken = 0
+	local function closeChoice()
+		choiceToken += 1
+		ui.ChoicePanel.Visible = false
+		ContextActionService:UnbindAction(CHOICE_ACTION)
+	end
+
+	local function choose(keepGoing: boolean)
+		if not ui.ChoicePanel.Visible then
+			return
+		end
+		actionRemote:FireServer("Endless", keepGoing)
+		closeChoice()
+		if keepGoing then
+			announce("♾️ ¡MODO INFINITO!", THEME.Gold, 2)
+		end
+	end
+
+	local function openChoice(data: any)
+		if type(data) ~= "table" then
+			return
+		end
+		closeCards()
+		hintToken += 1
+		ui.HintBox.Visible = false
+		choiceToken += 1
+		local token = choiceToken
+		local reward = ""
+		if (tonumber(data.VictoryEnergy) or 0) > 0 or (tonumber(data.VictoryMoney) or 0) > 0 then
+			reward = ("🎁 Premio cobrado: <b>+%s ⚡  +%s 💰</b>\n"):format(formatNumber(tonumber(data.VictoryEnergy) or 0), formatNumber(tonumber(data.VictoryMoney) or 0))
+		end
+		ui.ChoiceBody.Text = reward .. "¿Sigues en el <b>modo infinito</b>? Oleadas sin fin, cada vez más duras y con más premio. Si caes, no pierdes nada."
+		ui.ChoicePanel.Visible = true
+		announce("🏆 ¡VICTORIA!", THEME.Gold, 2)
+		local endsAt = tonumber(data.EndsAt) or (serverNow() + WaveConfig.Endless.ChoiceSeconds)
+		local total = math.max(0.1, endsAt - serverNow())
+		task.spawn(function()
+			while choiceToken == token and ui.ChoicePanel.Visible do
+				local left = math.max(0, endsAt - serverNow())
+				ui.ChoiceTimerFill.Size = UDim2.fromScale(math.clamp(left / total, 0, 1), 1)
+				if left <= 0 then
+					closeChoice()
+					break
+				end
+				task.wait(0.05)
+			end
+		end)
+		ContextActionService:BindAction(CHOICE_ACTION, function(_, inputState, input)
+			if inputState == Enum.UserInputState.Begin then
+				if input.KeyCode == Enum.KeyCode.One then
+					choose(true)
+				elseif input.KeyCode == Enum.KeyCode.Two then
+					choose(false)
+				end
+			end
+			return Enum.ContextActionResult.Pass
+		end, false, Enum.KeyCode.One, Enum.KeyCode.Two)
+	end
+	ui.ChoiceGo.Activated:Connect(function()
+		choose(true)
+	end)
+	ui.ChoiceStop.Activated:Connect(function()
+		choose(false)
+	end)
+
 	-- Resumen ---------------------------------------------------------------------------
 	local function closeResult()
 		resultToken += 1
@@ -641,7 +774,11 @@ function WaveController.start()
 		closeCards()
 		resultToken += 1
 		local token = resultToken
-		if data.Victory then
+		if data.Endless then
+			-- Modo infinito: el jefe ya cayó; se acaba al caer (sin perder nada)
+			ui.ResultTitle.Text = ("♾️ Llegaste a la oleada %d"):format(tonumber(data.Wave) or 0)
+			ui.ResultTitle.TextColor3 = THEME.Gold
+		elseif data.Victory then
 			ui.ResultTitle.Text = if data.Tutorial then "🏆 ¡PRÁCTICA SUPERADA!" else "🏆 ¡VICTORIA!"
 			ui.ResultTitle.TextColor3 = THEME.Gold
 			announce("🏆 ¡VICTORIA!", THEME.Gold, 2)
@@ -658,6 +795,12 @@ function WaveController.start()
 			table.insert(lines, ("🎁 Premio de victoria: +%s ⚡  +%s 💰"):format(formatNumber(data.VictoryEnergy), formatNumber(tonumber(data.VictoryMoney) or 0)))
 		end
 		if not data.Tutorial then
+			local personal = tonumber(data.PersonalBest) or 0
+			if data.NewBest then
+				table.insert(lines, ("🎉 <b>¡Nuevo récord!</b> Oleada %d"):format(personal))
+			elseif personal > 0 then
+				table.insert(lines, ("🏅 Tu récord aquí: oleada %d"):format(personal))
+			end
 			table.insert(lines, ("Récord del servidor: oleada %d"):format(tonumber(data.Best) or 0))
 		end
 		ui.ResultBody.Text = table.concat(lines, "\n")
@@ -742,8 +885,16 @@ function WaveController.start()
 				local heal = if data.Healed == true then "  +❤️" else ""
 				Toasts.show(("✅ Oleada %d superada  +%s ⚡  +%s 💰%s"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0), heal), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
 			end
+		elseif kind == "Choice" then
+			openChoice(data)
+		elseif kind == "Record" then
+			if type(data) == "table" then
+				Toasts.show(("🏆 ¡Nuevo récord! Oleada %d (antes %d)"):format(tonumber(data.Wave) or 0, tonumber(data.Previous) or 0), { Color = THEME.Gold, Key = "WaveRecord" })
+				announce("🏆 ¡NUEVO RÉCORD!", THEME.Gold, 1.5)
+			end
 		elseif kind == "Result" then
 			current = nil
+			closeChoice()
 			showResult(data)
 			refreshPanel()
 		elseif kind == "Hint" then

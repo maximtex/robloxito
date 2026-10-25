@@ -1,7 +1,8 @@
 -- Lógica pura de los estilos de pelea (StyleConfig): qué estilo vale, cómo cambia el disparo
 -- del arma (alcance, tiempo entre golpes, daño por golpe y efecto), las pasivas (crítico,
--- piel dura, robo de vida) y el daño de las habilidades. Sin servicios: la usan
--- PetCombatService, StyleService, PlayerDataService y el cliente (solo para mostrar).
+-- piel dura, robo de vida), lo que cambia de ti (daño que recibes y velocidad) y las dos
+-- habilidades de cada uno (cuál es y su daño; la franja de la embestida). Sin servicios: la
+-- usan PetCombatService, StyleService, PlayerDataService y el cliente (solo para mostrar).
 
 local StyleConfig = require(script.Parent.Config.StyleConfig)
 
@@ -74,14 +75,21 @@ function StyleLogic.critMultiplier(styleId: any, roll: number): number
 	return 1
 end
 
--- Daño que recibe el jugador con este estilo (Puños: piel dura).
+-- Daño que recibe el jugador con este estilo (Puños: piel dura, menos; Armas: más).
 function StyleLogic.damageTaken(styleId: any, amount: number): number
 	local def = StyleLogic.definition(styleId)
-	local factor = def and def.Passive and def.Passive.DamageTaken
+	local factor = def and def.DamageTaken
 	if not finite(amount) then
 		return 0
 	end
-	return if finite(factor) then math.max(0, amount) * math.clamp(factor, 0, 1) else math.max(0, amount)
+	return if finite(factor) then math.max(0, amount) * math.clamp(factor, 0, 2) else math.max(0, amount)
+end
+
+-- Multiplicador de la velocidad al caminar con este estilo (Puños: más; Magia: menos).
+function StyleLogic.walkSpeed(styleId: any): number
+	local def = StyleLogic.definition(styleId)
+	local factor = def and def.WalkSpeed
+	return if finite(factor) then math.clamp(factor, 0.5, 2) else 1
 end
 
 -- Curación por un golpe que ha hecho `dealt` de daño (Magia), con su tope por golpe.
@@ -95,14 +103,36 @@ function StyleLogic.lifeSteal(styleId: any, dealt: number, maxHealth: number): n
 	return math.min(dealt * passive.LifeSteal, cap)
 end
 
--- Daño de la habilidad a cada enemigo alcanzado: DamageRatio × DPS del estilo.
-function StyleLogic.abilityDamage(styleId: any, styleDps: number): number
+-- Habilidad `slot` del estilo: 1 = Ability (Z), 2 = Ability2 (X). nil si no la tiene.
+function StyleLogic.ability(styleId: any, slot: any): { [string]: any }?
 	local def = StyleLogic.definition(styleId)
-	local ability = def and def.Ability
+	if not def then
+		return nil
+	end
+	return if slot == 2 then def.Ability2 else def.Ability
+end
+
+-- Daño de la habilidad a cada enemigo alcanzado: DamageRatio × DPS del estilo.
+function StyleLogic.abilityDamage(styleId: any, styleDps: number, slot: any?): number
+	local ability = StyleLogic.ability(styleId, slot or 1)
 	if not (ability and finite(ability.DamageRatio) and finite(styleDps)) then
 		return 0
 	end
 	return math.max(0, styleDps) * ability.DamageRatio
+end
+
+-- ¿Alcanza la embestida de (ax, az) a (bx, bz), de medio ancho `halfWidth`, a algo en
+-- (px, pz) de radio `radius`? (distancia al segmento hasta su borde)
+function StyleLogic.inStrip(ax: number, az: number, bx: number, bz: number, halfWidth: number, px: number, pz: number, radius: number?): boolean
+	if not (finite(ax) and finite(az) and finite(bx) and finite(bz) and finite(px) and finite(pz)) then
+		return false
+	end
+	local dx, dz = bx - ax, bz - az
+	local length2 = dx * dx + dz * dz
+	local t = if length2 > 0 then math.clamp(((px - ax) * dx + (pz - az) * dz) / length2, 0, 1) else 0
+	local cx, cz = ax + dx * t, az + dz * t
+	local distance = math.sqrt((px - cx) ^ 2 + (pz - cz) ^ 2)
+	return distance <= math.max(0, halfWidth) + math.max(0, radius or 0)
 end
 
 -- Puntos de caída de los meteoros alrededor de `center` (x, z): `count` puntos en una

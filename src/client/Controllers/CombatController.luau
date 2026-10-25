@@ -8,8 +8,11 @@
 -- - Cada disparo confirmado (PetAbility "PlayerShot") se dibuja según el proyectil del arma
 --   (WeaponConfig): rayo, bola de plasma, espina, rayo de cristal que salta entre enemigos
 --   o esfera que explota; luego los impactos (destello, chispas, número de daño, sonido).
---   Con el estilo Puños es un puñetazo (estallido en el enemigo, sin proyectil) y con Magia
---   un orbe morado; los críticos (Armas) sacan el número dorado y más grande. El botón dice
+--   Con el estilo Puños es un puñetazo (el personaje lanza el puño, alternando brazos, y el
+--   golpe estalla en el enemigo) y con Magia un orbe que se carga en la mano (brazos al
+--   frente) y viaja girando hasta explotar con un círculo de runas; con Armas el personaje
+--   apunta con el brazo (CharacterPose). Los críticos (Armas) sacan el número dorado y más
+--   grande. El botón dice
 --   Disparar / Golpear / Lanzar y la línea de encima, el estilo y su daño por segundo.
 -- - Botín: monedas (💰) y orbes de energía (⚡) que saltan del enemigo y vuelan hacia ti al
 --   cobrar, el ORBE DORADO (botín ×10) con su destello, un aviso al derrotarlo (uno solo
@@ -46,6 +49,7 @@ local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local HudDock = require(script.Parent.Parent.UI.HudDock)
 local EnemyAnimator = require(script.Parent.EnemyAnimator)
 local WaveVisibility = require(script.Parent.WaveVisibility)
+local CharacterPose = require(script.Parent.CharacterPose)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
@@ -228,6 +232,93 @@ local function travelBall(from: Vector3, to: Vector3, color: Color3, size: numbe
 	end)
 	tween:Play()
 	Debris:AddItem(ball, travel + 0.3)
+end
+
+-- Destello redondo que crece y se apaga (golpes de puño y explosiones de magia)
+local function flashBall(center: Vector3, color: Color3, from: number, to: number, seconds: number)
+	local ball = fxPart(Vector3.one * from, CFrame.new(center), color)
+	ball.Shape = Enum.PartType.Ball
+	ball.Transparency = 0.25
+	TweenService:Create(ball, TweenInfo.new(seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.one * to, Transparency = 1 }):Play()
+	Debris:AddItem(ball, seconds + 0.05)
+end
+
+-- Puñetazo: estela curva del puño hacia el enemigo y estrella de impacto
+local function punchFx(from: Vector3, target: Vector3, color: Color3)
+	local offset = target - from
+	local distance = offset.Magnitude
+	if distance > 0.5 then
+		local streak = fxPart(Vector3.new(0.5, 0.5, math.min(distance, 9)), CFrame.lookAt(from + offset.Unit * math.min(distance, 9) / 2, target), color)
+		streak.Transparency = 0.35
+		TweenService:Create(streak, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.05, 0.05, streak.Size.Z), Transparency = 1 }):Play()
+		Debris:AddItem(streak, 0.15)
+	end
+	flashBall(target, Color3.new(1, 1, 1), 0.6, 3.2, 0.14)
+	-- Estrella: puntas que salen del golpe
+	for index = 1, 6 do
+		local angle = index / 6 * math.pi * 2
+		local direction = Vector3.new(math.cos(angle), math.sin(angle) * 0.6 + 0.2, math.sin(angle))
+		local spike = fxPart(Vector3.new(0.25, 0.25, 1.6), CFrame.lookAt(target, target + direction) * CFrame.new(0, 0, -0.8), color)
+		TweenService:Create(spike, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			CFrame = CFrame.lookAt(target, target + direction) * CFrame.new(0, 0, -2.4),
+			Transparency = 1,
+		}):Play()
+		Debris:AddItem(spike, 0.2)
+	end
+end
+
+-- Orbe mágico: se carga en la mano (crece) y luego viaja girando, con chispas, hasta el
+-- objetivo; al llegar llama a `onArrive`.
+local function magicOrb(hand: Vector3, target: Vector3, color: Color3, onArrive: () -> ())
+	local charge = 0.14
+	local orb = fxPart(Vector3.one * 0.3, CFrame.new(hand), color)
+	orb.Shape = Enum.PartType.Ball
+	orb.Transparency = 0.1
+	local core = fxPart(Vector3.one * 0.15, CFrame.new(hand), Color3.new(1, 1, 1))
+	core.Shape = Enum.PartType.Ball
+	local glow = Instance.new("PointLight")
+	glow.Color = color
+	glow.Range = 10
+	glow.Brightness = 2
+	glow.Parent = orb
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+	sparkles.LightEmission = 1
+	sparkles.Size = NumberSequence.new(0.3, 0)
+	sparkles.Transparency = NumberSequence.new(0.1, 1)
+	sparkles.Lifetime = NumberRange.new(0.25, 0.45)
+	sparkles.Speed = NumberRange.new(1, 3)
+	sparkles.SpreadAngle = Vector2.new(180, 180)
+	sparkles.Rate = 70
+	sparkles.Parent = orb
+	TweenService:Create(orb, TweenInfo.new(charge, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = Vector3.one * 1.8 }):Play()
+	TweenService:Create(core, TweenInfo.new(charge), { Size = Vector3.one * 0.8 }):Play()
+	task.delay(charge, function()
+		if not orb.Parent then
+			return
+		end
+		local start = orb.Position
+		local travel = math.clamp((target - start).Magnitude / 48, 0.12, 0.6)
+		local began = os.clock()
+		local side = (target - start):Cross(Vector3.yAxis)
+		side = if side.Magnitude > 0.01 then side.Unit else Vector3.xAxis
+		local connection
+		connection = game:GetService("RunService").RenderStepped:Connect(function()
+			local t = math.clamp((os.clock() - began) / travel, 0, 1)
+			-- Recorrido con un pequeño arco y un giro en espiral
+			local position = start:Lerp(target, t) + Vector3.new(0, math.sin(t * math.pi) * 1.4, 0) + side * math.sin(t * math.pi * 3) * 0.6 * (1 - t)
+			orb.CFrame = CFrame.new(position)
+			core.CFrame = CFrame.new(position)
+			if t >= 1 then
+				connection:Disconnect()
+				orb:Destroy()
+				core:Destroy()
+				onArrive()
+			end
+		end)
+	end)
+	Debris:AddItem(orb, 2)
+	Debris:AddItem(core, 2)
 end
 
 -- Onda de una explosión en el suelo, del radio del daño en área
@@ -1115,6 +1206,7 @@ function CombatController.start()
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			local target = event.Target :: Vector3
 			local from = if root and root:IsA("BasePart") then root.Position + Vector3.new(0, 1.2, 0) else target
+			local hand = CharacterPose.handPosition(character) or from
 			local function impact()
 				emitAt("Glint", target, color, if crit then 10 else 4)
 				if typeof(event.Splash) == "number" then
@@ -1135,17 +1227,26 @@ function CombatController.start()
 				end
 			end
 			if style == "Fists" then
-				-- Puñetazo: sin proyectil, un estallido en el enemigo
+				-- Puñetazo: el personaje lanza el puño y el golpe estalla en el enemigo
+				CharacterPose.punch(character)
+				punchFx(hand, target, color)
 				impactRing(target, 2.6, color)
 				emitAt("Spark", target, color, 8)
 				impact()
 			elseif style == "Magic" then
-				-- Orbe mágico que viaja y explota (el área la marca impact)
-				travelBall(from, target, color, 1.3, 70, impact)
+				-- Orbe que se carga en las manos, viaja girando y explota con runas
+				CharacterPose.cast(character, 0.12)
+				magicOrb(hand, target, color, function()
+					flashBall(target, color, 1, 6, 0.22)
+					impactRing(target, 3.5, Color3.new(1, 1, 1))
+					impact()
+				end)
 			elseif def.Projectile == "Bolt" or def.Projectile == "Orb" then
-				travelBall(from, target, color, if def.Projectile == "Orb" then 1.5 else 0.9, if def.Projectile == "Orb" then 70 else 90, impact)
+				CharacterPose.aim(character)
+				travelBall(hand, target, color, if def.Projectile == "Orb" then 1.5 else 0.9, if def.Projectile == "Orb" then 70 else 90, impact)
 			else
-				beamEffect(from, target, color, if def.Projectile == "Thorn" then 0.22 elseif def.Projectile == "Prism" then 0.45 else 0.3)
+				CharacterPose.aim(character)
+				beamEffect(hand, target, color, if def.Projectile == "Thorn" then 0.22 elseif def.Projectile == "Prism" then 0.45 else 0.3)
 				if typeof(event.Chain) == "table" then
 					-- El rayo de cristal salta de enemigo en enemigo
 					local previous = target

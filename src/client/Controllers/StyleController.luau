@@ -1,11 +1,16 @@
 -- Estilos de pelea en el cliente (StyleConfig; todo lo decide StyleService):
--- - Botón redondo de la habilidad del estilo (tecla Z, R1 del mando o tocarlo), junto a los
---   de las habilidades elementales, con su recarga. Su insignia ⇄ (o la tecla C) abre el
---   panel para elegir estilo: Armas, Puños o Magia, cada uno con su ataque, su pasiva y su
---   habilidad.
--- - Efectos de las habilidades ya resueltas (StyleEvent): Ráfaga (chispas doradas alrededor
---   mientras dura), Terremoto (onda naranja, polvo y sacudida) y Meteoros (aviso en el suelo,
---   caída y explosión). Los números de daño los dibuja CombatController.
+-- - Dos botones redondos con las habilidades del estilo: la 1 (tecla Z, R1 del mando o
+--   tocarlo) y la 2 (tecla X, L1), junto a los de las habilidades elementales, cada uno con su
+--   recarga. La insignia ⇄ del primero (o la tecla C) abre el panel para elegir estilo: Armas,
+--   Puños o Magia, cada uno con su ataque, su ventaja y su desventaja, su pasiva y sus dos
+--   habilidades.
+-- - Efectos de las habilidades ya resueltas (StyleEvent), con el movimiento del personaje
+--   (CharacterPose): Ráfaga (apunta y chispas doradas mientras dura), Granada (la lanza por
+--   encima del hombro, vuela en arco y explota), Terremoto (brazos arriba y golpe al suelo:
+--   onda naranja, polvo y sacudida), Embestida (puños por delante, estela y huellas de
+--   viento), Meteoros (lanza el hechizo; aviso en el suelo, caída y explosión) y Nova de
+--   hielo (brazos abiertos: anillo helado, carámbanos y los enemigos congelados un momento
+--   dentro de un bloque de hielo). Los números de daño los dibuja CombatController.
 
 local ContextActionService = game:GetService("ContextActionService")
 local Debris = game:GetService("Debris")
@@ -25,6 +30,7 @@ local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Toasts = require(script.Parent.Parent.UI.Toasts)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local CombatController = require(script.Parent.CombatController)
+local CharacterPose = require(script.Parent.CharacterPose)
 local WaveFx = require(script.Parent.WaveFx)
 
 local THEME = Theme.Colors
@@ -32,9 +38,12 @@ local FONTS = Theme.Fonts
 local INK = Color3.fromRGB(43, 29, 63)
 local CREAM = Color3.fromRGB(255, 246, 224)
 local PANEL_NAME = "Style"
-local PANEL_SIZE = Vector2.new(740, 430)
-local ABILITY_ACTION = "RebirthStyleAbility"
+local PANEL_SIZE = Vector2.new(780, 540)
+local ABILITY_ACTIONS = { "RebirthStyleAbility", "RebirthStyleAbility2" }
+local ABILITY_KEYS = { { Enum.KeyCode.Z, Enum.KeyCode.ButtonR1 }, { Enum.KeyCode.X, Enum.KeyCode.ButtonL1 } }
+local KEY_LABELS = { "Z", "X" }
 local PANEL_ACTION = "RebirthStylePanel"
+local ICE = Color3.fromRGB(150, 230, 255)
 -- Medidas de los botones de habilidad (AbilityController) para ponerse a su lado
 local BUTTON_SIZE = 72
 local ATTACK_BUTTON = 82
@@ -136,26 +145,40 @@ local function buildPanel()
 	}, row)
 
 	local cards = {}
+	local function line(card: Instance, name: string, y: number, height: number, text: string, color: Color3?)
+		UiKit.text(card, name, {
+			Position = UDim2.fromOffset(12, y),
+			Size = UDim2.new(1, -24, 0, height),
+			Font = FONTS.Body,
+			TextSize = 13,
+			TextWrapped = true,
+			RichText = true,
+			TextColor3 = color or THEME.Text,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Text = text,
+		})
+	end
 	for order, id in StyleConfig.Order do
 		local def = StyleConfig.Styles[id]
 		local card = UiKit.create("Frame", {
 			Name = id,
-			Size = UDim2.fromOffset(222, 332),
+			Size = UDim2.fromOffset(236, 440),
 			BackgroundColor3 = THEME.Inset,
 			LayoutOrder = order,
 		}, row)
 		UiKit.corner(card, 14)
 		local stroke = UiKit.stroke(card, def.Color, 3, 0)
 		UiKit.text(card, "Icon", {
-			Position = UDim2.fromOffset(0, 10),
-			Size = UDim2.new(1, 0, 0, 46),
+			Position = UDim2.fromOffset(0, 8),
+			Size = UDim2.new(1, 0, 0, 40),
 			Font = FONTS.Display,
-			TextSize = 40,
+			TextSize = 36,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Text = def.Icon,
 		})
 		local name = UiKit.text(card, "Name", {
-			Position = UDim2.fromOffset(0, 58),
+			Position = UDim2.fromOffset(0, 48),
 			Size = UDim2.new(1, 0, 0, 28),
 			Font = FONTS.Display,
 			TextSize = 24,
@@ -165,40 +188,23 @@ local function buildPanel()
 		})
 		UiKit.outline(name, 2, INK)
 		UiKit.text(card, "Attack", {
-			Position = UDim2.fromOffset(12, 88),
-			Size = UDim2.new(1, -24, 0, 50),
+			Position = UDim2.fromOffset(12, 78),
+			Size = UDim2.new(1, -24, 0, 36),
 			Font = FONTS.Body,
-			TextSize = 14,
+			TextSize = 13,
 			TextWrapped = true,
 			TextColor3 = THEME.Muted,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Text = def.Attack,
 		})
+		line(card, "Pros", 118, 34, "✅ " .. def.Pros, Color3.fromRGB(150, 240, 150))
+		line(card, "Cons", 152, 34, "❌ " .. def.Cons, Color3.fromRGB(255, 150, 140))
 		local passive = def.Passive
-		UiKit.text(card, "Passive", {
-			Position = UDim2.fromOffset(12, 142),
-			Size = UDim2.new(1, -24, 0, 62),
-			Font = FONTS.Body,
-			TextSize = 14,
-			TextWrapped = true,
-			RichText = true,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextYAlignment = Enum.TextYAlignment.Top,
-			Text = ("<b>%s Pasiva · %s</b>\n%s"):format(passive.Icon, passive.Name, passive.Text),
-		})
-		local ability = def.Ability
-		UiKit.text(card, "Ability", {
-			Position = UDim2.fromOffset(12, 208),
-			Size = UDim2.new(1, -24, 0, 70),
-			Font = FONTS.Body,
-			TextSize = 14,
-			TextWrapped = true,
-			RichText = true,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextYAlignment = Enum.TextYAlignment.Top,
-			Text = ("<b>%s Habilidad (Z) · %s</b>\n%s <font color=\"#C4C4CE\">(%d s)</font>"):format(ability.Icon, ability.Name, ability.Text, ability.Cooldown),
-		})
+		line(card, "Passive", 190, 52, ("<b>%s Pasiva · %s</b>\n%s"):format(passive.Icon, passive.Name, passive.Text))
+		for slot, ability in { def.Ability, def.Ability2 } do
+			line(card, "Ability" .. slot, 244 + (slot - 1) * 70, 66, ("<b>%s %s · %s</b>\n%s <font color=\"#C4C4CE\">(%d s)</font>"):format(ability.Icon, KEY_LABELS[slot], ability.Name, ability.Text, ability.Cooldown))
+		end
 		local choose = UiKit.button(card, "Choose", {
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -12),
@@ -216,19 +222,9 @@ end
 
 -- Botón de la habilidad del estilo ---------------------------------------------------------
 
-local function buildButton()
-	local playerGui = player:WaitForChild("PlayerGui")
-	local existing = playerGui:FindFirstChild("StyleHud")
-	if existing then
-		existing:Destroy()
-	end
-	local screenGui = UiKit.create("ScreenGui", {
-		Name = "StyleHud",
-		ResetOnSpawn = false,
-		DisplayOrder = 3,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	}, nil)
-	local frame, scale = UiKit.panel(screenGui, "StyleAbilityButton", Vector2.new(BUTTON_SIZE, BUTTON_SIZE), Vector2.new(1, 1), UDim2.new(1, -300, 1, -34))
+local function makeButton(screenGui: ScreenGui, slot: number)
+	local size = BUTTON_SIZE
+	local frame, scale = UiKit.panel(screenGui, if slot == 1 then "StyleAbilityButton" else "StyleAbility2Button", Vector2.new(size, size), Vector2.new(1, 1), UDim2.new(1, -300, 1, -34))
 	frame.BackgroundColor3 = Color3.new(1, 1, 1)
 	frame.BackgroundTransparency = 0
 	local corner = frame:FindFirstChildOfClass("UICorner")
@@ -302,25 +298,28 @@ local function buildButton()
 		TextSize = 13,
 		TextColor3 = CREAM,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		Text = "Z",
+		Text = KEY_LABELS[slot],
 		ZIndex = 6,
 	})
-	-- ⇄: abre el panel para cambiar de estilo
-	local switch = UiKit.create("TextButton", {
-		Name = "Switch",
-		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.fromOffset(-6, -6),
-		Size = UDim2.fromOffset(28, 28),
-		BackgroundColor3 = INK,
-		Font = FONTS.Display,
-		TextSize = 15,
-		TextColor3 = CREAM,
-		Text = "⇄",
-		AutoButtonColor = true,
-		ZIndex = 6,
-	}, frame)
-	UiKit.corner(switch, 14)
-	UiKit.create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 1.5, Transparency = 0.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, switch)
+	-- ⇄ (solo en el primero): abre el panel para cambiar de estilo
+	local switch = nil
+	if slot == 1 then
+		switch = UiKit.create("TextButton", {
+			Name = "Switch",
+			AnchorPoint = Vector2.new(0, 0),
+			Position = UDim2.fromOffset(-6, -6),
+			Size = UDim2.fromOffset(28, 28),
+			BackgroundColor3 = INK,
+			Font = FONTS.Display,
+			TextSize = 15,
+			TextColor3 = CREAM,
+			Text = "⇄",
+			AutoButtonColor = true,
+			ZIndex = 6,
+		}, frame)
+		UiKit.corner(switch, 14)
+		UiKit.create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 1.5, Transparency = 0.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, switch)
+	end
 	local label = UiKit.text(frame, "StyleName", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 1, 5),
@@ -333,19 +332,36 @@ local function buildButton()
 		ZIndex = 4,
 	})
 	UiKit.create("UIStroke", { Color = INK, Thickness = 2.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, label)
-
-	screenGui.Parent = playerGui
-	UiKit.bindScale(screenGui, { scale })
 	return {
-		ScreenGui = screenGui,
+		Slot = slot,
 		Frame = frame,
+		Scale = scale,
 		Gradient = gradient,
 		Cooldown = cooldown,
 		Button = button,
 		Count = count,
 		Switch = switch,
 		Label = label,
+		WasCooling = false,
 	}
+end
+
+local function buildButtons()
+	local playerGui = player:WaitForChild("PlayerGui")
+	local existing = playerGui:FindFirstChild("StyleHud")
+	if existing then
+		existing:Destroy()
+	end
+	local screenGui = UiKit.create("ScreenGui", {
+		Name = "StyleHud",
+		ResetOnSpawn = false,
+		DisplayOrder = 3,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	}, nil)
+	local buttons = { makeButton(screenGui, 1), makeButton(screenGui, 2) }
+	screenGui.Parent = playerGui
+	UiKit.bindScale(screenGui, { buttons[1].Scale, buttons[2].Scale })
+	return screenGui, buttons
 end
 
 -- Efectos de las habilidades --------------------------------------------------------------
@@ -406,6 +422,7 @@ local function burstFx(owner: Player, duration: number)
 	emitter.Transparency = NumberSequence.new(0.1, 1)
 	emitter.Parent = root
 	Debris:AddItem(emitter, duration)
+	CharacterPose.aim(character)
 	WaveFx.ring(groundBelow(root.Position), color, 2, 14, 0.5, 0.15)
 	playSound("Burst", if owner == player then nil else root.Position)
 end
@@ -414,6 +431,7 @@ end
 local function quakeFx(owner: Player, position: Vector3, radius: number, hits: any)
 	local color = StyleConfig.Styles.Fists.Color
 	local ground = groundBelow(position)
+	CharacterPose.slam(owner.Character)
 	WaveFx.ring(ground, color, 2, radius * 2, 0.55, 0.1)
 	task.delay(0.12, WaveFx.ring, ground, Color3.fromRGB(255, 230, 190), 1, radius * 1.5, 0.5, 0.35)
 	WaveFx.sparkle(ground + Vector3.new(0, 1, 0), Color3.fromRGB(200, 160, 110), 24)
@@ -433,6 +451,7 @@ local function meteorFx(owner: Player, points: any, delay: number, interval: num
 	end
 	local color = StyleConfig.Styles.Magic.Color
 	local elapsed = math.max(0, serverNow() - startAt)
+	CharacterPose.cast(owner.Character, 0.3)
 	for index, point in points do
 		if typeof(point) ~= "Vector3" then
 			continue
@@ -493,6 +512,155 @@ local function meteorHitFx(owner: Player, position: Vector3, radius: number, hit
 	playSound("MeteorHit", if owner == player then nil else position)
 end
 
+-- Granada: el personaje la lanza por encima del hombro y vuela en arco hasta el objetivo
+local function grenadeFx(owner: Player, from: Vector3, to: Vector3, delay: number, radius: number)
+	CharacterPose.throw(owner.Character)
+	playSound("Throw", if owner == player then nil else from)
+	local ground = groundBelow(to)
+	-- Aviso: círculo en el suelo hasta que explota
+	local warning = fxPart(Vector3.new(0.1, radius * 2, radius * 2), CFrame.new(ground + Vector3.new(0, 0.15, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 120, 60))
+	warning.Shape = Enum.PartType.Cylinder
+	warning.Transparency = 0.85
+	TweenService:Create(warning, TweenInfo.new(delay), { Transparency = 0.55 }):Play()
+	Debris:AddItem(warning, delay + 0.05)
+	local start = CharacterPose.handPosition(owner.Character) or from
+	local bomb = fxPart(Vector3.one * 1.1, CFrame.new(start), Color3.fromRGB(46, 52, 60))
+	bomb.Shape = Enum.PartType.Ball
+	bomb.Material = Enum.Material.Metal
+	local fuse = fxPart(Vector3.one * 0.4, CFrame.new(start), Color3.fromRGB(255, 200, 80))
+	fuse.Shape = Enum.PartType.Ball
+	local sparks = Instance.new("ParticleEmitter")
+	sparks.Color = ColorSequence.new(Color3.fromRGB(255, 220, 120), Color3.fromRGB(255, 120, 40))
+	sparks.LightEmission = 1
+	sparks.Size = NumberSequence.new(0.25, 0)
+	sparks.Lifetime = NumberRange.new(0.15, 0.3)
+	sparks.Speed = NumberRange.new(2, 5)
+	sparks.SpreadAngle = Vector2.new(180, 180)
+	sparks.Rate = 60
+	sparks.Parent = fuse
+	local began = os.clock()
+	local height = math.clamp((to - start).Magnitude * 0.35, 4, 14)
+	local connection
+	connection = RunService.RenderStepped:Connect(function()
+		local t = math.clamp((os.clock() - began) / delay, 0, 1)
+		local position = start:Lerp(ground + Vector3.new(0, 0.6, 0), t) + Vector3.new(0, math.sin(t * math.pi) * height, 0)
+		bomb.CFrame = CFrame.new(position) * CFrame.Angles(t * 12, t * 7, 0)
+		fuse.CFrame = bomb.CFrame * CFrame.new(0, 0.6, 0)
+		if t >= 1 then
+			connection:Disconnect()
+			bomb:Destroy()
+			fuse:Destroy()
+		end
+	end)
+	Debris:AddItem(bomb, delay + 0.5)
+	Debris:AddItem(fuse, delay + 0.5)
+end
+
+local function grenadeHitFx(owner: Player, position: Vector3, radius: number, hits: any)
+	local ground = groundBelow(position)
+	local fire = Color3.fromRGB(255, 150, 60)
+	-- Bola de fuego que crece y se apaga, onda en el suelo y humo
+	local ball = fxPart(Vector3.one * 2, CFrame.new(ground + Vector3.new(0, 1.5, 0)), fire)
+	ball.Shape = Enum.PartType.Ball
+	ball.Transparency = 0.1
+	TweenService:Create(ball, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.one * radius * 1.6, Transparency = 1, Color = Color3.fromRGB(255, 230, 150) }):Play()
+	Debris:AddItem(ball, 0.4)
+	WaveFx.ring(ground, fire, 2, radius * 2, 0.45, 0.1)
+	WaveFx.sparkle(ground + Vector3.new(0, 1, 0), Color3.fromRGB(120, 110, 100), 20)
+	CombatController.emitAt("Spark", ground + Vector3.new(0, 1, 0), fire, 18)
+	CombatController.showHits(hits, StyleConfig.Styles.Weapons.Color, owner == player, 1.1)
+	if owner == player then
+		WaveFx.shake(0.35)
+	end
+	playSound("Grenade", if owner == player then nil else position)
+end
+
+-- Embestida: puños por delante, estela del recorrido e imágenes que se desvanecen
+local function dashFx(owner: Player, from: Vector3, to: Vector3, hits: any)
+	local color = StyleConfig.Styles.Fists.Color
+	CharacterPose.charge(owner.Character)
+	local offset = to - from
+	local distance = offset.Magnitude
+	if distance > 0.5 then
+		local trail = fxPart(Vector3.new(4.5, 0.2, distance), CFrame.lookAt(from:Lerp(to, 0.5), to) * CFrame.new(0, -1.5, 0), color)
+		trail.Transparency = 0.4
+		TweenService:Create(trail, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1, Size = Vector3.new(0.4, 0.1, distance) }):Play()
+		Debris:AddItem(trail, 0.45)
+		-- Huellas de viento: siluetas que se apagan a lo largo del camino
+		local steps = math.clamp(math.floor(distance / 5), 1, 6)
+		for index = 1, steps do
+			local point = from:Lerp(to, index / (steps + 1))
+			local ghost = fxPart(Vector3.new(2.2, 4.5, 1), CFrame.lookAt(point, point + offset.Unit), color)
+			ghost.Transparency = 0.55 + index * 0.05
+			TweenService:Create(ghost, TweenInfo.new(0.35 + index * 0.03), { Transparency = 1, Size = Vector3.new(0.4, 4, 0.4) }):Play()
+			Debris:AddItem(ghost, 0.5)
+		end
+	end
+	WaveFx.ring(groundBelow(to), color, 2, 10, 0.35, 0.2)
+	CombatController.showHits(hits, color, owner == player, 1.1)
+	if owner == player then
+		WaveFx.kick(3)
+		if typeof(hits) == "table" and #hits > 0 then
+			WaveFx.shake(0.25)
+		end
+	end
+	playSound("Dash", if owner == player then nil else from)
+	if typeof(hits) == "table" and #hits > 0 then
+		playSound("DashHit", if owner == player then nil else to)
+	end
+end
+
+-- Nova de hielo: brazos abiertos, anillo helado, carámbanos y los congelados en hielo
+local function novaFx(owner: Player, position: Vector3, radius: number, hits: any, frozen: any)
+	local ground = groundBelow(position)
+	CharacterPose.spread(owner.Character)
+	WaveFx.ring(ground, ICE, 2, radius * 2, 0.5, 0.05)
+	task.delay(0.1, WaveFx.ring, ground, Color3.new(1, 1, 1), 2, radius * 1.6, 0.45, 0.4)
+	-- Carámbanos que salen del suelo en círculo y se derriten
+	for index = 1, 12 do
+		local angle = index / 12 * math.pi * 2
+		local distance = radius * (0.45 + (index % 3) * 0.18)
+		local base = ground + Vector3.new(math.cos(angle) * distance, 0, math.sin(angle) * distance)
+		local spike = fxPart(Vector3.new(1, 0.2, 1), CFrame.new(base) * CFrame.Angles(math.rad((index % 2) * 12), angle, 0), ICE)
+		spike.Material = Enum.Material.Glass
+		spike.Transparency = 0.2
+		local tall = 2.5 + (index % 4)
+		TweenService:Create(spike, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = Vector3.new(1, tall, 1), CFrame = CFrame.new(base + Vector3.new(0, tall / 2, 0)) * CFrame.Angles(math.rad((index % 2) * 12), angle, 0) }):Play()
+		task.delay(0.8, function()
+			if spike.Parent then
+				TweenService:Create(spike, TweenInfo.new(0.5), { Transparency = 1, Size = Vector3.new(0.3, 0.3, 0.3) }):Play()
+			end
+		end)
+		Debris:AddItem(spike, 1.4)
+	end
+	-- Los congelados: un bloque de hielo alrededor mientras dura
+	if typeof(frozen) == "table" then
+		for _, entry in frozen do
+			local model = typeof(entry) == "table" and entry.Model
+			local seconds = typeof(entry) == "table" and tonumber(entry.Seconds) or 0
+			if typeof(model) == "Instance" and model:IsA("Model") and seconds > 0 then
+				local ok, cframe, size = pcall(function()
+					return model:GetBoundingBox()
+				end)
+				if ok then
+					local block = fxPart(size + Vector3.new(0.6, 0.6, 0.6), cframe, ICE)
+					block.Material = Enum.Material.Glass
+					block.Transparency = 0.45
+					TweenService:Create(block, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, math.max(0, seconds - 0.5)), { Transparency = 1 }):Play()
+					Debris:AddItem(block, seconds + 0.1)
+				end
+			end
+		end
+	end
+	WaveFx.sparkle(ground + Vector3.new(0, 1.5, 0), ICE, 22)
+	CombatController.showHits(hits, ICE, owner == player, 1.1)
+	if owner == player then
+		WaveFx.flash(ICE, 0.25)
+	end
+	playSound("Nova", if owner == player then nil else position)
+	playSound("NovaBlast", if owner == player then nil else position)
+end
+
 -- Rebote del botón con su propia escala de pulsar (UiKit.addStates): no se apilan UIScale.
 local function bounce(button: GuiObject, amount: number)
 	local scale = button:FindFirstChild("PressScale")
@@ -519,7 +687,8 @@ function StyleController.start()
 	fxFolder = folder
 
 	local panelUi = buildPanel()
-	local ui = buildButton()
+	local hud, buttons = buildButtons()
+	local first = buttons[1]
 
 	-- Panel
 	PanelManager.register(PANEL_NAME, panelUi.Panel)
@@ -546,48 +715,56 @@ function StyleController.start()
 			end
 		end)
 	end
-	ui.Switch.Activated:Connect(function()
+	first.Switch.Activated:Connect(function()
 		PanelManager.toggle(PANEL_NAME)
 	end)
 
-	-- Botón: icono, colores y nombre del estilo actual
-	local function refreshButton()
+	-- Botones: icono, colores y nombre de cada habilidad del estilo actual
+	local function refreshButtons()
 		local def = StyleConfig.Styles[styleId()]
-		ui.Button.Text = def.Ability.Icon
-		ui.Label.Text = def.Ability.Name
 		local c = def.Color
-		ui.Gradient.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, c:Lerp(Color3.new(1, 1, 1), 0.55)),
-			ColorSequenceKeypoint.new(0.55, c),
-			ColorSequenceKeypoint.new(1, c:Lerp(Color3.new(0, 0, 0), 0.35)),
-		})
+		for slot, ui in buttons do
+			local ability = if slot == 2 then def.Ability2 else def.Ability
+			ui.Button.Text = ability.Icon
+			ui.Label.Text = ability.Name
+			local tone = if slot == 2 then c:Lerp(Color3.new(0, 0, 0), 0.15) else c
+			ui.Gradient.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, tone:Lerp(Color3.new(1, 1, 1), 0.55)),
+				ColorSequenceKeypoint.new(0.55, tone),
+				ColorSequenceKeypoint.new(1, tone:Lerp(Color3.new(0, 0, 0), 0.35)),
+			})
+		end
 		refreshCards()
 	end
 	local lastStyle = styleId()
 	player:GetAttributeChangedSignal(Constants.Attributes.CombatStyle):Connect(function()
-		refreshButton()
+		refreshButtons()
 		local now = styleId()
 		if now ~= lastStyle then
 			lastStyle = now
 			local def = StyleConfig.Styles[now]
 			Toasts.show(("%s Estilo: %s"):format(def.Icon, def.DisplayName), { Color = def.Color, Key = "StyleSwitch" })
-			bounce(ui.Button, 0.15)
+			for _, ui in buttons do
+				bounce(ui.Button, 0.15)
+			end
 			playSound("Switch")
 		end
 	end)
-	refreshButton()
+	refreshButtons()
 
-	-- Usar la habilidad
-	local function useAbility()
-		actionRemote:FireServer("Ability")
-	end
-	ui.Button.Activated:Connect(useAbility)
-	ContextActionService:BindAction(ABILITY_ACTION, function(_, inputState)
-		if inputState == Enum.UserInputState.Begin then
-			useAbility()
+	-- Usar las habilidades (1: Z / R1, 2: X / L1)
+	for slot, ui in buttons do
+		local function use()
+			actionRemote:FireServer("Ability", slot)
 		end
-		return Enum.ContextActionResult.Pass
-	end, false, Enum.KeyCode.Z, Enum.KeyCode.ButtonR1)
+		ui.Button.Activated:Connect(use)
+		ContextActionService:BindAction(ABILITY_ACTIONS[slot], function(_, inputState)
+			if inputState == Enum.UserInputState.Begin then
+				use()
+			end
+			return Enum.ContextActionResult.Pass
+		end, false, table.unpack(ABILITY_KEYS[slot]))
+	end
 	ContextActionService:BindAction(PANEL_ACTION, function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
 			PanelManager.toggle(PANEL_NAME)
@@ -595,46 +772,53 @@ function StyleController.start()
 		return Enum.ContextActionResult.Pass
 	end, false, Enum.KeyCode.C)
 
-	-- Al lado de las habilidades elementales (Q, y R si se ve), o encima en táctil
+	-- Al lado de las habilidades elementales (Q, y R si se ve), o encima en táctil; la segunda
+	-- a la izquierda de la primera
 	local abilityHud = player:WaitForChild("PlayerGui"):WaitForChild("AbilityHud", 15)
 	local secondary = abilityHud and abilityHud:FindFirstChild("SecondaryButton") :: GuiObject?
 	local function place()
-		local uiScale = UiKit.computeScale(ui.ScreenGui.AbsoluteSize)
+		local uiScale = UiKit.computeScale(hud.AbsoluteSize)
 		local slots = if secondary and secondary.Visible then 2 else 1
 		local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-		if touchOnly then
-			ui.Frame.Position = UDim2.new(1, -EDGE, 0.5, -(76 + slots * (BUTTON_SIZE + 26)) * uiScale)
-		else
-			ui.Frame.Position = UDim2.new(1, -(EDGE + (ATTACK_BUTTON + GAP + slots * (BUTTON_SIZE + GAP)) * uiScale), 1, -34)
+		for slot, ui in buttons do
+			local shift = (slot - 1) * (BUTTON_SIZE + GAP)
+			if touchOnly then
+				ui.Frame.Position = UDim2.new(1, -(EDGE + shift * uiScale), 0.5, -(76 + slots * (BUTTON_SIZE + 26)) * uiScale)
+			else
+				ui.Frame.Position = UDim2.new(1, -(EDGE + (ATTACK_BUTTON + GAP + slots * (BUTTON_SIZE + GAP) + shift) * uiScale), 1, -34)
+			end
 		end
 	end
-	ui.ScreenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
 	UserInputService.LastInputTypeChanged:Connect(place)
 	if secondary then
 		secondary:GetPropertyChangedSignal("Visible"):Connect(place)
 	end
 	place()
 
-	-- Recarga (hora del servidor en que vuelve a estar lista)
-	local wasCooling = false
+	-- Recargas (hora del servidor en que vuelve a estar lista cada una)
+	local READY_ATTRIBUTES = { Constants.Attributes.StyleReadyAt, Constants.Attributes.StyleReadyAt2 }
 	RunService.Heartbeat:Connect(function()
-		local readyAt = player:GetAttribute(Constants.Attributes.StyleReadyAt)
 		local def = StyleConfig.Styles[styleId()]
-		local left = if typeof(readyAt) == "number" then readyAt - serverNow() else 0
-		if left > 0 then
-			wasCooling = true
-			ui.Cooldown.Size = UDim2.fromScale(1, math.clamp(left / def.Ability.Cooldown, 0, 1))
-			ui.Count.Visible = true
-			ui.Count.Text = tostring(math.ceil(left))
-			ui.Button.TextTransparency = 0.5
-		else
-			ui.Cooldown.Size = UDim2.fromScale(1, 0)
-			ui.Count.Visible = false
-			ui.Button.TextTransparency = 0
-			if wasCooling then
-				wasCooling = false
-				bounce(ui.Button, 0.12)
-				playSound("Ready")
+		for slot, ui in buttons do
+			local ability = if slot == 2 then def.Ability2 else def.Ability
+			local readyAt = player:GetAttribute(READY_ATTRIBUTES[slot])
+			local left = if typeof(readyAt) == "number" then readyAt - serverNow() else 0
+			if left > 0 then
+				ui.WasCooling = true
+				ui.Cooldown.Size = UDim2.fromScale(1, math.clamp(left / ability.Cooldown, 0, 1))
+				ui.Count.Visible = true
+				ui.Count.Text = tostring(math.ceil(left))
+				ui.Button.TextTransparency = 0.5
+			else
+				ui.Cooldown.Size = UDim2.fromScale(1, 0)
+				ui.Count.Visible = false
+				ui.Button.TextTransparency = 0
+				if ui.WasCooling then
+					ui.WasCooling = false
+					bounce(ui.Button, 0.12)
+					playSound("Ready")
+				end
 			end
 		end
 	end)
@@ -649,9 +833,10 @@ function StyleController.start()
 			if owner ~= player then
 				return
 			end
+			local ui = buttons[if event.Slot == 2 then 2 else 1]
 			if event.Success == false then
 				if event.Code == "NoTarget" then
-					Toasts.show("☄️ No hay enemigos cerca", { Color = THEME.Error, Key = "StyleNotice" })
+					Toasts.show("🎯 No hay enemigos cerca", { Color = THEME.Error, Key = "StyleNotice" })
 				elseif event.Code == "NotReady" then
 					bounce(ui.Button, -0.08)
 				end
@@ -660,12 +845,20 @@ function StyleController.start()
 			end
 		elseif event.Kind == "Burst" then
 			burstFx(owner, tonumber(event.Duration) or 4)
+		elseif event.Kind == "Grenade" and typeof(event.From) == "Vector3" and typeof(event.To) == "Vector3" then
+			grenadeFx(owner, event.From, event.To, tonumber(event.Delay) or 0.7, tonumber(event.Radius) or 10)
+		elseif event.Kind == "GrenadeHit" and typeof(event.Position) == "Vector3" then
+			grenadeHitFx(owner, event.Position, tonumber(event.Radius) or 10, event.Hits)
 		elseif event.Kind == "Quake" and typeof(event.Position) == "Vector3" then
 			quakeFx(owner, event.Position, tonumber(event.Radius) or 14, event.Hits)
+		elseif event.Kind == "Dash" and typeof(event.From) == "Vector3" and typeof(event.To) == "Vector3" then
+			dashFx(owner, event.From, event.To, event.Hits)
 		elseif event.Kind == "Meteor" then
 			meteorFx(owner, event.Points, tonumber(event.Delay) or 0.6, tonumber(event.Interval) or 0.2, tonumber(event.Radius) or 7, tonumber(event.StartAt) or serverNow())
 		elseif event.Kind == "MeteorHit" and typeof(event.Position) == "Vector3" then
 			meteorHitFx(owner, event.Position, tonumber(event.Radius) or 7, event.Hits)
+		elseif event.Kind == "Nova" and typeof(event.Position) == "Vector3" then
+			novaFx(owner, event.Position, tonumber(event.Radius) or 16, event.Hits, event.Frozen)
 		end
 	end)
 end

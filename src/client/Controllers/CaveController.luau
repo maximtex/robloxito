@@ -5,6 +5,8 @@
 --   portal en vez de devolverte.
 -- - Cartel grande al entrar en cada sala ("SALA 2 · LA GALERÍA" y lo que hay dentro).
 -- - Dentro (y en la boca): eco de cueva y un tinte un poco más frío.
+-- - Las puertas entre salas las lleva CaveGates (aquí se arranca y se le pasa el aviso
+--   "Blocked").
 -- Solo decorativo: nada se replica.
 
 local Lighting = game:GetService("Lighting")
@@ -20,6 +22,7 @@ local Constants = require(Shared.Constants)
 local CaveConfig = require(Shared.Config.CaveConfig)
 local CaveLogic = require(Shared.CaveLogic)
 local StudFloor = require(Shared.Util.StudFloor)
+local CaveGates = require(script.Parent.CaveGates)
 
 local CaveController = {}
 
@@ -244,6 +247,7 @@ end
 
 function CaveController.start()
 	buildGui()
+	task.spawn(CaveGates.start)
 	local remotes = ReplicatedStorage:WaitForChild(Constants.RemotesFolderName)
 	local eventRemote = remotes:WaitForChild(Constants.Remotes.CaveEvent) :: RemoteEvent
 	eventRemote.OnClientEvent:Connect(function(kind: any, data: any)
@@ -251,6 +255,8 @@ function CaveController.start()
 			onFade(data)
 		elseif kind == "Arrived" then
 			onArrived(data)
+		elseif kind == "Blocked" and type(data) == "table" and type(data.Index) == "number" then
+			CaveGates.blocked(data.Index)
 		end
 	end)
 

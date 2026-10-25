@@ -52,6 +52,8 @@ local EnemyConfig = require(Shared.Config.EnemyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local StudFloor = require(Shared.Util.StudFloor)
+local CaveConfig = require(Shared.Config.CaveConfig)
+local CaveLogic = require(Shared.CaveLogic)
 local RebirthLogic = require(Shared.RebirthLogic)
 local AdventureConfig = require(Shared.Config.AdventureConfig)
 local AdventureLogic = require(Shared.AdventureLogic)
@@ -821,8 +823,19 @@ local function onDeath(enemy: Enemy)
 			end
 			publishStreak(player, streak, nowClock)
 			rewardRemote:FireClient(player, earned, enemy.Def.DisplayName, isBoss, position, true, { Energy = energy, Golden = golden, Streak = count })
-			-- Cuenta como derrota para quien recibe parte de la recompensa (daño real).
-			local info = { TypeId = enemy.TypeId, Kind = enemy.Kind, ZoneId = enemy.ZoneId, Reward = earned, Energy = energy, Golden = golden, Streak = count }
+			-- Cuenta como derrota para quien recibe parte de la recompensa (daño real). Home: dónde
+			-- vive (la cueva cuenta los de cada sala); Wave: era de una oleada.
+			local info = {
+				TypeId = enemy.TypeId,
+				Kind = enemy.Kind,
+				ZoneId = enemy.ZoneId,
+				Reward = earned,
+				Energy = energy,
+				Golden = golden,
+				Streak = count,
+				Home = enemy.Home,
+				Wave = enemy.Pooled or enemy.WaveControlled,
+			}
 			for _, listener in defeatListeners do
 				task.spawn(listener, player, info)
 			end
@@ -1012,7 +1025,7 @@ local function damagePlayer(enemy: Enemy, player: Player, humanoid: Humanoid, am
 	if incomingModifier then
 		local ok, result = pcall(incomingModifier, player, final)
 		if ok and type(result) == "number" and result == result then
-			final = math.clamp(result, 0, final) -- nunca más daño ni curación
+			final = math.clamp(result, 0, final * 2) -- nunca curación ni más del doble (estilo Armas: algo más)
 		end
 	end
 	humanoid:TakeDamage(final) -- respeta el escudo de aparición
@@ -2333,7 +2346,17 @@ function EnemyService.start()
 				warn(("[EnemyService] %s en %s cae en una zona sin monstruos (SafeAreas): no se crea."):format(spawn.Type, tostring(home)))
 				continue
 			end
-			createEnemy(zoneId, spawn.Type, home, zoneSettings, nil, nil)
+			local enemy = createEnemy(zoneId, spawn.Type, home, zoneSettings, nil, nil)
+			-- Los de la Cueva de los Espinillos (lejos del mapa): más vida, más daño y más botín
+			if enemy and CaveLogic.inside(home.X, home.Z) then
+				local strength = CaveConfig.Strength
+				enemy.Status.MaxHealth = math.max(1, math.floor(enemy.Def.MaxHealth * (strength.Health or 1)))
+				enemy.Status.Health = enemy.Status.MaxHealth
+				enemy.DamageMultiplier = strength.Damage
+				enemy.RewardMultiplier *= strength.Reward or 1
+				enemy.Model:SetAttribute("Cave", true)
+				syncHealth(enemy)
+			end
 		end
 		local boss = zoneSettings.Boss
 		if boss then

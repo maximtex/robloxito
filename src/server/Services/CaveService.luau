@@ -9,6 +9,12 @@
 -- moverlo y ("Arrived", { Inside, Position, Facing }) al llegar (CaveController gira la cámara
 -- hacia Facing, para que al seguir andando no vuelvas a cruzar). Al llegar se para el paso que
 -- llevara (no sigue andando hacia un portal) y hay una espera entre dos viajes.
+-- Puertas (CaveConfig.Gates): cada bicho de una sala que derrotas (o en el que has hecho
+-- daño) cuenta para la puerta de esa sala (CaveLogic.countKill); el progreso se guarda en
+-- PetData.Cave y se replica en el atributo CaveGates ("15,3"). Las puertas las dibuja cada
+-- cliente (solo cierran a quien no las tiene abiertas); por si alguien se cuela, quien esté
+-- detrás de una puerta cerrada vuelve delante de ella (Gates.*.Back) con un aviso
+-- ("Blocked", { Index }).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,9 +25,13 @@ local CaveConfig = require(Shared.Config.CaveConfig)
 local CaveLogic = require(Shared.CaveLogic)
 local StudFloor = require(Shared.Util.StudFloor)
 local RemoteService = require(script.Parent.RemoteService)
+local PlayerDataService = require(script.Parent.PlayerDataService)
+local EnemyService = require(script.Parent.EnemyService)
 local StudWorld = require(script.Parent.Parent.Util.StudWorld)
 
 local STREAM_TIMEOUT = 6
+local SYNC_SECONDS = 1 -- cada cuánto se repasa el atributo de las puertas (al cargar los datos)
+local CLOSED = CaveLogic.sanitizeProgress(nil) -- sin datos aún: todas cerradas
 
 local CaveService = {}
 
@@ -47,6 +57,62 @@ end
 
 local ARRIVAL = spotCFrame(CaveConfig.Arrival.Position, CaveConfig.Arrival.Facing)
 local OUTSIDE = spotCFrame(CaveConfig.Entrance.Exit.Position, CaveConfig.Entrance.Exit.Facing)
+
+-- Progreso de las puertas del jugador (el mismo de sus datos) o nil si aún no han cargado.
+local function progressOf(player: Player): { number }?
+	local profile = PlayerDataService.get(player)
+	if not (profile and PlayerDataService.isPetDataReady(profile)) then
+		return nil
+	end
+	local progress = profile.PetData.Cave
+	if type(progress) ~= "table" or #progress ~= #CaveConfig.Gates then
+		progress = CaveLogic.sanitizeProgress(progress)
+		profile.PetData.Cave = progress
+	end
+	return progress
+end
+
+local function syncAttribute(player: Player)
+	local progress = progressOf(player)
+	local text = if progress then CaveLogic.formatProgress(progress) else nil
+	if player:GetAttribute(Constants.Attributes.CaveGates) ~= text then
+		player:SetAttribute(Constants.Attributes.CaveGates, text)
+	end
+end
+
+-- Un bicho derrotado: si vivía en una sala con puerta cerrada, cuenta para ella.
+local function onDefeated(player: Player, info)
+	if info.Wave or typeof(info.Home) ~= "Vector3" then
+		return
+	end
+	local progress = progressOf(player)
+	if not progress then
+		return
+	end
+	local gate, opened = CaveLogic.countKill(progress, info.Home.X, info.Home.Z)
+	if gate then
+		PlayerDataService.markDirty(player)
+		syncAttribute(player)
+		if opened then
+			PlayerDataService.saveNow(player) -- una puerta abierta no se pierde
+		end
+	end
+end
+
+-- Detrás de una puerta cerrada (alguien se ha colado): vuelve delante de ella.
+local function sendBack(player: Player, index: number)
+	local gate = CaveConfig.Gates[index]
+	local character, root, humanoid = characterOf(player)
+	if not (gate and character and root and humanoid) then
+		return
+	end
+	local spot = spotCFrame(gate.Back, gate.Facing)
+	local lift = humanoid.HipHeight + root.Size.Y / 2 + 0.5
+	character:PivotTo(spot + Vector3.new(0, lift, 0))
+	root.AssemblyLinearVelocity = Vector3.zero
+	humanoid:MoveTo(spot.Position + Vector3.new(0, lift, 0))
+	eventRemote:FireClient(player, "Blocked", { Index = index })
+end
 
 local function travel(player: Player, destination: CFrame, inside: boolean)
 	traveling[player] = true
@@ -82,10 +148,16 @@ local function check()
 		if not root then
 			continue
 		end
-		if CaveLogic.inEntrance(root.Position, StudWorld.FloorTop) then
+		local position = root.Position
+		if CaveLogic.inEntrance(position, StudWorld.FloorTop) then
 			task.spawn(travel, player, ARRIVAL, true)
-		elseif CaveLogic.exitAt(root.Position) then
+		elseif CaveLogic.exitAt(position) then
 			task.spawn(travel, player, OUTSIDE, false)
+		elseif CaveLogic.inside(position.X, position.Z) then
+			local blocked = CaveLogic.blockedAt(position.X, position.Z, progressOf(player) or CLOSED)
+			if blocked then
+				sendBack(player, blocked)
+			end
 		end
 	end
 end
@@ -95,18 +167,32 @@ function CaveService.isTraveling(player: Player): boolean
 	return traveling[player] == true
 end
 
+-- Progreso de las puertas de un jugador (copia) o nil si sus datos no han cargado.
+function CaveService.progressOf(player: Player): { number }?
+	local progress = progressOf(player)
+	return if progress then table.clone(progress) else nil
+end
+
 function CaveService.start()
 	eventRemote = RemoteService.get(Constants.Remotes.CaveEvent)
+	EnemyService.onDefeated(onDefeated)
 	Players.PlayerRemoving:Connect(function(player)
 		traveling[player] = nil
 		readyAt[player] = nil
 	end)
 	task.spawn(function()
+		local lastSync = 0
 		while true do
 			task.wait(CaveConfig.Travel.CheckInterval)
 			local ok, err = pcall(check)
 			if not ok then
 				warn("[CaveService] " .. tostring(err))
+			end
+			if os.clock() - lastSync >= SYNC_SECONDS then
+				lastSync = os.clock()
+				for _, player in Players:GetPlayers() do
+					pcall(syncAttribute, player)
+				end
 			end
 		end
 	end)

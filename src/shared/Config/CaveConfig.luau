@@ -1,11 +1,14 @@
 -- Cueva de los Espinillos por dentro (Bosque). La boca está en la colina oeste, al final del
 -- camino de piedra que sale de la plaza (StudFloor.Zones.Forest.Cave). Al cruzarla, la
 -- pantalla se funde a negro y apareces en OTRO sitio, lejos del mapa: tres salas unidas por
--- pasillos, todas abiertas (se va andando de una a otra):
+-- pasillos:
 --   1. El Nido: los pequeños (Espinillos Bebé y Espinillos). Aquí llegas.
 --   2. La Galería: los medianos (Brutos de Corteza).
 --   3. El Altar: el altar de las Oleadas del Guardián (WaveConfig.Places.Forest): salen
 --      pequeños y medianos y, en la última oleada, el Guardián del Bosque.
+-- Cada pasillo empieza con una puerta de roca (Gates): se abre al derrotar los bichos que
+-- pide en la sala de antes, solo para ti y para siempre (se guarda: PetData.Cave). Los bichos
+-- de la cueva son más duros que los de fuera (Strength).
 -- En la sala 1 (junto a donde llegas) y en la 3 hay un portal de salida que te devuelve a la
 -- boca de la cueva. Los bichos de las salas son los del Bosque (EnemyConfig.Zones.Forest).
 -- La cueva sigue siendo el Bosque: está fuera de los cuadrados de las zonas y ZoneService la
@@ -74,6 +77,37 @@ local CaveConfig = {
 		},
 	},
 
+	-- Puertas: una al principio de cada pasillo (Corridor), que se abre al derrotar Kills bichos
+	-- de la sala Room (cuentan los que derrotas tú o en los que has hecho daño). Position:
+	-- centro de la puerta en el suelo; Facing: hacia la sala de la que se viene (allí se ve
+	-- cuántos llevas); Back: a dónde vuelve quien aparezca detrás con la puerta cerrada.
+	Gates = {
+		{
+			Corridor = 1,
+			Room = 1,
+			Kills = 15,
+			Opens = "la Galería",
+			Enemies = "Espinillos",
+			Position = Vector3.new(-1008, 0, 28),
+			Facing = Vector3.new(1, 0, 0),
+			Back = Vector3.new(-992, 0, 28),
+		},
+		{
+			Corridor = 2,
+			Room = 2,
+			Kills = 6,
+			Opens = "el Altar",
+			Enemies = "Brutos",
+			Position = Vector3.new(-1136, 0, -20),
+			Facing = Vector3.new(1, 0, 0),
+			Back = Vector3.new(-1120, 0, -20),
+		},
+	},
+
+	-- Los bichos de la cueva (los del mundo, no los de las oleadas) tienen más vida, pegan
+	-- más fuerte y dan más botín que los de fuera.
+	Strength = { Health = 1.6, Damage = 1.5, Reward = 1.3 },
+
 	-- Pasillos entre salas (From -> To), de 2 bloques de ancho y Height de alto.
 	Corridors = {
 		{ From = 1, To = 2, Rect = { MinX = -1036, MaxX = -1004, MinZ = 20, MaxZ = 36 }, Height = 24 },
@@ -96,6 +130,9 @@ local CaveConfig = {
 	Sounds = {
 		Enter = { Id = "rbxassetid://9126229267", Volume = 0.5, Pitch = 0.7 }, -- ráfaga al cruzar
 		Room = { Id = "rbxassetid://9116394876", Volume = 0.35, Pitch = 1.2 }, -- campanillas al entrar en una sala
+		Count = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.3, Pitch = 1.3 }, -- uno más para la puerta
+		GateOpen = { Id = "rbxassetid://9114630316", Volume = 0.55, Pitch = 0.7 }, -- gong grave al abrirse
+		GateRumble = { Id = "rbxasset://sounds/impact_explosion_03.mp3", Volume = 0.45, Pitch = 0.5 }, -- la roca bajando
 	},
 	Tint = { Brightness = -0.02, Contrast = 0.06, Saturation = 0, TintColor = RGB(240, 244, 255) },
 }

@@ -322,10 +322,10 @@ local orbClose = newEnemy(94, 34, 0, 100000)
 local orbFar = newEnemy(95, 50, 0, 100000)
 now = run(now, 0.7)
 local orbs = shots(ana)
--- Magia: 20 DPS en orbes de 0.6 s = 12 por orbe; explosión de 7 studs al 50 %
-check(("Magia: orbes de 12 que explotan (6 al de al lado), %d orbes"):format(#orbs), #orbs >= 1 and near2(damageOf(orbTarget), 12 * #orbs) and near2(damageOf(orbClose), 6 * #orbs) and orbFar.Status.Health == 100000 and orbs[1].Splash == 7)
--- Robo de vida: 5 % de 18 por orbe = 0.9 (tope 3 por golpe)
-check("Magia · Robo de vida: se cura una parte del daño", near2(ana.Humanoid.Health, 50 + 0.9 * #orbs))
+-- Magia: 20 DPS en orbes que cargan 0.8 s = 16 por orbe; explosión de 7 studs al 50 %
+check(("Magia: orbes de 16 que explotan (8 al de al lado), %d orbes"):format(#orbs), #orbs >= 1 and near2(damageOf(orbTarget), 16 * #orbs) and near2(damageOf(orbClose), 8 * #orbs) and orbFar.Status.Health == 100000 and orbs[1].Splash == 7)
+-- Robo de vida: 5 % de 24 por orbe (16 + 8 del de al lado) = 1.2 (tope 3 por golpe)
+check("Magia · Robo de vida: se cura una parte del daño", near2(ana.Humanoid.Health, 50 + 1.2 * #orbs))
 ana.Humanoid.Health = 100
 
 reset()

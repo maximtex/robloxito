@@ -172,7 +172,8 @@ local Constants = {
 		StyleEvent = "StyleEvent",
 
 		-- Cueva de los Espinillos (CaveService; CaveConfig). Servidor -> cliente que viaja:
-		-- ("Fade", { Inside }) antes de moverlo (fundido a negro) y ("Arrived", { Inside }).
+		-- ("Fade", { Inside }) antes de moverlo (fundido a negro), ("Arrived", { Inside, Position,
+		-- Facing }) al llegar y ("Blocked", { Index }) si estaba detrás de una puerta cerrada.
 		CaveEvent = "CaveEvent",
 	},
 
@@ -254,7 +255,12 @@ local Constants = {
 		-- servidor en que su habilidad vuelve a estar lista y hasta cuándo dura la Ráfaga.
 		CombatStyle = "CombatStyle",
 		StyleReadyAt = "StyleReadyAt",
+		-- Hora del servidor en que vuelve a estar lista la segunda habilidad del estilo (X).
+		StyleReadyAt2 = "StyleReadyAt2",
 		StyleBurstUntil = "StyleBurstUntil",
+		-- Puertas de la Cueva de los Espinillos: bichos derrotados para cada una ("15,3";
+		-- CaveLogic.parseProgress). Sin atributo: datos aún no cargados.
+		CaveGates = "CaveGates",
 	},
 
 	PurchaseCodes = {

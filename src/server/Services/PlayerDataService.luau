@@ -206,7 +206,8 @@ function PlayerDataService.replicate(player: Player)
 	end
 	local speedLevel = profile.UpgradeLevels.WalkSpeed or 0
 	local amuletMult = AdventureLogic.walkSpeedMultiplier(profile.PetData.Adventure)
-	local baseSpeed = (28 + speedLevel * 2.5) * amuletMult
+	-- Estilo de pelea: Puños corren más y Magia camina más lento
+	local baseSpeed = (28 + speedLevel * 2.5) * amuletMult * StyleLogic.walkSpeed(profile.PetData.Style)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
@@ -496,7 +497,7 @@ local function onPlayerAdded(player: Player)
 		if humanoid and currentProfile then
 			local speedLvl = currentProfile.UpgradeLevels.WalkSpeed or 0
 			local amuletMult = AdventureLogic.walkSpeedMultiplier(currentProfile.PetData.Adventure)
-			local baseSpeed = (28 + speedLvl * 2.5) * amuletMult
+			local baseSpeed = (28 + speedLvl * 2.5) * amuletMult * StyleLogic.walkSpeed(currentProfile.PetData.Style)
 			humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
 			humanoid.WalkSpeed = baseSpeed
 		end

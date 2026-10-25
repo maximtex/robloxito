@@ -182,6 +182,74 @@ for _, safe in enemies.SafeZones do
 end
 check("donde llegas es zona segura (no te atacan nada más entrar)", guarded)
 
+print("-- Puertas entre salas")
+local gates = CaveConfig.Gates
+local gatesOK = #gates == #corridors
+for index, gate in gates do
+	local corridor = corridors[gate.Corridor]
+	local c = corridor and corridor.Rect
+	local fromRoom = rooms[gate.Room]
+	local width, height = CaveLogic.gateSize(index)
+	-- En su pasillo, junto a la sala de la que se viene (mirando hacia ella), y Back dentro de esa sala
+	local ok = corridor ~= nil and corridor.From == gate.Room and fromRoom ~= nil
+		and gate.Position.X >= c.MinX and gate.Position.X <= c.MaxX and gate.Position.Z >= c.MinZ and gate.Position.Z <= c.MaxZ
+		and CaveLogic.roomAt(gate.Position.X + gate.Facing.X * 8, gate.Position.Z + gate.Facing.Z * 8) == gate.Room
+		and CaveLogic.roomAt(gate.Back.X, gate.Back.Z) == gate.Room and inside(fromRoom.Rect, gate.Back.X, gate.Back.Z, WALL + 2)
+		and width == 16 and height == corridor.Height and gate.Kills >= 1 and type(gate.Opens) == "string" and type(gate.Enemies) == "string"
+	if not ok then
+		gatesOK = false
+		print("  puerta mal puesta: " .. index)
+	end
+end
+check("una puerta al principio de cada pasillo, mirando a la sala de antes", gatesOK)
+check("15 pequeños abren la Galería y 6 brutos el Altar", gates[1].Kills == 15 and gates[1].Room == 1 and gates[2].Kills == 6 and gates[2].Room == 2)
+local strength = CaveConfig.Strength
+check("los bichos de la cueva son más duros que los de fuera", strength.Health > 1 and strength.Damage > 1 and strength.Reward >= 1)
+local roomKills = { 0, 0, 0 }
+for _, spawn in enemies.Spawns do
+	local x, z = originX + spawn.Offset.X, originZ + spawn.Offset.Y
+	local roomIndex = CaveLogic.roomAt(x, z)
+	if roomIndex then
+		roomKills[roomIndex] += 1
+	end
+end
+check("hay bichos de sobra en cada sala con puerta (vuelven a salir)", roomKills[1] >= 6 and roomKills[2] >= 4)
+
+local progress = CaveLogic.sanitizeProgress(nil)
+check("sin datos: todas cerradas y con un número por puerta", #progress == #gates and progress[1] == 0 and not CaveLogic.isOpen(progress, 1) and not CaveLogic.isOpen(progress, 2))
+check("datos raros: se limpian y no pasan del tope", CaveLogic.sanitizeProgress({ 999, -3 })[1] == 15 and CaveLogic.sanitizeProgress({ 999, -3 })[2] == 0
+	and CaveLogic.sanitizeProgress("x")[1] == 0 and CaveLogic.sanitizeProgress({ 0 / 0, 2.7 })[2] == 2 and CaveLogic.sanitizeProgress({ ["1"] = 4 })[1] == 4)
+check("atributo: \"15,3\" de ida y vuelta", CaveLogic.formatProgress({ 15, 3 }) == "15,3" and CaveLogic.parseProgress("15,3")[2] == 3 and CaveLogic.parseProgress(nil)[1] == 0 and CaveLogic.parseProgress("a,b")[1] == 0)
+local nest = rooms[1].Rect
+local nestX, nestZ = (nest.MinX + nest.MaxX) / 2, (nest.MinZ + nest.MaxZ) / 2
+local gallery = rooms[2].Rect
+local galleryX, galleryZ = (gallery.MinX + gallery.MaxX) / 2, (gallery.MinZ + gallery.MaxZ) / 2
+local altarRoom = rooms[3].Rect
+local altarX, altarZ = (altarRoom.MinX + altarRoom.MaxX) / 2, (altarRoom.MinZ + altarRoom.MaxZ) / 2
+local counted, opened = 0, false
+for _ = 1, 14 do
+	local gate, justOpened = CaveLogic.countKill(progress, nestX, nestZ)
+	counted += if gate == 1 then 1 else 0
+	opened = opened or justOpened
+end
+check("cada pequeño de la sala 1 suma para la puerta 1 (14 aún no abren)", counted == 14 and progress[1] == 14 and not opened and not CaveLogic.isOpen(progress, 1))
+local galleryEarly = CaveLogic.countKill(progress, galleryX, galleryZ)
+check("los de la sala 2 suman para su puerta aunque la 1 siga cerrada", galleryEarly == 2 and progress[2] == 1)
+local gate15, open15 = CaveLogic.countKill(progress, nestX, nestZ)
+check("el 15 abre la Galería", gate15 == 1 and open15 and CaveLogic.isOpen(progress, 1))
+check("con la puerta abierta ya no suma, ni los de fuera o del altar", CaveLogic.countKill(progress, nestX, nestZ) == nil and progress[1] == 15
+	and CaveLogic.countKill(progress, 0, 0) == nil and CaveLogic.countKill(progress, altarX, altarZ) == nil)
+
+local closed = CaveLogic.sanitizeProgress(nil)
+local gate1, gate2 = gates[1], gates[2]
+check("detrás de una cerrada: la sala 2 y la 3 quedan detrás de la puerta 1", CaveLogic.blockedAt(galleryX, galleryZ, closed) == 1 and CaveLogic.blockedAt(altarX, altarZ, closed) == 1)
+check("delante de la puerta (sala 1 y su lado del pasillo) no", CaveLogic.blockedAt(nestX, nestZ, closed) == nil and CaveLogic.blockedAt(gate1.Position.X + 2, gate1.Position.Z, closed) == nil)
+check("pasada la puerta en el pasillo, sí", CaveLogic.blockedAt(gate1.Position.X - 4, gate1.Position.Z, closed) == 1)
+local half = { 15, 0 }
+check("con la 1 abierta: la sala 2 libre y la 3 detrás de la puerta 2", CaveLogic.blockedAt(galleryX, galleryZ, half) == nil and CaveLogic.blockedAt(altarX, altarZ, half) == 2
+	and CaveLogic.blockedAt(gate2.Position.X - 4, gate2.Position.Z, half) == 2)
+check("con las dos abiertas, todo libre", CaveLogic.blockedAt(altarX, altarZ, { 15, 6 }) == nil and CaveLogic.blockedAt(0, 0, closed) == nil)
+
 print("-- Lógica (CaveLogic)")
 local r1 = rooms[1].Rect
 check("roomAt: en la sala 1", CaveLogic.roomAt((r1.MinX + r1.MaxX) / 2, (r1.MinZ + r1.MaxZ) / 2) == 1)

@@ -84,6 +84,9 @@ BASE = [
     # Estilo de pelea (campo Style del guardado v11).
     ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
     ("StyleLogic", "src/shared/StyleLogic.luau"),
+    # Puertas de la cueva (campo Cave del guardado v12).
+    ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
+    ("CaveLogic", "src/shared/CaveLogic.luau"),
 ] + [
     # Premios, tienda y semana (campos Rewards, Shop y Weekly del guardado v6).
     ("RewardConfig", "src/shared/Config/RewardConfig.luau"),
@@ -249,6 +252,8 @@ def build_quest():
         ("WaveLogic", "src/shared/WaveLogic.luau"),
         ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
         ("StyleLogic", "src/shared/StyleLogic.luau"),
+        ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
+        ("CaveLogic", "src/shared/CaveLogic.luau"),
     ] + CORE + [
         ("SaveService", "src/server/Services/SaveService.luau"),
     ]

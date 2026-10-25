@@ -35,6 +35,8 @@
 --   Waves: { Cleared, Best }            oleadas superadas en total y la mejor de cada modo
 --                                       (WaveLogic; WaveService).
 --   Style: string                       estilo de pelea elegido (StyleLogic; StyleService).
+--   Cave: { number }                    bichos derrotados para cada puerta de la Cueva de los
+--                                       Espinillos (CaveLogic; CaveService).
 -- Los registros antiguos sin Energy/UpgradeLevels cargan con los valores iniciales, los
 -- que no tienen Cores (v2) empiezan con Naturaleza desbloqueada y seleccionada, y los que
 -- no tienen Rebirth (v3) empiezan sin renacimientos, los que no tienen Adventure (v4)
@@ -72,6 +74,7 @@ local WeaponConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.Wea
 local ItemLogic = require(ReplicatedStorage:WaitForChild("Shared").ItemLogic)
 local WaveLogic = require(ReplicatedStorage:WaitForChild("Shared").WaveLogic)
 local StyleLogic = require(ReplicatedStorage:WaitForChild("Shared").StyleLogic)
+local CaveLogic = require(ReplicatedStorage:WaitForChild("Shared").CaveLogic)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 2: añade Energy y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
@@ -81,7 +84,8 @@ local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 9: añade Items (pociones, huevos guardados y títulos; sin el campo, vacío).
 -- 10: añade Waves (récords de las oleadas; sin el campo, a cero).
 -- 11: añade Style (estilo de pelea; sin el campo, Armas).
-local SCHEMA_VERSION = 11
+-- 12: añade Cave (puertas de la cueva; sin el campo, todas cerradas).
+local SCHEMA_VERSION = 12
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -123,6 +127,7 @@ export type PetData = {
 	Items: ItemLogic.ItemData, -- pociones, huevos guardados y títulos (ItemService)
 	Waves: WaveLogic.Records, -- oleadas superadas y récord de cada modo (WaveService)
 	Style: string, -- estilo de pelea (StyleService)
+	Cave: { number }, -- bichos derrotados para cada puerta de la cueva (CaveService)
 }
 
 -- "Loaded": datos cargados y bloqueados para esta sesión.
@@ -201,6 +206,7 @@ function SaveService.emptyData(): PetData
 		Items = ItemLogic.empty(),
 		Waves = WaveLogic.emptyRecords(),
 		Style = StyleLogic.sanitize(nil),
+		Cave = CaveLogic.sanitizeProgress(nil),
 	}
 end
 
@@ -397,6 +403,8 @@ local function sanitize(raw: any): PetData
 	result.Waves = WaveLogic.sanitizeRecords(raw.Waves)
 	-- Estilo de pelea: sin el campo (v10 o anteriores) o uno que ya no existe, Armas.
 	result.Style = StyleLogic.sanitize(raw.Style)
+	-- Puertas de la cueva: sin el campo (v11 o anteriores), todas cerradas.
+	result.Cave = CaveLogic.sanitizeProgress(raw.Cave)
 
 	return result
 end
@@ -486,6 +494,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local items = ItemLogic.serialize(data.Items or ItemLogic.empty(), os.time())
 	local waves = WaveLogic.serializeRecords(data.Waves)
 	local style = StyleLogic.sanitize(data.Style)
+	local cave = CaveLogic.serializeProgress(data.Cave)
 	local key = keyFor(userId)
 
 	for attempt = 1, SAVE_ATTEMPTS do
@@ -528,6 +537,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.Items = items
 				stored.Waves = waves
 				stored.Style = style
+				stored.Cave = cave
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)

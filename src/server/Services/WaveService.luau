@@ -1,5 +1,6 @@
 -- Oleadas: la mecánica principal (WaveConfig). Partidas PRIVADAS en el círculo de cada zona
--- (WaveConfig.Places: Bosque, Valle y Caldera), con los enemigos y el jefe de esa zona:
+-- (WaveConfig.Places: Bosque (en la sala del altar de la Cueva de los Espinillos), Valle y
+-- Caldera), con los enemigos y el jefe de esa zona:
 -- 1. Se empieza con E en el altar del centro (ProximityPrompt) o con WaveAction ("Start").
 --    Cada jugador juega SU partida; quien pulse E durante la cuenta atrás de otra (del mismo
 --    modo) se une a ella, para jugar con amigos. Varias partidas pueden ir a la vez.
@@ -18,8 +19,10 @@
 --    práctica del tutorial) se ganan al limpiar la última oleada.
 -- 6. Si no queda nadie de la partida dentro y vivo durante LeaveGrace segundos, se pierde:
 --    los enemigos se retiran sin botín (lo ganado hasta ahí se queda).
--- Modos: "Tutorial" para quien está en ese paso del tutorial (partida corta con consejos en
--- pantalla, "Hint"); el resto juega "Forest". Ganar suma WaveWins (GameEvents "WaveWon").
+-- Modos: "Tutorial" en el altar de la práctica (Places.Practice, en la pradera) para quien
+-- está en ese paso del tutorial (partida corta con consejos en pantalla, "Hint"); a los demás
+-- ese altar les dice que las oleadas están en la cueva. Ganar suma WaveWins (GameEvents
+-- "WaveWon").
 -- Dentro del círculo el arma dispara sola (PetCombatService.setFreeAutoFire).
 -- Todo lo decide el servidor; el cliente (WaveController) solo dibuja lo que se le manda.
 
@@ -65,6 +68,8 @@ end
 local TUTORIAL_MODE: string? = WaveLogic.tutorialArena()
 -- Círculo donde se juega la práctica (el de su modo).
 local TUTORIAL_PLACE: string? = if TUTORIAL_MODE then WaveConfig.Arenas[TUTORIAL_MODE].Place else nil
+-- Aviso para quien ya no está en la práctica y pulsa E en su altar.
+local PRACTICE_DONE_HINT = "⚔ Las Oleadas del Guardián están en la 🦇 Cueva de los Espinillos: camino de piedra al oeste de la plaza."
 
 type Participant = {
 	Player: Player,
@@ -114,7 +119,8 @@ type Run = {
 
 type Place = {
 	Id: string,
-	ArenaId: string, -- modo que se juega aquí (salvo la práctica del tutorial)
+	ArenaId: string, -- modo que se juega aquí
+	Practice: boolean, -- solo la práctica del tutorial (WaveConfig.Places.*.Practice)
 	ZoneId: string,
 	Center: Vector3,
 	StatusLabel: TextLabel?,
@@ -244,9 +250,13 @@ local function updateSign()
 	for placeId, place in places do
 		local countdown = joinableRun(placeId, place.ArenaId)
 		if place.StatusLabel then
-			place.StatusLabel.Text = if countdown then ("¡Pulsa E para unirte! (%d)"):format(math.max(1, math.ceil(countdown.EndsAt - os.clock()))) else "Pulsa E para jugar"
+			place.StatusLabel.Text = if place.Practice then "Tu primera oleada (tutorial)"
+				elseif countdown then ("¡Pulsa E para unirte! (%d)"):format(math.max(1, math.ceil(countdown.EndsAt - os.clock())))
+				else "Pulsa E para jugar"
 		end
-		if place.InfoLabel then
+		if place.Practice and place.InfoLabel then
+			place.InfoLabel.Text = "Las del Guardián: en la 🦇 Cueva, al oeste"
+		elseif place.InfoLabel then
 			local playing = 0
 			for _, run in runs do
 				if run.PlaceId == placeId then
@@ -723,7 +733,15 @@ local function tryStart(player: Player, placeId: string?): boolean
 	if not place then
 		return false
 	end
-	local mode = if place.Id == TUTORIAL_PLACE and wantsTutorial(player) then TUTORIAL_MODE :: string else place.ArenaId
+	local mode = place.ArenaId
+	if place.Id == TUTORIAL_PLACE or place.Practice then
+		if not (TUTORIAL_MODE and wantsTutorial(player)) then
+			eventRemote:FireClient(player, "Hint", { Text = PRACTICE_DONE_HINT, Seconds = 7 })
+			lockedUntil[player] = os.clock() + 2 -- sin repetir el aviso al dejar pulsado
+			return false
+		end
+		mode = TUTORIAL_MODE :: string
+	end
 	-- Unirse a la cuenta atrás de otra partida del mismo modo (la práctica es solo suya)
 	if not WaveConfig.Arenas[mode].Tutorial then
 		local countdown = joinableRun(place.Id, mode)
@@ -1028,7 +1046,7 @@ local function buildPlace(info: Place, parent: Instance)
 	billboard.LightInfluence = 0
 	billboard.MaxDistance = 260
 	billboard.Adornee = crystal
-	label(billboard, UDim2.fromScale(0, 0), UDim2.new(1, 0, 0.46, 0), Color3.fromRGB(255, 214, 120), "⚔ OLEADAS", 3)
+	label(billboard, UDim2.fromScale(0, 0), UDim2.new(1, 0, 0.46, 0), Color3.fromRGB(255, 214, 120), if info.Practice then "⚔ PRÁCTICA" else "⚔ OLEADAS", 3)
 	info.StatusLabel = label(billboard, UDim2.fromScale(0, 0.48), UDim2.new(1, 0, 0.3, 0), Color3.new(1, 1, 1), "Pulsa E para jugar", 2)
 	info.InfoLabel = label(billboard, UDim2.fromScale(0.05, 0.8), UDim2.new(0.9, 0, 0.2, 0), Color3.fromRGB(255, 236, 200), "", 1.5)
 	billboard.Parent = crystal
@@ -1050,6 +1068,7 @@ local function buildPlaceInfo(placeId: string, settings): Place?
 	return {
 		Id = placeId,
 		ArenaId = settings.Arena,
+		Practice = settings.Practice == true,
 		ZoneId = settings.Zone,
 		Center = Vector3.new(x, floorAt(x, z), z), -- cara de arriba del suelo
 		StatusLabel = nil,

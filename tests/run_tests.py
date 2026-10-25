@@ -450,6 +450,8 @@ def build_landscape():
         ("ChestConfig", "src/shared/Config/ChestConfig.luau"),
         ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
         ("StudFloor", "src/shared/Util/StudFloor.luau"),
+        ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
+        ("CaveLogic", "src/shared/CaveLogic.luau"),
         ("LandscapeLayout", "src/server/Util/LandscapeLayout.luau"),
     ]:
         out.append(mod(n, p))
@@ -584,9 +586,30 @@ def build_waves():
         ("WaveLogic", "src/shared/WaveLogic.luau"),
         ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
         ("StyleLogic", "src/shared/StyleLogic.luau"),
+        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
+        ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
+        ("CaveLogic", "src/shared/CaveLogic.luau"),
     ]:
         out.append(mod(n, p))
     out.append(suite("waves_body.luau"))
+    return "\n".join(out)
+
+
+def build_cave():
+    # Cueva de los Espinillos por dentro (CaveConfig y CaveLogic, puras): salas, pasillos,
+    # entrada y salidas, y los bichos de cada sala con los enemigos y zonas reales.
+    out = [harness("combat_header.luau")]
+    for n, p in [
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
+        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
+        ("StudFloor", "src/shared/Util/StudFloor.luau"),
+        ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
+        ("CaveLogic", "src/shared/CaveLogic.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("cave_body.luau"))
     return "\n".join(out)
 
 
@@ -640,6 +663,7 @@ SUITES = [
     ("energy", "Energía solo de matar: sin producción pasiva ni offline, energía de los enemigos", build_energy),
     ("waves", "Oleadas: arenas, aparición, dificultad, mejoras, racha y botín de cada enemigo", build_waves),
     ("styles", "Estilos de pelea: armas, puños y magia (ataque, pasivas y habilidades)", build_styles),
+    ("cave", "Cueva de los Espinillos: salas, pasillos, entrada, salidas y bichos de cada sala", build_cave),
     ("items", "Inventario: pociones, huevos guardados, botín de los jefes y títulos", build_items),
 ]
 LEGACY = ["pettest", "eggtest", "zonetest", "savetest", "layouttest", "stagetest"]

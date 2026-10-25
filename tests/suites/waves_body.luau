@@ -29,20 +29,43 @@ end
 local placeCount = 0
 local placesOK, insideOK, portalsClear, bossClear, spawnsClear, guardedAll, arrivalClear = true, true, true, true, true, true, true
 local placeOfZone = {}
+-- Centro de un círculo en el mundo (como WaveService)
+local function worldOf(spot)
+	local zone = ZoneConfig.Zones[spot.Zone]
+	local base = GeneratorConfig.Position
+	return base.X + zone.Center.X + spot.Offset.X, base.Z + zone.Center.Y + spot.Offset.Y
+end
 for placeId, spot in WaveConfig.Places do
-	placeCount += 1
 	local zone = ZoneConfig.Zones[spot.Zone]
 	local mode = WaveConfig.Arenas[spot.Arena]
-	if not (zone and mode and mode.Zone == spot.Zone and mode.Place == placeId and not mode.Tutorial) then
+	-- El de la práctica del tutorial juega su modo; los demás, el de su zona (uno por zona)
+	local modeOK = zone and mode and mode.Zone == spot.Zone and mode.Place == placeId
+	if spot.Practice then
+		modeOK = modeOK and mode.Tutorial == true
+	else
+		modeOK = modeOK and not mode.Tutorial
+		placeCount += 1
+		if placeOfZone[spot.Zone] then
+			placesOK = false
+			print("  dos círculos en la zona " .. spot.Zone)
+		end
+		placeOfZone[spot.Zone] = placeId
+	end
+	if not modeOK then
 		placesOK = false
 		print("  círculo mal configurado: " .. placeId)
 	end
-	if placeOfZone[spot.Zone] then
-		placesOK = false
-		print("  dos círculos en la zona " .. spot.Zone)
-	end
-	placeOfZone[spot.Zone] = placeId
-	if zone and not (math.abs(spot.Offset.X) + place.AreaRadius < zone.Radius and math.abs(spot.Offset.Y) + place.AreaRadius < zone.Radius) then
+	if spot.Cave and zone then
+		-- En la sala del altar de la cueva, entero y lejos de sus paredes
+		local x, z = worldOf(spot)
+		local _, room = CaveLogic.roomAt(x, z)
+		local r = room and room.Rect
+		local margin = place.AreaRadius + 8
+		if not (room and room.Altar and x - margin > r.MinX and x + margin < r.MaxX and z - margin > r.MinZ and z + margin < r.MaxZ) then
+			insideOK = false
+			print("  el círculo de " .. placeId .. " no cabe en la sala del altar de la cueva")
+		end
+	elseif zone and not (math.abs(spot.Offset.X) + place.AreaRadius < zone.Radius and math.abs(spot.Offset.Y) + place.AreaRadius < zone.Radius) then
 		insideOK = false
 	end
 	if zone and distance(Vector2.new(zone.Arrival.X, zone.Arrival.Z), spot.Offset) <= place.AreaRadius + 4 then
@@ -76,7 +99,7 @@ for placeId, spot in WaveConfig.Places do
 		print("  el círculo de " .. placeId .. " no es zona segura")
 	end
 end
-check("un círculo en cada zona con enemigos (Bosque, Valle y Caldera)", placeCount == 3 and placeOfZone.Forest ~= nil and placeOfZone.CrystalValley ~= nil and placeOfZone.EmberCaldera ~= nil)
+check("un círculo de oleadas en cada zona con enemigos (Bosque, Valle y Caldera)", placeCount == 3 and placeOfZone.Forest ~= nil and placeOfZone.CrystalValley ~= nil and placeOfZone.EmberCaldera ~= nil)
 check("cada círculo juega el modo de su zona", placesOK)
 check("los círculos caben en su zona", insideOK)
 check("la llegada a cada zona queda fuera del círculo", arrivalClear)
@@ -85,7 +108,12 @@ check("no pisan la arena del jefe de la zona", bossClear)
 check("ningún enemigo del mundo sale dentro ni cerca de un círculo", spawnsClear)
 check("cada círculo es zona segura para los enemigos del mundo", guardedAll)
 local tutorialMode = WaveLogic.tutorialArena()
-check("la práctica del tutorial se juega en el círculo del Bosque", tutorialMode ~= nil and WaveConfig.Arenas[tutorialMode].Place == "Forest" and WaveConfig.Places.Forest ~= nil)
+local practice = tutorialMode and WaveConfig.Places[WaveConfig.Arenas[tutorialMode].Place]
+check("la práctica del tutorial se juega en su altar de la pradera del Bosque", practice ~= nil and practice.Practice == true and practice.Zone == "Forest" and not practice.Cave)
+local forestPlace = WaveConfig.Places[WaveConfig.Arenas.Forest.Place]
+local altarCenter = CaveLogic.altarCenter()
+local fx, fz = worldOf(forestPlace)
+check("las Oleadas del Guardián se juegan en el centro de la sala del altar de la cueva", forestPlace.Cave == true and altarCenter ~= nil and math.abs(fx - altarCenter.X) < 1e-6 and math.abs(fz - altarCenter.Y) < 1e-6)
 local aliveOK = WaveLogic.maxAlive(1) == WaveConfig.AliveStart and WaveLogic.maxAlive(1) < WaveConfig.MaxAlive
 for wave = 2, 12 do
 	if WaveLogic.maxAlive(wave) < WaveLogic.maxAlive(wave - 1) or WaveLogic.maxAlive(wave) > WaveConfig.MaxAlive then

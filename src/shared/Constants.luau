@@ -170,6 +170,10 @@ local Constants = {
 		-- Servidor -> clientes cercanos: (event) efecto YA resuelto de una habilidad de estilo
 		-- ("Burst", "Quake", "Meteor") o resultado para quien la pidió ("Result").
 		StyleEvent = "StyleEvent",
+
+		-- Cueva de los Espinillos (CaveService; CaveConfig). Servidor -> cliente que viaja:
+		-- ("Fade", { Inside }) antes de moverlo (fundido a negro) y ("Arrived", { Inside }).
+		CaveEvent = "CaveEvent",
 	},
 
 	-- Atributos que el servidor escribe en el Player (solo lectura para el cliente).

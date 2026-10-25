@@ -1,6 +1,7 @@
 -- Vida del mundo en este cliente (solo decorativo, nada se replica):
 -- - Sonido ambiente del bosque: pájaros de día y grillos de noche (se mezclan con el ciclo
---   de DayNightController); más bajo en el Valle y apagado en la Caldera.
+--   de DayNightController); más bajo en el Valle y apagado en la Caldera y dentro de la
+--   Cueva de los Espinillos (CaveLogic).
 -- - Bandadas de pájaros que vuelan en círculo sobre la zona (de día).
 -- - Mariposas que revolotean en las praderas, el claro del cristal, la plaza del pueblo y
 --   el estanque cuando el jugador está cerca (de día).
@@ -18,6 +19,7 @@ local Constants = require(Shared.Constants)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local WildsConfig = require(Shared.Config.WildsConfig)
+local CaveLogic = require(Shared.CaveLogic)
 local DayNightController = require(script.Parent.DayNightController)
 
 local AmbientController = {}
@@ -112,7 +114,8 @@ local function startSounds()
 	end
 	RunService.Heartbeat:Connect(function(dt: number)
 		local night = DayNightController.night()
-		local zoneFactor = ZONE_AMBIENCE[currentZone()] or 0.5
+		local position = rootPosition()
+		local zoneFactor = if position and CaveLogic.inside(position.X, position.Z, 8) then 0 else ZONE_AMBIENCE[currentZone()] or 0.5
 		local blend = math.clamp(dt * 1.5, 0, 1)
 		local dayTarget = SOUNDS.Day.Volume * (1 - night) * zoneFactor
 		local nightTarget = SOUNDS.Night.Volume * night * zoneFactor

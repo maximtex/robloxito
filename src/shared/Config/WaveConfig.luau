@@ -1,7 +1,9 @@
 -- Oleadas: la mecánica principal del rediseño "solo disparar".
 -- En cada zona hay un círculo con un altar y una columna de luz (Places): en el Bosque, en la
--- pradera oeste (a la izquierda del spawn); en el Valle y la Caldera, a la derecha de la
--- llegada. Pulsas E y empieza TU partida, con los enemigos y el jefe de esa zona.
+-- sala 3 de la Cueva de los Espinillos (CaveConfig: se entra por la boca de la colina oeste
+-- y se cruzan las salas de los pequeños y de los medianos); en el Valle y la Caldera, a la
+-- derecha de la llegada. Pulsas E y empieza TU partida, con los enemigos y el jefe de esa
+-- zona. En la pradera oeste del Bosque queda el altar de la práctica del tutorial.
 -- Las partidas son PRIVADAS: mientras juegas, los enemigos normales desaparecen para ti (y
 -- no te atacan) y solo ves y golpeas los de tu partida; otros jugadores pueden jugar la suya
 -- en el mismo círculo a la vez sin verse los enemigos. Quien pulse E durante la cuenta atrás
@@ -31,17 +33,24 @@ local WaveConfig = {
 	-- en cada uno. Offset relativo al centro de su zona, como el resto del mapa. Cada círculo
 	-- es zona segura para los enemigos del mundo (EnemyConfig.Zones.*.SafeZones) y ninguno
 	-- sale dentro ni cerca (prueba "waves").
+	-- Cave: el círculo está en la sala del altar de la cueva (CaveConfig; la columna de luz
+	-- sale por el hueco del techo de encima).
+	-- Practice: solo para la práctica del tutorial (quien ya la hizo recibe un aviso de que
+	-- las oleadas de verdad están en la cueva).
 	Places = {
+		-- Sala 3 de la Cueva de los Espinillos (CaveConfig.Rooms[3], centro (-1220, -20) del
+		-- mundo; aquí relativo al centro del Bosque).
+		Forest = { Zone = "Forest", Offset = Vector2.new(-1220, 5), Arena = "Forest", Cave = true },
 		-- Pradera oeste, a unos 90 studs a la izquierda del spawn (que está en (0, 43)), con el
-		-- borde del mapa a 15 studs del círculo. Aquí también se juega la práctica del tutorial.
-		Forest = { Zone = "Forest", Offset = Vector2.new(-69, 98), Arena = "Forest" },
+		-- borde del mapa a 15 studs del círculo: la práctica del tutorial.
+		Practice = { Zone = "Forest", Offset = Vector2.new(-69, 98), Arena = "Tutorial", Practice = true },
 		-- A la derecha de la llegada desde el portal ((0, -132) en las dos zonas).
 		CrystalValley = { Zone = "CrystalValley", Offset = Vector2.new(36, -124), Arena = "CrystalValley" },
 		EmberCaldera = { Zone = "EmberCaldera", Offset = Vector2.new(36, -124), Arena = "EmberCaldera" },
 	},
 
-	-- Modos de partida. Cada altar juega el de su círculo (Places.*.Arena), salvo el del Bosque
-	-- con quien está en el paso del tutorial (TutorialConfig, paso "Waves"): "Tutorial".
+	-- Modos de partida. Cada altar juega el de su círculo (Places.*.Arena); el de la práctica
+	-- ("Tutorial"), solo con quien está en ese paso del tutorial (TutorialConfig, "Waves").
 	-- RewardScale multiplica los premios de limpiar oleadas y de victoria (zonas más altas,
 	-- más premio); VictoryScale, solo el de victoria.
 	Arenas = {
@@ -114,9 +123,10 @@ local WaveConfig = {
 			BossEscort = { Cinderling = 6, MagmaGolem = 2 },
 			RewardScale = 8,
 		},
-		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla.
+		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla, en el altar de
+		-- la pradera (Places.Practice).
 		Tutorial = {
-			Place = "Forest",
+			Place = "Practice",
 			Zone = "Forest",
 			DisplayName = "Oleada de práctica",
 			Tutorial = true,

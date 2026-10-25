@@ -23,6 +23,7 @@ local StudWorld = require(script.Parent.Parent.Util.StudWorld)
 local ChristmasDecor = require(script.Parent.Parent.Util.ChristmasDecor)
 local ChristmasData = require(script.Parent.Parent.Util.ChristmasData)
 local ForestCave = require(script.Parent.Parent.Util.ForestCave)
+local CaveDungeon = require(script.Parent.Parent.Util.CaveDungeon)
 local StudFloor = require(Shared.Util.StudFloor)
 
 local WorldService = {}
@@ -710,6 +711,13 @@ function WorldService.start()
 			"buildForestCave",
 			function(parent)
 				ForestCave.build(parent, FOREST)
+			end,
+		},
+		{
+			-- La cueva por dentro (CaveConfig), lejos del mapa: se llega por la boca (CaveService)
+			"buildCaveDungeon",
+			function(parent)
+				CaveDungeon.build(parent)
 			end,
 		},
 		{

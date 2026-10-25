@@ -2,17 +2,19 @@
 -- - Arriba en el centro: Pastilla amarilla compacta `.warn-pill` con icono `!` para avisos de
 --   estado de datos ("Modo sin guardado · el progreso de esta sesión no se guardará", etc.).
 -- - Arriba a la derecha: Cabecera de zona `.zone-card` ("Bosque" / "ZONA 1 · PLAZA DEL CRISTAL").
---   Dentro de la Cueva de los Espinillos dice "ZONA 1 · CUEVA DE LOS ESPINILLOS" y el sonido
---   suena con eco de cueva (SoundService.AmbientReverb, solo para este jugador).
+--   En la boca de la Cueva de los Espinillos dice "ZONA 1 · CUEVA DE LOS ESPINILLOS" y dentro,
+--   la sala en la que estás ("CUEVA · SALA 2 · LA GALERÍA", CaveConfig). El eco de cueva y el
+--   resto del ambiente los pone CaveController.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
 
 local Constants = require(ReplicatedStorage:WaitForChild("Shared").Constants)
 local StudFloor = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Util"):WaitForChild("StudFloor"))
+local CaveLogic = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("CaveLogic"))
+local CaveConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("CaveConfig"))
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local HudLayout = require(script.Parent.Parent.UI.HudLayout)
@@ -178,13 +180,13 @@ function DataStatusController.start()
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
 	applyScale()
 
-	local inCave = false
-	local cave = StudFloor.Zones.Forest.Cave
+	-- "" fuera de la cueva; si no, lo que dice la cabecera en la boca o en cada sala
+	local caveLabel = ""
 	local function refreshZone()
 		local z = player:GetAttribute(Constants.Attributes.CurrentZone)
 		local info = (typeof(z) == "string" and ZONE_HEADERS[z]) or ZONE_HEADERS.Forest
 		zoneTitle.Text = info.Title
-		zoneSub.Text = if inCave and cave then "ZONA 1 · " .. string.upper(cave.Name) else info.Sub
+		zoneSub.Text = if caveLabel ~= "" then caveLabel else info.Sub
 	end
 	player:GetAttributeChangedSignal(Constants.Attributes.CurrentZone):Connect(refreshZone)
 	refreshZone()
@@ -199,10 +201,18 @@ function DataStatusController.start()
 		caveCheck = 0
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local now = root ~= nil and root:IsA("BasePart") and StudFloor.inCave(root.Position.X, root.Position.Z)
-		if now ~= inCave then
-			inCave = now
-			SoundService.AmbientReverb = if now then Enum.ReverbType.Cave else Enum.ReverbType.NoReverb
+		local label = ""
+		if root ~= nil and root:IsA("BasePart") then
+			local x, z = root.Position.X, root.Position.Z
+			local _, room = CaveLogic.roomAt(x, z)
+			if room then
+				label = "CUEVA · " .. room.Label
+			elseif StudFloor.inCave(x, z) or CaveLogic.inside(x, z, 4) then
+				label = "ZONA 1 · " .. string.upper(CaveConfig.Name)
+			end
+		end
+		if label ~= caveLabel then
+			caveLabel = label
 			refreshZone()
 		end
 	end)

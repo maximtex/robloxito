@@ -215,9 +215,14 @@ local EnemyConfig = {
 			SafeZones = {
 				{ Center = Vector2.new(38, 85), Radius = 20 }, -- Jardín de los Huevos (EggConfig.Gardens.Forest)
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal al Valle (ZoneConfig.Portals.ForestPortal)
-				-- Círculo de las oleadas (WaveConfig.Places.Forest, radio AreaRadius + 4): los del mundo no
-				-- entran a por nadie ni atacan a quien espera junto al altar.
+				-- Círculo de la práctica de las oleadas (WaveConfig.Places.Practice, radio AreaRadius + 4):
+				-- los del mundo no entran a por nadie ni atacan a quien espera junto al altar.
 				{ Center = Vector2.new(-69, 98), Radius = 22 },
+				-- Cueva de los Espinillos por dentro (CaveConfig, lejos del mapa; aquí relativo al centro
+				-- del Bosque, Z + 25): donde llegas al entrar (sala 1, junto al portal de salida) y el
+				-- círculo de las Oleadas del Guardián en la sala 3 (WaveConfig.Places.Forest).
+				{ Center = Vector2.new(-928, 29), Radius = 12 },
+				{ Center = Vector2.new(-1220, 5), Radius = 22 },
 			},
 			Spawns = {
 				-- Zona de inicio: enemigos para golpear desde el principio, alrededor del centro del
@@ -233,7 +238,8 @@ local EnemyConfig = {
 				{ Type = "Thornling", Offset = Vector2.new(72, 125) },
 
 				-- Pradera izquierda (al oeste de las parcelas y tiendas), a ambos lados del círculo
-				-- de las oleadas (WaveConfig.Places.Forest, en (-69, 98)), lejos de su zona segura.
+				-- de la práctica de las oleadas (WaveConfig.Places.Practice, en (-69, 98)), lejos de su
+				-- zona segura.
 				{ Type = "Thornling", Offset = Vector2.new(-60, 134) },
 				{ Type = "Thornling", Offset = Vector2.new(-70, 136) },
 				{ Type = "Thornling", Offset = Vector2.new(-62, 62) },
@@ -242,19 +248,22 @@ local EnemyConfig = {
 				{ Type = "Thornling", Offset = Vector2.new(-62, 12) },
 				{ Type = "Barkbrute", Offset = Vector2.new(-68, 12) },
 
-				-- Cueva de los Espinillos (StudFloor.Zones.Forest.Cave, al oeste, al final del camino
-				-- que sale de la plaza): muchos juntos y dos brutos al fondo. El camino de la
-				-- pradera (Z = 37..53 aquí) queda libre.
-				{ Type = "Thornling", Offset = Vector2.new(-168, 75) },
-				{ Type = "Thornling", Offset = Vector2.new(-195, 83) },
-				{ Type = "Thornling", Offset = Vector2.new(-222, 71) },
-				{ Type = "Thornling", Offset = Vector2.new(-222, 29) },
-				{ Type = "Thornling", Offset = Vector2.new(-205, 9) },
-				{ Type = "Thornling", Offset = Vector2.new(-172, 11) },
-				{ Type = "Thornling", Offset = Vector2.new(-186, 58) },
-				{ Type = "Thornling", Offset = Vector2.new(-206, 50) },
-				{ Type = "Barkbrute", Offset = Vector2.new(-222, 50) },
-				{ Type = "Barkbrute", Offset = Vector2.new(-190, 24) },
+				-- Cueva de los Espinillos por dentro (CaveConfig; se entra por la boca de la colina
+				-- oeste). Sala 1, el Nido: los pequeños, lejos de donde llegas.
+				{ Type = "StarterThornling", Offset = Vector2.new(-950, 5) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-948, 51) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-966, 31) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-976, 3) },
+				{ Type = "Thornling", Offset = Vector2.new(-986, 53) },
+				{ Type = "Thornling", Offset = Vector2.new(-990, 29) },
+				{ Type = "Thornling", Offset = Vector2.new(-994, 7) },
+				{ Type = "Thornling", Offset = Vector2.new(-968, 57) },
+				-- Sala 2, la Galería: los medianos (uno guarda el pasillo a la sala del altar).
+				{ Type = "Barkbrute", Offset = Vector2.new(-1066, 29) },
+				{ Type = "Barkbrute", Offset = Vector2.new(-1090, 63) },
+				{ Type = "Barkbrute", Offset = Vector2.new(-1104, 31) },
+				{ Type = "Barkbrute", Offset = Vector2.new(-1112, 5) },
+				{ Type = "Barkbrute", Offset = Vector2.new(-1076, 3) },
 
 				-- Pradera derecha (al este de las parcelas y los huevos)
 				{ Type = "Thornling", Offset = Vector2.new(88, 105) },

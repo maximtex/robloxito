@@ -21,6 +21,8 @@ local EggConfig = require(Shared.Config.EggConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local WaveConfig = require(Shared.Config.WaveConfig)
+local CaveConfig = require(Shared.Config.CaveConfig)
+local CaveLogic = require(Shared.CaveLogic)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
@@ -70,6 +72,18 @@ local function guideTarget(guide: string?): (Vector3?, string?)
 			return center + Vector3.new(settings.Offset.X, 6, settings.Offset.Y), settings.Zone
 		end
 		return nil, nil
+	elseif guide == "Cave" then
+		-- Fuera: la boca de la cueva. Dentro: el altar de las Oleadas del Guardián.
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		local inside = root ~= nil and root:IsA("BasePart") and CaveLogic.inside(root.Position.X, root.Position.Z, 4)
+		if inside then
+			local altar = CaveLogic.altarCenter()
+			if altar then
+				return Vector3.new(altar.X, GeneratorConfig.Position.Y + 6, altar.Y), CaveConfig.Zone
+			end
+		end
+		local mouth = CaveConfig.Entrance.Guide
+		return Vector3.new(mouth.X, GeneratorConfig.Position.Y + mouth.Y, mouth.Z), CaveConfig.Zone
 	end
 	local kind, id = guide:match("^(%a+):(%w+)$")
 	if kind == "Egg" then

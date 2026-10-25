@@ -10,9 +10,10 @@
 -- veterano con el Valle no repite nada: el tutorial se completa solo).
 -- Sin recompensas: las mismas acciones ya las premian las misiones.
 --
--- Guide: a dónde apunta la guía del cliente ("Crystal", "Waves" (el altar de las oleadas,
--- WaveConfig.Places), "Egg:<EggId>", "Arena:<zona del jefe>", "Portal:<PortalId>") o qué
--- parte de la interfaz se señala ("ArmoryButton", "PetsButton").
+-- Guide: a dónde apunta la guía del cliente ("Crystal", "Waves" (el altar de la práctica de
+-- las oleadas, WaveConfig.Places), "Cave" (la boca de la Cueva de los Espinillos y, dentro,
+-- el altar de las Oleadas del Guardián, CaveConfig), "Egg:<EggId>", "Arena:<zona del jefe>",
+-- "Portal:<PortalId>") o qué parte de la interfaz se señala ("ArmoryButton", "PetsButton").
 
 local TutorialConfig = {
 	Steps = {
@@ -44,11 +45,11 @@ local TutorialConfig = {
 		},
 		{
 			Id = "Boss",
-			Title = "Aguanta las oleadas del Guardián",
-			Text = "Vuelve al altar de las oleadas y aguanta las 10: en la última sale el Guardián. Avisa sus golpes en el suelo: apártate del círculo rojo. Regala un arma.",
+			Title = "Vence al Guardián en la cueva",
+			Text = "Entra en la 🦇 Cueva de los Espinillos (camino de piedra al oeste de la plaza), cruza la sala de los pequeños y la de los medianos y, en el altar, aguanta las 10 oleadas: en la última sale el Guardián. Apártate de los círculos rojos. Regala un arma.",
 			Goal = { Source = "Stat", Key = "BossKills" },
 			Target = 1,
-			Guide = "Waves",
+			Guide = "Cave",
 		},
 		{
 			Id = "Valley",

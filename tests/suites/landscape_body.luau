@@ -222,12 +222,12 @@ for _, key in { "Forest", "Valley", "Caldera" } do
 		if ZoneConfig.Portals[item.Name] then
 			continue
 		end
-		-- Los bichos de la Cueva de los Espinillos están fuera del círculo a propósito: el límite
-		-- deja un hueco ahí y las paredes de la cueva cierran (LandscapeService, ForestCave).
+		-- Los bichos de la Cueva de los Espinillos por dentro están lejos del mapa a propósito:
+		-- se llega por la boca de la colina (CaveConfig, CaveService).
 		local zoneCenter = ZoneConfig.Zones[settings.Zone].Center
 		local worldX = GeneratorConfig.Position.X + zoneCenter.X + item.X
 		local worldZ = GeneratorConfig.Position.Z + zoneCenter.Y + item.Z
-		if item.Name:sub(1, 5) == "Spawn" and StudFloor.inCave(worldX, worldZ) then
+		if item.Name:sub(1, 5) == "Spawn" and CaveLogic.inside(worldX, worldZ) then
 			continue
 		end
 		if math.sqrt(item.X ^ 2 + item.Z ^ 2) + item.R > settings.BoundaryRadius then

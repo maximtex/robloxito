@@ -164,6 +164,7 @@ check("enemigo inexistente rechazado", kill(vdata, "FakeDragon") == false and vd
 check("zona inexistente rechazada", kill(vdata, "Thornling", "Moon") == false)
 check("energía negativa, NaN, enorme o texto rechazada", not QuestLogic.record(vdata, { Type = "Energy", Amount = -50 }) and not QuestLogic.record(vdata, { Type = "Energy", Amount = 0 / 0 }) and not QuestLogic.record(vdata, { Type = "Energy", Amount = 1e12 }) and not QuestLogic.record(vdata, { Type = "Energy", Amount = "999" }) and vdata.Stats.EnergyEarned == 0)
 check("tipo de evento desconocido rechazado", QuestLogic.record(vdata, { Type = "Claim" }) == false and QuestLogic.record(vdata, nil) == false)
+check("partida de oleadas ganada: WaveWins (tutorial)", QuestLogic.record(vdata, { Type = "WaveWin" }) and vdata.Stats.WaveWins == 1 and QuestLogic.empty().Stats.WaveWins == 0)
 local bad = { {}, 42, "", ("A"):rep(200), "NoExiste", "FirstBlood" }
 local allInvalid = true
 for _, id in bad do

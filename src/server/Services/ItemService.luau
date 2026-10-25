@@ -1,6 +1,7 @@
 -- Artículos del inventario (🎒 Inventario, InventoryController). Todo lo decide el servidor:
 -- - Botín de los jefes: a cada jugador que recibe parte de la recompensa de un jefe, sus
---   pociones y, a veces, un huevo (ItemConfig.BossDrops).
+--   pociones y, a veces, un huevo (ItemConfig.BossDrops). Los demás enemigos (también los
+--   de las oleadas) a veces sueltan una poción (ItemConfig.EnemyDrops).
 -- - Pociones: tomar una (ItemAction "UsePotion") y quitarla al acabarse. Mientras dura, la
 --   aplican PlayerDataService (energía y daño mostrado), EnemyService (daño y dinero) y
 --   PetService (suerte de los huevos), leyendo ItemLogic.
@@ -180,8 +181,30 @@ end
 
 -- Botín de los jefes ------------------------------------------------------------------------
 
+-- Enemigo normal o fuerte: a veces una poción (el mismo aviso "Drop" que los jefes).
+local function onEnemyDrop(player: Player, info: { TypeId: string, Kind: string })
+	local potionId = ItemLogic.rollEnemyDrop(info.Kind, function()
+		return random:NextNumber()
+	end)
+	if not potionId then
+		return
+	end
+	local _, items = readyItems(player)
+	if not items or ItemLogic.addPotion(items, potionId, 1) <= 0 then
+		return
+	end
+	PlayerDataService.markDirty(player)
+	local def = EnemyConfig.Types[info.TypeId]
+	resultRemote:FireClient(player, true, Codes.Success, "Drop", {
+		Boss = if def then def.DisplayName else info.TypeId,
+		Potions = { potionId },
+	})
+	ItemService.push(player)
+end
+
 local function onDefeated(player: Player, info: { TypeId: string, Kind: string })
 	if info.Kind ~= "Boss" then
+		onEnemyDrop(player, info)
 		return
 	end
 	local _, items = readyItems(player)

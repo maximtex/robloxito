@@ -1,79 +1,122 @@
 -- Oleadas: la mecánica principal del rediseño "solo disparar".
--- Entras al círculo de una arena, pulsas E en el pedestal y te llegan hordas que te
--- rodean. Cada enemigo revienta en orbes de ⚡ y 💰 (EnemyService), matar sin parar sube
--- la racha, cada CardEvery oleadas eliges 1 de 3 mejoras que duran esa partida y en la
--- última oleada sale el jefe de la zona.
--- Lógica pura en WaveLogic; servidor en WaveService; cliente en WaveController.
+-- Delante del spawn, en la plaza, hay un círculo con un altar: pulsas E y empieza TU partida.
+-- Las partidas son PRIVADAS: mientras juegas, los enemigos normales desaparecen para ti (y
+-- no te atacan) y solo ves y golpeas los de tu partida; otros jugadores pueden jugar la suya
+-- en el mismo círculo a la vez sin verse los enemigos. Quien pulse E durante la cuenta atrás
+-- de otra partida se une a ella (para jugar con amigos).
+-- Cada enemigo revienta en orbes de ⚡ y 💰 (EnemyService), matar sin parar sube la racha,
+-- cada CardEvery oleadas eliges 1 de 3 mejoras que duran esa partida y en la última oleada
+-- sale el jefe (uno para cada partida).
+-- Lógica pura en WaveLogic; servidor en WaveService; cliente en WaveController y
+-- WaveVisibility (quién ve qué).
 --
 -- [PROVISIONAL] Todos los números son un primer balance para probar la sensación en
 -- Studio (enemigos y armas actuales del Bosque). Se ajustan jugando.
 
 local WaveConfig = {
-	-- Arenas de oleadas. La arena usa el círculo del jefe de su zona
-	-- (EnemyConfig.Zones.<Zone>.Boss.Arena): mismo centro y el mismo jefe para la última.
+	-- El círculo de las oleadas (uno para todas las partidas). Offset relativo al centro de
+	-- su zona, como el resto del mapa: (0, 15) es la plaza del pueblo, delante del spawn
+	-- (el spawn está en (0, 43) y mira hacia aquí).
+	Place = {
+		Zone = "Forest",
+		Offset = Vector2.new(0, 15),
+		-- Dentro de este radio se cuenta como dentro de la partida (con un margen al salir).
+		AreaRadius = 18,
+		-- Los enemigos salen en un anillo alrededor del altar (que está en el centro).
+		SpawnRadius = { Min = 8, Max = 15 },
+		-- Para pulsar E en el altar.
+		PromptDistance = 12,
+	},
+
+	-- Modos de partida. El altar elige el modo: "Tutorial" para quien está en ese paso del
+	-- tutorial (TutorialConfig, paso "Waves"); "Forest" para todos los demás.
 	Arenas = {
 		Forest = {
-			Zone = "Forest",
+			Zone = "Forest", -- de qué zona son los enemigos
 			DisplayName = "Oleadas del Guardián",
 			Boss = "ForestWarden",
-			-- El jefe ya no está siempre en su arena: solo sale en la última oleada.
+			-- El jefe ya no está siempre en su arena del Bosque: solo sale en la última oleada.
 			BossOnlyInWaves = true,
-			-- Radio (studs desde el centro de la arena) en el que se cuenta como dentro de la
-			-- partida y hasta donde persiguen los enemigos de las oleadas.
-			AreaRadius = 28,
-			-- Los enemigos salen en un anillo dentro del círculo de runas (radio 16).
-			SpawnRadius = { Min = 8, Max = 14 },
-			-- Pedestal para empezar: en la entrada de la arena, a esta distancia del centro.
-			PedestalDistance = 21,
-			-- Enemigos que se crean una vez y se reutilizan (como mucho estos de cada tipo).
-			Pool = { StarterThornling = 12, Thornling = 12, Barkbrute = 3 },
+			-- Enemigos que se crean una vez y se reutilizan (como mucho estos de cada tipo,
+			-- para TODAS las partidas a la vez).
+			Pool = { StarterThornling = 70, Thornling = 80, Barkbrute = 20, ForestWarden = 6 },
 			-- Oleadas 1..9: cuántos de cada tipo. La última (10) es el jefe con escolta.
 			Waves = {
-				{ StarterThornling = 8 },
-				{ StarterThornling = 11 },
-				{ StarterThornling = 8, Thornling = 4 },
-				{ StarterThornling = 6, Thornling = 8 },
-				{ Thornling = 10, Barkbrute = 1 },
-				{ StarterThornling = 10, Thornling = 8, Barkbrute = 1 },
-				{ Thornling = 14, Barkbrute = 2 },
+				{ StarterThornling = 10 },
+				{ StarterThornling = 12, Thornling = 2 },
+				{ StarterThornling = 10, Thornling = 6 },
+				{ StarterThornling = 8, Thornling = 10 },
+				{ Thornling = 12, Barkbrute = 1 },
 				{ StarterThornling = 12, Thornling = 10, Barkbrute = 2 },
-				{ Thornling = 16, Barkbrute = 3 },
+				{ Thornling = 16, Barkbrute = 2 },
+				{ StarterThornling = 14, Thornling = 12, Barkbrute = 3 },
+				{ Thornling = 20, Barkbrute = 4 },
 			},
-			BossEscort = { StarterThornling = 6 },
+			BossEscort = { StarterThornling = 6, Thornling = 2 },
+		},
+		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla.
+		Tutorial = {
+			Zone = "Forest",
+			DisplayName = "Oleada de práctica",
+			Tutorial = true,
+			Pool = { StarterThornling = 70, Thornling = 80 },
+			Waves = {
+				{ StarterThornling = 4 },
+				{ StarterThornling = 6 },
+				{ StarterThornling = 6, Thornling = 2 },
+			},
+			CardEvery = 2, -- una mejora tras la 2.ª, para aprender a elegir
+			VictoryScale = 0.2, -- premio de victoria más pequeño (es una práctica)
+			-- Consejos: al empezar (Countdown), al empezar cada oleada (su número) y al ganar
+			-- (Victory). Cómo elegir mejora lo explica siempre la propia ventana de cartas.
+			Hints = {
+				Countdown = "¡Los enemigos van a salir a tu alrededor! Tu arma dispara SOLA.",
+				[1] = "🔫 Tu arma dispara sola. Muévete (WASD) para que no te alcancen.",
+				[2] = "Cada enemigo suelta ⚡ y 💰. ¡Mata sin parar para subir la 🔥 RACHA!",
+				[3] = "¡Última oleada! Acaba con todos.",
+				Victory = "🏆 ¡Bien hecho! Las oleadas son la mejor forma de ganar ⚡: vuelve cuando quieras.",
+			},
 		},
 	},
 
+	-- Partidas a la vez en el servidor y jugadores por partida.
+	MaxRuns = 8,
+	MaxPlayersPerRun = 4,
+
 	-- Ritmo de la partida (segundos)
-	StartCountdown = 3,
-	BreakSeconds = 3, -- entre oleadas
-	CardSeconds = 12, -- para elegir mejora (luego se elige una al azar)
-	ResultSeconds = 6, -- antes de poder empezar otra
+	StartCountdown = 4, -- durante la cuenta atrás, quien pulse E se une
+	BreakSeconds = 1, -- entre oleadas
+	CardSeconds = 10, -- para elegir mejora (luego se elige una al azar)
 	LeaveGrace = 6, -- sin nadie dentro (o todos caídos) durante esto: se pierde
 	-- Aparición: de BatchSize en BatchSize cada SpawnInterval, sin pasar de MaxAlive vivos.
-	SpawnInterval = 0.9,
-	BatchSize = 3,
-	MaxAlive = 14,
+	SpawnInterval = 0.6,
+	BatchSize = 4,
+	MaxAlive = 18,
 	-- La escolta del jefe sale poco a poco mientras el jefe siga vivo.
-	EscortInterval = 9,
+	EscortInterval = 8,
 
 	-- Dificultad y premios por oleada (oleada w, n jugadores dentro):
 	--   vida = base · (1 + HealthGrowth · (w - 1)) · (1 + PlayerHealth · (n - 1))
 	--   botín = base · (1 + RewardGrowth · (w - 1))
-	HealthGrowth = 0.12,
+	HealthGrowth = 0.2,
 	PlayerHealth = 0.4,
 	RewardGrowth = 0.1,
 	-- Vida del jefe con varios jugadores (además de la de su configuración)
 	BossPlayerHealth = 0.6,
+	-- Dinero de los enemigos de las oleadas (golpes y derrota) frente a los del mundo: las
+	-- oleadas dan mucha ⚡ pero el 💰 se queda normal.
+	MoneyMultiplier = 0.4,
 
-	-- Premio al limpiar cada oleada (para cada jugador dentro), por el número de la oleada:
-	--   ⚡ = ClearEnergy · w · poder de energía     💰 = ClearMoney · w
-	ClearEnergy = 4,
-	ClearMoney = 40,
+	-- Premio al limpiar cada oleada (para cada jugador de la partida), por el número de la
+	-- oleada:  ⚡ = ClearEnergy · w · poder de energía     💰 = ClearMoney · w
+	ClearEnergy = 6,
+	ClearMoney = 15,
 	-- Premio de victoria (además del botín del jefe y su arma la primera vez):
-	VictoryEnergy = 120, -- · poder de energía
-	VictoryMoney = 1500,
+	VictoryEnergy = 150, -- · poder de energía
+	VictoryMoney = 600,
 
-	-- Mejoras cada CardEvery oleadas (tras la 3, la 6 y la 9), 1 de CardChoices.
+	-- Mejoras cada CardEvery oleadas (tras la 3, la 6 y la 9), 1 de CardChoices. Cada modo
+	-- puede cambiar CardEvery.
 	CardEvery = 3,
 	CardChoices = 3,
 

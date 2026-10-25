@@ -34,6 +34,10 @@ function EnemyService.damage(enemy, player, amount)
 	end
 	return dealt, killed
 end
+-- Oleadas privadas: en estas pruebas todos están en el mundo normal
+function EnemyService.canInteract(player, enemy)
+	return enemy ~= nil
+end
 function EnemyService.findInRadius(center, radius, maxTargets)
 	local candidates, byId = {}, {}
 	for _, enemy in enemyList do

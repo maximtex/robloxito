@@ -10,18 +10,21 @@
 -- veterano con el Valle no repite nada: el tutorial se completa solo).
 -- Sin recompensas: las mismas acciones ya las premian las misiones.
 --
--- Guide: a dónde apunta la guía del cliente ("Crystal", "Egg:<EggId>", "Arena:<zona del
--- jefe>", "Portal:<PortalId>") o qué parte de la interfaz se señala ("ArmoryButton",
--- "PetsButton").
+-- Guide: a dónde apunta la guía del cliente ("Crystal", "Waves" (el altar de las oleadas,
+-- WaveConfig.Place), "Egg:<EggId>", "Arena:<zona del jefe>", "Portal:<PortalId>") o qué
+-- parte de la interfaz se señala ("ArmoryButton", "PetsButton").
 
 local TutorialConfig = {
 	Steps = {
 		{
-			Id = "Hunt",
-			Title = "Derrota enemigos",
-			Text = "Sal del pueblo y haz clic en un enemigo para dispararle (o pulsa F / \"Disparar\" para el más cercano). Derrota 3 y recoge su 💰.",
-			Goal = { Source = "Stat", Key = "Kills" },
-			Target = 3,
+			-- Primer paso: la mecánica principal. El altar le da una partida corta de práctica
+			-- (WaveConfig.Arenas.Tutorial) con consejos en pantalla.
+			Id = "Waves",
+			Title = "Juega tu primera oleada",
+			Text = "Ve al círculo brillante delante de ti y pulsa E en el altar. Tu arma dispara sola: aguanta 3 oleadas cortas.",
+			Goal = { Source = "Stat", Key = "WaveWins" },
+			Target = 1,
+			Guide = "Waves",
 		},
 		{
 			Id = "Weapon",
@@ -42,10 +45,10 @@ local TutorialConfig = {
 		{
 			Id = "Boss",
 			Title = "Aguanta las oleadas del Guardián",
-			Text = "En el Círculo del Guardián pulsa E en el pedestal: aguanta 10 oleadas y en la última sale el Guardián. Avisa sus golpes en el suelo: apártate del círculo rojo. Regala un arma.",
+			Text = "Vuelve al altar de las oleadas y aguanta las 10: en la última sale el Guardián. Avisa sus golpes en el suelo: apártate del círculo rojo. Regala un arma.",
 			Goal = { Source = "Stat", Key = "BossKills" },
 			Target = 1,
-			Guide = "Arena:Forest",
+			Guide = "Waves",
 		},
 		{
 			Id = "Valley",

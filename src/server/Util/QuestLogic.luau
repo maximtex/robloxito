@@ -57,7 +57,8 @@ export type Context = {
 	Rebirths: number?, -- renacimientos hechos (sin el campo cuenta como 0)
 }
 
-local STAT_KEYS = { "Kills", "StrongKills", "BossKills", "EnergyEarned", "PetAbilities" }
+-- WaveWins: partidas de oleadas ganadas (también la de práctica del tutorial).
+local STAT_KEYS = { "Kills", "StrongKills", "BossKills", "EnergyEarned", "PetAbilities", "WaveWins" }
 local MAX_NUMBER = 1e15
 local MAX_SET = 500
 local MAX_MAP = 64
@@ -286,6 +287,7 @@ end
 
 -- event = { Type = "Kill", TypeId, ZoneId } | { Type = "Energy", Amount } | { Type = "PetAbility" }
 --   | { Type = "Upgrade" } (mejora de Resonancia comprada) | { Type = "Egg" } (huevo abierto)
+--   | { Type = "WaveWin" } (partida de oleadas ganada)
 -- Devuelve true si el evento era válido y se registró.
 function QuestLogic.record(data: QuestData, event: any): boolean
 	if type(event) ~= "table" then
@@ -316,6 +318,8 @@ function QuestLogic.record(data: QuestData, event: any): boolean
 		stats.EnergyEarned = math.min(stats.EnergyEarned + amount, MAX_NUMBER)
 	elseif event.Type == "PetAbility" then
 		stats.PetAbilities += 1
+	elseif event.Type == "WaveWin" then
+		stats.WaveWins += 1
 	elseif event.Type == "Upgrade" or event.Type == "Egg" then
 		-- Solo cuentan para las diarias de hoy (sin estadística permanente).
 	else

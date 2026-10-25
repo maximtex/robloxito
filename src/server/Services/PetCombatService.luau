@@ -280,7 +280,7 @@ local function fire(player: Player, root: BasePart, target: any, stats, mods: an
 	local splashRadius = nil
 	if effect.Splash then
 		splashRadius = effect.Splash.Radius
-		for _, other in EnemyService.findInRadius(targetPosition, effect.Splash.Radius, MAX_EFFECT_TARGETS) do
+		for _, other in EnemyService.findInRadius(targetPosition, effect.Splash.Radius, MAX_EFFECT_TARGETS, player) do
 			if other ~= target then
 				hitWith(player, other, stats.Shot * effect.Splash.Fraction, effect.Slow, hits)
 			end
@@ -293,7 +293,7 @@ local function fire(player: Player, root: BasePart, target: any, stats, mods: an
 		local from = targetPosition
 		for _ = 1, effect.Chain.Count do
 			local nextEnemy = nil
-			for _, candidate in EnemyService.findInRadius(from, effect.Chain.Range, MAX_EFFECT_TARGETS) do
+			for _, candidate in EnemyService.findInRadius(from, effect.Chain.Range, MAX_EFFECT_TARGETS, player) do
 				if not visited[candidate] then
 					nextEnemy = candidate
 					break
@@ -344,6 +344,7 @@ function PetCombatService.step(now: number)
 		local target = state.Target
 		if target then
 			local valid = EnemyService.isAlive(target)
+				and EnemyService.canInteract(player, target) -- al entrar o salir de una oleada privada
 				and (if state.Manual then flatDistance(root.Position, target.Root.Position) <= MAX_ENGAGE_RANGE else inReach(root, target, stats.Range + RANGE_SLACK))
 			if not valid then
 				clearTarget(player, state)
@@ -351,7 +352,7 @@ function PetCombatService.step(now: number)
 			end
 		end
 		if not target and auto then
-			target = EnemyService.findInRadius(root.Position, stats.Range, 1)[1]
+			target = EnemyService.findInRadius(root.Position, stats.Range, 1, player)[1]
 			if target then
 				setTarget(state, target, false)
 			end
@@ -392,7 +393,7 @@ function PetCombatService.step(now: number)
 				if twin <= 0 or math.random() >= twin then
 					break
 				end
-				local other = if EnemyService.isAlive(target) then target else EnemyService.findInRadius(root.Position, stats.Range, 1)[1]
+				local other = if EnemyService.isAlive(target) then target else EnemyService.findInRadius(root.Position, stats.Range, 1, player)[1]
 				if other and inReach(root, other, stats.Range) then
 					fire(player, root, other, stats, mods)
 				end
@@ -440,7 +441,7 @@ function PetCombatService.start()
 
 	-- Clic en un enemigo (CombatService) o golpe de una habilidad: pasa a ser el objetivo
 	CombatService.onPlayerHit(function(player: Player, enemy: any)
-		if EnemyService.isAlive(enemy) then
+		if EnemyService.isAlive(enemy) and EnemyService.canInteract(player, enemy) then
 			setTarget(stateOf(player), enemy, true)
 		end
 	end)
@@ -456,8 +457,8 @@ function PetCombatService.start()
 			end
 			local range = PlayerDataService.combatStats(profile).Range
 			local target = state.Target
-			if not (target and EnemyService.isAlive(target) and inReach(root, target, range)) then
-				local nearest = EnemyService.findInRadius(root.Position, range, 1)[1]
+			if not (target and EnemyService.isAlive(target) and EnemyService.canInteract(player, target) and inReach(root, target, range)) then
+				local nearest = EnemyService.findInRadius(root.Position, range, 1, player)[1]
 				if not nearest then
 					return
 				end
@@ -469,6 +470,9 @@ function PetCombatService.start()
 		state.ShotRequestedAt = os.clock()
 	end)
 	EnemyService.onClicked(function(player: Player, enemy: any)
+		if not EnemyService.canInteract(player, enemy) then
+			return
+		end
 		setTarget(stateOf(player), enemy, true)
 	end)
 	-- Insignia AUTO (o V): enciende o apaga el disparo automático, solo con el pase

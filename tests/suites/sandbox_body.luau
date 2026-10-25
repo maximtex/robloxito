@@ -56,11 +56,9 @@ check("atributo TestMode para el aviso y tutorial activo en el paso 1", me:GetAt
 advance(1)
 local oneSecond = if EconomyConfig.PassiveEnergy == false then 0 else profile.ProductionPerSecond -- sin energía pasiva, nada
 check("los 3000 iniciales NO cuentan como generados (solo la producción de 1 s; paso 1 sin hacer)", math.abs(profile.PetData.Quests.Stats.EnergyEarned - oneSecond) < 1e-9 and me:GetAttribute("TutorialStep") == 0)
-for _ = 1, 3 do
-	defeat(me, "Thornling")
-end
+GameEvents.fire("WaveWon", me, "Tutorial") -- lo que hace WaveService al ganar la práctica
 advance(1)
-check("tras derrotar 3 enemigos: paso 1 hecho", me:GetAttribute("TutorialStep") == 1)
+check("tras ganar la oleada de práctica: paso 1 hecho", me:GetAttribute("TutorialStep") == 1)
 advance(0.5)
 fireServer("PurchaseUpgrade", me, "GeneratorPower")
 profile.PetData.Weapons.Levels.Laser = 1

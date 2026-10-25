@@ -19,36 +19,79 @@ local function near(a, b)
 	return math.abs(a - b) < 1e-9
 end
 
-print("-- Configuración de las arenas")
+print("-- El círculo de las oleadas")
+local place = WaveConfig.Place
+local zone = ZoneConfig.Zones[place.Zone]
+check("su zona existe", zone ~= nil)
+check("los enemigos salen dentro del círculo", place.SpawnRadius.Min > 0 and place.SpawnRadius.Max > place.SpawnRadius.Min and place.SpawnRadius.Max < place.AreaRadius)
+check("el altar se usa desde dentro del círculo", place.PromptDistance > 0 and place.PromptDistance < place.AreaRadius)
+check("el círculo cabe en su zona", math.abs(place.Offset.X) + place.AreaRadius < zone.Radius and math.abs(place.Offset.Y) + place.AreaRadius < zone.Radius)
+local function distance(a, b)
+	return math.sqrt((a.X - b.X) ^ 2 + (a.Y - b.Y) ^ 2)
+end
+local portalsClear = true
+for _, portal in ZoneConfig.Portals do
+	if portal.Zone == place.Zone and distance(portal.Offset, place.Offset) < place.AreaRadius + 20 then
+		portalsClear = false
+	end
+end
+check("lejos de los portales de su zona", portalsClear)
+local bossArena = EnemyConfig.Zones[place.Zone] and EnemyConfig.Zones[place.Zone].Boss and EnemyConfig.Zones[place.Zone].Boss.Arena
+check("no pisa la arena del jefe de la zona", bossArena == nil or distance(bossArena.Center, place.Offset) > bossArena.Radius + place.AreaRadius)
+check("partidas a la vez y jugadores por partida", WaveConfig.MaxRuns >= 1 and WaveConfig.MaxPlayersPerRun >= 1)
+check("el dinero de las oleadas se queda normal (multiplicador entre 0 y 1)", WaveConfig.MoneyMultiplier > 0 and WaveConfig.MoneyMultiplier <= 1)
+
+print("-- Modos")
 local arena = WaveConfig.Arenas.Forest
-check("existe la arena del Bosque", arena ~= nil)
+check("existe el modo del Bosque", arena ~= nil)
 check("su zona existe", ZoneConfig.Zones[arena.Zone] ~= nil)
-local zoneEnemies = EnemyConfig.Zones[arena.Zone]
-check("su zona tiene jefe con arena", zoneEnemies ~= nil and zoneEnemies.Boss ~= nil and zoneEnemies.Boss.Arena ~= nil)
-check("el jefe de las oleadas es el de la zona y es un jefe", arena.Boss == zoneEnemies.Boss.Type and EnemyConfig.Types[arena.Boss].Kind == "Boss")
+check("el jefe de las oleadas es un jefe que existe, con sitio en la reserva", EnemyConfig.Types[arena.Boss] ~= nil and EnemyConfig.Types[arena.Boss].Kind == "Boss" and (arena.Pool[arena.Boss] or 0) >= 1)
 local typesOK, poolOK = true, true
-local function checkTypes(counts)
+local function checkTypes(mode, counts)
 	for typeId, count in counts do
 		local def = EnemyConfig.Types[typeId]
 		if not (def and def.Kind ~= "Boss" and count > 0) then
 			typesOK = false
 		end
-		if not (arena.Pool[typeId] and arena.Pool[typeId] >= 1) then
+		if not (mode.Pool[typeId] and mode.Pool[typeId] >= 1) then
 			poolOK = false
 		end
 	end
 end
-for _, counts in arena.Waves do
-	checkTypes(counts)
+for _, mode in WaveConfig.Arenas do
+	for _, counts in mode.Waves do
+		checkTypes(mode, counts)
+	end
+	checkTypes(mode, mode.BossEscort or {})
 end
-checkTypes(arena.BossEscort)
 check("las oleadas solo piden enemigos normales o fuertes que existen", typesOK)
 check("cada tipo de las oleadas tiene sitio en la reserva", poolOK)
-local bossRadius = zoneEnemies.Boss.Arena.Radius
-check("los enemigos salen dentro del círculo del jefe", arena.SpawnRadius.Min > 0 and arena.SpawnRadius.Max > arena.SpawnRadius.Min and arena.SpawnRadius.Max < bossRadius)
-check("el área de la partida es más grande que el círculo", arena.AreaRadius > bossRadius)
-check("el pedestal queda fuera del círculo pero dentro del área", arena.PedestalDistance > bossRadius and arena.PedestalDistance < arena.AreaRadius)
 check("10 oleadas: 9 de hordas y la del jefe", WaveLogic.waveCount("Forest") == 10 and WaveLogic.isBossWave("Forest", 10) and not WaveLogic.isBossWave("Forest", 9))
+
+local practice = WaveConfig.Arenas.Tutorial
+check("existe la práctica del tutorial", practice ~= nil and practice.Tutorial == true)
+check("la práctica: 3 oleadas y sin jefe", WaveLogic.waveCount("Tutorial") == 3 and not WaveLogic.isBossWave("Tutorial", 3))
+check("la práctica: mejora tras la 2 (no tras la última)", WaveLogic.isCardWave("Tutorial", 2) and not WaveLogic.isCardWave("Tutorial", 3) and not WaveLogic.isCardWave("Tutorial", 1))
+local easier = true
+local firstForest = 0
+for typeId, count in arena.Waves[1] do
+	firstForest += EnemyConfig.Types[typeId].MaxHealth * count
+end
+local practiceFirst = 0
+for typeId, count in practice.Waves[1] do
+	practiceFirst += EnemyConfig.Types[typeId].MaxHealth * count
+end
+check("la práctica empieza más fácil que el modo normal", practiceFirst < firstForest)
+local hintsOK = WaveLogic.hint("Tutorial", "Countdown") ~= nil and WaveLogic.hint("Tutorial", "Victory") ~= nil
+for wave = 1, #practice.Waves do
+	if not WaveLogic.hint("Tutorial", wave) then
+		hintsOK = false
+	end
+end
+check("la práctica explica cada momento (consejos)", hintsOK and easier)
+check("el modo normal no tiene consejos y lo raro no falla", WaveLogic.hint("Forest", 1) == nil and WaveLogic.hint("Nada", "Countdown") == nil)
+local practiceE, practiceM = WaveLogic.victoryReward(2, "Tutorial")
+check("la práctica da un premio de victoria más pequeño", practiceE == math.floor(WaveConfig.VictoryEnergy * 2 * practice.VictoryScale) and practiceM == math.floor(WaveConfig.VictoryMoney * practice.VictoryScale) and practiceE < WaveLogic.victoryReward(2, "Forest"))
 check("una arena que no existe no tiene oleadas", WaveLogic.waveCount("Nada") == 0)
 local growing = true
 local previous = 0
@@ -77,9 +120,19 @@ for typeId, count in arena.Waves[9] do
 		exact = false
 	end
 end
-check("salen exactamente los de la oleada", exact and #list == 19)
+local expected = 0
+for _, count in arena.Waves[9] do
+	expected += count
+end
+check("salen exactamente los de la oleada", exact and #list == expected)
 local firstBrute = table.find(list, "Barkbrute")
-check("los fuertes no salen todos al principio", firstBrute ~= nil and firstBrute > 2)
+local lastBrute = 0
+for index, typeId in list do
+	if typeId == "Barkbrute" then
+		lastBrute = index
+	end
+end
+check("los fuertes no salen todos al principio (repartidos por la oleada)", firstBrute ~= nil and firstBrute > 1 and lastBrute > #list / 2)
 local again = WaveLogic.spawnList("Forest", 9, sequence({ 0.1, 0.9, 0.5, 0.3 }))
 local same = #again == #list
 for index = 1, #list do

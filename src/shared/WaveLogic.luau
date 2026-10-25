@@ -36,14 +36,18 @@ function WaveLogic.arena(arenaId: string): any?
 	return WaveConfig.Arenas[arenaId]
 end
 
--- Número total de oleadas de una arena (las de hordas + la del jefe).
+-- Número total de oleadas de un modo (las de hordas + la del jefe, si tiene).
 function WaveLogic.waveCount(arenaId: string): number
 	local arena = WaveConfig.Arenas[arenaId]
-	return if arena then #arena.Waves + 1 else 0
+	if not arena then
+		return 0
+	end
+	return #arena.Waves + (if arena.Boss then 1 else 0)
 end
 
 function WaveLogic.isBossWave(arenaId: string, wave: number): boolean
-	return wave == WaveLogic.waveCount(arenaId)
+	local arena = WaveConfig.Arenas[arenaId]
+	return arena ~= nil and arena.Boss ~= nil and wave == WaveLogic.waveCount(arenaId)
 end
 
 -- Enemigos de una oleada de hordas, en orden de aparición: los tipos se reparten a lo
@@ -106,15 +110,29 @@ function WaveLogic.clearReward(wave: number, power: number): (number, number)
 	return math.floor(WaveConfig.ClearEnergy * w * p), math.floor(WaveConfig.ClearMoney * w)
 end
 
-function WaveLogic.victoryReward(power: number): (number, number)
+-- Premio de victoria (⚡, 💰) con un poder de energía `power`; cada modo puede escalarlo
+-- (VictoryScale: la práctica del tutorial da menos).
+function WaveLogic.victoryReward(power: number, arenaId: string?): (number, number)
 	local p = math.max(1, positive(power))
-	return math.floor(WaveConfig.VictoryEnergy * p), math.floor(WaveConfig.VictoryMoney)
+	local arena = arenaId and WaveConfig.Arenas[arenaId]
+	local scale = if arena and arena.VictoryScale ~= nil then positive(arena.VictoryScale) else 1
+	return math.floor(WaveConfig.VictoryEnergy * p * scale), math.floor(WaveConfig.VictoryMoney * scale)
 end
 
--- ¿Toca elegir mejora al terminar la oleada `wave`? (nunca tras la del jefe)
+-- ¿Toca elegir mejora al terminar la oleada `wave`? (nunca tras la última)
 function WaveLogic.isCardWave(arenaId: string, wave: number): boolean
-	local every = WaveConfig.CardEvery
+	local arena = WaveConfig.Arenas[arenaId]
+	local every = if arena and arena.CardEvery then arena.CardEvery else WaveConfig.CardEvery
 	return every > 0 and wave >= 1 and wave % every == 0 and wave < WaveLogic.waveCount(arenaId)
+end
+
+-- Consejo de un modo para un momento de la partida ("Countdown", "Cards", "Victory" o el
+-- número de la oleada que empieza). nil si no tiene.
+function WaveLogic.hint(arenaId: string, key: any): string?
+	local arena = WaveConfig.Arenas[arenaId]
+	local hints = arena and arena.Hints
+	local text = hints and hints[key]
+	return if type(text) == "string" then text else nil
 end
 
 -- Mejoras ------------------------------------------------------------------------------

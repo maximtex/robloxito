@@ -271,7 +271,7 @@ local function applyReaction(ctx: Context, entry: any)
 	burst.Reactions = {}
 	burst.NoReactions = true
 	local radius = reaction.Radius or 0
-	local around = if radius > 0 then EnemyService.findInRadius(center, radius, MAX_REACTION_TARGETS) else {}
+	local around = if radius > 0 then EnemyService.findInRadius(center, radius, MAX_REACTION_TARGETS, ctx.Player) else {}
 	if reaction.BurstRatio then
 		local amount = damageOf(ctx, reaction.BurstRatio)
 		for _, other in around do
@@ -331,7 +331,7 @@ local EXECUTE: { [string]: (Context) -> boolean } = {}
 function EXECUTE.Roots(ctx: Context): boolean
 	local ability = ctx.Ability
 	local center = ctx.Root.Position
-	for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets) do
+	for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets, ctx.Player) do
 		local _, killed = hit(ctx, enemy, damageOf(ctx, ability.DamageRatio))
 		if not killed then
 			control(enemy, "Root", ability.RootSeconds)
@@ -354,7 +354,7 @@ function EXECUTE.Heal(ctx: Context): boolean
 			end
 		end
 	end
-	for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets) do
+	for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets, ctx.Player) do
 		hit(ctx, enemy, damageOf(ctx, ability.DamageRatio))
 	end
 	emit(ctx, center, { Kind = "Heal", Center = center, Radius = ability.Radius, AllyRadius = ability.AllyRadius, Healed = healed, Hits = ctx.Hits })
@@ -365,7 +365,7 @@ function EXECUTE.Burn(ctx: Context): boolean
 	local ability = ctx.Ability
 	local origin, look = ctx.Root.Position, flatLook(ctx.Root)
 	local tick = damageOf(ctx, ability.BurnRatioPerTick)
-	for _, enemy in EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, ability.MaxTargets) do
+	for _, enemy in EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, ability.MaxTargets, ctx.Player) do
 		local _, killed = hit(ctx, enemy, damageOf(ctx, ability.DamageRatio))
 		if not killed then
 			addBurn(ctx.Player, enemy, tick, ability)
@@ -379,7 +379,7 @@ end
 function EXECUTE.Gust(ctx: Context): boolean
 	local ability = ctx.Ability
 	local origin, look = ctx.Root.Position, flatLook(ctx.Root)
-	for _, enemy in EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, ability.MaxTargets) do
+	for _, enemy in EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, ability.MaxTargets, ctx.Player) do
 		hit(ctx, enemy, damageOf(ctx, ability.DamageRatio))
 	end
 	haste(ctx.Player, ctx.State, ctx.Humanoid, ability.HasteBonus, ability.HasteSeconds)
@@ -390,14 +390,14 @@ end
 function EXECUTE.Chain(ctx: Context): boolean
 	local ability = ctx.Ability
 	local origin, look = ctx.Root.Position, flatLook(ctx.Root)
-	local first = EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, 1)[1]
+	local first = EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, 1, ctx.Player)[1]
 	if not first then
 		return false
 	end
 	-- Candidatos para los saltos: los vivos alrededor del primero.
 	local byId = { [first.Id] = first }
 	local candidates = { { Id = first.Id, X = first.Root.Position.X, Z = first.Root.Position.Z, Radius = first.Radius, Alive = true } }
-	for _, enemy in EnemyService.findInRadius(first.Root.Position, ability.JumpRange * ability.Jumps, MAX_POOL) do
+	for _, enemy in EnemyService.findInRadius(first.Root.Position, ability.JumpRange * ability.Jumps, MAX_POOL, ctx.Player) do
 		if not byId[enemy.Id] then
 			byId[enemy.Id] = enemy
 			table.insert(candidates, { Id = enemy.Id, X = enemy.Root.Position.X, Z = enemy.Root.Position.Z, Radius = enemy.Radius, Alive = true })
@@ -421,7 +421,7 @@ end
 function EXECUTE.Frost(ctx: Context): boolean
 	local ability = ctx.Ability
 	local center = ctx.Root.Position
-	for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets) do
+	for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets, ctx.Player) do
 		local _, killed = hit(ctx, enemy, damageOf(ctx, ability.DamageRatio))
 		if not killed then
 			control(enemy, "Slow", ability.SlowSeconds, ability.SlowFactor)
@@ -434,7 +434,7 @@ end
 function EXECUTE.Curse(ctx: Context): boolean
 	local ability = ctx.Ability
 	local origin, look = ctx.Root.Position, flatLook(ctx.Root)
-	local primary = EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, 1)[1]
+	local primary = EnemyService.findTargets(origin, look, ability.Range, ability.ArcDot, 1, ctx.Player)[1]
 	if not primary then
 		return false
 	end
@@ -442,7 +442,7 @@ function EXECUTE.Curse(ctx: Context): boolean
 	-- Primero el golpe (sin el bonus de su propia marca) y después la marca.
 	hit(ctx, primary, damageOf(ctx, ability.DamageRatio))
 	local marked = {}
-	for _, enemy in EnemyService.findInRadius(center, ability.SpreadRadius, ability.MaxTargets) do
+	for _, enemy in EnemyService.findInRadius(center, ability.SpreadRadius, ability.MaxTargets, ctx.Player) do
 		if EnemyService.applyControl(enemy, "Vulnerable", ability.CurseSeconds, ability.VulnerableBonus) then
 			table.insert(marked, enemy.Root.Position)
 		end
@@ -464,7 +464,7 @@ function EXECUTE.Starfall(ctx: Context): boolean
 				return
 			end
 			ctx.Hits = {}
-			for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets) do
+			for _, enemy in EnemyService.findInRadius(center, ability.Radius, ability.MaxTargets, ctx.Player) do
 				hit(ctx, enemy, damageOf(ctx, ability.DamageRatio), center)
 			end
 			emit(ctx, center, { Kind = "StarfallWave", Center = center, Radius = ability.Radius, Wave = wave, Hits = ctx.Hits })

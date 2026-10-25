@@ -225,6 +225,17 @@ function ItemLogic.rollBossDrop(typeId: string, random: () -> number, eggs: { [s
 	return drop
 end
 
+-- Botín de un enemigo que no es jefe: una poción al azar con la probabilidad de su Kind
+-- (ItemConfig.EnemyDrops), o nil.
+function ItemLogic.rollEnemyDrop(kind: string, random: () -> number): string?
+	local chance = ItemConfig.EnemyDrops and ItemConfig.EnemyDrops[kind]
+	if type(chance) ~= "number" or chance <= 0 or random() >= chance then
+		return nil
+	end
+	local order = ItemLogic.potionOrder()
+	return order[math.clamp(math.floor(random() * #order) + 1, 1, #order)]
+end
+
 -- Títulos ---------------------------------------------------------------------------------
 
 export type Stats = {

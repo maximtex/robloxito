@@ -3,11 +3,13 @@
 --   que quede (hasta MaxBoostSeconds). El tiempo solo corre mientras se juega.
 -- - Huevos guardados: los sueltan los jefes y se abren desde el inventario, sin coste.
 -- - Títulos: se ganan con logros y el equipado se ve encima de la cabeza (lo ven todos).
--- - Botín de los jefes (BossDrops): a cada jugador que recibe parte de la recompensa.
+-- - Botín de los jefes (BossDrops): a cada jugador que recibe parte de la recompensa. Los
+--   demás enemigos (también los de las oleadas) a veces sueltan una poción (EnemyDrops).
 
 local ItemConfig = {
 	-- Pociones. Multiplier: lo que multiplica mientras dura (ItemLogic.multiplier).
-	--   Energy  producción de energía (PlayerDataService.recalculateProduction)
+	--   Energy  ⚡ de los enemigos y de los premios de las oleadas (EnemyService, WaveService)
+	--           y la producción por segundo si la hay (PlayerDataService.recalculateProduction)
 	--   Damage  todo el daño del jugador: disparos, habilidades y mascotas (EnemyService.damage)
 	--   Money   dinero de los enemigos (EnemyService: lootMultiplier)
 	--   Luck    sorteo de los huevos: se tira LuckRolls veces y se queda el mejor (PetService)
@@ -15,7 +17,7 @@ local ItemConfig = {
 		Energy = {
 			DisplayName = "Poción de Energía",
 			Short = "x2 Energía",
-			Description = "Duplica la energía que generas.",
+			Description = "Duplica la ⚡ que sueltan los enemigos y las oleadas.",
 			Icon = "⚡",
 			Color = Color3.fromRGB(255, 196, 48),
 			Multiplier = 2,
@@ -68,6 +70,9 @@ local ItemConfig = {
 		AmethystColossus = { Potions = 1, EggChance = 0.25, Egg = "CrystalEgg" },
 		CalderaTitan = { Potions = 1, EggChance = 0.25, Egg = "MagmaEgg" },
 	},
+	-- Los demás enemigos: probabilidad (0..1) de soltar una poción al azar, según su Kind
+	-- (EnemyConfig). Más o menos 1 de cada 200 normales y 1 de cada 50 fuertes.
+	EnemyDrops = { Normal = 0.005, Strong = 0.02 },
 
 	-- Huevos guardados: nombre y color en el inventario (si el huevo no los tiene en EggConfig).
 	EggLooks = {

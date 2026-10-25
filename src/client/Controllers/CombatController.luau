@@ -41,6 +41,7 @@ local Toasts = require(script.Parent.Parent.UI.Toasts)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local HudDock = require(script.Parent.Parent.UI.HudDock)
 local EnemyAnimator = require(script.Parent.EnemyAnimator)
+local WaveVisibility = require(script.Parent.WaveVisibility)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
@@ -246,7 +247,8 @@ local function enemiesInRange(origin: Vector3): { { Model: Model, Position: Vect
 		for _, model in zoneFolder:GetChildren() do
 			local enemyRoot = model:IsA("Model") and model:FindFirstChild("HumanoidRootPart")
 			local health = model:GetAttribute("Health")
-			if enemyRoot and enemyRoot:IsA("BasePart") and (health == nil or health > 0) and model:GetAttribute("DiedAt") == nil then
+			-- Oleadas privadas: solo los de mi "mundo" (WaveVisibility)
+			if enemyRoot and enemyRoot:IsA("BasePart") and (health == nil or health > 0) and model:GetAttribute("DiedAt") == nil and WaveVisibility.isVisible(model) then
 				local offset = enemyRoot.Position - origin
 				if Vector2.new(offset.X, offset.Z).Magnitude <= SELECT_RANGE then
 					table.insert(list, { Model = model, Position = enemyRoot.Position })
@@ -1385,6 +1387,7 @@ function CombatController.start()
 	-- Animación de enemigos y entrada de los jefes (aviso solo si estás cerca de su arena).
 	EnemyAnimator.start({
 		SpawnSound = CombatConfig.Sounds.BossSpawn,
+		IsVisible = WaveVisibility.isVisible,
 		OnBossSpawn = function(model: Model)
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -1412,7 +1415,7 @@ function CombatController.start()
 			if root and root:IsA("BasePart") and enemiesFolder then
 				for _, zoneFolder in enemiesFolder:GetChildren() do
 					for _, model in zoneFolder:GetChildren() do
-						if model:IsA("Model") and model:GetAttribute("Kind") == "Boss" then
+						if model:IsA("Model") and model:GetAttribute("Kind") == "Boss" and WaveVisibility.isVisible(model) then
 							local center = model:GetAttribute("ArenaCenter")
 							local radius = model:GetAttribute("ArenaRadius")
 							local health = model:GetAttribute("Health")

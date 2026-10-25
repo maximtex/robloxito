@@ -1,21 +1,26 @@
--- Oleadas: la mecánica principal (WaveConfig). Una partida por arena, para todos los que
--- estén dentro:
--- 1. Se empieza con E en el pedestal de la entrada (ProximityPrompt) o con WaveAction
---    ("Start"). Cuenta atrás y entran en la partida los jugadores dentro del círculo
---    (AreaRadius); quien entre después también se suma.
--- 2. Oleadas de hordas (WaveLogic.spawnList): los enemigos salen de la reserva de
+-- Oleadas: la mecánica principal (WaveConfig). Partidas PRIVADAS en el círculo de la plaza,
+-- delante del spawn:
+-- 1. Se empieza con E en el altar del centro (ProximityPrompt) o con WaveAction ("Start").
+--    Cada jugador juega SU partida; quien pulse E durante la cuenta atrás de otra (del mismo
+--    modo) se une a ella, para jugar con amigos. Varias partidas pueden ir a la vez.
+-- 2. Mientras juegas, el resto de enemigos desaparece para ti y no te ataca: solo ves y
+--    golpeas los de tu partida (atributo WaveRun en el jugador y en los enemigos;
+--    EnemyService filtra y el cliente oculta, WaveVisibility).
+-- 3. Oleadas de hordas (WaveLogic.spawnList): los enemigos salen de la reserva de
 --    EnemyService (spawnPooled) de pocos en pocos, con más vida cuanto más avanzada la
---    oleada y cuantos más jugadores; persiguen a todo el que esté dentro. Al limpiar una
---    oleada, premio para todos (WaveLogic.clearReward).
--- 3. Tras la 3, la 6 y la 9, cada jugador elige 1 de 3 mejoras (WaveLogic.rollCards) que
---    duran la partida: el arma (PetCombatService.setShotModifier), el botín y la racha
+--    oleada y cuantos más jugadores. Al limpiar una oleada, premio para todos.
+-- 4. Cada pocas oleadas, cada jugador elige 1 de 3 mejoras (WaveLogic.rollCards) que duran
+--    la partida: el arma (PetCombatService.setShotModifier), el botín y la racha
 --    (EnemyService.setKillModifier), y explosiones y curación al matar (aquí).
--- 4. La última oleada despierta al jefe de la zona (EnemyService.wakeBoss) con escolta. Si
---    cae: victoria y premio (WaveLogic.victoryReward), además de su botín de siempre
---    (BossRewardService: cuenta para abrir la zona siguiente y su arma la primera vez).
--- 5. Si no queda nadie dentro y vivo durante LeaveGrace segundos, se pierde: los enemigos
---    se retiran sin botín (lo ganado hasta ahí se queda).
--- Dentro de la partida el arma dispara sola para todos (PetCombatService.setFreeAutoFire).
+-- 5. La última oleada trae un jefe (uno para cada partida) con escolta. Si cae: victoria y
+--    premio (WaveLogic.victoryReward), además de su botín de siempre (BossRewardService:
+--    cuenta para abrir la zona siguiente y su arma la primera vez). Los modos sin jefe (la
+--    práctica del tutorial) se ganan al limpiar la última oleada.
+-- 6. Si no queda nadie de la partida dentro y vivo durante LeaveGrace segundos, se pierde:
+--    los enemigos se retiran sin botín (lo ganado hasta ahí se queda).
+-- Modos: "Tutorial" para quien está en ese paso del tutorial (partida corta con consejos en
+-- pantalla, "Hint"); el resto juega "Forest". Ganar suma WaveWins (GameEvents "WaveWon").
+-- Dentro del círculo el arma dispara sola (PetCombatService.setFreeAutoFire).
 -- Todo lo decide el servidor; el cliente (WaveController) solo dibuja lo que se le manda.
 
 local Players = game:GetService("Players")
@@ -29,6 +34,8 @@ local WaveLogic = require(Shared.WaveLogic)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
+local TutorialConfig = require(Shared.Config.TutorialConfig)
+local ItemLogic = require(Shared.ItemLogic)
 local StudFloor = require(Shared.Util.StudFloor)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
@@ -37,15 +44,31 @@ local EnergyService = require(script.Parent.EnergyService)
 local PetCombatService = require(script.Parent.PetCombatService)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 
 local FOLDER_NAME = "WaveArenas"
 local TICK_SECONDS = 0.2
 local STATE_SECONDS = 0.5 -- cada cuánto se reenvía el estado mientras hay partida
 local INSIDE_SLACK = 6 -- margen para seguir contando como "dentro" (y disparar solo)
-local START_DISTANCE = 16 -- desde el pedestal para poder empezar con WaveAction
-local FX_RANGE = 160 -- jugadores que ven las explosiones de otro
 local GROUND = GeneratorConfig.Position.Y
 local CARD_BREAK = 1.5 -- pausa tras elegir mejoras
+local RESTART_LOCK = 3 -- tras terminar, segundos sin poder empezar otra (no repetir sin querer)
+local HINT_SECONDS = 7
+local NORMAL_MODE = "Forest"
+
+-- Paso del tutorial que se juega con la partida de práctica.
+local TUTORIAL_STEP: number? = nil
+for index, step in TutorialConfig.Steps do
+	if step.Id == "Waves" then
+		TUTORIAL_STEP = index
+	end
+end
+local TUTORIAL_MODE: string? = nil
+for arenaId, arena in WaveConfig.Arenas do
+	if arena.Tutorial then
+		TUTORIAL_MODE = arenaId
+	end
+end
 
 type Participant = {
 	Player: Player,
@@ -60,15 +83,15 @@ type Participant = {
 }
 
 type Run = {
-	ArenaId: string,
+	Id: number,
+	ArenaId: string, -- modo (WaveConfig.Arenas)
 	Arena: any,
 	ZoneId: string,
 	Center: Vector3,
-	Pedestal: Vector3,
-	Phase: string, -- "Idle" | "Countdown" | "Wave" | "Break" | "Cards" | "Boss" | "Result"
+	Phase: string, -- "Countdown" | "Wave" | "Break" | "Cards" | "Boss" | "Done"
 	Wave: number,
 	Waves: number,
-	EndsAt: number, -- os.clock() en que acaba la fase (cuenta atrás, pausa, mejoras, resultado)
+	EndsAt: number, -- os.clock() en que acaba la fase (cuenta atrás, pausa, mejoras)
 	Queue: { string }, -- enemigos que faltan por salir en esta oleada
 	Alive: { [any]: boolean },
 	AliveCount: number,
@@ -80,16 +103,24 @@ type Run = {
 	NextSpawnAt: number,
 	NextEscortAt: number,
 	Boss: any?,
-	Token: number, -- cambia en cada partida: invalida avisos de enemigos de otra
-	Best: number, -- mejor oleada superada en este servidor
 	LastBroadcast: number,
+}
+
+type Place = {
+	ZoneId: string,
+	Center: Vector3,
 	StatusLabel: TextLabel?,
-	Prompt: ProximityPrompt?,
+	InfoLabel: TextLabel?,
 }
 
 local WaveService = {}
 
-local runs: { [string]: Run } = {}
+local place: Place? = nil
+local runs: { [number]: Run } = {}
+local runOf: { [Player]: Run } = {}
+local lockedUntil: { [Player]: number } = {}
+local nextRunId = 0
+local best = 0 -- mejor oleada superada en este servidor (modo normal)
 local eventRemote: RemoteEvent
 local actionLimiter = RateLimiter.new(WaveConfig.ActionCooldown, 3, 12)
 
@@ -112,15 +143,13 @@ local function rootOf(player: Player): (BasePart?, Humanoid?)
 end
 
 local function isActive(run: Run): boolean
-	return run.Phase ~= "Idle" and run.Phase ~= "Result"
+	return run.Phase ~= "Done"
 end
 
--- Dentro de la partida (con un margen para no salir y entrar a cada paso). Para sumarse
--- hace falta entrar del todo (sin margen: joining = true).
-local function isInside(run: Run, player: Player, joining: boolean?): boolean
+-- Dentro del círculo (con un margen al salir, para no salir y entrar a cada paso).
+local function isInside(run: Run, player: Player): boolean
 	local root = rootOf(player)
-	local radius = run.Arena.AreaRadius + (if joining then 0 else INSIDE_SLACK)
-	return root ~= nil and flatDistance(root.Position, run.Center) <= radius
+	return root ~= nil and flatDistance(root.Position, run.Center) <= WaveConfig.Place.AreaRadius + INSIDE_SLACK
 end
 
 local function newParticipant(player: Player): Participant
@@ -129,76 +158,122 @@ end
 
 -- Partida (activa) en la que juega un jugador, con su ficha.
 local function activeParticipant(player: Player): (Run?, Participant?)
-	for _, run in runs do
-		local participant = run.Participants[player]
-		if participant and isActive(run) then
-			return run, participant
-		end
+	local run = runOf[player]
+	if run and isActive(run) then
+		return run, run.Participants[player]
 	end
 	return nil, nil
+end
+
+local function participantCount(run: Run): number
+	local count = 0
+	for _ in run.Participants do
+		count += 1
+	end
+	return count
+end
+
+local function runCount(): number
+	local count = 0
+	for _ in runs do
+		count += 1
+	end
+	return count
 end
 
 -- Envíos ---------------------------------------------------------------------------------
 
 local function stateOf(run: Run)
-	local participants = {}
-	for player in run.Participants do
-		table.insert(participants, player.UserId)
-	end
 	local remaining = #run.Queue + run.AliveCount
 	return {
+		Run = run.Id,
 		Arena = run.ArenaId,
 		Name = run.Arena.DisplayName,
+		Tutorial = run.Arena.Tutorial == true,
 		Phase = run.Phase,
 		Wave = run.Wave,
 		Waves = run.Waves,
 		Remaining = remaining,
 		Total = math.max(run.Total, remaining),
 		EndsAt = if run.EndsAt > 0 then serverTime(run.EndsAt) else 0,
-		Participants = participants,
+		Players = participantCount(run),
 		Center = run.Center,
-		Radius = run.Arena.AreaRadius,
-		Best = run.Best,
-		Boss = if run.Phase == "Boss" then (EnemyConfig.Types[run.Arena.Boss] or {}).DisplayName else nil,
+		Radius = WaveConfig.Place.AreaRadius,
+		Best = best,
+		Boss = if run.Phase == "Boss" and run.Arena.Boss then (EnemyConfig.Types[run.Arena.Boss] or {}).DisplayName else nil,
 	}
 end
 
-local function statusText(run: Run): string
-	if run.Phase == "Idle" then
-		return if run.Best > 0 then ("Récord del servidor: oleada %d"):format(run.Best) else "Pulsa E para empezar"
-	elseif run.Phase == "Countdown" then
-		return "¡Prepárate!"
-	elseif run.Phase == "Boss" then
-		return "¡JEFE!"
-	elseif run.Phase == "Result" then
-		return "Terminada"
+-- Cartel del altar (lo ven todos): cómo jugar, partidas en marcha y récord.
+local function updateSign()
+	if not place then
+		return
 	end
-	return ("Oleada %d / %d"):format(math.max(run.Wave, 1), run.Waves)
+	local countdown: Run? = nil
+	for _, run in runs do
+		if run.Phase == "Countdown" and run.ArenaId == NORMAL_MODE and participantCount(run) < WaveConfig.MaxPlayersPerRun then
+			countdown = run
+		end
+	end
+	if place.StatusLabel then
+		place.StatusLabel.Text = if countdown then ("¡Pulsa E para unirte! (%d)"):format(math.max(1, math.ceil(countdown.EndsAt - os.clock()))) else "Pulsa E para jugar"
+	end
+	if place.InfoLabel then
+		local playing = runCount()
+		local parts = {}
+		if playing > 0 then
+			table.insert(parts, if playing == 1 then "1 partida en marcha" else ("%d partidas en marcha"):format(playing))
+		end
+		if best > 0 then
+			table.insert(parts, ("Récord: oleada %d"):format(best))
+		end
+		place.InfoLabel.Text = if #parts > 0 then table.concat(parts, "  ·  ") else "Hordas, mejoras y un jefe al final"
+	end
 end
 
 local function broadcast(run: Run)
 	run.LastBroadcast = os.clock()
 	local state = stateOf(run)
-	eventRemote:FireAllClients("State", state)
-	if run.StatusLabel then
-		run.StatusLabel.Text = statusText(run)
-	end
-	if run.Prompt then
-		run.Prompt.Enabled = run.Phase == "Idle"
+	for player in run.Participants do
+		if player.Parent then
+			eventRemote:FireClient(player, "State", state)
+		end
 	end
 end
 
-local function setArenaAttribute(player: Player, arenaId: string?)
-	if player.Parent and player:GetAttribute(Constants.Attributes.WaveArena) ~= arenaId then
-		player:SetAttribute(Constants.Attributes.WaveArena, arenaId)
+local function setPlayerRun(player: Player, run: Run?)
+	if not player.Parent then
+		return
+	end
+	local attributes = Constants.Attributes
+	local runId = if run then run.Id else nil
+	local arenaId = if run then run.ArenaId else nil
+	if player:GetAttribute(attributes.WaveRun) ~= runId then
+		player:SetAttribute(attributes.WaveRun, runId)
+	end
+	if player:GetAttribute(attributes.WaveArena) ~= arenaId then
+		player:SetAttribute(attributes.WaveArena, arenaId)
 	end
 end
 
-local function fxNear(position: Vector3, data)
-	for _, player in Players:GetPlayers() do
-		local root = rootOf(player)
-		if root and (root.Position - position).Magnitude <= FX_RANGE then
+-- Efectos solo para los jugadores de la partida.
+local function fxTo(run: Run, data)
+	for player in run.Participants do
+		if player.Parent then
 			eventRemote:FireClient(player, "Fx", data)
+		end
+	end
+end
+
+-- Consejo del modo (tutorial) para todos los de la partida.
+local function hint(run: Run, key: any)
+	local text = WaveLogic.hint(run.ArenaId, key)
+	if not text then
+		return
+	end
+	for player in run.Participants do
+		if player.Parent then
+			eventRemote:FireClient(player, "Hint", { Text = text, Seconds = HINT_SECONDS })
 		end
 	end
 end
@@ -210,7 +285,9 @@ local function pay(participant: Participant, energy: number, money: number): (nu
 	if not profile then
 		return 0, 0
 	end
-	local given = EnergyService.grant(participant.Player, energy)
+	-- Poción de Energía (inventario): también dobla la ⚡ de los premios de las oleadas.
+	local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time())
+	local given = EnergyService.grant(participant.Player, energy * potion)
 	local coins = math.max(0, math.floor(money))
 	if coins > 0 then
 		profile.Money += coins
@@ -226,22 +303,24 @@ end
 local onEnemyDeath: (Run, number) -> ((any, Player?, Vector3) -> ())
 
 local function spawnPoint(run: Run): Vector3
-	local radius = run.Arena.SpawnRadius
+	local radius = WaveConfig.Place.SpawnRadius
 	local angle = math.random() * math.pi * 2
 	local distance = radius.Min + math.random() * (radius.Max - radius.Min)
 	return run.Center + Vector3.new(math.cos(angle) * distance, 0, math.sin(angle) * distance)
 end
 
 local function spawnOne(run: Run, typeId: string, wave: number): boolean
-	local arena = run.Arena
+	local area = WaveConfig.Place.AreaRadius
 	local enemy = EnemyService.spawnPooled(run.ZoneId, typeId, spawnPoint(run), {
 		LeashCenter = run.Center,
-		LeashRadius = arena.AreaRadius,
-		DetectRange = arena.AreaRadius * 2,
+		LeashRadius = area + INSIDE_SLACK + 2,
+		DetectRange = area * 2.5,
 		HealthMultiplier = WaveLogic.healthMultiplier(wave, run.Players),
 		RewardMultiplier = WaveLogic.rewardMultiplier(wave),
-		PoolLimit = (arena.Pool and arena.Pool[typeId]) or 12,
-		OnDeath = onEnemyDeath(run, run.Token),
+		PoolLimit = (run.Arena.Pool and run.Arena.Pool[typeId]) or 12,
+		OnDeath = onEnemyDeath(run, run.Id),
+		Run = run.Id,
+		MoneyMultiplier = WaveConfig.MoneyMultiplier,
 	})
 	if not enemy then
 		return false
@@ -279,6 +358,31 @@ end
 local enterBreak: (Run, number) -> ()
 local finish: (Run, boolean) -> ()
 
+-- El jefe de la partida (de la reserva: uno para cada partida), frente al altar.
+local function spawnBoss(run: Run): boolean
+	local arena = run.Arena
+	local area = WaveConfig.Place.AreaRadius
+	local id = run.Id
+	local boss = EnemyService.spawnPooled(run.ZoneId, arena.Boss, run.Center + Vector3.new(0, 0, -area * 0.55), {
+		LeashCenter = run.Center,
+		LeashRadius = area + INSIDE_SLACK + 2,
+		HealthMultiplier = WaveLogic.bossHealthMultiplier(run.Players),
+		RewardMultiplier = 1,
+		PoolLimit = (arena.Pool and arena.Pool[arena.Boss]) or 4,
+		Run = id,
+		MoneyMultiplier = WaveConfig.MoneyMultiplier,
+		Arena = { Center = run.Center, Radius = area, Name = arena.DisplayName },
+		Territory = area + 4,
+		OnDeath = function()
+			if runs[id] == run and run.Phase == "Boss" then
+				finish(run, true)
+			end
+		end,
+	})
+	run.Boss = boss
+	return boss ~= nil
+end
+
 local function startWave(run: Run, wave: number)
 	run.Wave = wave
 	run.Players = insideCount(run)
@@ -289,14 +393,8 @@ local function startWave(run: Run, wave: number)
 		run.Queue = {}
 		run.Total = 1
 		run.NextEscortAt = os.clock() + 4
-		local token = run.Token
-		run.Boss = EnemyService.wakeBoss(run.ZoneId, WaveLogic.bossHealthMultiplier(run.Players), function()
-			if run.Token == token and run.Phase == "Boss" then
-				finish(run, true)
-			end
-		end)
-		if not run.Boss then
-			warn("[WaveService] La arena " .. run.ArenaId .. " no tiene jefe en su zona: se da por ganada.")
+		if not spawnBoss(run) then
+			warn("[WaveService] No hay sitio en la reserva para el jefe " .. tostring(run.Arena.Boss) .. ": la partida se da por ganada.")
 			finish(run, true)
 			return
 		end
@@ -307,6 +405,7 @@ local function startWave(run: Run, wave: number)
 	end
 	run.EndsAt = 0
 	broadcast(run)
+	hint(run, wave)
 end
 
 local function enterCards(run: Run)
@@ -368,7 +467,9 @@ end
 
 local function waveCleared(run: Run)
 	local wave = run.Wave
-	run.Best = math.max(run.Best, wave)
+	if run.ArenaId == NORMAL_MODE then
+		best = math.max(best, wave)
+	end
 	for _, participant in run.Participants do
 		local profile = PlayerDataService.get(participant.Player)
 		if profile then
@@ -377,93 +478,150 @@ local function waveCleared(run: Run)
 			eventRemote:FireClient(participant.Player, "Cleared", { Wave = wave, Energy = given, Money = coins })
 		end
 	end
-	if WaveLogic.isCardWave(run.ArenaId, wave) then
+	if wave >= run.Waves then
+		finish(run, true) -- modo sin jefe: ganada al limpiar la última
+	elseif WaveLogic.isCardWave(run.ArenaId, wave) then
 		enterCards(run)
 	else
 		enterBreak(run, WaveConfig.BreakSeconds)
 	end
 end
 
+-- Fin de la partida: premios, resumen y cada uno vuelve al mundo normal.
 function finish(run: Run, victory: boolean)
-	if run.Phase == "Result" or run.Phase == "Idle" then
+	if run.Phase == "Done" then
 		return
 	end
 	local reached = run.Wave
-	if victory then
-		run.Best = math.max(run.Best, run.Waves)
+	if victory and run.ArenaId == NORMAL_MODE then
+		best = math.max(best, run.Waves)
 	end
-	-- Lo que quede de la oleada se retira sin botín (el jefe derrotado ya se fue solo).
+	-- Lo que quede se retira sin botín (el jefe derrotado ya se fue solo).
 	run.Boss = if victory then nil else run.Boss
 	despawnAll(run)
-	run.Phase = "Result"
-	run.EndsAt = os.clock() + WaveConfig.ResultSeconds
+	run.Phase = "Done"
+	run.EndsAt = 0
+	if victory then
+		hint(run, "Victory")
+	end
+	local now = os.clock()
 	for player, participant in run.Participants do
 		local energy, money = 0, 0
 		if victory then
 			local profile = PlayerDataService.get(player)
 			if profile then
-				energy, money = pay(participant, WaveLogic.victoryReward(profile.ProductionPerSecond))
+				energy, money = pay(participant, WaveLogic.victoryReward(profile.ProductionPerSecond, run.ArenaId))
+			end
+			GameEvents.fire("WaveWon", player, run.ArenaId)
+		end
+		if player.Parent then
+			eventRemote:FireClient(player, "Result", {
+				Run = run.Id,
+				Victory = victory,
+				Tutorial = run.Arena.Tutorial == true,
+				Wave = reached,
+				Waves = run.Waves,
+				Kills = participant.Kills,
+				Energy = participant.Energy,
+				Money = participant.Money,
+				Golden = participant.Golden,
+				BestStreak = participant.BestStreak,
+				VictoryEnergy = energy,
+				VictoryMoney = money,
+				Best = best,
+			})
+		end
+		if runOf[player] == run then
+			runOf[player] = nil
+			setPlayerRun(player, nil)
+		end
+		lockedUntil[player] = now + RESTART_LOCK
+	end
+	runs[run.Id] = nil
+	updateSign()
+end
+
+local function addParticipant(run: Run, player: Player)
+	run.Participants[player] = newParticipant(player)
+	runOf[player] = run
+	setPlayerRun(player, run)
+	broadcast(run)
+	updateSign()
+end
+
+-- ¿Le toca la partida de práctica del tutorial?
+local function wantsTutorial(player: Player): boolean
+	if not (TUTORIAL_STEP and TUTORIAL_MODE) then
+		return false
+	end
+	local profile = PlayerDataService.get(player)
+	if not (profile and PlayerDataService.isPetDataReady(profile)) then
+		return false
+	end
+	local tutorial = profile.PetData.Tutorial
+	return type(tutorial) == "table" and tutorial.Status == "Active" and type(tutorial.Step) == "number" and tutorial.Step < TUTORIAL_STEP
+end
+
+-- Empezar (o unirse a una cuenta atrás). true si ahora juega una partida.
+local function tryStart(player: Player): boolean
+	if not place or runOf[player] or (lockedUntil[player] or 0) > os.clock() then
+		return false
+	end
+	local root = rootOf(player)
+	if not (root and PlayerDataService.get(player)) then
+		return false
+	end
+	if flatDistance(root.Position, place.Center) > WaveConfig.Place.AreaRadius + 2 then
+		return false
+	end
+	local mode = if wantsTutorial(player) then TUTORIAL_MODE :: string else NORMAL_MODE
+	-- Unirse a la cuenta atrás de otra partida del mismo modo (la práctica es solo suya)
+	if not WaveConfig.Arenas[mode].Tutorial then
+		for _, run in runs do
+			if run.Phase == "Countdown" and run.ArenaId == mode and participantCount(run) < WaveConfig.MaxPlayersPerRun then
+				addParticipant(run, player)
+				return true
 			end
 		end
-		eventRemote:FireClient(player, "Result", {
-			Victory = victory,
-			Wave = reached,
-			Waves = run.Waves,
-			Kills = participant.Kills,
-			Energy = participant.Energy,
-			Money = participant.Money,
-			Golden = participant.Golden,
-			BestStreak = participant.BestStreak,
-			VictoryEnergy = energy,
-			VictoryMoney = money,
-			Best = run.Best,
-		})
 	end
-	broadcast(run)
-end
-
-local function reset(run: Run)
-	despawnAll(run)
-	for player in run.Participants do
-		setArenaAttribute(player, nil)
-	end
-	table.clear(run.Participants)
-	run.Phase = "Idle"
-	run.Wave = 0
-	run.Total = 0
-	run.Killed = 0
-	run.EndsAt = 0
-	run.EmptySince = nil
-	run.Token += 1
-	broadcast(run)
-end
-
-local function start(run: Run, starter: Player): boolean
-	if run.Phase ~= "Idle" then
+	if runCount() >= WaveConfig.MaxRuns then
+		eventRemote:FireClient(player, "Hint", { Text = "Hay muchas partidas en marcha: prueba en unos segundos.", Seconds = 4 })
 		return false
 	end
-	local root = rootOf(starter)
-	if not root then
-		return false
-	end
-	if flatDistance(root.Position, run.Pedestal) > START_DISTANCE and flatDistance(root.Position, run.Center) > run.Arena.AreaRadius then
-		return false
-	end
-	run.Token += 1
-	table.clear(run.Participants)
-	run.Participants[starter] = newParticipant(starter)
-	setArenaAttribute(starter, run.ArenaId)
-	run.Wave = 0
-	run.Phase = "Countdown"
-	run.EndsAt = os.clock() + WaveConfig.StartCountdown
-	run.EmptySince = nil
-	broadcast(run)
+	local arena = WaveConfig.Arenas[mode]
+	nextRunId += 1
+	local run: Run = {
+		Id = nextRunId,
+		ArenaId = mode,
+		Arena = arena,
+		ZoneId = arena.Zone,
+		Center = place.Center,
+		Phase = "Countdown",
+		Wave = 0,
+		Waves = WaveLogic.waveCount(mode),
+		EndsAt = os.clock() + WaveConfig.StartCountdown,
+		Queue = {},
+		Alive = {},
+		AliveCount = 0,
+		Total = 0,
+		Killed = 0,
+		Players = 1,
+		Participants = {},
+		EmptySince = nil,
+		NextSpawnAt = 0,
+		NextEscortAt = 0,
+		Boss = nil,
+		LastBroadcast = 0,
+	}
+	runs[run.Id] = run
+	addParticipant(run, player)
+	hint(run, "Countdown")
 	return true
 end
 
-function onEnemyDeath(run: Run, token: number)
+function onEnemyDeath(run: Run, id: number)
 	return function(enemy, killer: Player?, position: Vector3)
-		if run.Token ~= token then
+		if runs[id] ~= run or not isActive(run) then
 			return
 		end
 		if run.Alive[enemy] then
@@ -483,14 +641,14 @@ function onEnemyDeath(run: Run, token: number)
 				humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + mods.Heal)
 			end
 		end
-		-- Reacción en cadena: lo que matas explota y daña a los de alrededor
+		-- Reacción en cadena: lo que matas explota y daña a los de alrededor (de su partida)
 		local explode = mods.Explode
 		local profile = PlayerDataService.get(killer)
 		if explode and profile then
 			local shot = PlayerDataService.combatStats(profile).Shot * mods.Damage
 			local damage = shot * explode.ShotMultiplier
-			fxNear(position, { Kind = "Explode", Position = position, Radius = explode.Radius })
-			for _, other in EnemyService.findInRadius(position, explode.Radius, 8) do
+			fxTo(run, { Kind = "Explode", Position = position, Radius = explode.Radius })
+			for _, other in EnemyService.findInRadius(position, explode.Radius, 8, killer) do
 				if other ~= enemy and EnemyService.isAlive(other) then
 					EnemyService.damage(other, killer, damage)
 				end
@@ -501,35 +659,20 @@ end
 
 -- Bucle ---------------------------------------------------------------------------------
 
-local function updateParticipants(run: Run)
+local function step(run: Run, now: number)
 	if not isActive(run) then
 		return
-	end
-	-- Quien entra durante la partida se suma
-	for _, player in Players:GetPlayers() do
-		if not run.Participants[player] and isInside(run, player, true) and PlayerDataService.get(player) then
-			run.Participants[player] = newParticipant(player)
-			setArenaAttribute(player, run.ArenaId)
-		end
 	end
 	for player in run.Participants do
 		if not player.Parent then
 			run.Participants[player] = nil
+			runOf[player] = nil
 		end
 	end
-end
-
-local function step(run: Run, now: number)
-	if run.Phase == "Idle" then
+	if next(run.Participants) == nil then
+		finish(run, false)
 		return
 	end
-	if run.Phase == "Result" then
-		if now >= run.EndsAt then
-			reset(run)
-		end
-		return
-	end
-	updateParticipants(run)
 
 	-- ¿Queda alguien dentro y vivo?
 	local anyone = false
@@ -552,6 +695,7 @@ local function step(run: Run, now: number)
 	if run.Phase == "Countdown" then
 		if now >= run.EndsAt then
 			startWave(run, 1)
+			updateSign()
 		end
 	elseif run.Phase == "Wave" then
 		if #run.Queue > 0 and now >= run.NextSpawnAt then
@@ -598,145 +742,135 @@ local function step(run: Run, now: number)
 			end
 			table.sort(typeIds)
 			for _, typeId in typeIds do
-				for _ = 1, math.floor(escort[typeId] / 2) do
+				for _ = 1, math.max(1, math.floor(escort[typeId] / 2)) do
 					spawnOne(run, typeId, run.Wave)
 				end
 			end
 		end
 	end
-	if os.clock() - run.LastBroadcast >= STATE_SECONDS then
+	if isActive(run) and os.clock() - run.LastBroadcast >= STATE_SECONDS then
 		broadcast(run)
 	end
 end
 
--- Pedestal ------------------------------------------------------------------------------
+-- Altar y círculo -----------------------------------------------------------------------
 
-local function buildPedestal(run: Run, parent: Instance)
+local function label(parent: Instance, position: UDim2, size: UDim2, color: Color3, text: string, stroke: number): TextLabel
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Position = position
+	textLabel.Size = size
+	textLabel.BackgroundTransparency = 1
+	textLabel.Font = Enum.Font.FredokaOne
+	textLabel.TextScaled = true
+	textLabel.TextColor3 = color
+	textLabel.Text = text
+	textLabel.Parent = parent
+	local outline = Instance.new("UIStroke")
+	outline.Color = Color3.fromRGB(43, 29, 63)
+	outline.Thickness = stroke
+	outline.Parent = textLabel
+	return textLabel
+end
+
+local function buildPlace(info: Place, parent: Instance)
 	local model = Instance.new("Model")
-	model.Name = "WavePedestal_" .. run.ArenaId
-	local base = run.Pedestal
-	local ground = base.Y
+	model.Name = "WavePedestal"
+	local center = info.Center
+	local ground = center.Y
 	local stone = Color3.fromRGB(110, 112, 100)
 	local rune = Color3.fromRGB(255, 140, 70)
-	PartFactory.verticalCylinder(model, "Base", Vector3.new(base.X, ground + 0.4, base.Z), 0.8, 7, stone, Enum.Material.Slate)
-	local ring = PartFactory.verticalCylinder(model, "Ring", Vector3.new(base.X, ground + 0.85, base.Z), 0.1, 6.2, rune, Enum.Material.Neon, false)
-	ring.Transparency = 0.35
+	local area = WaveConfig.Place.AreaRadius
+
+	-- Altar en el centro (base baja: los enemigos y los jugadores pasan por encima sin tropezar)
+	PartFactory.verticalCylinder(model, "Base", Vector3.new(center.X, ground + 0.2, center.Z), 0.4, 11, stone, Enum.Material.Slate)
+	local ring = PartFactory.verticalCylinder(model, "Ring", Vector3.new(center.X, ground + 0.45, center.Z), 0.1, 10, rune, Enum.Material.Neon, false)
+	ring.Transparency = 0.2
 	local column = PartFactory.part(model, "Column", {
-		Size = Vector3.new(1.8, 3.4, 1.8),
-		CFrame = CFrame.new(base.X, ground + 2.5, base.Z),
+		Size = Vector3.new(2.6, 5, 2.6),
+		CFrame = CFrame.new(center.X, ground + 2.9, center.Z),
 		Color = stone,
 		Material = Enum.Material.Slate,
 	})
 	local crystal = PartFactory.part(model, "Crystal", {
-		Size = Vector3.new(1.3, 2.2, 1.3),
-		CFrame = CFrame.new(base.X, ground + 5.4, base.Z) * CFrame.Angles(0, math.rad(45), math.rad(12)),
+		Size = Vector3.new(2.4, 3.6, 2.4),
+		CFrame = CFrame.new(center.X, ground + 7.4, center.Z) * CFrame.Angles(0, math.rad(45), math.rad(12)),
 		Color = rune,
 		Material = Enum.Material.Neon,
 		Solid = false,
 	})
 	local light = Instance.new("PointLight")
 	light.Color = rune
-	light.Range = 14
-	light.Brightness = 1.4
+	light.Range = 24
+	light.Brightness = 2
 	light.Shadows = false
 	light.Parent = crystal
+	-- Columna de luz: se ve desde todo el pueblo (y desde el punto de aparición)
+	local beam = PartFactory.verticalCylinder(model, "LightBeam", Vector3.new(center.X, ground + 39, center.Z), 62, 2.6, rune, Enum.Material.Neon, false)
+	beam.Transparency = 0.45
+	beam.CastShadow = false
+
+	-- Borde del círculo en el suelo: aquí dentro se juega
+	local tiles = 32
+	for index = 1, tiles do
+		local angle = (index / tiles) * math.pi * 2
+		local position = Vector3.new(center.X + math.cos(angle) * area, ground, center.Z + math.sin(angle) * area)
+		local tile = PartFactory.part(model, "EdgeRune" .. index, {
+			Size = Vector3.new(1.4, 0.2, 3),
+			CFrame = CFrame.lookAt(position, Vector3.new(center.X, position.Y, center.Z)) * CFrame.new(0, 0.12, 0),
+			Color = rune,
+			Material = Enum.Material.Neon,
+			Solid = false,
+		})
+		tile.Transparency = 0.15
+		tile.CastShadow = false
+	end
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "WavePrompt"
-	prompt.ActionText = "Empezar oleadas"
-	prompt.ObjectText = "⚔ " .. run.Arena.DisplayName
+	prompt.ActionText = "Jugar oleadas"
+	prompt.ObjectText = "⚔ Oleadas"
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	prompt.HoldDuration = 0.4
-	prompt.MaxActivationDistance = 12
+	prompt.HoldDuration = 0.3
+	prompt.MaxActivationDistance = WaveConfig.Place.PromptDistance
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = column
 	prompt.Triggered:Connect(function(player: Player)
-		start(run, player)
+		tryStart(player)
 	end)
-	run.Prompt = prompt
 
-	-- Cartel flotante: nombre y estado de la partida
+	-- Cartel flotante: qué es, cómo empezar y lo que pasa
 	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromOffset(260, 70)
-	billboard.StudsOffset = Vector3.new(0, 4.6, 0)
+	billboard.Name = "WaveSign"
+	billboard.Size = UDim2.fromOffset(360, 112)
+	billboard.StudsOffset = Vector3.new(0, 5.5, 0)
 	billboard.LightInfluence = 0
-	billboard.MaxDistance = 140
+	billboard.MaxDistance = 260
 	billboard.Adornee = crystal
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, 0, 0.55, 0)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.TextColor3 = Color3.fromRGB(255, 214, 120)
-	title.Text = "⚔ OLEADAS"
-	title.Parent = billboard
-	local titleStroke = Instance.new("UIStroke")
-	titleStroke.Color = Color3.fromRGB(43, 29, 63)
-	titleStroke.Thickness = 3
-	titleStroke.Parent = title
-	local status = Instance.new("TextLabel")
-	status.Position = UDim2.fromScale(0, 0.58)
-	status.Size = UDim2.new(1, 0, 0.42, 0)
-	status.BackgroundTransparency = 1
-	status.Font = Enum.Font.FredokaOne
-	status.TextScaled = true
-	status.TextColor3 = Color3.new(1, 1, 1)
-	status.Text = statusText(run)
-	status.Parent = billboard
-	local statusStroke = Instance.new("UIStroke")
-	statusStroke.Color = Color3.fromRGB(43, 29, 63)
-	statusStroke.Thickness = 2
-	statusStroke.Parent = status
+	label(billboard, UDim2.fromScale(0, 0), UDim2.new(1, 0, 0.46, 0), Color3.fromRGB(255, 214, 120), "⚔ OLEADAS", 3)
+	info.StatusLabel = label(billboard, UDim2.fromScale(0, 0.48), UDim2.new(1, 0, 0.3, 0), Color3.new(1, 1, 1), "Pulsa E para jugar", 2)
+	info.InfoLabel = label(billboard, UDim2.fromScale(0.05, 0.8), UDim2.new(0.9, 0, 0.2, 0), Color3.fromRGB(255, 236, 200), "", 1.5)
 	billboard.Parent = crystal
-	run.StatusLabel = status
 
 	model.Parent = parent
 end
 
 -- Arranque ------------------------------------------------------------------------------
 
-local function buildRun(arenaId: string, arena: any): Run?
-	local zone = ZoneConfig.Zones[arena.Zone]
-	local zoneEnemies = EnemyConfig.Zones[arena.Zone]
-	local bossArena = zoneEnemies and zoneEnemies.Boss and zoneEnemies.Boss.Arena
-	if not (zone and bossArena) then
-		warn("[WaveService] La arena " .. arenaId .. " no tiene zona o arena de jefe: no se crea.")
+local function buildPlaceInfo(): Place?
+	local settings = WaveConfig.Place
+	local zone = ZoneConfig.Zones[settings.Zone]
+	if not zone then
+		warn("[WaveService] La zona de las oleadas no existe: " .. tostring(settings.Zone))
 		return nil
 	end
 	local base = GeneratorConfig.Position
-	local zoneCenter = Vector3.new(base.X + zone.Center.X, GROUND, base.Z + zone.Center.Y)
-	local center = zoneCenter + Vector3.new(bossArena.Center.X, 0, bossArena.Center.Y)
-	-- Pedestal en la entrada de la arena (mirando al centro de la zona, como el cartel)
-	local toZone = zoneCenter - center
-	local direction = if toZone.Magnitude > 0.1 then Vector3.new(toZone.X, 0, toZone.Z).Unit else Vector3.new(0, 0, 1)
-	local spot = center + direction * arena.PedestalDistance
-	local pedestal = Vector3.new(spot.X, GROUND + StudFloor.raiseAt(spot.X, spot.Z), spot.Z)
+	local x = base.X + zone.Center.X + settings.Offset.X
+	local z = base.Z + zone.Center.Y + settings.Offset.Y
 	return {
-		ArenaId = arenaId,
-		Arena = arena,
-		ZoneId = arena.Zone,
-		Center = center,
-		Pedestal = pedestal,
-		Phase = "Idle",
-		Wave = 0,
-		Waves = WaveLogic.waveCount(arenaId),
-		EndsAt = 0,
-		Queue = {},
-		Alive = {},
-		AliveCount = 0,
-		Total = 0,
-		Killed = 0,
-		Players = 1,
-		Participants = {},
-		EmptySince = nil,
-		NextSpawnAt = 0,
-		NextEscortAt = 0,
-		Boss = nil,
-		Token = 0,
-		Best = 0,
-		LastBroadcast = 0,
+		ZoneId = settings.Zone,
+		Center = Vector3.new(x, GROUND + StudFloor.BaseTop + StudFloor.raiseAt(x, z), z), -- cara de arriba del suelo
 		StatusLabel = nil,
-		Prompt = nil,
+		InfoLabel = nil,
 	}
 end
 
@@ -747,18 +881,17 @@ function WaveService.start()
 	folder.Name = FOLDER_NAME
 	folder.Parent = Workspace
 
-	for arenaId, arena in WaveConfig.Arenas do
-		local run = buildRun(arenaId, arena)
-		if run then
-			runs[arenaId] = run
-			buildPedestal(run, folder)
-			if arena.BossOnlyInWaves then
-				EnemyService.setBossWaveControlled(arena.Zone, true)
-			end
+	place = buildPlaceInfo()
+	if place then
+		buildPlace(place, folder)
+	end
+	for _, arena in WaveConfig.Arenas do
+		if arena.BossOnlyInWaves and arena.Boss then
+			EnemyService.setBossWaveControlled(arena.Zone, true)
 		end
 	end
 
-	-- Dentro de una partida el arma dispara sola y lleva las mejoras elegidas
+	-- Dentro de una partida (y del círculo) el arma dispara sola y lleva las mejoras elegidas
 	PetCombatService.setFreeAutoFire(function(player: Player): boolean
 		local run = activeParticipant(player)
 		return run ~= nil and isInside(run, player)
@@ -795,10 +928,7 @@ function WaveService.start()
 			return
 		end
 		if action == "Start" then
-			local run = type(value) == "string" and runs[value]
-			if run then
-				start(run, player)
-			end
+			tryStart(player)
 		elseif action == "Pick" then
 			if type(value) ~= "string" then
 				return
@@ -810,34 +940,40 @@ function WaveService.start()
 		end
 	end)
 
-	-- Al entrar, el estado de cada arena
-	Players.PlayerAdded:Connect(function(player)
-		for _, run in runs do
-			eventRemote:FireClient(player, "State", stateOf(run))
-		end
-	end)
 	Players.PlayerRemoving:Connect(function(player)
 		actionLimiter:remove(player)
-		for _, run in runs do
+		lockedUntil[player] = nil
+		local run = runOf[player]
+		runOf[player] = nil
+		if run then
 			run.Participants[player] = nil
 		end
 	end)
 
 	task.spawn(function()
+		local lastSign = 0
 		while true do
 			task.wait(TICK_SECONDS)
 			local now = os.clock()
-			for arenaId, run in runs do
+			for id, run in runs do
 				local ok, err = pcall(step, run, now)
 				if not ok then
-					warn("[WaveService] Error en la arena " .. arenaId .. ": " .. tostring(err))
+					warn("[WaveService] Error en la partida " .. id .. ": " .. tostring(err))
 				end
+			end
+			if now - lastSign >= 0.5 then
+				lastSign = now
+				updateSign()
 			end
 		end
 	end)
-	for _, run in runs do
-		broadcast(run)
-	end
+	updateSign()
+end
+
+-- Partida de un jugador (nil si no juega ninguna). Para otros servicios y pruebas.
+function WaveService.runOf(player: Player): number?
+	local run = runOf[player]
+	return if run and isActive(run) then run.Id else nil
 end
 
 return WaveService

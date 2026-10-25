@@ -3,6 +3,9 @@
 --   juegas una partida: oleada, enemigos que quedan y cuenta atrás. En la del jefe se
 --   esconde y se ve la barra del jefe.
 -- - Anuncios grandes en el centro: cuenta atrás, "OLEADA 4", "¡JEFE!".
+-- - Consejos de la partida de práctica del tutorial ("Hint"), en un cartel bajo el anuncio.
+-- - Las partidas son privadas: el servidor solo manda el estado de la tuya (y el altar
+--   esconde su "Pulsa E" mientras juegas). Qué enemigos ves lo decide WaveVisibility.
 -- - Mejoras: tres tarjetas para elegir (clic o teclas 1, 2, 3) con su tiempo.
 -- - Resumen al terminar (victoria o caída): enemigos, ⚡, 💰, orbes dorados y mejor racha.
 -- - Racha: contador "x12" sobre tu cabeza mientras matas sin parar (atributos Streak y
@@ -151,8 +154,31 @@ local function buildHud()
 	announceStroke.Transparency = 1
 	local announceScale = UiKit.create("UIScale", {}, announce)
 
+	-- Consejo (partida de práctica): cartel bajo el anuncio
+	local hintBox = UiKit.create("Frame", {
+		Name = "WaveHint",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.42),
+		Size = UDim2.fromOffset(560, 64),
+		BackgroundColor3 = INK,
+		BackgroundTransparency = 0.15,
+		Visible = false,
+	}, hud)
+	UiKit.corner(hintBox, 14)
+	UiKit.stroke(hintBox, THEME.Gold, 3, 0)
+	local hintText = textLabel(hintBox, "Text", {
+		Position = UDim2.fromOffset(16, 6),
+		Size = UDim2.new(1, -32, 1, -12),
+		Font = FONTS.Display,
+		TextSize = 22,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Stroke = 2,
+	})
+	local hintScale = UiKit.create("UIScale", {}, hintBox)
+
 	hud.Parent = playerGui
-	UiKit.bindScale(hud, { panelScale })
+	UiKit.bindScale(hud, { panelScale, hintScale })
 	-- Mismo sitio que la barra del jefe (CombatController): bajo la tarjeta de energía.
 	local function placePanel()
 		local scale = UiKit.computeScale(hud.AbsoluteSize)
@@ -178,6 +204,15 @@ local function buildHud()
 		TextSize = 28,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Text = "✨ Elige una mejora",
+	})
+	UiKit.text(cardPanel, "Help", {
+		Position = UDim2.fromOffset(20, 44),
+		Size = UDim2.new(1, -40, 0, 22),
+		Font = FONTS.Body,
+		TextSize = 17,
+		TextColor3 = THEME.Muted,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "Haz clic o pulsa 1, 2 o 3 · dura toda la partida",
 	})
 	local cardTimer = UiKit.create("Frame", {
 		Name = "Timer",
@@ -298,6 +333,8 @@ local function buildHud()
 		Announce = announce,
 		AnnounceStroke = announceStroke,
 		AnnounceScale = announceScale,
+		HintBox = hintBox,
+		HintText = hintText,
 		CardPanel = cardPanel,
 		CardTimerFill = cardTimerFill,
 		Cards = cardButtons,
@@ -387,9 +424,9 @@ function WaveController.start()
 	fxFolder.Name = "ClientWaveFX"
 	fxFolder.Parent = Workspace
 
-	local states: { [string]: any } = {}
-	local lastPhase: { [string]: string } = {}
-	local lastWave: { [string]: number } = {}
+	local current: any = nil -- estado de mi partida (solo llega el de la tuya)
+	local lastPhase: string? = nil
+	local lastWave = 0
 	local cardData: any = nil
 	local resultToken = 0
 
@@ -413,25 +450,38 @@ function WaveController.start()
 		end)
 	end
 
-	-- Partida que me toca: en la que participo o, si hay una en marcha, la de la arena en
-	-- la que estoy.
+	-- Mi partida: la del atributo WaveRun (el servidor solo manda la mía).
 	local function myState(): any?
-		local arenaId = player:GetAttribute(Constants.Attributes.WaveArena)
-		if type(arenaId) == "string" and states[arenaId] then
-			return states[arenaId]
-		end
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		for _, state in states do
-			local active = state.Phase ~= "Idle" and state.Phase ~= "Result"
-			if active and root and root:IsA("BasePart") and typeof(state.Center) == "Vector3" then
-				local offset = root.Position - state.Center
-				if Vector2.new(offset.X, offset.Z).Magnitude <= (state.Radius or 0) then
-					return state
-				end
-			end
+		local runId = player:GetAttribute(Constants.Attributes.WaveRun)
+		if current and type(runId) == "number" and current.Run == runId then
+			return current
 		end
 		return nil
+	end
+
+	-- Consejo de la partida de práctica
+	local hintToken = 0
+	local function showHint(text: string, seconds: number)
+		hintToken += 1
+		local token = hintToken
+		ui.HintText.Text = text
+		ui.HintBox.Visible = true
+		ui.HintBox.BackgroundTransparency = 0.15
+		ui.HintText.TextTransparency = 0
+		task.delay(seconds, function()
+			if hintToken == token then
+				ui.HintBox.Visible = false
+			end
+		end)
+	end
+
+	-- El "Pulsa E" del altar no se ve mientras juegas (es local: los demás lo siguen viendo).
+	local function refreshPrompt()
+		local arenas = Workspace:FindFirstChild("WaveArenas")
+		local prompt = arenas and arenas:FindFirstChild("WavePrompt", true)
+		if prompt and prompt:IsA("ProximityPrompt") then
+			prompt.Enabled = player:GetAttribute(Constants.Attributes.WaveRun) == nil
+		end
 	end
 
 	-- El panel usa el hueco de la barra del jefe: mientras se ve, la pila de avisos baja
@@ -452,7 +502,7 @@ function WaveController.start()
 
 	local function refreshPanel()
 		local state = myState()
-		local shown = state ~= nil and state.Phase ~= "Idle" and state.Phase ~= "Result" and state.Phase ~= "Boss"
+		local shown = state ~= nil and state.Phase ~= "Done" and state.Phase ~= "Boss"
 		ui.Panel.Visible = shown
 		reserveSlot(shown)
 		if not shown then
@@ -556,7 +606,7 @@ function WaveController.start()
 		resultToken += 1
 		local token = resultToken
 		if data.Victory then
-			ui.ResultTitle.Text = "🏆 ¡VICTORIA!"
+			ui.ResultTitle.Text = if data.Tutorial then "🏆 ¡PRÁCTICA SUPERADA!" else "🏆 ¡VICTORIA!"
 			ui.ResultTitle.TextColor3 = THEME.Gold
 			announce("🏆 ¡VICTORIA!", THEME.Gold, 2)
 		else
@@ -571,7 +621,9 @@ function WaveController.start()
 		if data.Victory and (tonumber(data.VictoryEnergy) or 0) > 0 then
 			table.insert(lines, ("🎁 Premio de victoria: +%s ⚡  +%s 💰"):format(formatNumber(data.VictoryEnergy), formatNumber(tonumber(data.VictoryMoney) or 0)))
 		end
-		table.insert(lines, ("Récord del servidor: oleada %d"):format(tonumber(data.Best) or 0))
+		if not data.Tutorial then
+			table.insert(lines, ("Récord del servidor: oleada %d"):format(tonumber(data.Best) or 0))
+		end
 		ui.ResultBody.Text = table.concat(lines, "\n")
 		ui.ResultPanel.Visible = true
 		task.delay(10, function()
@@ -605,15 +657,19 @@ function WaveController.start()
 
 	-- Eventos del servidor --------------------------------------------------------------
 	local function onState(state: any)
-		if type(state) ~= "table" or type(state.Arena) ~= "string" then
+		if type(state) ~= "table" or type(state.Run) ~= "number" then
 			return
 		end
-		states[state.Arena] = state
+		if not current or current.Run ~= state.Run then
+			lastPhase = nil
+			lastWave = 0
+		end
+		current = state
 		local mine = myState() == state
-		local previous = lastPhase[state.Arena]
-		local previousWave = lastWave[state.Arena] or 0
-		lastPhase[state.Arena] = state.Phase
-		lastWave[state.Arena] = state.Wave or 0
+		local previous = lastPhase
+		local previousWave = lastWave
+		lastPhase = state.Phase
+		lastWave = state.Wave or 0
 		if mine then
 			if state.Phase == "Countdown" and previous ~= "Countdown" then
 				announce("⚔ ¡PREPÁRATE!", THEME.Gold, 1)
@@ -650,7 +706,13 @@ function WaveController.start()
 				Toasts.show(("✅ Oleada %d superada  +%s ⚡  +%s 💰"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Energy) or 0), formatNumber(tonumber(data.Money) or 0)), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
 			end
 		elseif kind == "Result" then
+			current = nil
 			showResult(data)
+			refreshPanel()
+		elseif kind == "Hint" then
+			if type(data) == "table" and type(data.Text) == "string" then
+				showHint(data.Text, math.clamp(tonumber(data.Seconds) or 6, 1, 20))
+			end
 		elseif kind == "Fx" then
 			if type(data) == "table" and data.Kind == "Explode" and typeof(data.Position) == "Vector3" then
 				explosion(data.Position, tonumber(data.Radius) or 6)
@@ -729,7 +791,15 @@ function WaveController.start()
 			end
 		end
 	end)
-	player:GetAttributeChangedSignal(Constants.Attributes.WaveArena):Connect(refreshPanel)
+	player:GetAttributeChangedSignal(Constants.Attributes.WaveRun):Connect(function()
+		refreshPanel()
+		refreshPrompt()
+	end)
+	task.spawn(function()
+		Workspace:WaitForChild("WaveArenas", 30)
+		task.wait(1)
+		refreshPrompt()
+	end)
 end
 
 return WaveController

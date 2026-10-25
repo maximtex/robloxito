@@ -112,6 +112,20 @@ check("si el huevo no existe no se suelta", ItemLogic.rollBossDrop("ForestWarden
 drop = ItemLogic.rollBossDrop("JefeNuevo", sequence({ 0 }), EggConfig.Eggs)
 check("un jefe sin botín propio usa Default (sin huevo)", #drop.Potions == ItemConfig.BossDrops.Default.Potions and drop.Egg == nil)
 
+print("-- 5b. Pociones de los enemigos normales")
+local dropsSane = true
+for kind, chance in ItemConfig.EnemyDrops do
+	if not (EnemyConfig.Types and type(chance) == "number" and chance > 0 and chance < 0.2) then
+		dropsSane = false
+		print("   ", kind)
+	end
+end
+check("probabilidades pequeñas (a veces, no siempre)", dropsSane and ItemConfig.EnemyDrops.Normal ~= nil and ItemConfig.EnemyDrops.Strong ~= nil)
+check("con suerte suelta una poción", ItemLogic.rollEnemyDrop("Normal", sequence({ 0, 0 })) == first)
+check("casi siempre nada", ItemLogic.rollEnemyDrop("Normal", sequence({ 0.5 })) == nil and ItemLogic.rollEnemyDrop("Strong", sequence({ 0.5 })) == nil)
+check("los fuertes la sueltan más a menudo", ItemConfig.EnemyDrops.Strong > ItemConfig.EnemyDrops.Normal)
+check("los jefes no usan esta regla (tienen la suya) y lo raro no suelta nada", ItemLogic.rollEnemyDrop("Boss", sequence({ 0 })) == nil and ItemLogic.rollEnemyDrop("Nada", sequence({ 0 })) == nil)
+
 print("-- 6. Títulos")
 local titles = ItemLogic.empty()
 local function stats(over)

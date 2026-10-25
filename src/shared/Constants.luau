@@ -53,11 +53,12 @@ local Constants = {
 		-- Servidor -> cliente: (amount, enemyName, isBoss, position, isKill, extra?) dinero
 		-- ganado; al derrotarlo extra = { Energy, Golden, Streak } (⚡, orbe dorado y racha).
 		CombatReward = "CombatReward",
-		-- Oleadas (WaveService). Cliente -> servidor: ("Start", arenaId) empieza una partida
-		-- (también con el ProximityPrompt del pedestal) o ("Pick", cardId) elige mejora.
+		-- Oleadas (WaveService). Cliente -> servidor: ("Start") empieza o se une a una partida
+		-- (también con el ProximityPrompt del altar) o ("Pick", cardId) elige mejora.
 		WaveAction = "WaveAction",
-		-- Servidor -> cliente: (kind, data) "State" (estado de la arena para todos), "Cards"
-		-- (mejoras para elegir, solo a ese jugador), "Picked" y "Result" (fin de la partida).
+		-- Servidor -> cliente: (kind, data) "State" (estado de SU partida, solo a quien juega),
+		-- "Cards" (mejoras para elegir), "Picked", "Cleared", "Hint" (consejo del tutorial),
+		-- "Fx" y "Result" (fin de la partida).
 		WaveEvent = "WaveEvent",
 		-- Servidor -> cliente: (event) acción de mascota YA confirmada, solo para efectos.
 		-- No existe la dirección contraria: el cliente no puede pedir habilidades.
@@ -229,9 +230,13 @@ local Constants = {
 		Streak = "Streak",
 		StreakUntil = "StreakUntil",
 		StreakBest = "StreakBest",
-		-- Arena de oleadas en la que juega ahora ("" o nil si ninguna; WaveService). Dentro, el
-		-- arma dispara sola aunque no tenga el pase.
+		-- Modo de oleadas en el que juega ahora (WaveConfig.Arenas; nil si ninguno; WaveService).
+		-- Dentro del círculo el arma dispara sola aunque no tenga el pase.
 		WaveArena = "WaveArena",
+		-- Partida de oleadas (número) del jugador y de cada enemigo de esa partida (en el
+		-- modelo y en sus efectos). Las partidas son privadas: cada jugador solo ve, golpea y
+		-- recibe golpes de los enemigos con su mismo valor (nil = el mundo normal).
+		WaveRun = "WaveRun",
 	},
 
 	PurchaseCodes = {

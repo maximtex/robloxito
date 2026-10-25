@@ -151,6 +151,8 @@ local entries: { [Model]: Entry } = {}
 local active: { Entry } = {}
 local fxFolder: Folder
 local onBossSpawn: ((Model) -> ())? = nil
+-- Qué enemigos se tienen en cuenta (oleadas privadas: los que este jugador ve). Sin filtro, todos.
+local isVisible: ((Model) -> boolean)? = nil
 local spawnSound: Sound? = nil
 
 local function entryFor(previous: { [Model]: Entry }, model: Model): Entry?
@@ -245,7 +247,7 @@ local function refreshList()
 	end
 	for _, zoneFolder in enemies:GetChildren() do
 		for _, model in zoneFolder:GetChildren() do
-			if model:IsA("Model") and model:GetAttribute("EnemyType") ~= nil then
+			if model:IsA("Model") and model:GetAttribute("EnemyType") ~= nil and (isVisible == nil or isVisible(model)) then
 				local entry = entryFor(previous, model)
 				if entry then
 					entries[model] = entry
@@ -700,8 +702,10 @@ end
 
 -- options.OnBossSpawn: aviso en pantalla cuando aparece un jefe cerca.
 -- options.SpawnSound: Id de sonido verificado para la entrada del jefe (o nil).
-function EnemyAnimator.start(options: { OnBossSpawn: ((Model) -> ())?, SpawnSound: string? }?)
+-- options.IsVisible: solo se animan (y solo hacen efectos) los enemigos que devuelvan true.
+function EnemyAnimator.start(options: { OnBossSpawn: ((Model) -> ())?, SpawnSound: string?, IsVisible: ((Model) -> boolean)? }?)
 	onBossSpawn = options and options.OnBossSpawn
+	isVisible = options and options.IsVisible
 	local soundId = options and options.SpawnSound
 	if soundId then
 		local sound = Instance.new("Sound")

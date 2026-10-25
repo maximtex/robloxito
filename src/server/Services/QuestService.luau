@@ -219,6 +219,11 @@ function QuestService.start()
 		record(player, { Type = "Egg" })
 		update(player, false)
 	end)
+	-- Partida de oleadas ganada (WaveService): estadística WaveWins (tutorial).
+	GameEvents.on("WaveWon", function(player)
+		record(player, { Type = "WaveWin" })
+		update(player, false)
+	end)
 	-- Cada segundo (con la producción): energía, cambio de día y misiones de estado.
 	EnergyService.onProduced(function(player, amount)
 		if amount > 0 then

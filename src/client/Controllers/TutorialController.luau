@@ -4,8 +4,8 @@
 -- - Tarjeta compacta en la columna derecha del HUD (HudDock: bajo el aviso de datos y sobre
 --   el seguimiento de misiones): paso actual, explicación y progreso orientativo. Se puede
 --   plegar (–) y omitir (dos pulsaciones: "Omitir" -> "¿Seguro?"), lo único que se envía.
--- - Guía: en el mundo, un rayo y una flecha hacia el cristal, el santuario o el portal
---   (desaparecen al llegar); en la interfaz, un marco que parpadea sobre el botón a usar.
+-- - Guía: en el mundo, un rayo y una flecha hacia el altar de las oleadas, el santuario o
+--   el portal (desaparecen al llegar); en la interfaz, un marco que parpadea sobre el botón.
 -- - Al completarlo se felicita una vez y desaparece. Nunca da recompensas.
 
 local Players = game:GetService("Players")
@@ -20,6 +20,7 @@ local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local EggConfig = require(Shared.Config.EggConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
+local WaveConfig = require(Shared.Config.WaveConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
@@ -53,6 +54,14 @@ local function guideTarget(guide: string?): (Vector3?, string?)
 	elseif guide == "Crystal" then
 		-- Centro visual del cristal flotante del santuario.
 		return GeneratorConfig.Position + Vector3.new(0, GeneratorConfig.CoreHeight, 0), ZoneConfig.DefaultZone or "Forest"
+	elseif guide == "Waves" then
+		-- Altar de las oleadas, en el centro del círculo de la plaza.
+		local settings = WaveConfig.Place
+		local center = zoneCenter(settings.Zone)
+		if center then
+			return center + Vector3.new(settings.Offset.X, 6, settings.Offset.Y), settings.Zone
+		end
+		return nil, nil
 	end
 	local kind, id = guide:match("^(%a+):(%w+)$")
 	if kind == "Egg" then

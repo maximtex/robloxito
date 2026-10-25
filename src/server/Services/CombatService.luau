@@ -62,7 +62,8 @@ local function handleSelect(player: Player, aimed: any)
 		return
 	end
 	local enemy = EnemyService.fromModel(aimed)
-	if not (enemy and EnemyService.isAlive(enemy)) then
+	-- Oleadas privadas: solo los enemigos de su mismo "mundo"
+	if not (enemy and EnemyService.isAlive(enemy) and EnemyService.canInteract(player, enemy)) then
 		return
 	end
 	local offset = enemy.Root.Position - root.Position

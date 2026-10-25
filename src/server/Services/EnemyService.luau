@@ -31,9 +31,15 @@
 -- - Oleadas (WaveService): enemigos de una reserva (spawnPooled) que se crean una vez,
 --   no reaparecen solos al morir y vuelven a la reserva; y jefes que solo salen en la
 --   última oleada (setBossWaveControlled / wakeBoss). Al morir avisan a OnWaveDeath.
+-- - Oleadas PRIVADAS: los enemigos de una partida llevan su número (Run, atributo WaveRun en
+--   el modelo y en sus efectos) y los jugadores que la juegan, el atributo WaveRun. Solo se
+--   persiguen, se golpean y se hacen daño los del mismo "mundo" (nil = el mundo normal);
+--   el cliente oculta lo de los demás (WaveVisibility). Los de las partidas no chocan con
+--   los jugadores ni entre ellos (grupo de colisión WaveEnemies) y no tienen zonas seguras.
 
 local Debris = game:GetService("Debris")
 local PathfindingService = game:GetService("PathfindingService")
+local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -132,6 +138,9 @@ type Enemy = {
 	WaveControlled: boolean, -- jefe que solo sale en la última oleada (no reaparece solo)
 	OnWaveDeath: ((any, Player?, Vector3) -> ())?, -- aviso al morir (enemigo, quién lo mató, dónde)
 	LastHitBy: Player?, -- quién dio el último golpe (solo para OnWaveDeath)
+	Run: number?, -- partida de oleadas a la que pertenece (nil = el mundo normal)
+	MoneyMultiplier: number, -- dinero que suelta (golpes y derrota); la ⚡ no cambia
+	Territory: number?, -- territorio del jefe (si no, Def.Brain.Territory)
 }
 
 local EnemyService = {}
@@ -149,12 +158,55 @@ local killModifier: ((Player, Enemy) -> (number?, number?))? = nil
 -- PetCombatService para la Tortuga). Un único punto: nunca se aplica dos veces.
 local incomingModifier: ((Player, number) -> number)? = nil
 local folder: Folder
-local fxFolder: Folder
 local rewardRemote: RemoteEvent
 -- Avisos de "este jugador ha derrotado a este enemigo" (los usa QuestService). Solo
 -- informan: no cambian la muerte ni la recompensa.
 local defeatListeners: { (Player, { TypeId: string, Kind: string, ZoneId: string, Reward: number }) -> () } = {}
 local clickListeners: { (Player, Enemy) -> () } = {}
+
+-- Oleadas privadas (WaveService) ------------------------------------------------------------
+local RUN_ATTRIBUTE = Constants.Attributes.WaveRun
+local WAVE_GROUP = "WaveEnemies" -- grupo de colisión de los de las partidas
+local CHARACTER_GROUP = "Characters" -- personajes de los jugadores
+
+-- Partida que juega un jugador (nil = el mundo normal).
+local function runOfPlayer(player: Player): number?
+	local value = player:GetAttribute(RUN_ATTRIBUTE)
+	return if type(value) == "number" then value else nil
+end
+
+-- ¿El enemigo y el jugador están en el mismo "mundo"?
+local function sameWorld(enemy: Enemy, player: Player): boolean
+	return enemy.Run == runOfPlayer(player)
+end
+
+-- ¿Este jugador puede ver, apuntar y golpear a este enemigo?
+function EnemyService.canInteract(player: Player, enemy: any): boolean
+	return enemy ~= nil and sameWorld(enemy, player)
+end
+
+-- Marca una pieza de efecto con la partida de su enemigo (el cliente oculta las ajenas).
+local function tagRun(instance: Instance, run: number?)
+	if run ~= nil then
+		instance:SetAttribute(RUN_ATTRIBUTE, run)
+	end
+end
+
+local fxFolder: Folder
+-- Pieza de efecto creada sin padre: se marca con su partida y LUEGO se pone en el mundo
+-- (así llega ya marcada y los demás jugadores no la ven ni un instante).
+local function placeFx(part: Instance, run: number?)
+	tagRun(part, run)
+	part.Parent = fxFolder
+end
+
+local function setCollisionGroup(model: Instance, group: string)
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.CollisionGroup = group
+		end
+	end
+end
 
 function EnemyService.onDefeated(listener: (Player, { TypeId: string, Kind: string, ZoneId: string, Reward: number }) -> ())
 	table.insert(defeatListeners, listener)
@@ -570,8 +622,9 @@ local function setEnraged(enemy: Enemy, enraged: boolean)
 	refreshSpeed(enemy, os.clock())
 end
 
-local function burst(position: Vector3, color: Color3, amount: number, rising: boolean?)
+local function burst(position: Vector3, color: Color3, amount: number, rising: boolean?, run: number?)
 	local part = Instance.new("Part")
+	tagRun(part, run)
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanQuery = false
@@ -728,9 +781,11 @@ local function onDeath(enemy: Enemy)
 			local count = WaveLogic.streakKill(streak, nowClock, streakSeconds)
 			local golden = WaveLogic.rollGolden(math.random, isBoss)
 			local bonus = WaveLogic.streakMultiplier(count) * WaveLogic.goldenMultiplier(golden) * lootBonus
-			local earned = math.floor(amount * lootMultiplier(profile) * bonus)
+			local earned = math.floor(amount * lootMultiplier(profile) * bonus * enemy.MoneyMultiplier)
 			profile.Money += earned
-			local energy = EnergyService.grant(player, WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare, profile.ProductionPerSecond) * bonus)
+			-- ⚡ (con la Poción de Energía del inventario, mientras dura)
+			local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time())
+			local energy = EnergyService.grant(player, WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare, profile.ProductionPerSecond) * bonus * potion)
 			if energy <= 0 then
 				PlayerDataService.replicate(player) -- grant ya replica si ha sumado energía
 			end
@@ -744,7 +799,7 @@ local function onDeath(enemy: Enemy)
 		end
 	end
 
-	burst(position, enemy.Def.Look.Secondary, if isBoss then 60 else 20, true)
+	burst(position, enemy.Def.Look.Secondary, if isBoss then 60 else 20, true, enemy.Run)
 	local killer = enemy.LastHitBy
 	enemy.LastHitBy = nil
 	local dissolve = enemy.DeathSeconds or DISSOLVE_SECONDS[enemy.Kind] or 0.8
@@ -780,8 +835,8 @@ end
 -- Daño recibido de un jugador (lo llama CombatService tras validar el golpe).
 -- Devuelve el daño aplicado, si este golpe lo ha matado y las monedas ganadas en el impacto.
 function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (number, boolean, number)
-	if enemy.Model.Parent == nil then
-		return 0, false, 0
+	if enemy.Model.Parent == nil or not sameWorld(enemy, player) then
+		return 0, false, 0 -- los de otra partida (o del mundo, si juegas una) no se golpean
 	end
 	-- Marcado por una maldición: recibe más daño (de todos los jugadores y mascotas).
 	local profile = PlayerDataService.get(player)
@@ -800,12 +855,12 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 	local earnedHit = 0
 	if profile then
 		local baseHit = math.max(1, math.floor(enemy.Def.Reward * (dealt / math.max(1, enemy.Status.MaxHealth)) * 0.75))
-		earnedHit = math.max(1, math.floor(baseHit * lootMultiplier(profile)))
+		earnedHit = math.max(1, math.floor(baseHit * lootMultiplier(profile) * enemy.MoneyMultiplier))
 		profile.Money += earnedHit
 		PlayerDataService.replicate(player)
 		rewardRemote:FireClient(player, earnedHit, enemy.Def.DisplayName, false, enemy.Root.Position, false)
 	end
-	burst(enemy.Root.Position, enemy.Def.Look.Secondary, 5)
+	burst(enemy.Root.Position, enemy.Def.Look.Secondary, 5, false, enemy.Run)
 	if killed then
 		enemy.LastHitBy = player
 		onDeath(enemy)
@@ -817,7 +872,7 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 	local enrage = enemy.Def.Enrage
 	if enrage and not enemy.Enraged and enemy.Status.Health <= enemy.Status.MaxHealth * enrage.HealthFraction then
 		setEnraged(enemy, true) -- más rápido (refreshSpeed)
-		burst(enemy.Root.Position, ENRAGED_EYES, 40)
+		burst(enemy.Root.Position, ENRAGED_EYES, 40, false, enemy.Run)
 	end
 	-- Quien le golpea se convierte en su objetivo si no tenía uno
 	if enemy.Target == nil then
@@ -919,7 +974,10 @@ function EnemyService.setIncomingDamageModifier(modifier: (Player, number) -> nu
 	incomingModifier = modifier
 end
 
-local function damagePlayer(player: Player, humanoid: Humanoid, amount: number)
+local function damagePlayer(enemy: Enemy, player: Player, humanoid: Humanoid, amount: number)
+	if not sameWorld(enemy, player) then
+		return -- de otra partida (o del mundo normal mientras juegas una): no te alcanza
+	end
 	local final = amount
 	if incomingModifier then
 		local ok, result = pcall(incomingModifier, player, amount)
@@ -931,11 +989,13 @@ local function damagePlayer(player: Player, humanoid: Humanoid, amount: number)
 end
 
 -- Enemigos vivos dentro de un radio (borde incluido), sin repetidos y como mucho `maxTargets`.
-function EnemyService.findInRadius(center: Vector3, radius: number, maxTargets: number): { Enemy }
+-- Con `viewer`, solo los de su mismo "mundo" (oleadas privadas).
+function EnemyService.findInRadius(center: Vector3, radius: number, maxTargets: number, viewer: Player?): { Enemy }
 	local candidates = {}
 	local byId: { [number]: Enemy } = {}
+	local viewerRun = if viewer then runOfPlayer(viewer) else nil
 	for _, enemy in enemies do
-		if EnemyService.isAlive(enemy) and math.abs(enemy.Root.Position.Y - center.Y) <= 10 + enemy.RootHeight then
+		if EnemyService.isAlive(enemy) and (viewer == nil or enemy.Run == viewerRun) and math.abs(enemy.Root.Position.Y - center.Y) <= 10 + enemy.RootHeight then
 			byId[enemy.Id] = enemy
 			table.insert(candidates, { Id = enemy.Id, X = enemy.Root.Position.X, Z = enemy.Root.Position.Z, Radius = enemy.Radius, Alive = true })
 		end
@@ -948,11 +1008,12 @@ function EnemyService.findInRadius(center: Vector3, radius: number, maxTargets: 
 end
 
 -- Objetivos de un golpe (la lógica de alcance y ángulo está en EnemyLogic).
-function EnemyService.findTargets(origin: Vector3, look: Vector3, range: number, arcDot: number, maxTargets: number): { Enemy }
+function EnemyService.findTargets(origin: Vector3, look: Vector3, range: number, arcDot: number, maxTargets: number, viewer: Player?): { Enemy }
 	local candidates = {}
 	local byId: { [number]: Enemy } = {}
+	local viewerRun = if viewer then runOfPlayer(viewer) else nil
 	for _, enemy in enemies do
-		local alive = enemy.Model.Parent ~= nil and enemy.Status.State ~= "Dead"
+		local alive = enemy.Model.Parent ~= nil and enemy.Status.State ~= "Dead" and (viewer == nil or enemy.Run == viewerRun)
 		-- Sin golpes a través de suelos o desde muy arriba/abajo
 		if alive and math.abs(enemy.Root.Position.Y - origin.Y) <= 10 + enemy.RootHeight then
 			byId[enemy.Id] = enemy
@@ -1020,7 +1081,7 @@ local function acquireTarget(enemy: Enemy): Player?
 		if root then
 			local distance = flat(root.Position - enemy.Root.Position)
 			local inRange = if enemy.Kind == "Boss" then flat(root.Position - enemy.LeashCenter) <= enemy.LeashRadius - 2 else distance <= enemy.DetectRange
-			if inRange and distance < bestDistance and canTarget(enemy, root.Position) then
+			if inRange and distance < bestDistance and sameWorld(enemy, player) and canTarget(enemy, root.Position) then
 				best, bestDistance = player, distance
 			end
 		end
@@ -1043,7 +1104,7 @@ local function attack(enemy: Enemy, target: Player)
 		end
 		local root, humanoid = characterOf(target)
 		if root and humanoid and flat(root.Position - enemy.Root.Position) <= enemy.Def.AttackRange + enemy.Radius + 1.5 then
-			damagePlayer(target, humanoid, enemy.Def.Damage)
+			damagePlayer(enemy, target, humanoid, enemy.Def.Damage)
 		end
 	end)
 end
@@ -1057,10 +1118,12 @@ local function slam(enemy: Enemy)
 	local warningColor = if enemy.Enraged then ENRAGED_EYES else enemy.Def.Look.Eyes
 	enemy.Model:SetAttribute("SlamAt", Workspace:GetServerTimeNow() + settings.Telegraph)
 	-- Borde del área (fijo) y disco interior que crece: cuando llena el borde, golpea.
-	local ring = PartFactory.verticalCylinder(fxFolder, "SlamWarning", center + Vector3.new(0, 0.32, 0), 0.12, diameter, warningColor, Enum.Material.Neon, false)
+	local ring = PartFactory.verticalCylinder(nil :: any, "SlamWarning", center + Vector3.new(0, 0.32, 0), 0.12, diameter, warningColor, Enum.Material.Neon, false)
 	ring.Transparency = 0.55 -- borde bien visible: aquí acaba el área
-	local fill = PartFactory.verticalCylinder(fxFolder, "SlamFill", center + Vector3.new(0, 0.36, 0), 0.14, 1, warningColor, Enum.Material.Neon, false)
+	placeFx(ring, enemy.Run)
+	local fill = PartFactory.verticalCylinder(nil :: any, "SlamFill", center + Vector3.new(0, 0.36, 0), 0.14, 1, warningColor, Enum.Material.Neon, false)
 	fill.Transparency = 0.55
+	placeFx(fill, enemy.Run)
 	TweenService:Create(fill, TweenInfo.new(settings.Telegraph, Enum.EasingStyle.Linear), { Size = Vector3.new(0.14, diameter, diameter) }):Play()
 	Debris:AddItem(ring, settings.Telegraph + 0.1)
 	Debris:AddItem(fill, settings.Telegraph + 0.1)
@@ -1071,16 +1134,17 @@ local function slam(enemy: Enemy)
 		if EnemyLogic.isStunned(enemy.Control, os.clock()) then
 			return -- aturdido justo al golpear: el golpe en área se interrumpe
 		end
-		burst(center + Vector3.new(0, 1, 0), enemy.Def.Look.Secondary, 30)
+		burst(center + Vector3.new(0, 1, 0), enemy.Def.Look.Secondary, 30, false, enemy.Run)
 		-- Onda expansiva breve
-		local wave = PartFactory.verticalCylinder(fxFolder, "SlamWave", center + Vector3.new(0, 0.4, 0), 0.3, diameter * 0.6, warningColor, Enum.Material.Neon, false)
+		local wave = PartFactory.verticalCylinder(nil :: any, "SlamWave", center + Vector3.new(0, 0.4, 0), 0.3, diameter * 0.6, warningColor, Enum.Material.Neon, false)
 		wave.Transparency = 0.3
+		placeFx(wave, enemy.Run)
 		TweenService:Create(wave, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.05, diameter * 1.15, diameter * 1.15), Transparency = 1 }):Play()
 		Debris:AddItem(wave, 0.45)
 		for _, player in Players:GetPlayers() do
 			local root, humanoid = characterOf(player)
 			if root and humanoid and flat(root.Position - center) <= settings.Radius and math.abs(root.Position.Y - center.Y) < 12 then
-				damagePlayer(player, humanoid, settings.Damage)
+				damagePlayer(enemy, player, humanoid, settings.Damage)
 			end
 		end
 	end)
@@ -1172,7 +1236,7 @@ local function setBossState(enemy: Enemy, state: string)
 end
 
 local function territoryOf(enemy: Enemy): number
-	return enemy.Def.Brain.Territory
+	return enemy.Territory or enemy.Def.Brain.Territory
 end
 
 -- Punto dentro del territorio (el jefe nunca sale de él)
@@ -1196,7 +1260,7 @@ local function bossAcquire(enemy: Enemy): Player?
 		local root = characterOf(player)
 		if root then
 			local distance = flat(root.Position - enemy.Root.Position)
-			if distance <= bestDistance and flat(root.Position - enemy.LeashCenter) <= territoryOf(enemy) and bossCanTarget(enemy, root.Position) then
+			if distance <= bestDistance and sameWorld(enemy, player) and flat(root.Position - enemy.LeashCenter) <= territoryOf(enemy) and bossCanTarget(enemy, root.Position) then
 				best, bestDistance = player, distance
 			end
 		end
@@ -1284,27 +1348,29 @@ local function bossMoveTo(enemy: Enemy, goal: Vector3, now: number)
 end
 
 -- Marca de aviso en el suelo: borde fijo y un disco que crece hasta llenarlo cuando golpea
-local function telegraphDisc(center: Vector3, radius: number, color: Color3, seconds: number)
+local function telegraphDisc(center: Vector3, radius: number, color: Color3, seconds: number, run: number?)
 	local ground = Vector3.new(center.X, GROUND + StudFloor.raiseAt(center.X, center.Z), center.Z)
 	local diameter = radius * 2
-	local ring = PartFactory.verticalCylinder(fxFolder, "BossWarning", ground + Vector3.new(0, 0.32, 0), 0.12, diameter, color, Enum.Material.Neon, false)
+	local ring = PartFactory.verticalCylinder(nil :: any, "BossWarning", ground + Vector3.new(0, 0.32, 0), 0.12, diameter, color, Enum.Material.Neon, false)
 	ring.Transparency = 0.55
-	local fill = PartFactory.verticalCylinder(fxFolder, "BossWarningFill", ground + Vector3.new(0, 0.36, 0), 0.14, 1, color, Enum.Material.Neon, false)
+	placeFx(ring, run)
+	local fill = PartFactory.verticalCylinder(nil :: any, "BossWarningFill", ground + Vector3.new(0, 0.36, 0), 0.14, 1, color, Enum.Material.Neon, false)
 	fill.Transparency = 0.55
+	placeFx(fill, run)
 	TweenService:Create(fill, TweenInfo.new(seconds, Enum.EasingStyle.Linear), { Size = Vector3.new(0.14, diameter, diameter) }):Play()
 	Debris:AddItem(ring, seconds + 0.1)
 	Debris:AddItem(fill, seconds + 0.1)
 end
 
 -- Franja de aviso de la embestida, de `from` a `to`
-local function telegraphStrip(from: Vector3, to: Vector3, width: number, color: Color3, seconds: number)
+local function telegraphStrip(from: Vector3, to: Vector3, width: number, color: Color3, seconds: number, run: number?)
 	local a = Vector3.new(from.X, GROUND + 0.34 + StudFloor.raiseAt(from.X, from.Z), from.Z)
 	local b = Vector3.new(to.X, a.Y, to.Z)
 	local length = (b - a).Magnitude
 	if length < 0.5 then
 		return
 	end
-	local strip = PartFactory.part(fxFolder, "BossChargeWarning", {
+	local strip = PartFactory.part(nil :: any, "BossChargeWarning", {
 		Size = Vector3.new(width, 0.12, length),
 		CFrame = CFrame.lookAt((a + b) / 2, b),
 		Color = color,
@@ -1312,6 +1378,7 @@ local function telegraphStrip(from: Vector3, to: Vector3, width: number, color: 
 		Solid = false,
 	})
 	strip.Transparency = 0.5
+	placeFx(strip, run)
 	Debris:AddItem(strip, seconds + 0.1)
 end
 
@@ -1328,11 +1395,11 @@ local function slowPlayer(humanoid: Humanoid, factor: number, seconds: number)
 	end)
 end
 
-local function damageInRadius(center: Vector3, radius: number, damage: number, onHit: ((Player, Humanoid) -> ())?)
+local function damageInRadius(enemy: Enemy, center: Vector3, radius: number, damage: number, onHit: ((Player, Humanoid) -> ())?)
 	for _, player in Players:GetPlayers() do
 		local root, humanoid = characterOf(player)
-		if root and humanoid and flat(root.Position - center) <= radius and math.abs(root.Position.Y - center.Y) < 12 then
-			damagePlayer(player, humanoid, damage)
+		if root and humanoid and sameWorld(enemy, player) and flat(root.Position - center) <= radius and math.abs(root.Position.Y - center.Y) < 12 then
+			damagePlayer(enemy, player, humanoid, damage)
 			if onHit then
 				onHit(player, humanoid)
 			end
@@ -1367,7 +1434,7 @@ end
 local function bossStrike(enemy: Enemy, target: Player, targetRoot: BasePart)
 	local reach = enemy.Def.AttackRange + enemy.Radius
 	local forward = faceTowards(enemy, targetRoot.Position)
-	telegraphDisc(enemy.Root.Position + forward * reach * 0.5, reach * 0.55, TELEGRAPH_RED, enemy.Def.AttackWindup)
+	telegraphDisc(enemy.Root.Position + forward * reach * 0.5, reach * 0.55, TELEGRAPH_RED, enemy.Def.AttackWindup, enemy.Run)
 	attack(enemy, target) -- ojos, animación y daño validado al terminar la preparación
 	busyThenRecover(enemy, enemy.Def.AttackWindup + 0.15)
 end
@@ -1382,26 +1449,27 @@ local function bossRoots(enemy: Enemy, targetPosition: Vector3)
 	local generation = enemy.Generation
 	local center = Vector3.new(targetPosition.X, GROUND, targetPosition.Z)
 	faceTowards(enemy, targetPosition)
-	telegraphDisc(center, settings.Radius, enemy.Def.Look.Secondary, settings.Telegraph)
+	telegraphDisc(center, settings.Radius, enemy.Def.Look.Secondary, settings.Telegraph, enemy.Run)
 	setEyes(enemy, WINDUP_EYES)
 	task.delay(settings.Telegraph, function()
 		if enemy.Generation ~= generation or enemy.Status.State == "Dead" then
 			return
 		end
 		setEyes(enemy, restingEyes(enemy))
-		burst(center + Vector3.new(0, 1, 0), enemy.Def.Look.Secondary, 25)
+		burst(center + Vector3.new(0, 1, 0), enemy.Def.Look.Secondary, 25, false, enemy.Run)
 		for index = 1, 6 do
 			local angle = index / 6 * math.pi * 2
-			local spike = PartFactory.part(fxFolder, "RootSpike", {
+			local spike = PartFactory.part(nil :: any, "RootSpike", {
 				Size = Vector3.new(0.8, 4, 0.8),
 				CFrame = CFrame.new(center + Vector3.new(math.cos(angle) * settings.Radius * 0.6, 1.5, math.sin(angle) * settings.Radius * 0.6)) * CFrame.Angles(math.rad(15), angle, 0),
 				Color = enemy.Def.Look.Primary,
 				Material = Enum.Material.Wood,
 				Solid = false,
 			})
+			placeFx(spike, enemy.Run)
 			Debris:AddItem(spike, 1.2)
 		end
-		damageInRadius(center, settings.Radius, settings.Damage, function(_player, humanoid)
+		damageInRadius(enemy, center, settings.Radius, settings.Damage, function(_player, humanoid)
 			slowPlayer(humanoid, settings.SlowFactor, settings.SlowSeconds)
 		end)
 	end)
@@ -1415,7 +1483,7 @@ local function bossCharge(enemy: Enemy, targetPosition: Vector3)
 	local origin = enemy.Root.Position
 	local direction = faceTowards(enemy, targetPosition)
 	local finish = clampToTerritory(enemy, origin + direction * settings.Distance)
-	telegraphStrip(origin, finish, settings.Width, TELEGRAPH_RED, settings.Telegraph)
+	telegraphStrip(origin, finish, settings.Width, TELEGRAPH_RED, settings.Telegraph, enemy.Run)
 	setEyes(enemy, WINDUP_EYES)
 	local dashSeconds = flat(finish - origin) / settings.Speed + 0.2
 	busyThenRecover(enemy, settings.Telegraph + dashSeconds)
@@ -1446,7 +1514,7 @@ local function updateDash(enemy: Enemy, now: number)
 		local root, humanoid = characterOf(player)
 		if root and humanoid and not dash.Hit[player] and flat(root.Position - enemy.Root.Position) <= dash.Width / 2 + enemy.Radius then
 			dash.Hit[player] = true
-			damagePlayer(player, humanoid, dash.Damage)
+			damagePlayer(enemy, player, humanoid, dash.Damage)
 		end
 	end
 end
@@ -1456,7 +1524,7 @@ local function bossLeap(enemy: Enemy, targetPosition: Vector3)
 	local generation = enemy.Generation
 	local landing = clampToTerritory(enemy, Vector3.new(targetPosition.X, GROUND, targetPosition.Z))
 	faceTowards(enemy, landing)
-	telegraphDisc(landing, settings.Radius, TELEGRAPH_RED, settings.Telegraph + 0.5)
+	telegraphDisc(landing, settings.Radius, TELEGRAPH_RED, settings.Telegraph + 0.5, enemy.Run)
 	setEyes(enemy, WINDUP_EYES)
 	busyThenRecover(enemy, settings.Telegraph + 0.7)
 	task.delay(settings.Telegraph, function()
@@ -1487,8 +1555,8 @@ local function bossLeap(enemy: Enemy, targetPosition: Vector3)
 			enemy.Root:SetNetworkOwner(nil)
 		end)
 		setEyes(enemy, restingEyes(enemy))
-		burst(landing + Vector3.new(0, 1, 0), enemy.Def.Look.Secondary, 35)
-		damageInRadius(landing + Vector3.new(0, enemy.RootHeight, 0), settings.Radius, settings.Damage)
+		burst(landing + Vector3.new(0, 1, 0), enemy.Def.Look.Secondary, 35, false, enemy.Run)
+		damageInRadius(enemy, landing + Vector3.new(0, enemy.RootHeight, 0), settings.Radius, settings.Damage)
 	end)
 end
 
@@ -1509,7 +1577,8 @@ local function bossVolley(enemy: Enemy, target: Player)
 				local aim = root.Position
 				faceTowards(enemy, aim)
 				local travel = math.max(0.2, (aim - from).Magnitude / settings.Speed)
-				local ball = PartFactory.ball(fxFolder, "BossFireball", from, 1.6, enemy.Def.Look.Secondary, Enum.Material.Neon, false)
+				local ball = PartFactory.ball(nil :: any, "BossFireball", from, 1.6, enemy.Def.Look.Secondary, Enum.Material.Neon, false)
+				placeFx(ball, enemy.Run)
 				task.spawn(function()
 					local began = os.clock()
 					local hit: { [Player]: boolean } = {}
@@ -1520,12 +1589,12 @@ local function bossVolley(enemy: Enemy, target: Player)
 							local playerRoot, humanoid = characterOf(player)
 							if playerRoot and humanoid and not hit[player] and (playerRoot.Position - position).Magnitude <= settings.Radius then
 								hit[player] = true
-								damagePlayer(player, humanoid, settings.Damage)
+								damagePlayer(enemy, player, humanoid, settings.Damage)
 							end
 						end
 						RunService.Heartbeat:Wait()
 					end
-					burst(aim, enemy.Def.Look.Secondary, 10)
+					burst(aim, enemy.Def.Look.Secondary, 10, false, enemy.Run)
 					ball:Destroy()
 				end)
 			end
@@ -1636,7 +1705,7 @@ local function updateBoss(enemy: Enemy, now: number)
 	local previous = enemy.Target
 	local target = previous
 	local targetRoot = if target and target.Parent then characterOf(target) else nil
-	if not (targetRoot and bossCanTarget(enemy, targetRoot.Position)) then
+	if not (targetRoot and sameWorld(enemy, target) and bossCanTarget(enemy, targetRoot.Position)) then
 		target, targetRoot = nil, nil
 	elseif now >= brain.LockedUntil then
 		local closer = bossAcquire(enemy)
@@ -1732,7 +1801,7 @@ local function updateEnemy(enemy: Enemy, now: number)
 	-- Validar u obtener objetivo
 	local target = enemy.Target
 	local targetRoot = if target and target.Parent then characterOf(target) else nil
-	if not (targetRoot and canTarget(enemy, targetRoot.Position) and flat(targetRoot.Position - enemy.LeashCenter) <= enemy.LeashRadius + 6) then
+	if not (targetRoot and sameWorld(enemy, target) and canTarget(enemy, targetRoot.Position) and flat(targetRoot.Position - enemy.LeashCenter) <= enemy.LeashRadius + 6) then
 		enemy.Target = nil
 		target = acquireTarget(enemy)
 		enemy.Target = target
@@ -1946,7 +2015,17 @@ local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSe
 		WaveControlled = false,
 		OnWaveDeath = nil,
 		LastHitBy = nil,
+		Run = nil,
+		MoneyMultiplier = 1,
+		Territory = nil,
 	}
+	if pooled then
+		-- De las oleadas: sin zonas seguras (el círculo está en la plaza) y sin chocar con
+		-- los jugadores ni con los de otras partidas.
+		enemy.SafeZones = {}
+		enemy.SafeAreas = {}
+		setCollisionGroup(rig.Model, WAVE_GROUP)
+	end
 	if def.Brain then
 		enemy.Brain = newBrain()
 	end
@@ -1982,7 +2061,7 @@ local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSe
 	clickDetector.MaxActivationDistance = 75
 	clickDetector.Parent = rig.Model
 	clickDetector.MouseClick:Connect(function(player: Player)
-		if EnemyService.isAlive(enemy) then
+		if EnemyService.isAlive(enemy) and sameWorld(enemy, player) then
 			enemy.Billboard.Enabled = true
 			for _, listener in clickListeners do
 				task.spawn(listener, player, enemy)
@@ -2009,6 +2088,11 @@ export type WaveSpawnOptions = {
 	RewardMultiplier: number?,
 	PoolLimit: number?, -- como mucho estos de su tipo en la reserva
 	OnDeath: ((any, Player?, Vector3) -> ())?,
+	Run: number?, -- partida (oleadas privadas): solo la ven y lo golpean sus jugadores
+	MoneyMultiplier: number?, -- dinero que suelta (la ⚡ no cambia)
+	-- Jefes: su arena (para la barra del jefe del cliente) y su territorio
+	Arena: { Center: Vector3, Radius: number, Name: string }?,
+	Territory: number?,
 }
 
 local function finiteOr(value: any, default: number): number
@@ -2045,6 +2129,14 @@ function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vect
 	enemy.Status.MaxHealth = math.max(1, math.floor(def.MaxHealth * finiteOr(opts.HealthMultiplier, 1)))
 	enemy.OnWaveDeath = opts.OnDeath
 	enemy.LastHitBy = nil
+	enemy.Run = opts.Run
+	enemy.Model:SetAttribute(RUN_ATTRIBUTE, opts.Run)
+	enemy.MoneyMultiplier = if opts.MoneyMultiplier ~= nil then math.clamp(finiteOr(opts.MoneyMultiplier, 1), 0, 10) else 1
+	enemy.Territory = if opts.Territory ~= nil then finiteOr(opts.Territory, def.Brain and def.Brain.Territory or 20) else nil
+	local arena = opts.Arena
+	enemy.Model:SetAttribute("ArenaCenter", if arena then arena.Center else nil)
+	enemy.Model:SetAttribute("ArenaRadius", if arena then arena.Radius else nil)
+	enemy.Model:SetAttribute("ArenaName", if arena then arena.Name else nil)
 	enemy.Generation += 1
 	respawn(enemy)
 	return enemy
@@ -2063,7 +2155,7 @@ function EnemyService.despawn(enemy: Enemy?)
 	clearControl(enemy)
 	setEnraged(enemy, false)
 	if enemy.Model.Parent ~= nil and enemy.Status.State ~= "Dead" then
-		burst(enemy.Root.Position, enemy.Def.Look.Secondary, 12, true)
+		burst(enemy.Root.Position, enemy.Def.Look.Secondary, 12, true, enemy.Run)
 	end
 	enemy.Status.State = "Dead"
 	enemy.Billboard.Enabled = false
@@ -2135,6 +2227,41 @@ function EnemyService.start()
 	arenas.Name = ARENAS_NAME
 	arenas.Parent = workspace
 	rewardRemote = RemoteService.get(Constants.Remotes.CombatReward)
+
+	-- Oleadas privadas: los enemigos de las partidas no chocan con los personajes ni entre
+	-- ellos (así nadie tropieza con enemigos que no ve).
+	for _, group in { WAVE_GROUP, CHARACTER_GROUP } do
+		local ok, err = pcall(function()
+			if not PhysicsService:IsCollisionGroupRegistered(group) then
+				PhysicsService:RegisterCollisionGroup(group)
+			end
+		end)
+		if not ok then
+			warn("[EnemyService] Grupo de colisión " .. group .. ": " .. tostring(err))
+		end
+	end
+	pcall(function()
+		PhysicsService:CollisionGroupSetCollidable(WAVE_GROUP, WAVE_GROUP, false)
+		PhysicsService:CollisionGroupSetCollidable(WAVE_GROUP, CHARACTER_GROUP, false)
+	end)
+	local function watchCharacter(character: Model)
+		setCollisionGroup(character, CHARACTER_GROUP)
+		character.DescendantAdded:Connect(function(part)
+			if part:IsA("BasePart") then
+				part.CollisionGroup = CHARACTER_GROUP
+			end
+		end)
+	end
+	local function watchPlayer(player: Player)
+		player.CharacterAdded:Connect(watchCharacter)
+		if player.Character then
+			watchCharacter(player.Character)
+		end
+	end
+	Players.PlayerAdded:Connect(watchPlayer)
+	for _, player in Players:GetPlayers() do
+		watchPlayer(player)
+	end
 
 	-- Enemigos repartidos por las zonas.
 	for zoneId, zoneSettings in EnemyConfig.Zones do

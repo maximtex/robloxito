@@ -55,12 +55,12 @@ local function guideTarget(guide: string?): (Vector3?, string?)
 		return GeneratorConfig.Position + Vector3.new(0, GeneratorConfig.CoreHeight, 0), ZoneConfig.DefaultZone or "Forest"
 	end
 	local kind, id = guide:match("^(%a+):(%w+)$")
-	if kind == "Stand" then
-		local stand = EggConfig.Stands[id]
-		local zoneId = stand and (stand.Zone or ZoneConfig.DefaultZone or "Forest")
+	if kind == "Egg" then
+		local egg = EggConfig.Eggs[id]
+		local zoneId = egg and (egg.Zone or ZoneConfig.DefaultZone or "Forest")
 		local center = zoneId and zoneCenter(zoneId)
-		if stand and center then
-			return center + Vector3.new(stand.StandOffset.X, 5, stand.StandOffset.Y), zoneId
+		if egg and center then
+			return center + Vector3.new(egg.StandOffset.X, 5, egg.StandOffset.Y), zoneId
 		end
 	elseif kind == "Arena" then
 		local zoneSettings = EnemyConfig.Zones[id]

@@ -1,3 +1,6 @@
+-- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
+-- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
+EconomyConfig.PassiveEnergy = true
 -- Persistencia v3 (Fase 2, etapa 1): Cores, CoresArchive y LastSeen con el SaveService y
 -- el PlayerDataService REALES sobre un DataStore en memoria con datos controlados.
 -- Desde la fase 2 los núcleos desbloqueados SÍ producen (y hay producción offline al
@@ -58,7 +61,7 @@ print("-- 2. Guardado en v3")
 local savedAt = os.time()
 exit(ana)
 local r = record(11)
-check("versión actual (8), Cores guardado y LastSeen = hora del guardado", r.Version == 8 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == savedAt)
+check("versión actual (9), Cores guardado y LastSeen = hora del guardado", r.Version == 9 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == savedAt)
 check("sin CoresArchive vacío en el registro", r.CoresArchive == nil)
 check("energía, nivel, mascotas, zonas, misiones y tutorial intactos", r.Energy == 1234 and r.UpgradeLevels.GeneratorPower == 7 and same(r.Pets, V2.Pets) and same(r.Equipped, V2.Equipped) and same(r.UnlockedZones, V2.UnlockedZones) and r.Quests.Stats.Kills == 3 and r.Tutorial.Status == "Completed")
 check("campo desconocido del nivel superior conservado y bloqueo liberado", same(r.FutureField, V2.FutureField) and r.Session == nil)
@@ -174,7 +177,7 @@ check("v2 escribe Version = 2 y su energía (marca de que pasó por v2)", r.Vers
 ben, p = enter("Ben", 12)
 check("v3 vuelve a leer los mismos núcleos, sin correcciones, con la energía de v2", same(p.PetData.Cores, snap.Cores) and same(p.PetData.CoresArchive, snap.CoresArchive) and p.Energy == 77)
 exit(ben)
-check("y al guardar vuelve a la versión actual (8) sin perder nada", record(12).Version == 8 and same(record(12).Cores, snap.Cores) and same(record(12).CoresArchive, snap.CoresArchive))
+check("y al guardar vuelve a la versión actual (9) sin perder nada", record(12).Version == 9 and same(record(12).Cores, snap.Cores) and same(record(12).CoresArchive, snap.CoresArchive))
 
 print("-- 9. Carga fallida y salida durante la carga")
 storeData.player_17 ={ Version = 2, Energy = 900, UpgradeLevels = { GeneratorPower = 4 } }
@@ -195,7 +198,7 @@ leave(fin)
 advance(5)
 storeLatency = 0
 r = record(18)
-check("salir durante la carga: energía intacta, núcleos por defecto y bloqueo liberado", r.Energy == 300 and r.UpgradeLevels.GeneratorPower == 1 and same(r.Cores, CoreLogic.empty()) and r.Version == 8 and r.Session == nil)
+check("salir durante la carga: energía intacta, núcleos por defecto y bloqueo liberado", r.Energy == 300 and r.UpgradeLevels.GeneratorPower == 1 and same(r.Cores, CoreLogic.empty()) and r.Version == 9 and r.Session == nil)
 
 print("-- 9b. Un dato conservado no se archiva una y otra vez")
 storeData.player_20 = { Version = 3, Cores = { Elements = { Nature = { Unlocked = true, Level = { Old = 3 } } } } }
@@ -241,7 +244,7 @@ check("v1 carga: energía y mejora iniciales, núcleos por defecto, nada archiva
 local energy21 = p.Energy
 exit(ivy)
 r = record(21)
-check("v1 guardado en la versión actual: Cores, LastSeen y Version 8", r.Version == 8 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time() and r.Session == nil)
+check("v1 guardado en la versión actual: Cores, LastSeen y Version 9", r.Version == 9 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time() and r.Session == nil)
 check("v1: mascotas, equipadas, NextPetUid, zonas y estadísticas intactas", same(r.Pets, V1.Pets) and same(r.Equipped, V1.Equipped) and r.NextPetUid == 2 and same(r.UnlockedZones, V1.UnlockedZones) and r.Quests.Stats.Kills == 7 and r.Energy == energy21 and r.UpgradeLevels.GeneratorPower == 0)
 
 print("-- 12. Migración v2 completa: NextPetUid, Tutorial.Step, Quests y mejoras archivadas")
@@ -268,7 +271,7 @@ local sessionQuests = QuestLogic.serialize(p.PetData.Quests)
 local energy22 = p.Energy
 exit(jo)
 r = record(22)
-check("guardado en la versión actual con núcleos por defecto y LastSeen", r.Version == 8 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time())
+check("guardado en la versión actual con núcleos por defecto y LastSeen", r.Version == 9 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time())
 check("energía, nivel, NextPetUid y tutorial (paso 2) guardados sin pérdidas", r.Energy == energy22 and energy22 >= V2FULL.Energy and r.UpgradeLevels.GeneratorPower == 9 and r.NextPetUid == 9 and r.Tutorial.Status == "Active" and r.Tutorial.Step == 2)
 check("las tres mascotas (también la archivada) y la equipada guardadas", #r.Pets == 3 and contains(r.Pets, V2FULL.Pets) and same(r.Equipped, { "4" }))
 check("mejora archivada OldBoost = 3 guardada junto a GeneratorPower", r.UpgradeLevels.OldBoost == 3)
@@ -312,7 +315,7 @@ local closedAt = os.time()
 task.spawn(closeCallbacks[1])
 advance(1)
 check("BindToClose guarda los núcleos de la sesión y LastSeen, y libera el bloqueo", record(25).Cores.Elements.Water.Unlocked == true and record(25).Cores.Elements.Water.UnlockedAt == 1700000500 and record(25).LastSeen == closedAt and record(25).Session == nil)
-check("BindToClose migra también un perfil v2 conectado (Version 8, núcleos por defecto, energía intacta)", record(26).Version == 8 and same(record(26).Cores, CoreLogic.empty()) and record(26).Energy == np.Energy and record(26).LastSeen == closedAt)
+check("BindToClose migra también un perfil v2 conectado (Version 9, núcleos por defecto, energía intacta)", record(26).Version == 9 and same(record(26).Cores, CoreLogic.empty()) and record(26).Energy == np.Energy and record(26).LastSeen == closedAt)
 check("BindToClose no toca el registro con bloqueo ajeno (sección 13)", same(record(23), other))
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

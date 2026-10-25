@@ -113,7 +113,8 @@ game = {
 	GetService = function(_, name)
 		if name == "Players" then return PlayersService end
 		if name == "Workspace" then return WorkspaceService end
-		return {}
+		-- ReplicatedStorage: los módulos reales ya van incrustados; solo hace falta WaitForChild
+		return { WaitForChild = function() return {} end }
 	end,
 }
 warn = function(...) print("WARN", ...) end
@@ -134,5 +135,8 @@ local RemoteService = {
 		return remotes[name]
 	end,
 }
-local hitListener
-local CombatService = { onPlayerHit = function(fn) hitListener = fn end }
+local hitListener, shotListener
+local CombatService = {
+	onPlayerHit = function(fn) hitListener = fn end,
+	onShotRequest = function(fn) shotListener = fn end,
+}

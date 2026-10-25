@@ -11,6 +11,8 @@ local FONTS = Theme.Fonts
 local LAYOUT = Theme.Layout
 local FINISH = Theme.Finish
 local CARTOON = Theme.Cartoon
+local HEADER = Theme.Header
+local GRID = Theme.Grid
 
 local UiKit = {}
 
@@ -208,7 +210,7 @@ function UiKit.button(parent: Instance, name: string, properties: { [string]: an
 		TextColor3 = THEME.Text,
 		TextSize = 18,
 		TextStrokeColor3 = THEME.Outline,
-		TextStrokeTransparency = 0.35,
+		TextStrokeTransparency = 1, -- el borde de las letras lo pone UiKit.outline
 	}, nil)
 	for key, value in properties do
 		(button :: any)[key] = value
@@ -216,13 +218,167 @@ function UiKit.button(parent: Instance, name: string, properties: { [string]: an
 	UiKit.corner(button, 10)
 	UiKit.shade(button, FINISH.ButtonShade)
 	UiKit.stroke(button, THEME.Outline, 2.5, 0)
+	-- Letras blancas con contorno negro (más grueso cuanto más grande el texto)
+	UiKit.outline(button, math.clamp(button.TextSize / 8, 1.5, 3), THEME.Outline)
 	UiKit.addStates(button)
 	button.Parent = parent
 	return button
 end
 
--- Panel con el estilo común (fondo esmeralda, contorno oscuro grueso) y su UIScale.
+-- Textura de studs del cuerpo del panel (queda debajo de todo el contenido).
+function UiKit.grid(panel: GuiObject, radius: number): ImageLabel
+	local grid = UiKit.create("ImageLabel", {
+		Name = "Grid",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Image = GRID.Image,
+		ImageTransparency = GRID.Transparency,
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = UDim2.fromOffset(GRID.Tile, GRID.Tile),
+		ZIndex = 0,
+		Active = false,
+	}, panel)
+	UiKit.corner(grid, radius)
+	return grid
+end
+
+-- Barra de título color arena. No hace falta llamarla: UiKit.panel la muestra sola cuando
+-- el panel recibe su título arriba (un TextLabel "Title" o "Heading" a 24 px o menos del
+-- borde) y la estira hasta cubrir los textos de la cabecera (título, subtítulo, coste...:
+-- los TextLabel de hasta 34 px de alto que empiezan antes de 60 px). Esos textos pasan a
+-- blanco con contorno negro y el botón "Close" de arriba a la derecha pasa a rojo.
+local HEADER_TITLES = { Title = true, Heading = true }
+local HEADER_TITLE_TOP = 24
+local HEADER_TEXT_TOP = 60
+local HEADER_TEXT_HEIGHT = 34
+local HEADER_PADDING = 4
+local HEADER_LIGHT_TEXT = Color3.fromRGB(255, 250, 236)
+
+local function isHeaderText(child: Instance): boolean
+	if not child:IsA("TextLabel") then
+		return false
+	end
+	local position, size = child.Position, child.Size
+	return position.Y.Scale == 0
+		and size.Y.Scale == 0
+		and position.Y.Offset < HEADER_TEXT_TOP
+		and size.Y.Offset <= HEADER_TEXT_HEIGHT
+end
+
+function UiKit.titleBar(panel: Frame, radius: number, shine: Frame?)
+	local header = UiKit.create("Frame", {
+		Name = "Header",
+		Size = UDim2.new(1, 0, 0, HEADER.MinHeight),
+		BackgroundColor3 = Color3.new(1, 1, 1), -- el color lo da el degradado
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 0,
+		Active = false,
+	}, panel)
+	UiKit.corner(header, radius)
+	local gradient = UiKit.create("UIGradient", { Rotation = 90 }, header)
+	-- Las esquinas de abajo van rectas: un relleno del color de abajo tapa su redondeo.
+	UiKit.create("Frame", {
+		Name = "Fill",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, radius),
+		BackgroundColor3 = HEADER.Bottom,
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Active = false,
+	}, header)
+	local gloss = UiKit.create("Frame", {
+		Name = "Gloss",
+		Position = UDim2.fromOffset(radius, 4),
+		Size = UDim2.new(1, -2 * radius, 0, 3),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = HEADER.GlossTransparency,
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Active = false,
+	}, header)
+	UiKit.corner(gloss, 2)
+	local line = UiKit.create("Frame", {
+		Name = "HeaderLine",
+		Position = UDim2.fromOffset(0, HEADER.MinHeight),
+		Size = UDim2.new(1, 0, 0, HEADER.Line),
+		BackgroundColor3 = THEME.Stroke,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 0,
+		Active = false,
+	}, panel)
+
+	local texts: { TextLabel } = {}
+	local titled = false
+
+	local function refresh()
+		local height = HEADER.MinHeight
+		for _, label in texts do
+			height = math.max(height, label.Position.Y.Offset + label.Size.Y.Offset + HEADER_PADDING)
+		end
+		header.Size = UDim2.new(1, 0, 0, height)
+		line.Position = UDim2.fromOffset(0, height)
+		-- Degradado de arena clara a tostada; el tramo redondeado de abajo, liso (como el relleno).
+		local flat = math.clamp((height - radius) / height, 0.01, 0.99)
+		gradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, HEADER.Top),
+			ColorSequenceKeypoint.new(flat, HEADER.Bottom),
+			ColorSequenceKeypoint.new(1, HEADER.Bottom),
+		})
+		header.Visible = true
+		line.Visible = true
+		if shine then
+			shine.Visible = false
+		end
+		for _, label in texts do
+			if not label:FindFirstChild("Outline") then
+				UiKit.outline(label, if HEADER_TITLES[label.Name] then CARTOON.TextStroke else 2, THEME.Outline)
+			end
+			if label.TextColor3 == THEME.Muted then
+				label.TextColor3 = HEADER_LIGHT_TEXT
+			end
+		end
+	end
+
+	local function onChild(child: Instance)
+		if child:IsA("TextButton") and child.Name == "Close" and child.Position.Y.Scale == 0 and child.Position.Y.Offset <= HEADER_TITLE_TOP then
+			child.BackgroundColor3 = HEADER.Close
+			child.Font = FONTS.Display
+			child.TextSize = math.max(child.TextSize, 26)
+			local outline = child:FindFirstChild("Outline")
+			if outline and outline:IsA("UIStroke") then
+				outline.Thickness = 2.5
+			end
+			return
+		end
+		if not isHeaderText(child) then
+			return
+		end
+		local label = child :: TextLabel
+		table.insert(texts, label)
+		if HEADER_TITLES[label.Name] and label.Position.Y.Offset <= HEADER_TITLE_TOP then
+			titled = true
+		end
+		if titled then
+			refresh()
+		end
+	end
+
+	for _, child in panel:GetChildren() do
+		onChild(child)
+	end
+	panel.ChildAdded:Connect(onChild)
+end
+
+-- Panel con el estilo común (gris carbón con studs, contorno negro grueso, barra de título
+-- color arena) y su UIScale.
 function UiKit.panel(parent: Instance, name: string, size: Vector2, anchor: Vector2, position: UDim2): (Frame, UIScale)
+	-- Studs y barra de título solo en paneles grandes (no en botones redondos, barras ni
+	-- píldoras, que se hacen también con UiKit.panel).
+	local big = size.X >= GRID.MinSize and size.Y >= GRID.MinSize
+	local radius = if big then FINISH.PanelCorner else 16
 	local panel = UiKit.create("Frame", {
 		Name = name,
 		AnchorPoint = anchor,
@@ -231,10 +387,16 @@ function UiKit.panel(parent: Instance, name: string, size: Vector2, anchor: Vect
 		BackgroundColor3 = THEME.Panel,
 		BackgroundTransparency = THEME.PanelTransparency,
 	}, parent)
-	UiKit.corner(panel, 16)
+	UiKit.corner(panel, radius)
 	UiKit.stroke(panel, THEME.Stroke, CARTOON.Stroke, THEME.StrokeTransparency)
 	UiKit.shade(panel, FINISH.PanelShade)
-	UiKit.shine(panel, 16)
+	if big then
+		UiKit.grid(panel, radius)
+	end
+	local shine = UiKit.shine(panel, radius)
+	if big then
+		UiKit.titleBar(panel, radius, shine)
+	end
 	local scale = UiKit.create("UIScale", {}, panel)
 	return panel, scale
 end

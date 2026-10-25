@@ -64,6 +64,7 @@ local function pieces(layout)
 		Attack = layout.Attack,
 		Primary = layout.Abilities[1],
 		Right = columnRect(layout.Right),
+		SideMenu = layout.SideMenu, -- columna de botones del menú a la derecha (si cabe)
 	}
 	if not layout.Touch then
 		list.Secondary = layout.Abilities[2]
@@ -158,11 +159,14 @@ do
 	check("táctil: el seguimiento no se encima con la mejora, la energía ni los avisos", #leftBad == 0)
 end
 
--- A 1280x720 (sin indicadores de mascota) caben las 4 misiones de seguimiento bajo el tutorial.
+-- A 1280x720 (sin indicadores de mascota) caben 3 misiones de seguimiento bajo el tutorial: con
+-- la columna de botones a la derecha (diseño "HUD Botones") el seguimiento va a su izquierda y
+-- termina encima de la fila de abajo.
 do
 	local layout = HudLayout.compute(Vector2.new(1280, 662), false, { MenuEntries = 7, StatusLines = 2 })
 	local stack = layout.Right.Y + (76 + 8 + 128 + S.Gap) * layout.Scale
-	check("1280x720: caben 4 filas de seguimiento bajo el aviso de datos y el tutorial", HudLayout.trackerRows(stack, layout.Right.Bottom, layout.Scale, 4) == 4)
+	check("1280x720: hay columna de botones a la derecha", layout.SideMenu ~= nil)
+	check("1280x720: caben 3 filas de seguimiento bajo el aviso de datos y el tutorial", HudLayout.trackerRows(stack, layout.Right.Bottom, layout.Scale, 4) >= 3)
 end
 
 -- Avisos con un panel abierto (toastSpot): nunca encima del panel ni de las piezas fijas.

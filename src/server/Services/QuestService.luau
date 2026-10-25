@@ -208,12 +208,16 @@ function QuestService.start()
 	PetCombatService.onAbilityHit(function(player)
 		record(player, { Type = "PetAbility" })
 	end)
-	-- Diaria de "mejora el cristal".
+	-- Diarias de "mejora el cristal" y "abre huevos".
 	GameEvents.on("UpgradePurchased", function(player, upgradeId)
 		if upgradeId == QuestConfig.RewardUpgradeId then
 			record(player, { Type = "Upgrade" })
 			update(player, false)
 		end
+	end)
+	GameEvents.on("EggOpened", function(player)
+		record(player, { Type = "Egg" })
+		update(player, false)
 	end)
 	-- Cada segundo (con la producción): energía, cambio de día y misiones de estado.
 	EnergyService.onProduced(function(player, amount)

@@ -3,8 +3,8 @@
 -- - Racha y códigos: lógica pura en RewardLogic; premios en RewardConfig y CodesConfig
 --   (esta última solo en el servidor).
 -- - Premios: energía (N minutos de la producción actual, con mínimo; no cuenta como energía
---   generada), bendiciones (AdventureService, se guardan sin activar) y una mascota concreta
---   (PetService.grantFreePet; con el inventario lleno, energía en su lugar).
+--   generada), bendiciones (AdventureService, se guardan sin activar) y mascota del mejor
+--   huevo que ya pueda abrir (PetService; con el inventario lleno, su precio en energía).
 -- - La marca de "reclamado"/"canjeado" va antes que el premio, sin pausas, y se guarda en
 --   seguida: no se cobra dos veces aunque lleguen dos solicitudes o se cierre el servidor.
 -- - Atributo DailyReady (insignia del menú), al día también al cambiar el día.
@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local RewardConfig = require(Shared.Config.RewardConfig)
+local EggConfig = require(Shared.Config.EggConfig)
 local RebirthLogic = require(Shared.RebirthLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
@@ -26,7 +27,6 @@ local CodesConfig = require(script.Parent.Parent.CodesConfig)
 
 local Codes = Constants.PurchaseCodes
 local DAY_CHECK_INTERVAL = 30
-local PET_FALLBACK_ENERGY = 5000 -- premio de mascota con el inventario lleno
 
 local RewardService = {}
 
@@ -97,14 +97,16 @@ local function grant(player: Player, profile: PlayerDataService.Profile, reward:
 			detail.Blessings = added
 		end
 	end
-	if type(reward.Pet) == "string" then
-		local code, pet = PetService.grantFreePet(player, reward.Pet)
+	if reward.Pet then
+		local code, pet, eggId = PetService.grantFreePet(player)
 		if code == Codes.Success and pet then
 			detail.PetId = pet.PetId
-		elseif code == Codes.InventoryFull then
-			-- Inventario lleno: energía en su lugar, para no perder el premio.
-			energy += PET_FALLBACK_ENERGY
+			detail.EggId = eggId
+		elseif code == Codes.InventoryFull and eggId and EggConfig.Eggs[eggId] then
+			-- Inventario lleno: su precio en energía, para no perder el premio.
+			energy += EggConfig.Eggs[eggId].Cost
 			detail.InventoryFull = true
+			detail.EggId = eggId
 		end
 	end
 	if energy > 0 then

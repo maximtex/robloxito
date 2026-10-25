@@ -75,6 +75,9 @@ BASE = [
     ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
     ("QuestConfig", "src/shared/Config/QuestConfig.luau"),
     ("GameEvents", "src/server/Util/GameEvents.luau"),
+    # Inventario (campo Items del guardado v9): pociones, huevos guardados y títulos.
+    ("ItemConfig", "src/shared/Config/ItemConfig.luau"),
+    ("ItemLogic", "src/shared/ItemLogic.luau"),
 ] + [
     # Premios, tienda y semana (campos Rewards, Shop y Weekly del guardado v6).
     ("RewardConfig", "src/shared/Config/RewardConfig.luau"),
@@ -176,7 +179,7 @@ def build_rebirth():
         ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
         ("CombatMath", "src/shared/CombatMath.luau"),
         ("EggConfig", "src/shared/Config/EggConfig.luau"),
-        ("PetLogic", "src/server/Util/PetLogic.luau"),
+        ("EggLogic", "src/server/Util/EggLogic.luau"),
         ("PetService", "tests/harness/rebirth_glue.luau"),
         ("RebirthService", "src/server/Services/RebirthService.luau"),
     ])
@@ -191,12 +194,13 @@ def build_adventure():
 
 def build_shop():
     # Premios (RewardService) y tienda (ShopService) reales sobre la persistencia real;
-    # Roblox (pases y recibos) y PetService simulados (shop_glue, con PetLogic real).
+    # Roblox (pases y recibos) y PetService simulados (shop_glue, con EggLogic real).
     return persist_suite("shop_body.luau", after_glue=[
         ("EggConfig", "src/shared/Config/EggConfig.luau"),
-        ("PetLogic", "src/server/Util/PetLogic.luau"),
+        ("EggLogic", "src/server/Util/EggLogic.luau"),
         ("AdventureService", "src/server/Services/AdventureService.luau"),
         ("PetService", "tests/harness/shop_glue.luau"),
+        ("WeaponService", "src/server/Services/WeaponService.luau"),
         ("CodesConfig", "src/server/CodesConfig.luau"),
         ("RewardService", "src/server/Services/RewardService.luau"),
         ("ShopService", "src/server/Services/ShopService.luau"),
@@ -233,6 +237,8 @@ def build_quest():
         ("MonetizationConfig", "src/shared/Config/MonetizationConfig.luau"),
         ("MonetizationLogic", "src/shared/MonetizationLogic.luau"),
         ("LeaderboardLogic", "src/server/Util/LeaderboardLogic.luau"),
+        ("ItemConfig", "src/shared/Config/ItemConfig.luau"),
+        ("ItemLogic", "src/shared/ItemLogic.luau"),
     ] + CORE + [
         ("SaveService", "src/server/Services/SaveService.luau"),
     ]
@@ -251,6 +257,11 @@ def build_quest():
 
 def build_tutorial():
     return services_suite([harness("persist_stubs.luau")], True, suite("tutorial_body.luau"))
+
+
+def build_energy():
+    # Energía solo de matar: sin producción pasiva ni offline, EnergyService.grant.
+    return services_suite([harness("persist_stubs.luau")], True, suite("energy_body.luau"))
 
 
 def build_sandbox():
@@ -299,6 +310,12 @@ def build_combat():
     builders = re.findall(r"^function BUILDERS\.([A-Za-z]+)", enemy_service, re.M)
     shapes_block = re.search(r"^local SHAPES = \{\n(.*?)^\}", enemy_service, re.M | re.S).group(1)
     shapes = re.findall(r"^\s+([A-Za-z]+) = \{", shapes_block, re.M)
+    # Los modelos .glb del Bosque se registran aparte (ModelosZona1.register en EnemyService).
+    modelos = read("src", "server", "Util", "ModelosZona1.luau")
+    styles_block = re.search(r"^ModelosZona1\.Styles = \{\n(.*?)^\}", modelos, re.M | re.S).group(1)
+    styles = re.findall(r"^\s+([A-Za-z]+) = \{", styles_block, re.M)
+    builders += styles
+    shapes += styles
     out = [harness("combat_header.luau")]
     for n, p in [
         ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
@@ -324,6 +341,7 @@ PET_COMBAT_REQUIRES = [
     "local PetConfig = require(Shared.Config.PetConfig)",
     "local PetCombatConfig = require(Shared.Config.PetCombatConfig)",
     "local WeaponLogic = require(Shared.WeaponLogic)",
+    "local MonetizationLogic = require(Shared.MonetizationLogic)",
     "local PlayerDataService = require(script.Parent.PlayerDataService)",
     "local RemoteService = require(script.Parent.RemoteService)",
     "local EnemyService = require(script.Parent.EnemyService)",
@@ -341,6 +359,10 @@ def build_petcombat():
         ("PetConfig", "src/shared/Config/PetConfig.luau"),
         ("WeaponConfig", "src/shared/Config/WeaponConfig.luau"),
         ("WeaponLogic", "src/shared/WeaponLogic.luau"),
+        ("RebirthConfig", "src/shared/Config/RebirthConfig.luau"),
+        ("RebirthLogic", "src/shared/RebirthLogic.luau"),
+        ("MonetizationConfig", "src/shared/Config/MonetizationConfig.luau"),
+        ("MonetizationLogic", "src/shared/MonetizationLogic.luau"),
         ("EnemyLogic", "src/server/Util/EnemyLogic.luau"),
         ("RateLimiter", "src/server/Util/RateLimiter.luau"),
     ]:
@@ -409,6 +431,8 @@ def build_landscape():
 
 def build_anim():
     source = read("src", "client", "Controllers", "EnemyAnimator.luau")
+    # Animaciones de los modelos .glb (Shared.ClipsZona1): el módulo real incrustado
+    source = re.sub(r"^local ClipsZona1 = require\(.*\)\n", lambda _: mod("ClipsZona1", "src/shared/ClipsZona1.luau"), source, count=1, flags=re.M)
     return harness("animtest_stubs.luau") + "\n" + suite("animtest_body.luau").replace("ANIMATOR_SOURCE_HERE", source)
 
 
@@ -521,6 +545,37 @@ def build_weapons():
     return "\n".join(out)
 
 
+def build_waves():
+    # Oleadas, racha, orbe dorado y energía de cada enemigo (WaveLogic, pura) con los
+    # enemigos y zonas reales.
+    out = [harness("combat_header.luau")]
+    for n, p in [
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
+        ("WaveLogic", "src/shared/WaveLogic.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("waves_body.luau"))
+    return "\n".join(out)
+
+
+def build_items():
+    # Inventario (ItemLogic, pura): pociones, huevos guardados, botín de los jefes y títulos,
+    # con los jefes y huevos reales.
+    out = [harness("combat_header.luau")]
+    for n, p in [
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("EggConfig", "src/shared/Config/EggConfig.luau"),
+        ("ItemConfig", "src/shared/Config/ItemConfig.luau"),
+        ("ItemLogic", "src/shared/ItemLogic.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("items_body.luau"))
+    return "\n".join(out)
+
+
 def build_hudlayout():
     # Diseño del HUD del cliente (cálculo puro): Vector2 mínimo simulado.
     stub = "local Vector2 = { new = function(x, y) return { X = x, Y = y } end }\n"
@@ -538,7 +593,7 @@ SUITES = [
     ("quest", "Misiones, diarias y logros", build_quest),
     ("combat", "Combate (daño, muertes, recompensas, objetivos)", build_combat),
     ("weapons", "Armas: comprar, mejorar, equipar, daño y guardado", build_weapons),
-    ("petcombat", "Combate automático: objetivo, cadencia, efectos de las armas y mascotas", build_petcombat),
+    ("petcombat", "Disparo: a mano o automático (pase), cadencia, efectos de las armas y mascotas", build_petcombat),
     ("anim", "Animación de enemigos", build_anim),
     ("pose", "Articulaciones de los enemigos", build_pose),
     ("cores", "Ocho núcleos: configuración y lógica pura", build_cores),
@@ -552,6 +607,9 @@ SUITES = [
     ("shop", "Premio diario, códigos, pases, compras sueltas y mejora automática", build_shop),
     ("hudlayout", "Interfaz: menú, avisos y columnas sin solaparse en muchas pantallas", build_hudlayout),
     ("world", "Mundo vivo: día y noche, cofres escondidos y río", build_world),
+    ("energy", "Energía solo de matar: sin producción pasiva ni offline, energía de los enemigos", build_energy),
+    ("waves", "Oleadas: arenas, aparición, dificultad, mejoras, racha y botín de cada enemigo", build_waves),
+    ("items", "Inventario: pociones, huevos guardados, botín de los jefes y títulos", build_items),
 ]
 LEGACY = ["pettest", "eggtest", "zonetest", "savetest", "layouttest", "stagetest"]
 

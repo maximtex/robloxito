@@ -3,7 +3,7 @@
 --     1. Icono 3D de Rayo + cantidad de Energía en crema con borde oscuro + botón cuadrado verde `+`.
 --     2. Pastilla naranja `×1.1` + texto `"Multiplicador"`.
 --     3. Icono 3D de Cristal / Tokens de Renacimiento + cantidad en lavanda con borde oscuro,
---        y a su lado 💰 Dinero (lo sueltan los enemigos) en dorado.
+--        y a su lado el Dinero (lo sueltan los enemigos): fajo de billetes y "$" en verde.
 -- Las mejoras que se pagan con dinero están en la Armería (WeaponController).
 
 local Players = game:GetService("Players")
@@ -24,7 +24,7 @@ local INK = Color3.fromRGB(43, 29, 63) -- #2B1D3F
 local CREAM = Color3.fromRGB(255, 246, 224) -- #FFF6E0
 local MULT_GOLD = Color3.fromRGB(255, 231, 168) -- #FFE7A8
 local TOKENS_LAVENDER = Color3.fromRGB(231, 216, 255) -- #E7D8FF
-local MONEY_GOLD = Color3.fromRGB(255, 218, 92)
+local MONEY_GREEN = Color3.fromRGB(112, 226, 72)
 
 local HudController = {}
 
@@ -246,8 +246,9 @@ local function buildGui(playerGui: PlayerGui)
 	})
 	addStroke(tokensValue, 3.6, Enum.ApplyStrokeMode.Contextual)
 
-	-- 💰 Dinero (lo sueltan los enemigos) en dorado, en la misma fila que los tokens: debajo
-	-- empieza la columna de avisos y misiones (HudLayout cuenta con una tarjeta baja).
+	-- Dinero (lo sueltan los enemigos): fajo de billetes y cantidad en verde, en la misma fila
+	-- que los tokens: debajo empieza la columna de avisos y misiones (HudLayout cuenta con
+	-- una tarjeta baja).
 	local moneyGap = create("Frame", {
 		Name = "MoneyGap",
 		Size = UDim2.fromOffset(6, 10),
@@ -257,8 +258,7 @@ local function buildGui(playerGui: PlayerGui)
 	local _ = moneyGap
 	local moneyIcon = Icons.make(tokensRow, "money", {
 		Name = "MoneyIcon",
-		Size = UDim2.fromOffset(42, 42),
-		Rotation = -6,
+		Size = UDim2.fromOffset(50, 50),
 		ZIndex = 3,
 	})
 	moneyIcon.LayoutOrder = 4
@@ -267,7 +267,7 @@ local function buildGui(playerGui: PlayerGui)
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, 48),
 		TextSize = 36,
-		TextColor3 = MONEY_GOLD,
+		TextColor3 = MONEY_GREEN,
 		Text = "0",
 		LayoutOrder = 5,
 		ZIndex = 3,
@@ -339,7 +339,7 @@ function HudController.start()
 		ui.TokensValue.Text = formatNumber(tokenCount)
 		local rawMoney = player:GetAttribute(Constants.Attributes.Money)
 		local money = if typeof(rawMoney) == "number" then rawMoney else 0
-		ui.MoneyValue.Text = formatNumber(money)
+		ui.MoneyValue.Text = "$" .. formatNumber(money)
 		popMoney(money)
 
 		if typeof(energy) ~= "number" or typeof(production) ~= "number" then

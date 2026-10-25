@@ -285,7 +285,7 @@ end
 -- Eventos del servidor ----------------------------------------------------------------------
 
 -- event = { Type = "Kill", TypeId, ZoneId } | { Type = "Energy", Amount } | { Type = "PetAbility" }
---   | { Type = "Upgrade" } (mejora de Resonancia comprada)
+--   | { Type = "Upgrade" } (mejora de Resonancia comprada) | { Type = "Egg" } (huevo abierto)
 -- Devuelve true si el evento era válido y se registró.
 function QuestLogic.record(data: QuestData, event: any): boolean
 	if type(event) ~= "table" then
@@ -316,7 +316,7 @@ function QuestLogic.record(data: QuestData, event: any): boolean
 		stats.EnergyEarned = math.min(stats.EnergyEarned + amount, MAX_NUMBER)
 	elseif event.Type == "PetAbility" then
 		stats.PetAbilities += 1
-	elseif event.Type == "Upgrade" then
+	elseif event.Type == "Upgrade" or event.Type == "Egg" then
 		-- Solo cuentan para las diarias de hoy (sin estadística permanente).
 	else
 		return false

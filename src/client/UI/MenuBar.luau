@@ -1,27 +1,56 @@
--- Barra inferior central del HUD (Dock de 7 botones estilo simulador) + Tarjeta de Misión Diaria:
--- Implementa fielmente el diseño de `HUD Rediseño (standalone).html`:
--- - Abajo en el centro: Dock horizontal con 7 botones squircle con iconos 3D, insignia de tecla
---   oscura abajo a la izquierda, globo rojo de notificación arriba a la derecha y etiqueta debajo.
---   El botón central "Renacer" (T) es más grande y destacado en dorado con barra de progreso.
--- - A la izquierda (bajo las monedas): Tarjeta estilo pergamino para la misión diaria activa
---   con icono de pergamino, título, contador verde (ej. 2/15) y barra de progreso.
+-- Barra del menú (diseño "HUD Botones" de Santiago) + tarjeta de la misión diaria:
+-- - Abajo en el centro: Armas, Amuletos y Mascotas, y Renacer destacado (mismo tamaño, con
+--   anillo dorado y el porcentaje para renacer encima).
+-- - A la derecha, en columna: Misiones, Premios y Tienda (posición en HudLayout.SideMenu,
+--   para no pisar el cartel de la zona ni los botones de combate).
+-- - En pantallas solo táctiles los siete van en la fila de abajo: a la derecha están las
+--   habilidades.
+-- Azulejos gris oscuro con contorno negro, icono grande, nombre con borde negro que asoma
+-- por debajo, tecla arriba a la izquierda y aviso rojo inclinado arriba a la derecha. Al
+-- pasar el ratón el azulejo sube; con su panel abierto lleva borde amarillo.
+-- - A la izquierda (bajo las monedas): tarjeta estilo pergamino de la misión diaria, con
+--   icono, título, contador verde (ej. 2/15) y barra de progreso.
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local Theme = require(script.Parent.Theme)
 local UiKit = require(script.Parent.UiKit)
 local Icons = require(script.Parent.Icons)
 local HudLayout = require(script.Parent.HudLayout)
+local HudDock = require(script.Parent.HudDock)
 local PanelManager = require(script.Parent.PanelManager)
 
 local FONTS = Theme.Fonts
 local WHITE = Color3.new(1, 1, 1)
-local INK = Color3.fromRGB(43, 29, 63) -- #2B1D3F
+local INK = Color3.fromRGB(43, 29, 63) -- #2B1D3F (teclas y tarjeta de la misión diaria)
 local CREAM = Color3.fromRGB(255, 246, 224) -- #FFF6E0
-local BADGE_RED = Color3.fromRGB(236, 56, 64) -- #EC3840
 local GREEN_TEXT = Color3.fromRGB(63, 174, 69) -- #3FAE45
+
+-- Colores de los azulejos (HUD Botones.dc.html)
+local TILE = {
+	Outline = Color3.fromRGB(14, 14, 18), -- #0e0e12
+	Top = Color3.fromRGB(85, 89, 99), -- #555963
+	Mid = Color3.fromRGB(58, 61, 69), -- #3a3d45
+	Bottom = Color3.fromRGB(42, 44, 50), -- #2a2c32
+	OpenTop = Color3.fromRGB(95, 99, 110), -- #5f636e (ratón encima o panel abierto)
+	OpenMid = Color3.fromRGB(66, 69, 78), -- #42454e
+	OpenBottom = Color3.fromRGB(47, 49, 56), -- #2f3138
+	Open = Color3.fromRGB(255, 224, 102), -- #FFE066 borde con el panel abierto
+	Featured = Color3.fromRGB(255, 201, 60), -- #FFC93C anillo de Renacer
+	Badge = Color3.fromRGB(236, 56, 64), -- #EC3840
+	Percent = Color3.fromRGB(255, 244, 191), -- #FFF4BF
+}
+
+-- Medidas a escala 1 (la columna derecha usa las de HudLayout: SideTile, SideGap)
+local SIZE = {
+	Tile = 76, -- todos iguales (Renacer también: Santiago lo quiso del mismo tamaño)
+	Gap = 12, -- entre azulejos de la fila de abajo
+	Bottom = 20, -- separación de la fila con el borde de abajo
+	LabelDrop = 6, -- cuánto asoma el nombre por debajo del azulejo
+	SideReserve = 360, -- ancho que la fila de abajo deja libre a los lados (combate, tarjeta)
+}
+local SIDE = HudLayout.Sizes
 
 local MenuBar = {}
 
@@ -49,95 +78,39 @@ export type Entry = {
 }
 
 type StyleSpec = {
+	Group: string, -- "Bottom" (fila de abajo) o "Side" (columna derecha)
 	Order: number,
 	Icon: string,
 	Key: string,
-	Top: Color3,
-	Mid: Color3,
-	Bot: Color3,
-	LabelColor: Color3,
+	IconSize: number?, -- lado del icono (por defecto 60; los iconos 3D, 64)
+	IconTop: number?, -- distancia del icono al borde de arriba (por defecto 2; 0 si mide 64)
 	Featured: boolean?,
 }
 
 local DOCK_STYLES: { [string]: StyleSpec } = {
-	Armory = {
-		Order = 0,
-		Icon = "armory",
-		Key = "L",
-		Top = Color3.fromRGB(226, 236, 255),
-		Mid = Color3.fromRGB(110, 150, 230),
-		Bot = Color3.fromRGB(70, 104, 196),
-		LabelColor = WHITE,
-	},
-	Pets = {
-		Order = 1,
-		Icon = "pets",
-		Key = "P",
-		Top = Color3.fromRGB(255, 224, 191),
-		Mid = Color3.fromRGB(238, 152, 68),
-		Bot = Color3.fromRGB(217, 122, 42),
-		LabelColor = WHITE,
-	},
-	Quests = {
-		Order = 2,
-		Icon = "quests",
-		Key = "M",
-		Top = Color3.fromRGB(255, 241, 196),
-		Mid = Color3.fromRGB(242, 193, 78),
-		Bot = Color3.fromRGB(217, 157, 34),
-		LabelColor = WHITE,
-	},
-	Cores = {
-		Order = 3,
-		Icon = "cores",
-		Key = "N",
-		Top = Color3.fromRGB(214, 250, 255),
-		Mid = Color3.fromRGB(92, 214, 232),
-		Bot = Color3.fromRGB(47, 175, 200),
-		LabelColor = WHITE,
-	},
-	Rebirth = {
-		Order = 4,
-		Icon = "rebirth",
-		Key = "T",
-		Top = Color3.fromRGB(255, 244, 191),
-		Mid = Color3.fromRGB(255, 201, 60),
-		Bot = Color3.fromRGB(242, 154, 26),
-		LabelColor = Color3.fromRGB(255, 244, 191),
-		Featured = true,
-	},
-	Amulets = {
-		Order = 5,
-		Icon = "amulets",
-		Key = "G",
-		Top = Color3.fromRGB(237, 226, 255),
-		Mid = Color3.fromRGB(164, 124, 240),
-		Bot = Color3.fromRGB(126, 85, 214),
-		LabelColor = WHITE,
-	},
-	Rewards = {
-		Order = 6,
-		Icon = "rewards",
-		Key = "J",
-		Top = Color3.fromRGB(255, 214, 216),
-		Mid = Color3.fromRGB(240, 84, 92),
-		Bot = Color3.fromRGB(208, 53, 64),
-		LabelColor = WHITE,
-	},
-	Shop = {
-		Order = 7,
-		Icon = "shop",
-		Key = "K",
-		Top = Color3.fromRGB(216, 255, 200),
-		Mid = Color3.fromRGB(88, 232, 44),
-		Bot = Color3.fromRGB(54, 184, 26),
-		LabelColor = Color3.fromRGB(216, 255, 200),
-	},
+	Armory = { Group = "Bottom", Order = 10, Icon = "armory3d", Key = "L", IconSize = 64 },
+	Amulets = { Group = "Bottom", Order = 20, Icon = "amulets3d", Key = "G", IconSize = 64 },
+	Pets = { Group = "Bottom", Order = 30, Icon = "pets3d", Key = "P", IconSize = 64 },
+	-- Núcleos ya no tiene azulejo (CoreController no lo añade); si vuelve, va aquí.
+	Cores = { Group = "Bottom", Order = 35, Icon = "cores", Key = "N" },
+	-- Inventario (InventoryController): mochila 3D.
+	Inventory = { Group = "Bottom", Order = 40, Icon = "inventory3d", Key = "I", IconSize = 64 },
+	-- Las flechas llenan todo el dibujo: más pequeñas y centradas para que no pisen el borde.
+	Rebirth = { Group = "Bottom", Order = 50, Icon = "rebirth3d", Key = "T", IconSize = 54, IconTop = 5, Featured = true },
+	Quests = { Group = "Side", Order = 60, Icon = "quests", Key = "M" },
+	Rewards = { Group = "Side", Order = 70, Icon = "rewards3d", Key = "J", IconSize = 64 },
+	Shop = { Group = "Side", Order = 80, Icon = "shop", Key = "K" },
 }
+local GROUP_GAP_ORDER = 40 -- hueco más ancho (24) entre el grupo y Renacer
+local TOUCH_GAP_ORDER = 55 -- en táctil, el mismo hueco después de Renacer
 
 local dockGui: ScreenGui? = nil
-local dockRow: Frame? = nil
-local dockScale: UIScale? = nil
+local bottomRow: Frame? = nil
+local bottomScale: UIScale? = nil
+local sideColumn: Frame? = nil
+local sideScale: UIScale? = nil
+local touchGap: Frame? = nil
+local touchMode: boolean? = nil
 local leftStack: Frame? = nil
 local leftScale: UIScale? = nil
 local dailyCard: Frame? = nil
@@ -147,13 +120,78 @@ local dailyFill: Frame? = nil
 local entries: { [string]: any } = {}
 local statusLines: { [string]: TextLabel } = {}
 
-local function addInkStroke(instance: Instance, thickness: number, mode: Enum.ApplyStrokeMode?): UIStroke
+local function addInkStroke(instance: Instance, thickness: number, mode: Enum.ApplyStrokeMode?, color: Color3?): UIStroke
 	return UiKit.create("UIStroke", {
-		Color = INK,
+		Color = color or INK,
 		Thickness = thickness,
 		ApplyStrokeMode = mode or Enum.ApplyStrokeMode.Border,
 		LineJoinMode = Enum.LineJoinMode.Round,
 	}, instance)
+end
+
+-- Hueco invisible en la fila de abajo: con el espaciado de la lista (12 a cada lado) da 24.
+local function gap(name: string, order: number, parent: Instance): Frame
+	return UiKit.create("Frame", {
+		Name = name,
+		Size = UDim2.fromOffset(0, 1),
+		BackgroundTransparency = 1,
+		LayoutOrder = order,
+	}, parent)
+end
+
+local function parentFor(entry: any): Frame
+	if entry.Group == "Side" and not touchMode then
+		return sideColumn :: Frame
+	end
+	return bottomRow :: Frame
+end
+
+-- Ancho de la fila de abajo a escala 1 (azulejos visibles, huecos y espaciado).
+local function rowWidth(): number
+	local width, count = 0, 0
+	for _, child in (bottomRow :: Frame):GetChildren() do
+		if child:IsA("GuiObject") and child.Visible then
+			width += child.Size.X.Offset
+			count += 1
+		end
+	end
+	return width + math.max(count - 1, 0) * SIZE.Gap
+end
+
+-- Coloca la fila de abajo y la columna derecha según el diseño del HUD (HudDock/HudLayout).
+local function relayout()
+	if not dockGui or not bottomRow or not sideColumn then
+		return
+	end
+	local layout = HudDock.layout()
+	local side = layout.SideMenu
+	local touch = layout.Touch == true or side == nil
+	if touch ~= touchMode then
+		touchMode = touch
+		for _, entry in entries do
+			entry.Slot.Parent = parentFor(entry)
+		end
+		if touchGap then
+			touchGap.Visible = touch
+		end
+	end
+
+	local s = layout.MenuScale or layout.Scale -- escala del HUD con el aumento de los botones
+	local screen = (dockGui :: ScreenGui).AbsoluteSize
+	local fit = (screen.X - SIZE.SideReserve) / math.max(rowWidth(), 1)
+	if bottomScale then
+		bottomScale.Scale = math.clamp(math.min(s, fit), 0.5, HudLayout.MaxScale)
+	end
+	bottomRow.Position = UDim2.new(0.5, 0, 1, -SIZE.Bottom * s)
+
+	sideColumn.Visible = side ~= nil
+	if side then
+		-- Anclada arriba a la derecha: la UIScale encoge hacia esa esquina.
+		sideColumn.Position = UDim2.fromOffset(side.X + side.W, side.Y)
+		if sideScale then
+			sideScale.Scale = side.Scale
+		end
+	end
 end
 
 local function build()
@@ -180,23 +218,46 @@ local function build()
 	}, playerGui)
 	dockGui = screenGui
 
-	-- Contenedor del Dock inferior central (8 botones: 7 de 66 + Renacer de 84, con 8 de hueco)
-	local dock = UiKit.create("Frame", {
+	-- Fila de abajo en el centro: Armas, Amuletos, Mascotas | Renacer
+	local bottom = UiKit.create("Frame", {
 		Name = "BottomDock",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -12),
-		Size = UDim2.fromOffset(640, 114),
+		Position = UDim2.new(0.5, 0, 1, -SIZE.Bottom),
+		Size = UDim2.fromOffset(0, SIZE.Tile),
+		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
 	}, screenGui)
-	dockScale = UiKit.create("UIScale", {}, dock)
+	bottomScale = UiKit.create("UIScale", {}, bottom)
 	UiKit.create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Bottom,
 		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, 8),
-	}, dock)
-	dockRow = dock
+		Padding = UDim.new(0, SIZE.Gap),
+	}, bottom)
+	gap("GroupGap", GROUP_GAP_ORDER, bottom)
+	local secondGap = gap("TouchGap", TOUCH_GAP_ORDER, bottom)
+	secondGap.Visible = false
+	touchGap = secondGap
+	bottomRow = bottom
+
+	-- Columna derecha: Misiones, Premios, Tienda
+	local side = UiKit.create("Frame", {
+		Name = "SideDock",
+		AnchorPoint = Vector2.new(1, 0),
+		Size = UDim2.fromOffset(SIDE.SideTile, SIDE.SideCount * SIDE.SideTile + (SIDE.SideCount - 1) * SIDE.SideGap),
+		BackgroundTransparency = 1,
+		Visible = false,
+	}, screenGui)
+	sideScale = UiKit.create("UIScale", {}, side)
+	UiKit.create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		VerticalAlignment = Enum.VerticalAlignment.Top,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, SIDE.SideGap),
+	}, side)
+	sideColumn = side
 
 	-- Contenedor izquierdo para la tarjeta de misión diaria (debajo de las monedas)
 	local left = UiKit.create("Frame", {
@@ -301,27 +362,21 @@ local function build()
 	dailyProg = dProg
 	dailyFill = dFill
 
-	local function applyScale()
-		local size = screenGui.AbsoluteSize
-		if size.X <= 0 or size.Y <= 0 then
-			return
-		end
-		local isTouch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-		local baseScale = HudLayout.scale(size, isTouch)
-		-- Ajustar escala del Dock para que nunca colisione con los botones de ataque a la derecha (~220px)
-		-- ni con la tarjeta diaria a la izquierda (~240px)
-		local maxDockWidth = size.X - 360
-		local fitScale = math.clamp(maxDockWidth / 614, 0.6, 1)
-		local s = math.min(baseScale, fitScale)
-		if dockScale then
-			dockScale.Scale = s
-		end
+	local function applyLeftScale()
 		if leftScale then
-			leftScale.Scale = baseScale
+			leftScale.Scale = HudDock.scale()
 		end
 	end
-	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
-	applyScale()
+	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		relayout()
+		applyLeftScale()
+	end)
+	HudDock.Changed:Connect(function()
+		relayout()
+		applyLeftScale()
+	end)
+	relayout()
+	applyLeftScale()
 
 	PanelManager.Changed:Connect(function(openPanel: string?)
 		for _, entry in entries do
@@ -336,6 +391,17 @@ local function build()
 	end)
 end
 
+-- Tamaño del nombre según su largo (como en el diseño: 19, 18 o 17).
+local function labelSize(text: string): number
+	local length = utf8.len(text) or #text
+	if length <= 6 then
+		return 19
+	elseif length == 7 then
+		return 18
+	end
+	return 17
+end
+
 function MenuBar.add(spec: Spec): Entry
 	build()
 
@@ -345,136 +411,179 @@ function MenuBar.add(spec: Spec): Entry
 	end
 
 	local style: StyleSpec = DOCK_STYLES[spec.Id] or {
-		Order = spec.Order,
+		Group = "Bottom",
+		Order = 100 + spec.Order,
 		Icon = spec.Image or string.lower(spec.Id),
 		Key = spec.Key or "",
-		Top = WHITE,
-		Mid = spec.Color or Color3.fromRGB(92, 214, 232),
-		Bot = (spec.Color or Color3.fromRGB(92, 214, 232)):Lerp(Color3.new(0, 0, 0), 0.25),
-		LabelColor = WHITE,
 	}
-
-	local isFeatured = style.Featured == true
-	local tileSize = if isFeatured then 84 else 66
-	local slotHeight = tileSize + 24
-	local cornerRadius = if isFeatured then 22 else 17
-	local iconSize = if isFeatured then 68 else 52
+	local featured = style.Featured == true -- Renacer: anillo dorado y porcentaje encima
+	local size = SIZE.Tile
+	local border = 3
+	local radius = 12
 
 	local slot = UiKit.create("Frame", {
 		Name = "Slot_" .. spec.Id,
-		Size = UDim2.fromOffset(tileSize, slotHeight),
+		Size = UDim2.fromOffset(size, size),
 		BackgroundTransparency = 1,
 		LayoutOrder = style.Order,
-	}, dockRow)
+	}, nil)
 
-	local tile = UiKit.create("Frame", {
+	-- Todo lo que sube al pasar el ratón (y lo que devuelve MenuBar.tile)
+	local lift = UiKit.create("Frame", {
 		Name = "Tile_" .. spec.Id,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 0),
-		Size = UDim2.fromOffset(tileSize, tileSize),
-		BackgroundColor3 = WHITE,
-		ZIndex = 2,
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
 	}, slot)
-	UiKit.corner(tile, cornerRadius)
-	UiKit.create("UIGradient", {
-		Name = "Tint",
-		Rotation = 90,
-		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, style.Top),
-			ColorSequenceKeypoint.new(0.55, style.Mid),
-			ColorSequenceKeypoint.new(1, style.Bot),
-		}),
-	}, tile)
-	local stroke = addInkStroke(tile, if isFeatured then 4 else 3.5, Enum.ApplyStrokeMode.Border)
 
-	-- Brillo superior redondeado estilo cartoon
-	local gloss = UiKit.create("Frame", {
-		Name = "Gloss",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 5),
-		Size = UDim2.new(1, -18, 0, if isFeatured then 14 else 11),
-		BackgroundColor3 = WHITE,
-		BackgroundTransparency = 0.65,
+	-- Sin sombra debajo ni brillo arriba: asomaban fuera del contorno y se veía un segundo
+	-- cuadro gris detrás (Santiago). El azulejo es solo la cara gris con su contorno negro.
+
+	-- Anillo negro por fuera del borde amarillo (panel abierto)
+	local ring = UiKit.create("Frame", {
+		Name = "OpenRing",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, 4, 1, 4),
+		BackgroundColor3 = TILE.Outline,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 2,
+	}, lift)
+	UiKit.corner(ring, radius + 2)
+
+	-- Cara del azulejo: el contorno (UIStroke) va por fuera, así que mide lo que el diseño
+	-- menos el contorno y el total queda igual que en el diseño.
+	local tile = UiKit.create("Frame", {
+		Name = "Face",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -2 * border, 1, -2 * border),
+		BackgroundColor3 = WHITE, -- el color lo da el degradado
 		BorderSizePixel = 0,
 		ZIndex = 3,
+	}, lift)
+	UiKit.corner(tile, radius - border)
+	local gradient = UiKit.create("UIGradient", { Name = "Tint", Rotation = 90 }, tile)
+	local stroke = addInkStroke(tile, border, Enum.ApplyStrokeMode.Border, TILE.Outline)
+	-- Filo claro por dentro del contorno (dorado en Renacer)
+	local inner = UiKit.create("Frame", {
+		Name = "Inner",
+		Position = UDim2.fromOffset(2, 2),
+		Size = UDim2.new(1, -4, 1, -4),
+		BackgroundTransparency = 1,
+		ZIndex = 3,
 	}, tile)
-	UiKit.corner(gloss, 8)
-
-	local icon = Icons.make(tile, style.Icon, {
+	UiKit.corner(inner, math.max(radius - border - 2, 2))
+	UiKit.create("UIStroke", {
+		Color = if featured then TILE.Featured else WHITE,
+		Thickness = 2,
+		Transparency = if featured then 0 else 0.9,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, inner)
+	-- Icono grande, pegado arriba (el nombre ocupa la parte de abajo)
+	local iconSize = style.IconSize or 60
+	local iconTop = style.IconTop or (if iconSize >= 64 then 0 else 2)
+	local icon = Icons.make(lift, style.Icon, {
 		Name = "Icon",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 0.42, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, iconTop),
 		Size = UDim2.fromOffset(iconSize, iconSize),
-		ZIndex = 4,
+		ZIndex = 5,
 	})
 	local emoji = icon:FindFirstChild("Emoji")
 	if emoji and emoji:IsA("TextLabel") and not Icons.has(style.Icon) then
+		-- Emoji (Armas ⚔️): más grande y centrado en el hueco de encima del nombre
 		emoji.Text = spec.Icon
+		emoji.Size = UDim2.fromScale(0.82, 0.82)
+		emoji.Position = UDim2.fromScale(0.5, 0.53)
+	end
+	-- Sombra del dibujo (drop-shadow 0 2px 0 rgba(0,0,0,.4))
+	local image = icon:FindFirstChild("Image")
+	if image and image:IsA("ImageLabel") then
+		local imageShadow = image:Clone()
+		imageShadow.Name = "ImageShadow"
+		imageShadow.ImageColor3 = Color3.new(0, 0, 0)
+		imageShadow.ImageTransparency = 0.6
+		imageShadow.Position = UDim2.fromOffset(0, 2)
+		imageShadow.ZIndex = image.ZIndex - 1
+		imageShadow.Parent = icon
 	end
 
-	-- Barra de progreso interna (usada por Renacer)
-	local track = UiKit.create("Frame", {
-		Name = "Progress",
+	-- Nombre: asoma por debajo del azulejo, blanco con borde negro
+	local textSize = labelSize(spec.Label)
+	local label = UiKit.text(lift, "Label", {
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -8),
-		Size = UDim2.new(1, -24, 0, 7),
-		BackgroundColor3 = INK,
-		BorderSizePixel = 0,
-		Visible = isFeatured,
-		ZIndex = 5,
-	}, tile)
-	UiKit.corner(track, 4)
-	local fill = UiKit.create("Frame", {
-		Name = "Fill",
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(if isFeatured then 0.62 else 0, -2, 1, -2),
-		BackgroundColor3 = Color3.fromRGB(156, 236, 140),
-		BorderSizePixel = 0,
-		ZIndex = 6,
-	}, track)
-	UiKit.corner(fill, 3)
+		Position = UDim2.new(0.5, 0, 1, SIZE.LabelDrop + 1),
+		Size = UDim2.new(1, 28, 0, textSize + 2),
+		Font = FONTS.Display,
+		TextSize = textSize,
+		TextColor3 = WHITE,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = spec.Label,
+		ZIndex = 7,
+	})
+	addInkStroke(label, 2.5, Enum.ApplyStrokeMode.Contextual, TILE.Outline)
 
-	-- Insignia de tecla (abajo a la izquierda del azulejo)
+	-- Porcentaje para renacer, encima del azulejo destacado
+	local percent: TextLabel? = nil
+	if featured then
+		local percentLabel = UiKit.text(lift, "Percent", {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, -16),
+			Size = UDim2.new(1, 28, 0, 22),
+			Font = FONTS.Display,
+			TextSize = 20,
+			TextColor3 = TILE.Percent,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Visible = false,
+			ZIndex = 7,
+		})
+		addInkStroke(percentLabel, 2.5, Enum.ApplyStrokeMode.Contextual, TILE.Outline)
+		percent = percentLabel
+	end
+
+	-- Tecla (arriba a la izquierda)
 	local keyStr = spec.Key or style.Key
 	if keyStr and keyStr ~= "" then
+		local keySize = 22
 		local keyBadge = UiKit.create("Frame", {
 			Name = "KeyBadge",
-			AnchorPoint = Vector2.new(0, 1),
-			Position = UDim2.new(0, -5, 1, 5),
-			Size = UDim2.fromOffset(24, 24),
+			Position = UDim2.fromOffset(-7, -7),
+			Size = UDim2.fromOffset(keySize, keySize),
 			BackgroundColor3 = INK,
-			ZIndex = 7,
-		}, tile)
+			ZIndex = 8,
+		}, lift)
 		UiKit.corner(keyBadge, 7)
 		UiKit.create("UIStroke", {
 			Color = WHITE,
 			Thickness = 1.5,
-			Transparency = 0.72,
+			Transparency = 0.7,
 			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		}, keyBadge)
 		UiKit.text(keyBadge, "KeyText", {
 			Size = UDim2.fromScale(1, 1),
 			Font = FONTS.Display,
-			TextSize = 13,
+			TextSize = 12,
 			TextColor3 = CREAM,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Text = keyStr,
-			ZIndex = 8,
+			ZIndex = 9,
 		})
 	end
 
-	-- Globo rojo de notificación (arriba a la derecha del azulejo)
+	-- Aviso rojo inclinado (arriba a la derecha)
 	local badge = UiKit.create("Frame", {
 		Name = "Badge",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 7, 0, -7),
-		Size = UDim2.fromOffset(28, 28),
-		BackgroundColor3 = BADGE_RED,
+		Position = UDim2.new(1, 9, 0, -9),
+		Size = UDim2.fromOffset(24, 24),
+		BackgroundColor3 = TILE.Badge,
+		Rotation = 6,
 		Visible = false,
 		ZIndex = 8,
-	}, tile)
-	UiKit.corner(badge, 14)
-	addInkStroke(badge, 3, Enum.ApplyStrokeMode.Border)
+	}, lift)
+	UiKit.corner(badge, 6)
+	addInkStroke(badge, 2.5, Enum.ApplyStrokeMode.Border, TILE.Outline)
 	local badgeText = UiKit.text(badge, "Count", {
 		Size = UDim2.fromScale(1, 1),
 		Font = FONTS.Display,
@@ -483,21 +592,6 @@ function MenuBar.add(spec: Spec): Entry
 		TextXAlignment = Enum.TextXAlignment.Center,
 		ZIndex = 9,
 	})
-	addInkStroke(badgeText, 1.8, Enum.ApplyStrokeMode.Contextual)
-
-	-- Etiqueta debajo del botón
-	local label = UiKit.text(slot, "Label", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, tileSize + 4),
-		Size = UDim2.new(1, 16, 0, 20),
-		Font = FONTS.Display,
-		TextSize = if isFeatured then 16 else 14,
-		TextColor3 = style.LabelColor,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Text = spec.Label,
-		ZIndex = 6,
-	})
-	addInkStroke(label, 3, Enum.ApplyStrokeMode.Contextual)
 
 	local button = UiKit.create("TextButton", {
 		Name = "Button",
@@ -505,26 +599,43 @@ function MenuBar.add(spec: Spec): Entry
 		BackgroundTransparency = 1,
 		Text = "",
 		ZIndex = 10,
-	}, tile)
+	}, lift)
 
-	-- Animación hover ligera estilo HTML (-5px hacia arriba)
+	-- Estados: ratón encima (sube 5), panel abierto (borde amarillo, sube 4), atención
+	-- (borde del color que pida el controlador, p. ej. Premios listos).
+	local hovered, open, attention = false, false, false
+	local attentionColor: Color3? = nil
+	local quick = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local function refresh()
+		local highlighted = open or attention
+		stroke.Color = if open then TILE.Open elseif attention then (attentionColor or TILE.Open) else TILE.Outline
+		ring.Visible = highlighted
+		local lit = highlighted or hovered
+		gradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, if lit then TILE.OpenTop else TILE.Top),
+			ColorSequenceKeypoint.new(0.55, if lit then TILE.OpenMid else TILE.Mid),
+			ColorSequenceKeypoint.new(1, if lit then TILE.OpenBottom else TILE.Bottom),
+		})
+		local rise = if hovered then -5 elseif open then -4 else 0
+		TweenService:Create(lift, quick, { Position = UDim2.fromOffset(0, rise) }):Play()
+	end
+	refresh()
+
 	button.MouseEnter:Connect(function()
-		TweenService:Create(tile, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0.5, 0, 0, -5),
-		}):Play()
+		hovered = true
+		refresh()
 	end)
 	button.MouseLeave:Connect(function()
-		TweenService:Create(tile, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Position = UDim2.new(0.5, 0, 0, 0),
-		}):Play()
+		hovered = false
+		refresh()
 	end)
 	button.Activated:Connect(spec.OnActivate)
 
-	local shimmer = UiKit.shimmer(tile, 4)
-
 	local entry: any = {
 		Id = spec.Id,
-		Tile = tile,
+		Group = style.Group,
+		Slot = slot,
+		Tile = lift,
 		Button = button,
 		Panels = spec.Panels or {},
 	}
@@ -534,24 +645,35 @@ function MenuBar.add(spec: Spec): Entry
 		badgeText.Text = text or ""
 	end
 	function entry.setAttention(active: boolean, color: Color3?)
-		stroke.Color = if active then (color or Color3.fromRGB(255, 224, 102)) else INK
+		attention = active
+		attentionColor = color
+		refresh()
 	end
 	function entry.setOpen(active: boolean)
-		stroke.Color = if active then Color3.fromRGB(255, 224, 102) else INK
+		open = active
+		refresh()
 	end
+	-- Renacer: porcentaje encima del azulejo (nil lo oculta)
 	function entry.setProgress(ratio: number?)
-		track.Visible = ratio ~= nil
-		local r = math.clamp(ratio or 0, 0, 1)
-		fill.Size = UDim2.new(r, -2, 1, -2)
+		if not percent then
+			return
+		end
+		percent.Visible = ratio ~= nil
+		percent.Text = if ratio then string.format("%d%%", math.floor(math.clamp(ratio, 0, 1) * 100)) else ""
 	end
 	function entry.setLabel(text: string, color: Color3?)
 		label.Text = text
-		label.TextColor3 = color or style.LabelColor
+		label.TextColor3 = color or WHITE
 	end
-	entry.shimmer = shimmer
+	entry.shimmer = UiKit.shimmer(tile, radius - border)
 	entry.Icon = icon
 
 	entries[spec.Id] = entry
+	if touchMode == nil then
+		relayout()
+	end
+	slot.Parent = parentFor(entry)
+	relayout()
 	return entry
 end
 

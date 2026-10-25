@@ -30,6 +30,14 @@ local MonetizationConfig = {
 			Description = "La Resonancia del Cristal sube sola en cuanto te alcanza la energía. Se puede apagar.",
 			Color = Color3.fromRGB(110, 236, 220),
 		},
+		TripleHatch = {
+			Id = 0,
+			Order = 3,
+			Icon = "🥚",
+			Name = "Abrir ×3",
+			Description = "Abre 3 huevos de una vez (pagas los 3 con energía).",
+			Color = Color3.fromRGB(255, 160, 200),
+		},
 		PetSpace = {
 			Id = 0,
 			Order = 4,
@@ -37,6 +45,14 @@ local MonetizationConfig = {
 			Name = "Más mascotas",
 			Description = "+2 mascotas equipadas a la vez y +60 de espacio en el inventario.",
 			Color = Color3.fromRGB(150, 220, 120),
+		},
+		AutoFire = {
+			Id = 0,
+			Order = 0,
+			Icon = "🎯",
+			Name = "Disparo automático",
+			Description = "Tu arma dispara sola al enemigo más cercano, sin hacer clic. Se puede apagar.",
+			Color = Color3.fromRGB(255, 130, 100),
 		},
 	},
 
@@ -55,10 +71,20 @@ local MonetizationConfig = {
 		Haxigator = { Id = 0, Icon = "🐊", Name = "Haxigator" },
 	},
 
+	-- Armas que también se compran con Robux (por su id de WeaponConfig), en su tarjeta de la
+	-- Armería. Robux = precio que se ve en el botón (el de Roblox manda al pagar). Se
+	-- entregan aunque su zona siga cerrada, y se equipan. Id 0 = aún sin crear ("Próximamente").
+	WeaponProducts = {
+		PlasmaBlaster = { Id = 0, Robux = 49 },
+		CrystalCannon = { Id = 0, Robux = 149 },
+		VoidCannon = { Id = 0, Robux = 399 },
+	},
+
 	-- Efecto de cada pase
 	EnergyMultiplier = 2, -- DoubleEnergy
 	PetSlotBonus = 2, -- PetSpace: mascotas equipadas de más
 	InventoryBonus = 60, -- PetSpace: espacio de inventario de más
+	TripleCount = 3, -- TripleHatch: huevos por apertura
 	AutoUpgradeInterval = 1, -- AutoUpgrade: cada cuántos segundos mira si puede mejorar
 	AutoUpgradeMaxPerTick = 5, -- y cuántos niveles sube como mucho de una vez
 

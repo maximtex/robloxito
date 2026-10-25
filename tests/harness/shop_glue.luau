@@ -1,7 +1,7 @@
 -- Entorno para RewardService y ShopService REALES sobre la persistencia real (persist_stubs +
 -- persist_glue): MarketplaceService simulado (pases, ventana de compra y recibos),
 -- Players:GetPlayerByUserId, Enum.ProductPurchaseDecision y un PetService simulado que usa
--- PetLogic real (mascotas de regalo y límite de equipadas con los pases).
+-- EggLogic real (mascotas de regalo y límite de equipadas con los pases).
 -- Devuelve el PetService simulado (se inserta como módulo "PetService").
 
 Enum = Enum or {}
@@ -37,21 +37,31 @@ end
 services.MarketplaceService = MarketplaceStub
 
 local PetServiceStub = { Pushed = 0, Enforced = 0, Market = MarketplaceStub }
+local petRandom = 0
 local function petLimits(profile)
 	return {
 		MaxInventory = MonetizationLogic.maxInventory(profile.Passes, PetConfig.MaxInventory),
 		MaxEquipped = MonetizationLogic.maxEquipped(profile.PetData.Rebirth, profile.Passes, PetConfig.MaxEquipped),
+		UnlockUpgradeId = EggConfig.UnlockUpgradeId,
+		UnlockLevel = RebirthLogic.unlockLevel(profile.PetData.Rebirth, profile.UpgradeLevels[EggConfig.UnlockUpgradeId] or 0),
 	}
 end
 function PetServiceStub.pushInventory()
 	PetServiceStub.Pushed += 1
 end
-function PetServiceStub.grantFreePet(player, petId)
+function PetServiceStub.grantFreePet(player)
 	local profile = PlayerDataService.get(player)
 	if not profile or not PlayerDataService.isPetDataReady(profile) then
-		return Constants.PurchaseCodes.NotReady, nil
+		return Constants.PurchaseCodes.NotReady, nil, nil
 	end
-	return PetLogic.grantFree(profile, petId, petLimits(profile), Constants.PurchaseCodes)
+	local limits = petLimits(profile)
+	local eggId = EggLogic.bestEgg(profile, EggConfig, limits, Constants.PurchaseCodes)
+	if not eggId then
+		return Constants.PurchaseCodes.Unavailable, nil, nil
+	end
+	petRandom = (petRandom + 37) % 100
+	local code, grant = EggLogic.grantFree(profile, EggConfig.Eggs[eggId], petRandom, limits, Constants.PurchaseCodes)
+	return code, grant, eggId
 end
 function PetServiceStub.enforceEquipLimit(player)
 	local profile = PlayerDataService.get(player)

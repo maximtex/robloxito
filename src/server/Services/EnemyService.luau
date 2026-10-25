@@ -23,6 +23,14 @@
 --   o volver a casa. Publica <Estado>Until (hora del servidor) para los efectos del cliente.
 -- - Marca elemental de los combos (Aura / AuraUntil) y retroceso breve al recibir una
 --   habilidad fuerte (nunca los jefes).
+-- - Rediseño "solo disparar": cada enemigo derrotado da también ⚡ (EnergyService.grant:
+--   su recompensa · EconomyConfig.KillEnergyShare · poder de energía del jugador), sube la
+--   RACHA del jugador (WaveLogic: multiplica el botín mientras mate sin parar; atributos
+--   Streak y StreakUntil) y a veces suelta un ORBE DORADO (botín ×10, nunca un jefe).
+--   setKillModifier deja que WaveService añada lo de las mejoras de la partida.
+-- - Oleadas (WaveService): enemigos de una reserva (spawnPooled) que se crean una vez,
+--   no reaparecen solos al morir y vuelven a la reserva; y jefes que solo salen en la
+--   última oleada (setBossWaveControlled / wakeBoss). Al morir avisan a OnWaveDeath.
 
 local Debris = game:GetService("Debris")
 local PathfindingService = game:GetService("PathfindingService")
@@ -42,11 +50,18 @@ local RebirthLogic = require(Shared.RebirthLogic)
 local AdventureConfig = require(Shared.Config.AdventureConfig)
 local AdventureLogic = require(Shared.AdventureLogic)
 local CombatConfig = require(Shared.Config.CombatConfig)
+local ItemLogic = require(Shared.ItemLogic)
+local EconomyConfig = require(Shared.Config.EconomyConfig)
+local WaveLogic = require(Shared.WaveLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
+local EnergyService = require(script.Parent.EnergyService)
 local RemoteService = require(script.Parent.RemoteService)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local EnemyLogic = require(script.Parent.Parent.Util.EnemyLogic)
 local TerrainPaint = require(script.Parent.Parent.Util.TerrainPaint)
+-- Modelos 3D de Santiago para los enemigos del Bosque (estilos Arbolito, ArbolitoBebe,
+-- ArbolGuardian y GiganteDelBosque): se registran en BUILDERS / SHAPES más abajo.
+local ModelosZona1 = require(script.Parent.Parent.Util.ModelosZona1)
 
 local FOLDER_NAME = "Enemies"
 local ARENAS_NAME = "BossArenas"
@@ -92,6 +107,7 @@ type Enemy = {
 	Billboard: BillboardGui,
 	RootHeight: number, -- altura del centro de la raíz sobre el suelo
 	Radius: number, -- radio horizontal para recibir golpes
+	DeathSeconds: number?, -- cuánto queda el cuerpo tras morir (modelos con animación Death)
 	Home: Vector3,
 	LeashCenter: Vector3,
 	LeashRadius: number,
@@ -110,11 +126,25 @@ type Enemy = {
 	StuckSince: number?,
 	LastHomeDistance: number,
 	Brain: any?, -- solo jefes con Def.Brain: su máquina de estados (updateBoss)
+	-- Oleadas (WaveService)
+	Pooled: boolean, -- de la reserva: no reaparece solo, vuelve a la reserva al morir
+	InPool: boolean, -- en la reserva, esperando a que una oleada lo saque
+	WaveControlled: boolean, -- jefe que solo sale en la última oleada (no reaparece solo)
+	OnWaveDeath: ((any, Player?, Vector3) -> ())?, -- aviso al morir (enemigo, quién lo mató, dónde)
+	LastHitBy: Player?, -- quién dio el último golpe (solo para OnWaveDeath)
 }
 
 local EnemyService = {}
 
 local enemies: { Enemy } = {}
+-- Reserva de enemigos de las oleadas: "<zona>/<tipo>" -> libres y cuántos se han creado.
+local pools: { [string]: { Enemy } } = {}
+local poolCreated: { [string]: number } = {}
+-- Jefe de cada zona (para las oleadas).
+local bossByZone: { [string]: Enemy } = {}
+-- Racha de cada jugador (WaveLogic) y extra de las mejoras de la partida (WaveService).
+local streaks: { [Player]: WaveLogic.Streak } = {}
+local killModifier: ((Player, Enemy) -> (number?, number?))? = nil
 -- Modificador del daño que los enemigos hacen a los jugadores (lo registra
 -- PetCombatService para la Tortuga). Un único punto: nunca se aplica dos veces.
 local incomingModifier: ((Player, number) -> number)? = nil
@@ -379,6 +409,9 @@ local SHAPES = {
 	Colossus = { Root = Vector3.new(6, 8, 4.5), Hip = 3.5, Radius = 4.5, BarHeight = 18, Pivots = { Body = Vector3.new(0, 3.8, 0), Arm = Vector3.new(4.6, 10.5, 0), Leg = Vector3.new(1.6, 3.8, 0) } },
 }
 
+-- Enemigos del Bosque con los modelos 3D (.glb) de Santiago: Util.ModelosZona1
+ModelosZona1.register(BUILDERS, SHAPES)
+
 -- Articulaciones: cada pieza se une a la raíz con un Motor6D cuyo pivote es el de su grupo
 -- (cuerpo, brazo o pierna). En reposo equivale a una soldadura; el cliente anima los
 -- grupos escribiendo Motor6D.Transform (solo en su pantalla, sin tocar la IA ni la física).
@@ -616,11 +649,58 @@ local function respawn(enemy: Enemy)
 end
 
 -- Multiplicador del dinero que cobra un jugador: renacimiento y "Botín abundante", amuletos
--- y bendiciones de las aventuras, y sus mascotas (CombatConfig.PetMoneyShare de su
--- bonificación).
+-- y bendiciones de las aventuras, sus mascotas (CombatConfig.PetMoneyShare de su
+-- bonificación) y la Poción de Riqueza (inventario) mientras dura.
 local function lootMultiplier(profile): number
 	local pets = 1 + math.max(0, (profile.PetMultiplier or 1) - 1) * CombatConfig.PetMoneyShare
-	return RebirthLogic.lootMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.lootMultiplier(AdventureLogic.ofProfile(profile), os.time()) * pets
+	return RebirthLogic.lootMultiplier(RebirthLogic.ofProfile(profile))
+		* AdventureLogic.lootMultiplier(AdventureLogic.ofProfile(profile), os.time())
+		* pets
+		* ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Money", os.time())
+end
+
+-- Racha del jugador: sube con este enemigo y se publica para el cliente (Streak y la hora
+-- del servidor a la que caduca, StreakUntil).
+local function streakOf(player: Player): WaveLogic.Streak
+	local streak = streaks[player]
+	if not streak then
+		streak = WaveLogic.newStreak()
+		streaks[player] = streak
+	end
+	return streak
+end
+
+local function publishStreak(player: Player, streak: WaveLogic.Streak, nowClock: number)
+	local attributes = Constants.Attributes
+	player:SetAttribute(attributes.Streak, streak.Count)
+	player:SetAttribute(attributes.StreakUntil, Workspace:GetServerTimeNow() + math.max(0, streak.Until - nowClock))
+	player:SetAttribute(attributes.StreakBest, streak.Best)
+end
+
+-- Extra de las mejoras de la partida (WaveService): multiplicador del botín y segundos
+-- de más en la ventana de la racha. Valores raros se ignoran.
+local function killExtras(player: Player, enemy: Enemy): (number, number)
+	if not killModifier then
+		return 1, 0
+	end
+	local ok, loot, seconds = pcall(killModifier, player, enemy)
+	if not ok then
+		return 1, 0
+	end
+	local cleanLoot = if type(loot) == "number" and loot == loot and loot > 0 and loot < 100 then loot else 1
+	local cleanSeconds = if type(seconds) == "number" and seconds == seconds and seconds > 0 and seconds < 30 then seconds else 0
+	return cleanLoot, cleanSeconds
+end
+
+-- Vuelve a la reserva de las oleadas (una sola vez).
+local function release(enemy: Enemy)
+	if not enemy.Pooled or enemy.InPool then
+		return
+	end
+	enemy.InPool = true
+	local key = enemy.ZoneId .. "/" .. enemy.TypeId
+	pools[key] = pools[key] or {}
+	table.insert(pools[key], enemy)
 end
 
 local function onDeath(enemy: Enemy)
@@ -634,26 +714,57 @@ local function onDeath(enemy: Enemy)
 	enemy.Model:SetAttribute("DiedAt", Workspace:GetServerTimeNow())
 
 	-- Recompensa: una sola vez por vida (solo llega aquí el golpe que lo mató).
+	-- 💰 y ⚡ para cada uno según su daño, por la racha, el orbe dorado y las mejoras.
 	local reward = math.floor(enemy.Def.Reward * enemy.RewardMultiplier)
 	local isBoss = enemy.Kind == "Boss"
+	local position = enemy.Root.Position
+	local nowClock = os.clock()
 	for userId, amount in EnemyLogic.splitReward(enemy.Status.Contributions, reward) do
 		local player = Players:GetPlayerByUserId(userId)
 		local profile = player and PlayerDataService.get(player)
 		if player and profile and amount > 0 then
-			local earned = math.floor(amount * lootMultiplier(profile))
+			local lootBonus, streakSeconds = killExtras(player, enemy)
+			local streak = streakOf(player)
+			local count = WaveLogic.streakKill(streak, nowClock, streakSeconds)
+			local golden = WaveLogic.rollGolden(math.random, isBoss)
+			local bonus = WaveLogic.streakMultiplier(count) * WaveLogic.goldenMultiplier(golden) * lootBonus
+			local earned = math.floor(amount * lootMultiplier(profile) * bonus)
 			profile.Money += earned
-			PlayerDataService.replicate(player)
-			rewardRemote:FireClient(player, earned, enemy.Def.DisplayName, isBoss, enemy.Root.Position, true)
+			local energy = EnergyService.grant(player, WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare, profile.ProductionPerSecond) * bonus)
+			if energy <= 0 then
+				PlayerDataService.replicate(player) -- grant ya replica si ha sumado energía
+			end
+			publishStreak(player, streak, nowClock)
+			rewardRemote:FireClient(player, earned, enemy.Def.DisplayName, isBoss, position, true, { Energy = energy, Golden = golden, Streak = count })
 			-- Cuenta como derrota para quien recibe parte de la recompensa (daño real).
-			local info = { TypeId = enemy.TypeId, Kind = enemy.Kind, ZoneId = enemy.ZoneId, Reward = earned }
+			local info = { TypeId = enemy.TypeId, Kind = enemy.Kind, ZoneId = enemy.ZoneId, Reward = earned, Energy = energy, Golden = golden, Streak = count }
 			for _, listener in defeatListeners do
 				task.spawn(listener, player, info)
 			end
 		end
 	end
 
-	burst(enemy.Root.Position, enemy.Def.Look.Secondary, if isBoss then 60 else 20, true)
-	task.delay(DISSOLVE_SECONDS[enemy.Kind] or 0.8, function()
+	burst(position, enemy.Def.Look.Secondary, if isBoss then 60 else 20, true)
+	local killer = enemy.LastHitBy
+	enemy.LastHitBy = nil
+	local dissolve = enemy.DeathSeconds or DISSOLVE_SECONDS[enemy.Kind] or 0.8
+	-- Oleadas: ni reaparece solo ni se queda; los de la reserva vuelven a ella.
+	if enemy.Pooled or enemy.WaveControlled then
+		task.delay(dissolve, function()
+			if enemy.Generation == generation then
+				enemy.Model.Parent = nil
+				release(enemy)
+			end
+		end)
+		local callback = enemy.OnWaveDeath
+		enemy.OnWaveDeath = nil
+		if callback then
+			task.spawn(callback, enemy, killer, position)
+		end
+		return
+	end
+	-- Los modelos con animación de muerte (ModelosZona1) se quedan lo que dura esa animación.
+	task.delay(dissolve, function()
 		if enemy.Generation == generation then
 			enemy.Model.Parent = nil -- fuera del mundo hasta reaparecer
 		end
@@ -673,15 +784,19 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 		return 0, false, 0
 	end
 	-- Marcado por una maldición: recibe más daño (de todos los jugadores y mascotas).
+	local profile = PlayerDataService.get(player)
 	if type(amount) == "number" then
 		amount = EnemyLogic.damageTaken(amount, enemy.Control, os.clock())
+		-- Poción de Fuerza: todo el daño del jugador (disparos, habilidades y mascotas) x2.
+		if profile then
+			amount *= ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Damage", os.time())
+		end
 	end
 	local dealt, killed = EnemyLogic.applyDamage(enemy.Status, player.UserId, amount)
 	if dealt <= 0 then
 		return 0, false, 0
 	end
 	-- Cada golpe al enemigo suelta un poco de dinero al instante
-	local profile = PlayerDataService.get(player)
 	local earnedHit = 0
 	if profile then
 		local baseHit = math.max(1, math.floor(enemy.Def.Reward * (dealt / math.max(1, enemy.Status.MaxHealth)) * 0.75))
@@ -692,6 +807,7 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 	end
 	burst(enemy.Root.Position, enemy.Def.Look.Secondary, 5)
 	if killed then
+		enemy.LastHitBy = player
 		onDeath(enemy)
 		return dealt, true, earnedHit
 	end
@@ -1755,7 +1871,7 @@ end
 
 -- Arranque --------------------------------------------------------------------------
 
-local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSettings, leashCenter: Vector3?, leashRadius: number?): Enemy?
+local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSettings, leashCenter: Vector3?, leashRadius: number?, pooled: boolean?): Enemy?
 	local def = EnemyConfig.Types[typeId]
 	if not def then
 		warn("[EnemyService] Tipo de enemigo desconocido: " .. tostring(typeId))
@@ -1806,6 +1922,7 @@ local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSe
 		Billboard = nil :: any,
 		RootHeight = rig.RootHeight,
 		Radius = shape.Radius,
+		DeathSeconds = shape.DeathSeconds,
 		Home = home,
 		LeashCenter = leashCenter or home,
 		LeashRadius = leashRadius or def.LeashRange,
@@ -1824,6 +1941,11 @@ local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSe
 		StuckSince = nil,
 		LastHomeDistance = math.huge,
 		Brain = nil,
+		Pooled = pooled == true,
+		InPool = false,
+		WaveControlled = false,
+		OnWaveDeath = nil,
+		LastHitBy = nil,
 	}
 	if def.Brain then
 		enemy.Brain = newBrain()
@@ -1867,8 +1989,139 @@ local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSe
 			end
 		end
 	end)
+	if enemy.Pooled then
+		-- De la reserva: fuera del mundo hasta que una oleada lo saque (spawnPooled).
+		enemy.Status.State = "Dead"
+		syncHealth(enemy)
+	else
+		respawn(enemy)
+	end
+	return enemy
+end
+
+-- Oleadas ------------------------------------------------------------------------------
+
+export type WaveSpawnOptions = {
+	LeashCenter: Vector3?, -- persigue a quien esté dentro de este círculo
+	LeashRadius: number?,
+	DetectRange: number?, -- distancia a la que ve a los jugadores
+	HealthMultiplier: number?,
+	RewardMultiplier: number?,
+	PoolLimit: number?, -- como mucho estos de su tipo en la reserva
+	OnDeath: ((any, Player?, Vector3) -> ())?,
+}
+
+local function finiteOr(value: any, default: number): number
+	return if type(value) == "number" and value == value and value > 0 and value < 1e9 then value else default
+end
+
+-- Saca un enemigo de la reserva (o lo crea si aún caben) en `position`. nil si no hay sitio.
+function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vector3, options: WaveSpawnOptions?): Enemy?
+	local opts: WaveSpawnOptions = options or {}
+	local zoneSettings = EnemyConfig.Zones[zoneId]
+	if not (zoneSettings and EnemyConfig.Types[typeId] and ZoneConfig.Zones[zoneId]) then
+		return nil
+	end
+	local key = zoneId .. "/" .. typeId
+	local free = pools[key]
+	local enemy = if free then table.remove(free) else nil
+	if not enemy then
+		if (poolCreated[key] or 0) >= finiteOr(opts.PoolLimit, 20) then
+			return nil
+		end
+		enemy = createEnemy(zoneId, typeId, position, zoneSettings, nil, nil, true)
+		if not enemy then
+			return nil
+		end
+		poolCreated[key] = (poolCreated[key] or 0) + 1
+	end
+	local def = enemy.Def
+	enemy.InPool = false
+	enemy.Home = position
+	enemy.LeashCenter = opts.LeashCenter or position
+	enemy.LeashRadius = finiteOr(opts.LeashRadius, def.LeashRange)
+	enemy.DetectRange = finiteOr(opts.DetectRange, def.DetectRange)
+	enemy.RewardMultiplier = finiteOr(opts.RewardMultiplier, 1)
+	enemy.Status.MaxHealth = math.max(1, math.floor(def.MaxHealth * finiteOr(opts.HealthMultiplier, 1)))
+	enemy.OnWaveDeath = opts.OnDeath
+	enemy.LastHitBy = nil
+	enemy.Generation += 1
 	respawn(enemy)
 	return enemy
+end
+
+-- Retira un enemigo de una oleada SIN recompensa (partida perdida o terminada). Los de la
+-- reserva vuelven a ella; los jefes de las oleadas se quedan dormidos.
+function EnemyService.despawn(enemy: Enemy?)
+	if not enemy then
+		return
+	end
+	enemy.Generation += 1 -- anula reapariciones y disoluciones pendientes
+	enemy.OnWaveDeath = nil
+	enemy.LastHitBy = nil
+	enemy.Target = nil
+	clearControl(enemy)
+	setEnraged(enemy, false)
+	if enemy.Model.Parent ~= nil and enemy.Status.State ~= "Dead" then
+		burst(enemy.Root.Position, enemy.Def.Look.Secondary, 12, true)
+	end
+	enemy.Status.State = "Dead"
+	enemy.Billboard.Enabled = false
+	enemy.Model:SetAttribute("TargetUserId", nil)
+	enemy.Model.Parent = nil
+	release(enemy)
+end
+
+-- El jefe de una zona pasa a salir solo en las oleadas (controlled = true: se duerme ya)
+-- o vuelve a estar siempre en su arena (false: reaparece ahora con su vida normal).
+function EnemyService.setBossWaveControlled(zoneId: string, controlled: boolean): Enemy?
+	local boss = bossByZone[zoneId]
+	if not boss then
+		return nil
+	end
+	boss.WaveControlled = controlled
+	if controlled then
+		EnemyService.despawn(boss)
+	else
+		boss.Status.MaxHealth = boss.Def.MaxHealth
+		boss.OnWaveDeath = nil
+		boss.Generation += 1
+		respawn(boss)
+	end
+	return boss
+end
+
+-- Despierta al jefe de una zona para la última oleada (con más vida si hay más jugadores).
+function EnemyService.wakeBoss(zoneId: string, healthMultiplier: number?, onDeath: ((any, Player?, Vector3) -> ())?): Enemy?
+	local boss = bossByZone[zoneId]
+	if not boss then
+		return nil
+	end
+	boss.Status.MaxHealth = math.max(1, math.floor(boss.Def.MaxHealth * finiteOr(healthMultiplier, 1)))
+	boss.OnWaveDeath = onDeath
+	boss.LastHitBy = nil
+	boss.Generation += 1
+	respawn(boss)
+	return boss
+end
+
+function EnemyService.bossOf(zoneId: string): Enemy?
+	return bossByZone[zoneId]
+end
+
+-- WaveService añade lo de las mejoras de la partida: (multiplicador del botín, segundos
+-- extra de racha) para ese jugador y ese enemigo.
+function EnemyService.setKillModifier(modifier: (Player, Enemy) -> (number?, number?))
+	killModifier = modifier
+end
+
+-- Racha vigente de un jugador (0 si caducó) y la mejor de la sesión.
+function EnemyService.streakOf(player: Player): (number, number)
+	local streak = streaks[player]
+	if not streak then
+		return 0, 0
+	end
+	return WaveLogic.streakCount(streak, os.clock()), streak.Best
 end
 
 function EnemyService.start()
@@ -1908,9 +2161,14 @@ function EnemyService.start()
 				enemy.Model:SetAttribute("ArenaCenter", arenaCenter)
 				enemy.Model:SetAttribute("ArenaRadius", boss.Arena.Radius)
 				enemy.Model:SetAttribute("ArenaName", boss.Arena.Name)
+				bossByZone[zoneId] = enemy
 			end
 		end
 	end
+
+	Players.PlayerRemoving:Connect(function(player)
+		streaks[player] = nil
+	end)
 
 	-- Un único bucle de IA para todos los enemigos.
 	task.spawn(function()

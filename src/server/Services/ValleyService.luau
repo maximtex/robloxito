@@ -101,13 +101,16 @@ local function buildFlatTerrain()
 end
 
 -- Río cristalino de lado a lado sobre el suelo, con borde morado en las dos orillas; se corta
--- en la avenida central, que lo cruza como puente.
+-- en la avenida central, que lo cruza como puente. Con terrazas sigue entre ellas hasta
+-- Hill.Channel.Reach: allí cae una cascada (oeste) y entra en una cueva (este).
 local function buildRiver(parent: Instance)
 	local folder = PartFactory.folder(parent, "River")
 	local river = VALLEY.River
 	local border = StudFloor.BorderWidth
 	local top = StudWorld.FloorTop
-	for _, side in { { VALLEY.MinX, -river.BridgeHalf }, { river.BridgeHalf, VALLEY.MaxX } } do
+	local channel = VALLEY.Hill and VALLEY.Hill.Channel
+	local reach = if channel then channel.Reach else VALLEY.MaxX
+	for _, side in { { -reach, -river.BridgeHalf }, { river.BridgeHalf, reach } } do
 		local x0, x1 = side[1], side[2]
 		local cx, w = (x0 + x1) / 2, x1 - x0
 		local water = PartFactory.part(folder, "AguaValle", {
@@ -127,6 +130,62 @@ local function buildRiver(parent: Instance)
 				Solid = false,
 			})
 		end
+	end
+	if not channel then
+		return
+	end
+	local width = river.MaxZ - river.MinZ - 2 * border
+	local midZ = (river.MinZ + river.MaxZ) / 2
+	local cliff = VALLEY.Hill.Terraces[#VALLEY.Hill.Terraces].Height
+	-- Cascada: lámina de agua que cae del escalón más alto, espuma abajo y bruma
+	local fall = PartFactory.part(folder, "Cascada", {
+		Size = Vector3.new(1, cliff, width),
+		CFrame = CFrame.new(-reach + 0.6, top + cliff / 2, midZ),
+		Color = Color3.fromRGB(150, 225, 255),
+		Material = Enum.Material.Neon,
+		Solid = false,
+	})
+	fall.Transparency = 0.35
+	local foam = PartFactory.part(folder, "Espuma", {
+		Size = Vector3.new(6, 0.6, width),
+		CFrame = CFrame.new(-reach + 3.5, top + 0.2, midZ),
+		Color = Color3.fromRGB(235, 250, 255),
+		Material = Enum.Material.Neon,
+		Solid = false,
+	})
+	foam.Transparency = 0.2
+	local mist = Instance.new("ParticleEmitter")
+	mist.Name = "Bruma"
+	mist.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	mist.Color = ColorSequence.new(Color3.fromRGB(230, 248, 255))
+	mist.Transparency = NumberSequence.new(0.55, 1)
+	mist.Size = NumberSequence.new(3, 7)
+	mist.Lifetime = NumberRange.new(1.2, 2)
+	mist.Rate = 12
+	mist.Speed = NumberRange.new(2, 4)
+	mist.SpreadAngle = Vector2.new(60, 60)
+	mist.Parent = foam
+	-- Cueva: boca oscura en el escalón más alto con un marco de piedra
+	local caveH = 22
+	PartFactory.part(folder, "CuevaBoca", {
+		Size = Vector3.new(1, caveH, width),
+		CFrame = CFrame.new(reach - 0.6, top + caveH / 2, midZ),
+		Color = Color3.fromRGB(18, 12, 34),
+		Material = Enum.Material.SmoothPlastic,
+		Solid = true,
+	})
+	for _, spec in {
+		{ Size = Vector3.new(2, 4, width + 8), Offset = Vector3.new(0, caveH + 2, 0) },
+		{ Size = Vector3.new(2, caveH + 4, 4), Offset = Vector3.new(0, (caveH + 4) / 2, -width / 2 - 2) },
+		{ Size = Vector3.new(2, caveH + 4, 4), Offset = Vector3.new(0, (caveH + 4) / 2, width / 2 + 2) },
+	} do
+		StudWorld.allStuds(PartFactory.part(folder, "CuevaMarco", {
+			Size = spec.Size,
+			CFrame = CFrame.new(Vector3.new(reach - 1, top, midZ) + spec.Offset),
+			Color = PIZARRA,
+			Material = Enum.Material.Plastic,
+			Solid = true,
+		}))
 	end
 end
 
@@ -270,6 +329,22 @@ local function buildDecor(parent: Instance, decor)
 	end)
 end
 
+-- Sobre las terrazas: cristales en los escalones 3 y 4 y árboles de cristal en el 1 y el 2,
+-- repartidos siempre igual (una de cada pocas casillas)
+local function buildTerraceDecor(parent: Instance, tops: { { Position: Vector3, Ring: number } })
+	local folder = PartFactory.folder(parent, "TerraceDecor")
+	local crystals = ValleyConfig.Colors.Crystals
+	local rng = Random.new(VALLEY.DecorSeed + 7)
+	for index, cell in tops do
+		if cell.Ring >= 3 and index % 6 == 0 then
+			buildCrystalCluster(folder, cell.Position, rng:NextNumber(0, 360), crystals[rng:NextInteger(1, #crystals)])
+		elseif cell.Ring <= 2 and index % 11 == 0 then
+			local colors = BLOCKY_TREE_COLORS[rng:NextInteger(1, #BLOCKY_TREE_COLORS)]
+			StudWorld.buildBlockyTree(folder, cell.Position, rng:NextNumber(0, 360), rng:NextNumber(0.75, 0.95), colors)
+		end
+	end
+end
+
 function ValleyService.start()
 	PartFactory.removeExisting(workspace, ValleyConfig.ModelName)
 	buildFlatTerrain()
@@ -277,11 +352,14 @@ function ValleyService.start()
 	local model = Instance.new("Model")
 	model.Name = ValleyConfig.ModelName
 	StudWorld.buildFloor(model, VALLEY)
-	StudWorld.buildWalls(model, VALLEY)
+	local tops = StudWorld.buildWalls(model, VALLEY)
 	buildRiver(model)
 	local decor = StudWorld.newDecor(VALLEY, "CrystalValley", landmarkKeepOut())
 	buildLandmarks(model, decor)
 	buildDecor(model, decor)
+	if tops then
+		buildTerraceDecor(model, tops)
+	end
 	model.Parent = workspace
 end
 

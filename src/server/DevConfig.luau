@@ -15,8 +15,8 @@
 -- antes de hacer commit. `python tests/run_tests.py` avisa si se ha quedado en true.
 --
 -- StudioPasses = true: en Studio, el jugador tiene todos los pases de la tienda (Energía ×2,
--- Mejora automática, Abrir ×3, Más mascotas) sin comprarlos, para probarlos. Fuera de
--- Studio se ignora. En el repositorio, false.
+-- Mejora automática, Abrir ×3, Más mascotas, Disparo automático) sin comprarlos, para
+-- probarlos. Fuera de Studio se ignora. En el repositorio, false.
 
 return {
 	TutorialSandbox = false,

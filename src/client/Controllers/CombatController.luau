@@ -1,13 +1,18 @@
 -- Combate en el cliente (solo presentación y entrada; el servidor decide todo):
--- - El arma dispara sola (PetCombatService). Con un clic o toque en un enemigo se elige el
---   objetivo; F, X (mando), el botón táctil o el botón "Disparar" encienden o apagan el
---   disparo automático (insignia AUTO / OFF). Sobre el botón, el arma equipada y su daño
---   por segundo.
+-- - Disparar: un clic o toque en un enemigo le dispara a él; F, X (mando), el botón táctil
+--   o el botón "Disparar", al más cercano a tiro. Mantener pulsado sigue disparando (el
+--   servidor respeta la cadencia del arma: PetCombatService). Con el pase "Disparo
+--   automático" el arma dispara sola; la insignia (AUTO / OFF, o V) lo enciende o apaga, y
+--   sin el pase (🔒 AUTO) abre la tienda. Sobre el botón, el arma equipada y su daño por
+--   segundo.
 -- - Cada disparo confirmado (PetAbility "PlayerShot") se dibuja según el proyectil del arma
 --   (WeaponConfig): rayo, bola de plasma, espina, rayo de cristal que salta entre enemigos
 --   o esfera que explota; luego los impactos (destello, chispas, número de daño, sonido).
--- - Dinero: monedas que saltan del enemigo y vuelan hacia ti al cobrar, aviso al derrotarlo
---   y anuncio al derrotar a un jefe.
+-- - Botín: monedas (💰) y orbes de energía (⚡) que saltan del enemigo y vuelan hacia ti al
+--   cobrar, el ORBE DORADO (botín ×10) con su destello, un aviso al derrotarlo (uno solo
+--   que se actualiza, para que las hordas no llenen la pila) y anuncio al derrotar a un jefe.
+-- - Dentro de una partida de oleadas el arma dispara sola aunque no tengas el pase: la
+--   insignia muestra "AUTO ⚔".
 -- - Barra de vida grande del jefe al acercarse a su arena.
 -- - Mascotas de combate: rayo del Zorrito, nova del Dragón (con aviso y recarga visible)
 --   y escudo de la Tortuga, solo para acciones ya confirmadas por el servidor.
@@ -29,9 +34,11 @@ local WeaponConfig = require(Shared.Config.WeaponConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local CombatMath = require(Shared.CombatMath)
+local MonetizationLogic = require(Shared.MonetizationLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Toasts = require(script.Parent.Parent.UI.Toasts)
+local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local HudDock = require(script.Parent.Parent.UI.HudDock)
 local EnemyAnimator = require(script.Parent.EnemyAnimator)
 
@@ -39,6 +46,8 @@ local THEME = Theme.Colors
 local FONTS = Theme.Fonts
 local LAYOUT = Theme.Layout
 local ATTACK_ACTION = "RebirthAttack"
+local AUTO_ACTION = "RebirthAutoFire"
+local REPEAT_SECONDS = 0.15 -- mantener pulsado repite la petición de disparo
 local BOSS_BAR_RANGE = 30 -- distancia extra al borde de la arena para mostrar la barra
 local KIND_COLORS = {
 	Normal = Color3.fromRGB(255, 244, 214),
@@ -59,6 +68,12 @@ local COIN_COLOR = Color3.fromRGB(255, 200, 40)
 local COIN_SIZE = Vector3.new(0.22, 1.1, 1.1) -- moneda de canto (el cilindro va en X)
 local COINS_KILL = 6 -- monedas que suelta un enemigo al morir
 local COINS_BOSS = 18
+local ORB_COLOR = Color3.fromRGB(32, 229, 209) -- energía (turquesa del cristal)
+local ORB_SIZE = 0.8
+local ORBS_KILL = 3
+local ORBS_BOSS = 12
+local GOLDEN_COLOR = Color3.fromRGB(255, 214, 70)
+local MAX_FLYING = 90 -- más monedas y orbes volando a la vez no se distinguen y cuestan rendimiento
 
 local CombatController = {}
 
@@ -541,20 +556,20 @@ local function buildGui()
 		Thickness = 2.5,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
 	}, atkLabel)
-	-- Disparo automático encendido (AUTO) o apagado (OFF)
-	local autoBadge = UiKit.text(buttonFrame, "AutoBadge", {
+	-- Disparo automático (pase): encendido (AUTO), apagado (OFF) o sin el pase (🔒 AUTO)
+	local autoBadge = UiKit.create("TextButton", {
+		Name = "AutoBadge",
 		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.fromOffset(-6, -6),
-		Size = UDim2.fromOffset(40, 18),
-		BackgroundTransparency = 0,
-		BackgroundColor3 = AUTO_ON,
+		Position = UDim2.fromOffset(-10, -8),
+		Size = UDim2.fromOffset(58, 20),
+		AutoButtonColor = true,
+		BackgroundColor3 = AUTO_OFF,
 		Font = FONTS.Display,
 		TextSize = 12,
 		TextColor3 = Color3.new(1, 1, 1),
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Text = "AUTO",
-		ZIndex = 5,
-	})
+		Text = "🔒 AUTO",
+		ZIndex = 6,
+	}, buttonFrame)
 	UiKit.corner(autoBadge, 6)
 	UiKit.create("UIStroke", { Color = INK, Thickness = 1.6, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, autoBadge)
 	-- Arma equipada y su daño por segundo, sobre el botón
@@ -733,60 +748,127 @@ function CombatController.start()
 		task.spawn(loadAnimation, player.Character)
 	end
 
-	-- Clic o toque sobre un enemigo: pasa a ser el objetivo del arma (el servidor lo comprueba)
-	local function selectTarget(aimRay: Ray)
+	-- Clic o toque sobre un enemigo: le pide un disparo (el servidor comprueba el enemigo y
+	-- decide el disparo). true si apuntaba a uno.
+	local function shootAt(aimRay: Ray): boolean
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if not (root and root:IsA("BasePart")) then
-			return
+			return false
 		end
 		local aimed, at = pickTarget(root, aimRay)
 		if aimed and at then
 			attackRemote:FireServer(aimed)
 			emitAt("Glint", at, SLASH_TO, 4)
 			flashEnemy(aimed, SLASH_TO)
-			if animationTrack then
-				animationTrack:Play()
+			return true
+		end
+		return false
+	end
+	-- F, X (mando), el botón táctil o "Disparar": al más cercano a tiro (lo elige el servidor)
+	local function shootNearest(): boolean
+		attackRemote:FireServer()
+		return true
+	end
+
+	-- Mantener pulsado: repite la petición mientras no se suelte lo que la empezó (el botón
+	-- del ratón, ese dedo o la acción de F). Solo una repetición a la vez.
+	local hold: { By: any }? = nil
+	local function startHold(by: any, fire: () -> boolean)
+		local current = { By = by }
+		hold = current
+		if fire() and animationTrack then
+			animationTrack:Play()
+		end
+		task.spawn(function()
+			while true do
+				task.wait(REPEAT_SECONDS)
+				if hold ~= current then
+					return
+				end
+				fire()
 			end
+		end)
+	end
+	local function stopHold(by: any)
+		if hold and hold.By == by then
+			hold = nil
 		end
 	end
 
-	-- F, X (mando), el botón táctil o el de pantalla: enciende o apaga el disparo automático
-	local function autoFireOn(): boolean
-		return player:GetAttribute(Constants.Attributes.AutoFire) ~= false
-	end
-	local function refreshAutoFire()
-		local on = autoFireOn()
-		ui.AutoBadge.Text = if on then "AUTO" else "OFF"
-		ui.AutoBadge.BackgroundColor3 = if on then AUTO_ON else AUTO_OFF
-		ui.Cooldown.Size = if on then UDim2.fromScale(1, 0) else UDim2.fromScale(1, 1)
-	end
-	local function toggleAutoFire()
-		autoRemote:FireServer(not autoFireOn())
-		if swingSound then
-			swingSound:Play()
-		end
-	end
 	ContextActionService:BindAction(ATTACK_ACTION, function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
-			toggleAutoFire()
+			startHold(ATTACK_ACTION, shootNearest)
+		else
+			stopHold(ATTACK_ACTION)
 		end
 		return Enum.ContextActionResult.Sink
 	end, true, Enum.KeyCode.F, Enum.KeyCode.ButtonX)
 	ContextActionService:SetTitle(ATTACK_ACTION, "⚔")
 	ContextActionService:SetPosition(ATTACK_ACTION, UDim2.new(1, -170, 1, -150))
-	ui.Button.Activated:Connect(toggleAutoFire)
-	player:GetAttributeChangedSignal(Constants.Attributes.AutoFire):Connect(refreshAutoFire)
-	refreshAutoFire()
+	ui.Button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			startHold(Enum.UserInputType.MouseButton1, shootNearest)
+		elseif input.UserInputType == Enum.UserInputType.Touch then
+			startHold(input, shootNearest)
+		end
+	end)
 
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then
 			return
 		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			selectTarget(Workspace.CurrentCamera:ScreenPointToRay(input.Position.X, input.Position.Y))
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			startHold(Enum.UserInputType.MouseButton1, function()
+				local mouse = UserInputService:GetMouseLocation()
+				return shootAt(Workspace.CurrentCamera:ViewportPointToRay(mouse.X, mouse.Y))
+			end)
+		elseif input.UserInputType == Enum.UserInputType.Touch then
+			startHold(input, function()
+				return shootAt(Workspace.CurrentCamera:ScreenPointToRay(input.Position.X, input.Position.Y))
+			end)
 		end
 	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			stopHold(Enum.UserInputType.MouseButton1)
+		elseif input.UserInputType == Enum.UserInputType.Touch then
+			stopHold(input)
+		end
+	end)
+
+	-- Insignia AUTO o V: enciende o apaga el disparo automático; sin el pase, a la tienda
+	local function hasAutoPass(): boolean
+		return MonetizationLogic.autoFire(MonetizationLogic.parsePasses(player:GetAttribute(Constants.Attributes.Passes)))
+	end
+	local function refreshAutoFire()
+		local owned = hasAutoPass()
+		local on = player:GetAttribute(Constants.Attributes.AutoFire) == true
+		-- Sin el pase, "AUTO ⚔" = disparo automático gratis dentro de las oleadas.
+		ui.AutoBadge.Text = if on and not owned then "AUTO ⚔" elseif not owned then "🔒 AUTO" elseif on then "AUTO" else "OFF"
+		ui.AutoBadge.BackgroundColor3 = if on then AUTO_ON else AUTO_OFF
+	end
+	local function toggleAutoFire()
+		if not hasAutoPass() then
+			Toasts.show("🎯 Disparo automático: consíguelo en la 🛒 Tienda", { Color = THEME.Gold, Key = "AutoFirePass" })
+			PanelManager.open("Shop")
+			return
+		end
+		autoRemote:FireServer(player:GetAttribute(Constants.Attributes.AutoFire) ~= true)
+		if swingSound then
+			swingSound:Play()
+		end
+	end
+	ContextActionService:BindAction(AUTO_ACTION, function(_, inputState)
+		if inputState == Enum.UserInputState.Begin then
+			toggleAutoFire()
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.KeyCode.V)
+	ui.AutoBadge.Activated:Connect(toggleAutoFire)
+	player:GetAttributeChangedSignal(Constants.Attributes.AutoFire):Connect(refreshAutoFire)
+	player:GetAttributeChangedSignal(Constants.Attributes.Passes):Connect(refreshAutoFire)
+	refreshAutoFire()
 
 	-- Arma equipada y su daño por segundo sobre el botón
 	local function refreshWeaponPill()
@@ -1140,12 +1222,18 @@ function CombatController.start()
 	end
 
 	-- Monedas: saltan del enemigo en abanico y vuelan girando hasta el jugador
+	local flying = 0
 	local function dropCoins(from: Vector3, count: number)
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if not (root and root:IsA("BasePart")) then
 			return
 		end
+		count = math.min(count, math.max(0, MAX_FLYING - flying))
+		flying += count
+		task.delay(0.7 + count * 0.025, function()
+			flying = math.max(0, flying - count)
+		end)
 		for index = 1, count do
 			local coin = Instance.new("Part")
 			coin.Name = "Coin"
@@ -1180,6 +1268,68 @@ function CombatController.start()
 		end
 	end
 
+	-- Orbes de energía: brotan del enemigo, flotan un instante y vuelan hasta el jugador.
+	-- El orbe dorado es uno grande que brilla (y suena) antes de volar.
+	local function dropOrbs(from: Vector3, count: number, golden: boolean)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not (root and root:IsA("BasePart")) then
+			return
+		end
+		if golden then
+			count += 1
+		end
+		count = math.min(count, math.max(0, MAX_FLYING - flying))
+		flying += count
+		task.delay(1 + count * 0.04, function()
+			flying = math.max(0, flying - count)
+		end)
+		for index = 1, count do
+			local isGolden = golden and index == count
+			local size = if isGolden then ORB_SIZE * 2.4 else ORB_SIZE * (0.8 + math.random() * 0.4)
+			local orb = Instance.new("Part")
+			orb.Name = if isGolden then "GoldenOrb" else "EnergyOrb"
+			orb.Shape = Enum.PartType.Ball
+			orb.Size = Vector3.one * size
+			orb.Color = if isGolden then GOLDEN_COLOR else ORB_COLOR
+			orb.Material = Enum.Material.Neon
+			orb.Anchored = true
+			orb.CanCollide = false
+			orb.CanQuery = false
+			orb.CanTouch = false
+			orb.CastShadow = false
+			local angle = math.random() * math.pi * 2
+			local spread = 1.5 + math.random() * 2.5
+			local peak = from + Vector3.new(math.cos(angle) * spread, 3 + math.random() * 2.5, math.sin(angle) * spread)
+			orb.CFrame = CFrame.new(from)
+			if isGolden then
+				local light = Instance.new("PointLight")
+				light.Color = GOLDEN_COLOR
+				light.Range = 12
+				light.Brightness = 3
+				light.Shadows = false
+				light.Parent = orb
+			end
+			orb.Parent = fxFolder
+			TweenService:Create(orb, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { CFrame = CFrame.new(peak) }):Play()
+			local hold = if isGolden then 0.6 else 0.3 + index * 0.04
+			task.delay(0.35 + hold, function()
+				if not orb.Parent then
+					return
+				end
+				local goal = if root.Parent then root.Position else peak
+				TweenService:Create(orb, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+					CFrame = CFrame.new(goal),
+					Size = Vector3.one * size * 0.3,
+				}):Play()
+				Debris:AddItem(orb, 0.3)
+				if isGolden then
+					emitAt("Glint", goal, GOLDEN_COLOR, 24)
+				end
+			end)
+		end
+	end
+
 	-- Anuncio grande y breve en el centro (jefe derrotado o en furia).
 	local bannerToken = 0
 	local function showBanner(text: string, color: Color3)
@@ -1197,17 +1347,31 @@ function CombatController.start()
 	end
 
 	-- Cada golpe suelta una moneda; al derrotarlo, un puñado (más si es un jefe) y el aviso.
-	rewardRemote.OnClientEvent:Connect(function(amount: number, enemyName: string, isBoss: boolean, at: Vector3?, isKill: boolean?)
+	rewardRemote.OnClientEvent:Connect(function(amount: number, enemyName: string, isBoss: boolean, at: Vector3?, isKill: boolean?, extra: any?)
 		if typeof(amount) ~= "number" then
 			return
 		end
+		local energy = if type(extra) == "table" and typeof(extra.Energy) == "number" then extra.Energy else 0
+		local golden = type(extra) == "table" and extra.Golden == true
 		if typeof(at) == "Vector3" then
 			dropCoins(at, if isBoss then COINS_BOSS elseif isKill then COINS_KILL else 1)
+			if isKill and (energy > 0 or golden) then
+				dropOrbs(at, if isBoss then ORBS_BOSS else ORBS_KILL, golden)
+			end
 		end
 		if not (isKill or isBoss) then
 			return -- golpe suelto: solo la moneda y el salto del contador
 		end
-		toast(("+%s 💰  ·  %s"):format(formatNumber(amount), tostring(enemyName)), if isBoss then THEME.Gold else THEME.BuyHighlight)
+		local loot = ("+%s 💰"):format(formatNumber(amount)) .. (if energy > 0 then ("  +%s ⚡"):format(formatNumber(energy)) else "")
+		if golden then
+			Toasts.show(("🌟 ¡ORBE DORADO!  ×10  ·  %s"):format(loot), { Color = GOLDEN_COLOR, Key = "GoldenOrb" })
+			playVaried(killSound, 1.6, 0.05)
+		elseif isBoss then
+			toast(("%s  ·  %s"):format(loot, tostring(enemyName)), THEME.Gold)
+		else
+			-- Uno solo que se actualiza: con hordas no se apilan decenas de avisos.
+			Toasts.show(("%s  ·  %s"):format(loot, tostring(enemyName)), { Style = "Line", Color = THEME.BuyHighlight, Key = "KillLoot" })
+		end
 		if isBoss then
 			showBanner(("¡%s derrotado!  +%s 💰"):format(tostring(enemyName), formatNumber(amount)), THEME.Gold)
 			ui.ScreenFlash.BackgroundTransparency = 0.55

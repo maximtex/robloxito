@@ -228,10 +228,10 @@ end
 check("no invade el spawn, el jardín de huevos, el portal ni el arco", #blocked == 0)
 if #blocked > 0 then print("   ", table.concat(blocked, ", ")) end
 
-for standId, stand in EggConfig.Stands do
-	if (stand.Zone or ZoneConfig.DefaultZone) == ZoneConfig.DefaultZone then
-		local hits = intrusions(stand.StandOffset.X, stand.StandOffset.Y, 7)
-		check(("lejos del pedestal %s"):format(standId), #hits == 0)
+for eggId, egg in EggConfig.Eggs do
+	if (egg.Zone or ZoneConfig.DefaultZone) == ZoneConfig.DefaultZone then
+		local hits = intrusions(egg.StandOffset.X, egg.StandOffset.Y, 7)
+		check(("lejos del santuario %s"):format(eggId), #hits == 0)
 	end
 end
 

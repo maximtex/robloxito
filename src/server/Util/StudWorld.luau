@@ -223,15 +223,298 @@ function StudWorld.buildFloor(parent: Instance, layout)
 	end)
 end
 
--- Muros de damero (filas de base y remate) justo fuera de los límites del suelo
-function StudWorld.buildWalls(parent: Instance, layout)
+-- Studs nítidos en una cara: la textura de los bordes del suelo (StudFloor.StudTexture, 8
+-- studs por imagen) con una rejilla entera de studs de unos StudFloor.Wall.StudSize, que
+-- empieza en la esquina de la cara. faceU / faceV: lo que mide la cara a lo ancho y a lo alto.
+local function studFace(part: BasePart, face: Enum.NormalId, faceU: number, faceV: number)
+	local size = StudFloor.Wall.StudSize
+	local texture = Instance.new("Texture")
+	texture.Name = "Studs"
+	texture.Texture = StudFloor.StudTexture
+	texture.Face = face
+	texture.StudsPerTileU = faceU / math.max(1, math.round(faceU / size)) * 8
+	texture.StudsPerTileV = faceV / math.max(1, math.round(faceV / size)) * 8
+	texture.Parent = part
+end
+
+-- Muros de damero justo fuera de los límites del suelo, como la referencia: losetas cuadradas
+-- de tierra abajo y hierba arriba, con relieve: la hierba sobresale hacia dentro como un alero
+-- con el borde en escalones (cada columna con sus filas de hierba), algún tramo es una fila más
+-- alto y, en los muros que no tienen otra zona detrás, la hierba sube en escalones hacia atrás.
+-- Siempre igual (semilla de la zona). Nada entra en el suelo: el alero va por encima de la
+-- tierra (a varias losetas de altura) y los escalones, por fuera. Las caras que se ven llevan
+-- studs nítidos con textura.
+local INWARD = {
+	[Enum.NormalId.Right] = Vector3.xAxis,
+	[Enum.NormalId.Left] = -Vector3.xAxis,
+	[Enum.NormalId.Back] = Vector3.zAxis,
+	[Enum.NormalId.Front] = -Vector3.zAxis,
+}
+
+-- Borde a medida (layout.Outline): lo que hay entre el suelo y el rectángulo del mapa es una
+-- colina de bloques en una rejilla de 8x8 alineada con el suelo. Las casillas que tocan el suelo
+-- son columnas de muro como las de siempre (tierra abajo, hierba arriba con alero y alguna una
+-- fila más alta); las de detrás, una meseta de hierba a la misma altura. Studs nítidos en todo
+-- lo que se ve. El muro sur (compartido con la zona siguiente) se hace aparte, como siempre.
+local function buildHill(folder: Instance, layout)
+	local W = StudFloor.Wall
+	local B, H, O, t = W.BlockWidth, W.BlockHeight, W.GrassOverhang, W.Thickness
+	local rows = W.BaseRows + W.TopRows
+	local walls = layout.Walls
+	local seed = layout.DecorSeed or 1
+	local hill = PartFactory.folder(folder, "Hill")
+	local x0, x1 = layout.MinX - t, layout.MaxX + t
+	local z0, z1 = if walls.North then layout.MinZ - t else layout.MinZ, layout.MaxZ
+
+	-- Casillas por su índice (centro = índice · 8): "floor", "wall", "top" o nil (fuera)
+	local kinds: { [string]: string } = {}
+	local function key(i: number, j: number): string
+		return i .. "," .. j
+	end
+	local i0, i1 = math.round((x0 + B / 2) / B), math.round((x1 - B / 2) / B)
+	local j0, j1 = math.round((z0 + B / 2) / B), math.round((z1 - B / 2) / B)
+	for i = i0, i1 do
+		for j = j0, j1 do
+			kinds[key(i, j)] = if StudFloor.onFloor(layout, i * B, j * B) then "floor" else "fill"
+		end
+	end
+	local SIDES = {
+		{ 1, 0, Enum.NormalId.Right },
+		{ -1, 0, Enum.NormalId.Left },
+		{ 0, 1, Enum.NormalId.Back },
+		{ 0, -1, Enum.NormalId.Front },
+	}
+	local function kind(i: number, j: number): string?
+		return kinds[key(i, j)]
+	end
+	for i = i0, i1 do
+		for j = j0, j1 do
+			if kind(i, j) == "fill" then
+				local touches = false
+				for _, side in SIDES do
+					if kind(i + side[1], j + side[2]) == "floor" then
+						touches = true
+					end
+				end
+				kinds[key(i, j)] = if touches then "wall" else "top"
+			end
+		end
+	end
+
+	-- Alto (a veces una fila más) y filas de hierba de cada columna, siempre iguales
+	local heights: { [string]: number } = {}
+	local function heightOf(i: number, j: number): number
+		local k = kind(i, j)
+		if k == "floor" then
+			return 0
+		elseif k == "wall" then
+			local h = heights[key(i, j)]
+			if not h then
+				h = rows + (if Random.new(seed * 7919 + i * 131 + j * 17):NextNumber() < W.BumpChance then 1 else 0)
+				heights[key(i, j)] = h
+			end
+			return h
+		end
+		return rows
+	end
+	local function grassRows(i: number, j: number): number
+		local n = math.sin((i + j) * 0.72) + 0.6 * math.sin(i * 1.7 - j * 1.35)
+		return math.clamp(3 + math.round(n), W.GrassRows[1], W.GrassRows[2]) + heightOf(i, j) - rows
+	end
+
+	local function block(name: string, center: Vector3, size: Vector3, color: Color3): BasePart
+		return PartFactory.part(hill, name, {
+			Size = size,
+			CFrame = CFrame.new(center),
+			Color = color,
+			Material = Enum.Material.Plastic,
+			Solid = true,
+		})
+	end
+
+	for i = i0, i1 do
+		for j = j0, j1 do
+			local k = kind(i, j)
+			if k == "top" then
+				-- Meseta: un bloque de hierba arriba
+				local part = block("meseta_" .. key(i, j), Vector3.new(i * B, GROUND + (rows - 0.5) * H, j * B), Vector3.new(B, H, B), walls.Top[(rows + i + j) % 2 + 1])
+				studFace(part, Enum.NormalId.Top, B, B)
+			elseif k == "wall" then
+				local h = heightOf(i, j)
+				local g = grassRows(i, j)
+				local floorSides = {}
+				for _, side in SIDES do
+					if kind(i + side[1], j + side[2]) == "floor" then
+						table.insert(floorSides, side)
+					end
+				end
+				for r = 1, h do
+					local grassy = r > h - g
+					local color = (if grassy then walls.Top else walls.Base)[(r + i + j) % 2 + 1]
+					local part = block(("muro_%s_%d"):format(key(i, j), r), Vector3.new(i * B, GROUND + (r - 0.5) * H, j * B), Vector3.new(B, H, B), color)
+					for _, side in SIDES do
+						if r > heightOf(i + side[1], j + side[2]) then
+							studFace(part, side[3], B, H)
+						end
+					end
+					if r == h then
+						studFace(part, Enum.NormalId.Top, B, B)
+					end
+				end
+				-- Alero de hierba hacia el suelo, solo en los tramos rectos (en una esquina se
+				-- cruzaría con el de la columna de al lado)
+				local side = floorSides[1]
+				if #floorSides == 1 then
+					local fi, fj = i + side[1], j + side[2]
+					local corner = (side[1] ~= 0 and (kind(fi, fj + 1) ~= "floor" or kind(fi, fj - 1) ~= "floor"))
+						or (side[2] ~= 0 and (kind(fi + 1, fj) ~= "floor" or kind(fi - 1, fj) ~= "floor"))
+					if not corner then
+						local out = Vector3.new(side[1], 0, side[2])
+						local size = if side[1] ~= 0 then Vector3.new(O, H, B) else Vector3.new(B, H, O)
+						local ends = if side[1] ~= 0 then { Enum.NormalId.Front, Enum.NormalId.Back } else { Enum.NormalId.Left, Enum.NormalId.Right }
+						for r = h - g + 1, h do
+							local color = walls.Top[(r + i + j) % 2 + 1]
+							local center = Vector3.new(i * B, GROUND + (r - 0.5) * H, j * B) + out * (B / 2 + O / 2)
+							local lip = block(("alero_%s_%d"):format(key(i, j), r), center, size, color)
+							studFace(lip, side[3], B, H)
+							for _, face in ends do
+								studFace(lip, face, O, H)
+							end
+							if r == h then
+								studFace(lip, Enum.NormalId.Top, size.X, size.Z)
+							end
+							if r == h - g + 1 then
+								studFace(lip, Enum.NormalId.Bottom, size.X, size.Z)
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Borde a medida con terrazas (layout.Hill.Terraces): lo de fuera del borde, hasta Extend studs
+-- más allá del muro de siempre, sube en escalones de 8 de fondo según la distancia al suelo
+-- (también en diagonal): el primero mide Terraces[1].Height, el segundo Terraces[2].Height... y
+-- todo lo demás, lo del último. Hill.Channel deja abierto el río (o la lava) de lado a lado
+-- hasta Reach, donde lo cierra el escalón más alto (cascadas: ValleyService, CalderaService).
+-- Hill.CloseSouth: también suben por el sur y hacen de muro del fondo. Una pieza por casilla
+-- con studs nítidos en lo que se ve. Devuelve las casillas de arriba ({ Position, Ring }) para
+-- poner cristales y árboles encima.
+local function buildTerraces(folder: Instance, layout): { { Position: Vector3, Ring: number } }
+	local W = StudFloor.Wall
+	local B, t = W.BlockWidth, W.Thickness
+	local hillSpec = layout.Hill
+	local terraces = hillSpec.Terraces
+	local channel = hillSpec.Channel
+	if channel and channel.OverSteps then
+		-- La lava baja por encima de los escalones (CalderaService): terrazas completas, sin ranura
+		channel = nil
+	end
+	local walls = layout.Walls
+	local hill = PartFactory.folder(folder, "Hill")
+	local x0, x1 = layout.MinX - t - hillSpec.Extend, layout.MaxX + t + hillSpec.Extend
+	local z0 = if walls.North then layout.MinZ - t else layout.MinZ
+	-- CloseSouth: las terrazas también cierran el fondo (no hay muro sur ni zona detrás)
+	local z1 = if hillSpec.CloseSouth then layout.MaxZ + t + hillSpec.Extend else layout.MaxZ
+	local i0, i1 = math.round((x0 + B / 2) / B), math.round((x1 - B / 2) / B)
+	local j0, j1 = math.round((z0 + B / 2) / B), math.round((z1 - B / 2) / B)
+	local function key(i: number, j: number): string
+		return i .. "," .. j
+	end
+	local function inChannel(j: number): boolean
+		return channel ~= nil and j * B > channel.MinZ and j * B < channel.MaxZ
+	end
+
+	-- 0 = abierto (suelo o río); si no, distancia en casillas al abierto más cercano
+	local ring: { [string]: number } = {}
+	local queue = {}
+	for i = i0, i1 do
+		for j = j0, j1 do
+			local open = StudFloor.onFloor(layout, i * B, j * B) or (inChannel(j) and math.abs(i * B) < channel.Reach)
+			if open then
+				ring[key(i, j)] = 0
+				table.insert(queue, { i, j })
+			end
+		end
+	end
+	local head = 1
+	while head <= #queue do
+		local cell = queue[head]
+		head += 1
+		local d = ring[key(cell[1], cell[2])]
+		for di = -1, 1 do
+			for dj = -1, 1 do
+				local ni, nj = cell[1] + di, cell[2] + dj
+				if ni >= i0 and ni <= i1 and nj >= j0 and nj <= j1 and ring[key(ni, nj)] == nil then
+					ring[key(ni, nj)] = d + 1
+					table.insert(queue, { ni, nj })
+				end
+			end
+		end
+	end
+	local function heightOf(i: number, j: number): number?
+		local r = ring[key(i, j)]
+		if r == nil then
+			return nil -- fuera de la rejilla
+		elseif r == 0 then
+			return 0
+		end
+		if inChannel(j) then
+			r = #terraces -- el río lo cierra el escalón más alto
+		end
+		return terraces[math.min(r, #terraces)].Height
+	end
+
+	local SIDES = {
+		{ 1, 0, Enum.NormalId.Right },
+		{ -1, 0, Enum.NormalId.Left },
+		{ 0, 1, Enum.NormalId.Back },
+		{ 0, -1, Enum.NormalId.Front },
+	}
+	local tops = {}
+	for i = i0, i1 do
+		for j = j0, j1 do
+			local h = heightOf(i, j)
+			if h and h > 0 then
+				local r = math.min(if inChannel(j) then #terraces else ring[key(i, j)], #terraces)
+				local spec = terraces[r]
+				local part = PartFactory.part(hill, "terraza_" .. key(i, j), {
+					Size = Vector3.new(B, h, B),
+					CFrame = CFrame.new(i * B, GROUND + h / 2, j * B),
+					Color = spec.Colors[(i + j) % 2 + 1],
+					Material = Enum.Material.Plastic,
+					Solid = true,
+				})
+				studFace(part, Enum.NormalId.Top, B, B)
+				for _, side in SIDES do
+					local nh = heightOf(i + side[1], j + side[2])
+					if nh and nh < h then
+						studFace(part, side[3], B, h)
+					end
+				end
+				table.insert(tops, { Position = Vector3.new(i * B, GROUND + h, j * B), Ring = r })
+			end
+		end
+	end
+	return tops
+end
+
+function StudWorld.buildWalls(parent: Instance, layout): { { Position: Vector3, Ring: number } }?
 	local folder = PartFactory.folder(parent, "PerimeterWalls")
 	local walls = layout.Walls
 	local W = StudFloor.Wall
-	local t = W.Thickness
+	local t, H, O = W.Thickness, W.BlockHeight, W.GrassOverhang
 	local minX, maxX, minZ, maxZ = layout.MinX, layout.MaxX, layout.MinZ, layout.MaxZ
+	local rows = W.BaseRows + W.TopRows
+	local seed = layout.DecorSeed or 1
 
-	local function run(name: string, start: Vector3, dir: Vector3, length: number)
+	-- start: punto de arranque a ras del suelo; dir: hacia dónde avanza; inward: la cara que
+	-- mira al mapa; tiers: si puede subir en escalones hacia atrás (no hay otra zona detrás);
+	-- noBump(along): tramos que no pueden subir (junto al paso del portal); canHang(along):
+	-- dónde puede haber alero (no en las esquinas, donde se cruzaría con el del otro muro)
+	local function run(name: string, start: Vector3, dir: Vector3, length: number, inward: Enum.NormalId, runSeed: number, tiers: boolean, noBump: ((number) -> boolean)?, canHang: ((number) -> boolean)?)
 		if length <= 0 then
 			return
 		end
@@ -239,39 +522,136 @@ function StudWorld.buildWalls(parent: Instance, layout)
 		local cols = math.max(1, math.round(length / W.BlockWidth))
 		local colW = length / cols
 		local alongX = dir.X ~= 0
-		for r = 1, W.BaseRows + W.TopRows do
-			local rowColors = if r > W.BaseRows then walls.Top else walls.Base
-			for c = 1, cols do
-				local center = start + dir * ((c - 0.5) * colW) + Vector3.new(0, (r - 0.5) * W.BlockHeight, 0)
-				local part = PartFactory.part(wallModel, ("bloque_%d_%d"):format(r, c), {
-					Size = Vector3.new(if alongX then colW else t, W.BlockHeight, if alongX then t else colW),
-					CFrame = CFrame.new(center),
-					Color = rowColors[(r + c) % 2 + 1],
-					Material = Enum.Material.Plastic,
-					Solid = true,
-				})
-				StudWorld.allStuds(part)
+		local inwardDir = INWARD[inward]
+		local startEnd = if alongX then Enum.NormalId.Left else Enum.NormalId.Front
+		local finishEnd = if alongX then Enum.NormalId.Right else Enum.NormalId.Back
+		local rng = Random.new(runSeed)
+
+		-- Por columna: alto (tramos de 2 o 3, a veces una fila más), filas de hierba y escalón de atrás
+		local heights, grass, tier, hangs = {}, {}, {}, {}
+		local c = 1
+		while c <= cols do
+			local span = rng:NextInteger(2, 3)
+			local offset = (c - 0.5) * colW
+			local along = if alongX then start.X + offset * dir.X else start.Z + offset * dir.Z
+			local bump = rng:NextNumber() < W.BumpChance and not (noBump and noBump(along))
+			local rise = if tiers and rng:NextNumber() < W.TierChance then rng:NextInteger(1, W.TierRows) else 0
+			for k = c, math.min(cols, c + span - 1) do
+				heights[k] = rows + (if bump then 1 else 0)
+				tier[k] = rise
+			end
+			c += span
+		end
+		local grassNow = rng:NextInteger(W.GrassRows[1], W.GrassRows[2])
+		for k = 1, cols do
+			grassNow = math.clamp(grassNow + rng:NextInteger(-1, 1), W.GrassRows[1], W.GrassRows[2])
+			grass[k] = grassNow + heights[k] - rows
+			local offset = (k - 0.5) * colW
+			local along = if alongX then start.X + offset * dir.X else start.Z + offset * dir.Z
+			hangs[k] = not canHang or canHang(along)
+		end
+		local function isGrass(k: number, r: number): boolean
+			return k >= 1 and k <= cols and r <= heights[k] and r > heights[k] - grass[k]
+		end
+		local function overhangs(k: number, r: number): boolean
+			return isGrass(k, r) and hangs[k]
+		end
+
+		local function block(k: number, r: number, colors: { Color3 }, depth: number, shift: number): BasePart
+			local center = start + dir * ((k - 0.5) * colW) + Vector3.new(0, (r - 0.5) * H, 0) + inwardDir * shift
+			return PartFactory.part(wallModel, ("bloque_%d_%d"):format(r, k), {
+				Size = Vector3.new(if alongX then colW else depth, H, if alongX then depth else colW),
+				CFrame = CFrame.new(center),
+				Color = colors[(r + k) % 2 + 1],
+				Material = Enum.Material.Plastic,
+				Solid = true,
+			})
+		end
+
+		for k = 1, cols do
+			local h = heights[k]
+			local before = if k > 1 then heights[k - 1] else 0
+			local after = if k < cols then heights[k + 1] else 0
+			for r = 1, h do
+				-- La hierba sobresale O studs hacia dentro (el alero); la tierra, a ras del límite
+				local grassy = isGrass(k, r)
+				local hanging = overhangs(k, r)
+				local depth = if hanging then t + O else t
+				local part = block(k, r, if grassy then walls.Top else walls.Base, depth, if hanging then O / 2 else 0)
+				studFace(part, inward, colW, H)
+				if r == h then
+					studFace(part, Enum.NormalId.Top, part.Size.X, part.Size.Z)
+				end
+				-- Puntas: más alta que la vecina, o alero donde la vecina no lo tiene
+				if r > before or (hanging and not overhangs(k - 1, r)) then
+					studFace(part, startEnd, depth, H)
+				end
+				if r > after or (hanging and not overhangs(k + 1, r)) then
+					studFace(part, finishEnd, depth, H)
+				end
+				if hanging and r == h - grass[k] + 1 then
+					studFace(part, Enum.NormalId.Bottom, part.Size.X, part.Size.Z) -- bajo del alero
+				end
+			end
+			-- Escalón de hierba detrás, un grosor hacia fuera
+			local top = h + tier[k]
+			local beforeTop = if k > 1 then heights[k - 1] + tier[k - 1] else 0
+			local afterTop = if k < cols then heights[k + 1] + tier[k + 1] else 0
+			for r = h + 1, top do
+				local part = block(k, r, walls.Top, t, -t)
+				studFace(part, inward, colW, H)
+				if r == top then
+					studFace(part, Enum.NormalId.Top, part.Size.X, part.Size.Z)
+				end
+				if r > beforeTop then
+					studFace(part, startEnd, t, H)
+				end
+				if r > afterTop then
+					studFace(part, finishEnd, t, H)
+				end
 			end
 		end
 	end
 
-	-- Oeste y este llegan hasta las esquinas exteriores de los muros norte y sur que haya
+	-- Oeste y este llegan hasta las esquinas exteriores de los muros norte y sur que haya. El
+	-- muro sur que comparten dos zonas no sube hacia atrás (detrás está la zona siguiente).
+	local southOuter = walls.South and not walls.GateHalf
 	local z0 = if walls.North then minZ - t else minZ
 	local z1 = if walls.South then maxZ + t else maxZ
-	run("WestWall", Vector3.new(minX - t / 2, GROUND, z0), Vector3.zAxis, z1 - z0)
-	run("EastWall", Vector3.new(maxX + t / 2, GROUND, z0), Vector3.zAxis, z1 - z0)
-	if walls.North then
-		run("NorthWall", Vector3.new(minX, GROUND, minZ - t / 2), Vector3.xAxis, maxX - minX)
+	local function awayFromCorners(z: number): boolean
+		return z > minZ + W.BlockWidth and z < maxZ - W.BlockWidth
 	end
-	if walls.South then
-		local gate = walls.GateHalf
-		if gate then
-			run("SouthWallLeft", Vector3.new(minX, GROUND, maxZ + t / 2), Vector3.xAxis, -gate - minX)
-			run("SouthWallRight", Vector3.new(gate, GROUND, maxZ + t / 2), Vector3.xAxis, maxX - gate)
-		else
-			run("SouthWall", Vector3.new(minX, GROUND, maxZ + t / 2), Vector3.xAxis, maxX - minX)
+	local hillTops = nil
+	if layout.Outline and layout.Hill and layout.Hill.Terraces then
+		-- Borde a medida con terrazas (Valle, Caldera)
+		hillTops = buildTerraces(folder, layout)
+	elseif layout.Outline then
+		-- Borde a medida: la colina hace de muros oeste, este y norte
+		buildHill(folder, layout)
+	else
+		run("WestWall", Vector3.new(minX - t / 2, GROUND, z0), Vector3.zAxis, z1 - z0, Enum.NormalId.Right, seed + 101, true, nil, awayFromCorners)
+		run("EastWall", Vector3.new(maxX + t / 2, GROUND, z0), Vector3.zAxis, z1 - z0, Enum.NormalId.Left, seed + 202, true, nil, awayFromCorners)
+		if walls.North then
+			run("NorthWall", Vector3.new(minX, GROUND, minZ - t / 2), Vector3.xAxis, maxX - minX, Enum.NormalId.Back, seed + 303, true)
 		end
 	end
+	if walls.South and not (layout.Hill and layout.Hill.CloseSouth) then
+		local gate = walls.GateHalf
+		if gate then
+			-- Junto al paso, a la altura del cristal del portal
+			local function nearGate(x: number): boolean
+				return math.abs(x) < gate + 3 * W.BlockWidth
+			end
+			local function awayFromGate(x: number): boolean
+				return not nearGate(x) and StudFloor.onFloor(layout, x, maxZ - W.BlockWidth / 2)
+			end
+			run("SouthWallLeft", Vector3.new(minX, GROUND, maxZ + t / 2), Vector3.xAxis, -gate - minX, Enum.NormalId.Front, seed + 404, false, nearGate, awayFromGate)
+			run("SouthWallRight", Vector3.new(gate, GROUND, maxZ + t / 2), Vector3.xAxis, maxX - gate, Enum.NormalId.Front, seed + 505, false, nearGate, awayFromGate)
+		else
+			run("SouthWall", Vector3.new(minX, GROUND, maxZ + t / 2), Vector3.xAxis, maxX - minX, Enum.NormalId.Front, seed + 404, southOuter)
+		end
+	end
+	return hillTops
 end
 
 -- Árbol de bloques con studs de Roblox. colors: { Trunk, LeafLight, LeafDark } (opcional)
@@ -366,6 +746,9 @@ function StudWorld.newDecor(layout, zoneName: string, keepOut: { { number } }?)
 	function decor.isFree(x: number, z: number, minPath: number, maxPath: number, radius: number): boolean
 		if x < layout.MinX + 5 or x > layout.MaxX - 5 or z < layout.MinZ + 5 or z > layout.MaxZ - 5 then
 			return false
+		end
+		if not StudFloor.onFloor(layout, x, z, 6) then
+			return false -- encima o pegado a la colina del borde
 		end
 		local d = StudWorld.distToPaths(layout, x, z)
 		if d < minPath or d > maxPath then

@@ -1,5 +1,8 @@
--- Premios y tienda: RewardLogic, MonetizationLogic, PetLogic (jardín de mascotas y regalos)
--- y la semana de LeaderboardLogic (puras), y RewardService y ShopService REALES con
+-- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
+-- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
+EconomyConfig.PassiveEnergy = true
+-- Premios y tienda: RewardLogic, MonetizationLogic, EggLogic (abrir varios, regalo, mejor
+-- huevo) y la semana de LeaderboardLogic (puras), y RewardService y ShopService REALES con
 -- PlayerDataService y SaveService reales sobre un DataStore en memoria (pases simulados de
 -- Roblox, recibos de compras sueltas y mejora automática).
 
@@ -39,7 +42,7 @@ for offset = 3, 9 do
 	RewardLogic.claim(r, D + offset)
 end
 check("7 días seguidos: el 7.º es el gran premio y el 8.º vuelve a la casilla 1", r.Streak == 7 and RewardLogic.cycleDay(7) == 7 and RewardLogic.status(r, D + 10).Day == 1 and RewardLogic.status(r, D + 10).NextStreak == 8)
-check("el día 7 da una mascota concreta y energía", type(RewardLogic.streakReward(7).Pet) == "string" and PetConfig.Pets[RewardLogic.streakReward(7).Pet] ~= nil and RewardLogic.streakReward(7).Energy ~= nil)
+check("el día 7 da mascota y energía", RewardLogic.streakReward(7).Pet == true and RewardLogic.streakReward(7).Energy ~= nil)
 local future = RewardLogic.empty()
 future.Streak, future.LastDay = 3, D + 5
 check("reloj atrasado (último premio «en el futuro»): no se reclama", RewardLogic.claim(future, D) == "AlreadyClaimed" and future.Streak == 3)
@@ -87,6 +90,8 @@ check("Energía ×2", MonetizationLogic.energyMultiplier(passes) == 2 and Moneti
 check("Más mascotas: +2 equipadas (con las del renacimiento) y +60 de inventario",
 	MonetizationLogic.maxEquipped(nil, passes, 3) == 5 and MonetizationLogic.maxEquipped({ Shop = { PetSlot = 2 } }, passes, 3) == 7 and MonetizationLogic.maxInventory(passes, 60) == 120 and MonetizationLogic.maxInventory({}, 60) == 60)
 check("tope de equipadas para dibujar: 3 + 2 del renacimiento + 2 del pase", MonetizationLogic.maxEquippedCap(3) == 7)
+check("Abrir ×3 solo con el pase (pedir 3 sin él abre 1)", MonetizationLogic.hatchCount({ TripleHatch = true }, 3) == 3 and MonetizationLogic.hatchCount({}, 3) == 1 and MonetizationLogic.hatchCount({ TripleHatch = true }, 7) == 1)
+check("Disparo automático solo con el pase", MonetizationLogic.autoFire({ AutoFire = true }) and not MonetizationLogic.autoFire({}) and not MonetizationLogic.autoFire(nil) and MonetizationConfig.GamePasses.AutoFire ~= nil)
 local shopData = MonetizationLogic.sanitize({ Receipts = { "a", "a", 5, "b" }, AutoUpgrade = false })
 check("saneado: recibos únicos y el interruptor guardado", #shopData.Receipts == 2 and shopData.AutoUpgrade == false and MonetizationLogic.sanitize(nil).AutoUpgrade == true)
 for index = 1, MonetizationConfig.MaxReceipts + 5 do
@@ -99,41 +104,53 @@ for petId in MonetizationConfig.PetProducts do
 	local pet = PetConfig.Pets[petId]
 	petProductsOk = petProductsOk and pet ~= nil and pet.Rarity == "Exclusive" and pet.EvolvesInto == nil
 end
-for _, stand in EggConfig.Stands do
-	petProductsOk = petProductsOk and (stand.PetId == nil or MonetizationConfig.PetProducts[stand.PetId] == nil)
+for _, egg in EggConfig.Eggs do
+	for _, chance in egg.Chances or {} do
+		petProductsOk = petProductsOk and MonetizationConfig.PetProducts[chance.PetId] == nil
+	end
 end
-check("mascotas exclusivas: existen, rareza Exclusiva, sin evolución y el jardín no las vende", petProductsOk and MonetizationConfig.PetProducts[EggConfig.Gardens.Forest.FeaturedPet] ~= nil)
+check("mascotas exclusivas: existen, rareza Exclusiva, sin evolución y ningún huevo las da", petProductsOk and MonetizationConfig.PetProducts[EggConfig.Gardens.Forest.FeaturedPet] ~= nil)
 local haxigatorId = MonetizationConfig.PetProducts.Haxigator.Id
 MonetizationConfig.PetProducts.Haxigator.Id = 301
 check("producto de mascota: da su PetId y no se confunde con la energía", MonetizationLogic.petProductById(301) == "Haxigator" and MonetizationLogic.productById(301) == nil and MonetizationLogic.petProductById(0) == nil and MonetizationLogic.petProductById(201) == nil)
 MonetizationConfig.PetProducts.Haxigator.Id = haxigatorId
 
-print("-- 4. Jardín de mascotas: compra directa y regalos (puros)")
-local function petProfile(money, pets)
+print("-- 4. Huevos: varios a la vez, regalo y mejor huevo (puros)")
+local function eggProfile(energy, level, zones, pets)
 	local list = {}
 	for index = 1, pets or 0 do
 		table.insert(list, { Uid = tostring(index), PetId = "Sproutling" })
 	end
-	return { Money = money, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1 } }
+	return { Energy = energy, UpgradeLevels = { GeneratorPower = level }, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1, UnlockedZones = zones or {} } }
 end
-local limits = { MaxInventory = 60, MaxEquipped = 3 }
-local offer = EggConfig.Stands.ForestEgg
-check("PetLogic: la configuración del jardín es válida", PetLogic.validate(PetConfig, EggConfig) == nil)
-local poor = petProfile(offer.Price - 1)
-check("sin dinero: InsufficientMoney, no cobra ni da nada", PetLogic.buy(poor, offer, limits, Codes) == Codes.InsufficientMoney and poor.Money == offer.Price - 1 and #poor.PetData.Pets == 0)
-local full = petProfile(1e9, 60)
-check("inventario lleno: InventoryFull", PetLogic.buy(full, offer, limits, Codes) == Codes.InventoryFull and full.Money == 1e9)
-local buyer = petProfile(offer.Price)
-local bc, bg = PetLogic.buy(buyer, offer, limits, Codes)
-check("compra: cobra el precio una vez y da justo esa mascota, equipada si cabe", bc == Codes.Success and bg and bg.PetId == offer.PetId and bg.AutoEquipped and buyer.Money == 0 and #buyer.PetData.Pets == 1)
-check("dinero NaN o infinito no compra", PetLogic.buy(petProfile(0 / 0), offer, limits, Codes) == Codes.InsufficientMoney and PetLogic.buy(petProfile(math.huge), offer, limits, Codes) == Codes.InsufficientMoney)
-local gift = petProfile(0)
-local gc, gg = PetLogic.grantFree(gift, "EmberFox", limits, Codes)
-check("regalo: sin cobrar", gc == Codes.Success and gg and gg.PetId == "EmberFox" and gift.Money == 0 and #gift.PetData.Pets == 1)
-check("regalo con el inventario lleno: InventoryFull", PetLogic.grantFree(petProfile(0, 60), "EmberFox", limits, Codes) == Codes.InventoryFull)
-local paid = petProfile(0, 60)
-local paidGrant = PetLogic.grant(paid.PetData, "Haxigator", 3)
-check("mascota pagada con Robux: se entrega aunque el inventario esté lleno", paidGrant.PetId == "Haxigator" and #paid.PetData.Pets == 61 and paidGrant.AutoEquipped)
+local limits = { MaxInventory = 60, MaxEquipped = 3, UnlockUpgradeId = "GeneratorPower" }
+local forest = EggConfig.Eggs.ForestEgg
+local poor = eggProfile(forest.Cost * 2, 0)
+check("×3 sin energía para los tres: no cobra ni da nada", EggLogic.purchaseMany(poor, forest, { 1, 2, 3 }, limits, Codes) == Codes.InsufficientEnergy and poor.Energy == forest.Cost * 2 and #poor.PetData.Pets == 0)
+local full = eggProfile(1e6, 0, nil, 58)
+check("×3 sin sitio para las tres: InventoryFull", EggLogic.purchaseMany(full, forest, { 1, 2, 3 }, limits, Codes) == Codes.InventoryFull and #full.PetData.Pets == 58)
+local rich = eggProfile(1e6, 0)
+local mc, grants = EggLogic.purchaseMany(rich, forest, { 1, 50, 99 }, limits, Codes)
+check("×3: cobra 3 veces, 3 mascotas, Uids distintos y se equipan las que caben", mc == Codes.Success and #grants == 3 and rich.Energy == 1e6 - forest.Cost * 3 and #rich.PetData.Pets == 3 and #rich.PetData.Equipped == 3 and grants[1].Uid ~= grants[2].Uid and grants[2].Uid ~= grants[3].Uid)
+local single = eggProfile(forest.Cost, 0)
+check("abrir uno sigue igual (purchase)", select(1, EggLogic.purchase(single, forest, 10, limits, Codes)) == Codes.Success and single.Energy == 0)
+local gift = eggProfile(0, 0)
+local gc, gg = EggLogic.grantFree(gift, forest, 10, limits, Codes)
+check("regalo: sin cobrar", gc == Codes.Success and gg and gift.Energy == 0 and #gift.PetData.Pets == 1)
+check("regalo con el inventario lleno: InventoryFull", EggLogic.grantFree(eggProfile(0, 0, nil, 60), forest, 10, limits, Codes) == Codes.InventoryFull)
+local paid = eggProfile(0, 0, nil, 60)
+local paidGrant = EggLogic.grantPet(paid.PetData, "Haxigator", 3)
+check("mascota pagada con Robux: se entrega aunque el inventario esté lleno, sin cobrar energía", paidGrant.PetId == "Haxigator" and #paid.PetData.Pets == 61 and paid.Energy == 0 and paidGrant.AutoEquipped)
+-- Los huevos del bosque no piden nivel; los de las otras zonas están apagados (Enabled = false)
+-- y, encendidos, piden su zona desbloqueada.
+local eggsOn = { Eggs = table.clone(EggConfig.Eggs) }
+for id, egg in eggsOn.Eggs do
+	eggsOn.Eggs[id] = table.clone(egg)
+	eggsOn.Eggs[id].Enabled = true
+end
+check("mejor huevo: el más caro que ya puede abrir", EggLogic.bestEgg(eggProfile(0, 0), EggConfig, limits, Codes) == "AncientEgg"
+	and EggLogic.bestEgg(eggProfile(0, 0, { "CrystalValley", "EmberCaldera" }), EggConfig, limits, Codes) == "AncientEgg"
+	and EggLogic.bestEgg(eggProfile(0, 0, { "CrystalValley" }), eggsOn, limits, Codes) == "CrystalEgg" and EggLogic.bestEgg(eggProfile(0, 0, { "CrystalValley", "EmberCaldera" }), eggsOn, limits, Codes) == "MagmaEgg")
 
 print("-- 5. Semana (pura)")
 local monday = 1792368000 -- lunes 19 de octubre de 2026, 00:00 UTC
@@ -156,6 +173,7 @@ check("saneado de la semana", LeaderboardLogic.sanitizeWeekly({ Week = "x" }).We
 local Market = PetService.Market
 MonetizationConfig.GamePasses.DoubleEnergy.Id = 101
 MonetizationConfig.GamePasses.AutoUpgrade.Id = 102
+MonetizationConfig.GamePasses.TripleHatch.Id = 103
 MonetizationConfig.GamePasses.PetSpace.Id = 104
 MonetizationConfig.Products.EnergySmall.Id = 201
 
@@ -212,7 +230,7 @@ for _ = 4, 7 do
 end
 result = lastResult("RewardResult", p1)
 local p1Pets = PlayerDataService.get(p1).PetData.Pets
-check("día 7: su mascota (además de la inicial) y energía", result and result[1] == true and result[4].Day == 7 and result[4].PetId == RewardLogic.streakReward(7).Pet and result[4].Energy and #p1Pets == 2 and p1Pets[2].PetId == result[4].PetId)
+check("día 7: mascota del mejor huevo (además de la inicial) y energía", result and result[1] == true and result[4].Day == 7 and type(result[4].PetId) == "string" and result[4].Energy and #p1Pets == 2 and p1Pets[2].PetId == result[4].PetId)
 
 print("-- 7. Códigos en el servidor")
 fireServer("RewardAction", p1, "Redeem", "  bienvenido ")
@@ -241,7 +259,7 @@ local p2 = newPlayer("Beto", 2)
 join(p2)
 advance(2)
 local profile2 = PlayerDataService.get(p2)
-check("consulta a Roblox: tiene Energía ×2 y Más mascotas", profile2.PassesChecked and profile2.Passes.DoubleEnergy and profile2.Passes.PetSpace and not profile2.Passes.AutoUpgrade and p2:GetAttribute("Passes") == "DoubleEnergy,PetSpace")
+check("consulta a Roblox: tiene Energía ×2 y Más mascotas", profile2.PassesChecked and profile2.Passes.DoubleEnergy and profile2.Passes.PetSpace and not profile2.Passes.TripleHatch and p2:GetAttribute("Passes") == "DoubleEnergy,PetSpace")
 local baseProduction = CoreLogic.effectiveProduction(profile2.PetData.Cores, profile2.UpgradeLevels, profile2.PetMultiplier)
 check("producción ×2 y 5 mascotas equipadas, 120 de inventario", math.abs(profile2.ProductionPerSecond - baseProduction * 2) < 1e-9 and p2:GetAttribute("MaxEquipped") == 5 and p2:GetAttribute("MaxInventory") == 120)
 -- Sin el pase: las equipadas de más se quitan al saber sus pases.
@@ -257,11 +275,10 @@ join(p4)
 advance(10)
 check("si Roblox falla al comprobar: sin el pase (no se inventa) y se puede jugar", PlayerDataService.get(p4).PassesChecked and not PlayerDataService.get(p4).Passes.DoubleEnergy)
 Market.Fail = 0
-Market.PromptGamePassPurchaseFinished:Fire(p3, 102, true)
+Market.PromptGamePassPurchaseFinished:Fire(p3, 103, true)
 advance(0.1)
 local shopResult = lastResult("ShopResult", p3)
-check("comprar un pase en la partida: se aplica al momento y se avisa", PlayerDataService.get(p3).Passes.AutoUpgrade == true and p3:GetAttribute("Passes") == "AutoUpgrade" and shopResult and shopResult[1] == "Pass" and shopResult[2] == "AutoUpgrade")
-PlayerDataService.get(p3).PetData.Shop.AutoUpgrade = false -- apagada: si no, gastaría su energía en las compras de abajo
+check("comprar un pase en la partida: se aplica al momento y se avisa", PlayerDataService.get(p3).Passes.TripleHatch == true and p3:GetAttribute("Passes") == "TripleHatch" and shopResult and shopResult[1] == "Pass" and shopResult[2] == "TripleHatch")
 Market.PromptGamePassPurchaseFinished:Fire(p3, 104, false)
 advance(0.1)
 check("ventana cerrada sin comprar: nada cambia", not PlayerDataService.get(p3).Passes.PetSpace)
@@ -291,6 +308,20 @@ check("si no se puede guardar: NotProcessedYet", failed == "NotProcessedYet")
 storeFail = 0
 local retried = receiptAsync({ PlayerId = 3, ProductId = 201, PurchaseId = "compra-2" })
 check("al reintentar: confirmada sin conceder dos veces", retried == "PurchaseGranted" and PlayerDataService.get(p3).Energy - energyBefore == MonetizationConfig.Products.EnergySmall.Min)
+
+-- Armas con Robux (botón morado de su tarjeta en la Armería)
+WeaponService.start()
+MonetizationConfig.WeaponProducts.CrystalCannon.Id = 401
+local weapons3 = PlayerDataService.get(p3).PetData.Weapons
+check("producto de arma: da su arma y no se confunde con los demás", MonetizationLogic.weaponProductById(401) == "CrystalCannon" and MonetizationLogic.productById(401) == nil and MonetizationLogic.petProductById(401) == nil and MonetizationLogic.weaponProductById(0) == nil)
+local weaponDecision = Market.ProcessReceipt({ PlayerId = 3, ProductId = 401, PurchaseId = "arma-1" })
+advance(0.1)
+local weaponNotice = lastResult("WeaponResult", p3)
+check("arma con Robux: llega con su zona cerrada, se equipa, se guarda y se avisa", weaponDecision == "PurchaseGranted" and weapons3.Owned.CrystalCannon == true and weapons3.Equipped == "CrystalCannon"
+	and p3:GetAttribute("EquippedWeapon") == "CrystalCannon" and weaponNotice and weaponNotice[2] == "Robux" and table.find(record(3).Shop.Receipts, "arma-1") ~= nil)
+weapons3.Equipped = "Laser"
+check("el mismo recibo de arma otra vez: confirmado sin volver a darla", Market.ProcessReceipt({ PlayerId = 3, ProductId = 401, PurchaseId = "arma-1" }) == "PurchaseGranted" and weapons3.Equipped == "Laser")
+MonetizationConfig.WeaponProducts.CrystalCannon.Id = 0
 
 print("-- 10. Mejora automática")
 Market.Owned[5] = { [102] = true }

@@ -9,11 +9,14 @@ local Constants = {
 		-- Servidor -> cliente: (success: boolean, code: string, upgradeId: string?)
 		PurchaseResult = "PurchaseResult",
 
-		-- Jardín de mascotas. Cliente -> servidor: (standId: string) compra la mascota de ese
-		-- pedestal con dinero (EggConfig.Stands o "Rainbow").
-		BuyPet = "BuyPet",
-		-- Servidor -> cliente: (success, code, standId?, petId?, petUid?, autoEquipped?)
-		PetShopResult = "PetShopResult",
+		-- Cliente -> servidor: (eggId: string, requestId: string, count: number?)
+		-- requestId identifica la compra: si se reenvía, el servidor devuelve el mismo
+		-- resultado sin volver a cobrar ni a sortear. count = 3 abre tres (pase «Abrir ×3»).
+		PurchaseEgg = "PurchaseEgg",
+		-- Servidor -> cliente: (success, code, eggId?, petId?, petUid?, autoEquipped?, requestId?, extras?)
+		-- extras: { { PetId, Uid, AutoEquipped } } las otras mascotas de una apertura ×3
+		-- (petId es siempre la más rara).
+		EggResult = "EggResult",
 		-- Cliente -> servidor: (petUid: string, equip: boolean)
 		EquipPet = "EquipPet",
 		-- Cliente -> servidor: (petId: string) fusiona 3 mascotas iguales en su versión ★ Evo
@@ -40,13 +43,22 @@ local Constants = {
 		-- cuando un jefe regala su arma.
 		WeaponResult = "WeaponResult",
 
-		-- Cliente -> servidor: (enemyModel: Model) elige el objetivo de su arma con un clic. El
-		-- servidor comprueba que exista y esté vivo; el disparo y el daño los decide él.
+		-- Cliente -> servidor: (enemyModel: Model?) pide un disparo: al enemigo del clic o, sin
+		-- modelo (F o "Disparar"), al más cercano a tiro. El servidor comprueba que exista y
+		-- esté vivo; el disparo, la cadencia y el daño los decide él.
 		Attack = "Attack",
-		-- Cliente -> servidor: (enabled: boolean) enciende o apaga el disparo automático.
+		-- Cliente -> servidor: (enabled: boolean) enciende o apaga el disparo automático
+		-- (solo con el pase "Disparo automático"; sin él se ignora).
 		SetAutoFire = "SetAutoFire",
-		-- Servidor -> cliente: (amount, enemyName, isBoss, position, isKill) dinero ganado
+		-- Servidor -> cliente: (amount, enemyName, isBoss, position, isKill, extra?) dinero
+		-- ganado; al derrotarlo extra = { Energy, Golden, Streak } (⚡, orbe dorado y racha).
 		CombatReward = "CombatReward",
+		-- Oleadas (WaveService). Cliente -> servidor: ("Start", arenaId) empieza una partida
+		-- (también con el ProximityPrompt del pedestal) o ("Pick", cardId) elige mejora.
+		WaveAction = "WaveAction",
+		-- Servidor -> cliente: (kind, data) "State" (estado de la arena para todos), "Cards"
+		-- (mejoras para elegir, solo a ese jugador), "Picked" y "Result" (fin de la partida).
+		WaveEvent = "WaveEvent",
 		-- Servidor -> cliente: (event) acción de mascota YA confirmada, solo para efectos.
 		-- No existe la dirección contraria: el cliente no puede pedir habilidades.
 		PetAbility = "PetAbility",
@@ -138,6 +150,18 @@ local Constants = {
 		-- Servidor -> cliente: (success, code, chestId, detail?) detail = { Energy?,
 		-- Blessings?, ReadyAt, Opened (cofres abiertos ahora), Total }.
 		ChestResult = "ChestResult",
+
+		-- Inventario (ItemService): pociones, huevos guardados y títulos.
+		-- Cliente -> servidor: () pide el estado del inventario.
+		RequestItems = "RequestItems",
+		-- Servidor -> cliente: (state) { Ready, Potions, Eggs, Boosts (segundos que quedan),
+		-- Titles, Title, Progress } (al pedirlo y cuando cambia algo).
+		ItemState = "ItemState",
+		-- Cliente -> servidor: (action: "UsePotion" | "OpenEgg" | "EquipTitle", id: string)
+		ItemAction = "ItemAction",
+		-- Servidor -> cliente: (success, code, action, detail?); también "Drop" (botín de un
+		-- jefe), "Title" (título nuevo) y "BoostEnded" (se acabó una poción).
+		ItemResult = "ItemResult",
 	},
 
 	-- Atributos que el servidor escribe en el Player (solo lectura para el cliente).
@@ -148,7 +172,8 @@ local Constants = {
 		-- Armas: la equipada y las que tiene con su nivel ("Laser:3,PlasmaBlaster:0").
 		EquippedWeapon = "EquippedWeapon",
 		Weapons = "Weapons",
-		-- true si su arma dispara sola al enemigo más cercano (PetCombatService).
+		-- true si su arma dispara sola al enemigo más cercano (tiene el pase y lo tiene
+		-- encendido; PetCombatService).
 		AutoFire = "AutoFire",
 		-- Jefes que ha derrotado alguna vez, separados por comas (portales y tutorial).
 		BossesDefeated = "BossesDefeated",
@@ -199,6 +224,14 @@ local Constants = {
 		DailyReady = "DailyReady",
 		-- Energía generada en total (no baja al gastar ni al renacer): clasificaciones.
 		TotalEnergy = "TotalEnergy",
+		-- Racha de enemigos derrotados sin parar (EnemyService): cuántos, hora del servidor a
+		-- la que caduca y la mejor de la sesión.
+		Streak = "Streak",
+		StreakUntil = "StreakUntil",
+		StreakBest = "StreakBest",
+		-- Arena de oleadas en la que juega ahora ("" o nil si ninguna; WaveService). Dentro, el
+		-- arma dispara sola aunque no tenga el pase.
+		WaveArena = "WaveArena",
 	},
 
 	PurchaseCodes = {

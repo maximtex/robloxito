@@ -25,6 +25,7 @@ local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local UpgradeService = require(script.Parent.UpgradeService)
 local PetService = require(script.Parent.PetService)
+local WeaponService = require(script.Parent.WeaponService)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local DevConfig = require(script.Parent.Parent.DevConfig)
 
@@ -107,11 +108,13 @@ end
 
 -- Compras sueltas -----------------------------------------------------------------------------
 
--- Concede una compra suelta (energía o una mascota exclusiva). Devuelve la decisión para Roblox.
+-- Concede una compra suelta (energía, una mascota exclusiva o un arma). Devuelve la
+-- decisión para Roblox.
 function ShopService.processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	local productKey, def = MonetizationLogic.productById(receipt.ProductId)
 	local petId = MonetizationLogic.petProductById(receipt.ProductId)
-	if not def and not petId then
+	local weaponId = MonetizationLogic.weaponProductById(receipt.ProductId)
+	if not def and not petId and not weaponId then
 		warn("[ShopService] Compra de un producto que no está en MonetizationConfig: " .. tostring(receipt.ProductId))
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
@@ -131,6 +134,11 @@ function ShopService.processReceipt(receipt: any): Enum.ProductPurchaseDecision
 		end
 		MonetizationLogic.addReceipt(shop, purchaseId)
 		notify(player, "Pet", petId, nil)
+	elseif weaponId then
+		if not WeaponService.grantPurchased(player, weaponId) then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		MonetizationLogic.addReceipt(shop, purchaseId)
 	else
 		local amount = MonetizationLogic.productEnergy(def, profile.ProductionPerSecond)
 		profile.Energy += amount

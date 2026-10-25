@@ -1,6 +1,7 @@
 -- Interfaz de los núcleos elementales (solo presentación; el servidor decide todo):
--- - Azulejo "Núcleos" en la barra del menú (o tecla N) y aviso en cada altar del
---   Círculo Elemental ("Ver núcleo") que abre el panel con ese núcleo resaltado.
+-- - Se abre desde cada altar del Círculo Elemental ("Ver núcleo"), con ese núcleo
+--   resaltado, o con la tecla N. Ya no tiene azulejo en la barra del menú (Santiago lo
+--   quitó: la barra queda con 7 botones y Renacer en el centro).
 -- - Panel (PanelManager) con los ocho núcleos: despertar, mejorar y elegir el elemento
 --   activo (afinidad), con costes, producción y nivel que envía el servidor (CoreState).
 --   Naturaleza es el cristal: su "Mejorar" es la Resonancia del Cristal (PurchaseUpgrade).
@@ -26,7 +27,6 @@ local AbilityLogic = require(Shared.AbilityLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
-local MenuBar = require(script.Parent.Parent.UI.MenuBar)
 local Toasts = require(script.Parent.Parent.UI.Toasts)
 
 local THEME = Theme.Colors
@@ -190,19 +190,6 @@ function CoreController.start()
 	local rowFrames: { [string]: Frame } = {}
 	local pendingNature = false
 	local feedbackToken = 0
-
-	MenuBar.add({
-		Id = "Cores",
-		Order = 3,
-		Icon = "✨",
-		Label = "Núcleos",
-		Key = "N",
-		Color = GeneratorConfig.Colors.Turquoise,
-		Panels = { PANEL_NAME },
-		OnActivate = function()
-			PanelManager.toggle(PANEL_NAME)
-		end,
-	})
 
 	local function setFeedback(text: string, color: Color3)
 		feedbackToken += 1

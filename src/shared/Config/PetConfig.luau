@@ -2,6 +2,9 @@
 -- - 3 huevos principales con 3 mascotas cada uno (9 mascotas base + sus versiones evolucionadas ★ Evo).
 -- - Cada mascota base tiene `EvolvesInto = "<PetId>_Evo"`: al juntar 3 iguales en la Máquina de
 --   Evolución se fusionan en su versión ★ Evo con el doble de poder.
+-- - Huevo Clásico: Perrito, Conejito, Osito y Dragoncito (estilos "Classic" y "ClassicFly"). Son
+--   modelos 3D de verdad (mascotas-clasico.glb, importado en Studio): viven en
+--   ReplicatedStorage.PetModels.<PetId>; las ★ Evo usan el de su mascota base, más grande y dorado.
 -- - Mascotas exclusivas (rareza Exclusive): no salen de huevos, se compran con Robux
 --   (MonetizationConfig.PetProducts) y no evolucionan.
 
@@ -206,6 +209,64 @@ local PetConfig = {
 			Multiplier = 8.0,
 			IsEvolved = true,
 			Look = { Style = "Dragon", Primary = Color3.fromRGB(255, 225, 90), Secondary = Color3.fromRGB(255, 80, 30) },
+		},
+
+		-- Huevo Clásico (modelos 3D en ReplicatedStorage.PetModels) ------------------------
+		ClassicDog = {
+			DisplayName = "Perrito",
+			Rarity = "Common",
+			Multiplier = 1.3,
+			EvolvesInto = "ClassicDog_Evo",
+			Look = { Style = "Classic", Primary = Color3.fromRGB(201, 138, 75), Secondary = Color3.fromRGB(63, 208, 224) },
+		},
+		ClassicBunny = {
+			DisplayName = "Conejito",
+			Rarity = "Uncommon",
+			Multiplier = 1.5,
+			EvolvesInto = "ClassicBunny_Evo",
+			Look = { Style = "Classic", Primary = Color3.fromRGB(196, 235, 189), Secondary = Color3.fromRGB(63, 174, 74) },
+		},
+		ClassicBear = {
+			DisplayName = "Osito",
+			Rarity = "Rare",
+			Multiplier = 1.9,
+			EvolvesInto = "ClassicBear_Evo",
+			Look = { Style = "Classic", Primary = Color3.fromRGB(199, 107, 46), Secondary = Color3.fromRGB(240, 185, 144) },
+		},
+		ClassicDragon = {
+			DisplayName = "Dragoncito",
+			Rarity = "Epic",
+			Multiplier = 2.6,
+			EvolvesInto = "ClassicDragon_Evo",
+			Look = { Style = "ClassicFly", Primary = Color3.fromRGB(74, 163, 232), Secondary = Color3.fromRGB(139, 224, 255) },
+		},
+		ClassicDog_Evo = {
+			DisplayName = "★ Perrito Evo",
+			Rarity = "Rare",
+			Multiplier = 2.6,
+			IsEvolved = true,
+			Look = { Style = "Classic", Primary = Color3.fromRGB(255, 205, 80), Secondary = Color3.fromRGB(63, 208, 224) },
+		},
+		ClassicBunny_Evo = {
+			DisplayName = "★ Conejito Evo",
+			Rarity = "Epic",
+			Multiplier = 3.0,
+			IsEvolved = true,
+			Look = { Style = "Classic", Primary = Color3.fromRGB(255, 225, 110), Secondary = Color3.fromRGB(120, 255, 140) },
+		},
+		ClassicBear_Evo = {
+			DisplayName = "★ Osito Evo",
+			Rarity = "Epic",
+			Multiplier = 3.8,
+			IsEvolved = true,
+			Look = { Style = "Classic", Primary = Color3.fromRGB(255, 200, 70), Secondary = Color3.fromRGB(255, 235, 170) },
+		},
+		ClassicDragon_Evo = {
+			DisplayName = "★ Dragoncito Evo",
+			Rarity = "Legendary",
+			Multiplier = 5.2,
+			IsEvolved = true,
+			Look = { Style = "ClassicFly", Primary = Color3.fromRGB(255, 215, 75), Secondary = Color3.fromRGB(150, 235, 255) },
 		},
 	},
 }

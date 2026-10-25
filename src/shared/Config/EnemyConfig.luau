@@ -28,7 +28,8 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 25,
 			RespawnSeconds = 3,
-			Look = { Style = "Bramble", Primary = Color3.fromRGB(255, 195, 65), Secondary = Color3.fromRGB(255, 235, 120), Eyes = Color3.fromRGB(45, 30, 20) },
+			-- Modelo 3D: arbolito.glb, más pequeño (Server.Util.ModelosZona1). Eyes = color de sus ojos.
+			Look = { Style = "ArbolitoBebe", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(255, 235, 120), Eyes = Color3.fromRGB(255, 243, 160) },
 		},
 		Thornling = {
 			DisplayName = "Espinillo",
@@ -43,7 +44,8 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 35,
 			RespawnSeconds = 4,
-			Look = { Style = "Bramble", Primary = Color3.fromRGB(168, 84, 214), Secondary = Color3.fromRGB(255, 196, 64), Eyes = Color3.fromRGB(34, 22, 48) },
+			-- Modelo 3D: arbolito.glb (Server.Util.ModelosZona1)
+			Look = { Style = "Arbolito", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(127, 209, 59), Eyes = Color3.fromRGB(255, 243, 160) },
 		},
 		Barkbrute = {
 			DisplayName = "Bruto de Corteza",
@@ -58,7 +60,8 @@ local EnemyConfig = {
 			LeashRange = 20,
 			Reward = 140,
 			RespawnSeconds = 6,
-			Look = { Style = "Brute", Primary = Color3.fromRGB(102, 74, 50), Secondary = Color3.fromRGB(92, 140, 64), Eyes = Color3.fromRGB(255, 200, 90) },
+			-- Modelo 3D: arbol_guardian.glb (Server.Util.ModelosZona1)
+			Look = { Style = "ArbolGuardian", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(127, 209, 59), Eyes = Color3.fromRGB(255, 243, 160) },
 		},
 		ForestWarden = {
 			DisplayName = "Guardián del Bosque",
@@ -73,8 +76,6 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 1200,
 			EnergyReward = 1500, -- ⚡ extra para cada jugador que lo derrota (BossRewardService)
-			PetReward = "QuartzFox", -- mascota de combate: la primera vez seguro y luego PetDropChance
-			PetDropChance = 0.1,
 			RespawnSeconds = 12,
 			-- IA de jefe (EnemyService.updateBoss): vigila su arena, persigue con rutas
 			-- (PathfindingService) dentro de su territorio, avisa cada ataque y descansa tras él.
@@ -85,7 +86,8 @@ local EnemyConfig = {
 			Slam = { Interval = 9, Telegraph = 1.4, Radius = 10, Damage = 22 },
 			-- Furia bajo la mitad de vida: más rápido y golpes de área más seguidos
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
-			Look = { Style = "Treant", Primary = Color3.fromRGB(84, 62, 44), Secondary = Color3.fromRGB(78, 140, 62), Eyes = Color3.fromRGB(96, 224, 200) },
+			-- Modelo 3D: gigante_del_bosque.glb (Server.Util.ModelosZona1)
+			Look = { Style = "GiganteDelBosque", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(140, 255, 58), Eyes = Color3.fromRGB(140, 255, 58) },
 		},
 
 		-- Valle Morado ---------------------------------------------------------------
@@ -132,8 +134,6 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 4000,
 			EnergyReward = 6000, -- ⚡ extra para cada jugador que lo derrota (BossRewardService)
-			PetReward = "CrystalTurtle", -- mascota de combate: la primera vez seguro y luego PetDropChance
-			PetDropChance = 0.1,
 			RespawnSeconds = 12,
 			Brain = { DetectRange = 24, Territory = 40, LockSeconds = 4, RecoverSeconds = 0.8 },
 			-- Identidad: embestidas en línea recta (se esquivan apartándose de la franja roja)
@@ -189,8 +189,6 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 12000,
 			EnergyReward = 20000, -- ⚡ extra para cada jugador que lo derrota (BossRewardService)
-			PetReward = "AmethystDragon", -- mascota de combate: la primera vez seguro y luego PetDropChance
-			PetDropChance = 0.1,
 			RespawnSeconds = 15,
 			Brain = { DetectRange = 26, Territory = 42, LockSeconds = 4, RecoverSeconds = 0.8 },
 			-- Identidad: saltos que caen donde estabas y ráfagas de bolas de fuego
@@ -227,8 +225,8 @@ local EnemyConfig = {
 				{ Type = "StarterThornling", Offset = Vector2.new(84, 62) },
 				{ Type = "StarterThornling", Offset = Vector2.new(-20, -25) },
 				{ Type = "StarterThornling", Offset = Vector2.new(20, -25) },
-				{ Type = "Thornling", Offset = Vector2.new(-56, 137) },
-				{ Type = "Thornling", Offset = Vector2.new(72, 137) },
+				{ Type = "Thornling", Offset = Vector2.new(-56, 125) },
+				{ Type = "Thornling", Offset = Vector2.new(72, 125) },
 
 				-- Pradera izquierda (al oeste de las parcelas y tiendas)
 				{ Type = "Thornling", Offset = Vector2.new(-58, 115) },

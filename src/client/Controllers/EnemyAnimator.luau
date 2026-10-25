@@ -8,12 +8,20 @@
 --   modelo, así que no hay estado que pueda desincronizarse.
 -- - UNA conexión por fotograma para todos los enemigos, solo los cercanos a la cámara;
 --   la lista se refresca cada 0,5 s. Los lejanos vuelven a su pose de reposo.
+-- - Los enemigos hechos con los modelos .glb de Santiago (atributo "Clips": Arbolito,
+--   ArbolGuardian, GiganteDelBosque) traen sus propias animaciones (Shared.ClipsZona1):
+--   Idle y Walk según la velocidad, Attack alineado con el golpe del servidor (su Impact cae
+--   justo en AttackAt / SlamAt), Hit al recibir daño y Death al morir. Se escriben en los
+--   Motor6D "Joint" de sus huesos (ModelosZona1).
 
 local Debris = game:GetService("Debris")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+
+local ClipsZona1 = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ClipsZona1"))
 
 local EnemyAnimator = {}
 
@@ -42,7 +50,101 @@ type Entry = {
 	SpawnSeen: number?,
 	DeathSeen: number?,
 	AttackSeen: number?,
+	-- Modelos .glb con animaciones propias (ClipsZona1)
+	Clips: any?,
+	ClipScale: number,
+	WalkTime: number,
+	PoseA: { CFrame },
+	PoseB: { CFrame },
 }
+
+-- Animaciones de los modelos .glb (Shared.ClipsZona1) ---------------------------------
+-- Se descomprimen una vez por modelo y escala: una lista de CFrame por hueso y fotograma.
+
+local ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local VALUE = {}
+for i = 1, #ALPHABET do
+	VALUE[string.byte(ALPHABET, i)] = i - 1
+end
+local clipCache: { [string]: any } = {}
+
+local function decodeTrack(track, frames: number, scale: number): { CFrame }
+	local P, R = track.P, track.R
+	local pFixed, rFixed = string.sub(P, 1, 1) == "c", string.sub(R, 1, 1) == "c"
+	local function poseAt(f: number): CFrame
+		local i = 2 + (if pFixed then 0 else f * 9)
+		local p = table.create(3)
+		for k = 0, 2 do
+			local a = i + k * 3
+			local v = VALUE[string.byte(P, a)] * 4096 + VALUE[string.byte(P, a + 1)] * 64 + VALUE[string.byte(P, a + 2)]
+			p[k + 1] = (v - 131072) * 0.0002 * scale
+		end
+		local j = 2 + (if rFixed then 0 else f * 8)
+		local q = table.create(4)
+		local norm = 0
+		for k = 0, 3 do
+			local a = j + k * 2
+			local v = (VALUE[string.byte(R, a)] * 64 + VALUE[string.byte(R, a + 1)]) / 2047 - 1
+			q[k + 1] = v
+			norm += v * v
+		end
+		norm = math.sqrt(norm)
+		return CFrame.new(p[1], p[2], p[3], q[1] / norm, q[2] / norm, q[3] / norm, q[4] / norm)
+	end
+	local poses = table.create(frames)
+	if pFixed and rFixed then
+		local fixed = poseAt(0)
+		for f = 1, frames do
+			poses[f] = fixed
+		end
+	else
+		for f = 0, frames - 1 do
+			poses[f + 1] = poseAt(f)
+		end
+	end
+	return poses
+end
+
+local function clipSet(modelName: string, scale: number): any?
+	local key = modelName .. "@" .. tostring(scale)
+	local cached = clipCache[key]
+	if cached ~= nil then
+		return cached or nil
+	end
+	local source = ClipsZona1[modelName]
+	if not source then
+		clipCache[key] = false
+		return nil
+	end
+	local set = { Count = #source.Joints, Clips = {} }
+	for name, clip in source.Clips do
+		local tracks = table.create(#clip.Tracks)
+		for j, track in clip.Tracks do
+			tracks[j] = decodeTrack(track, clip.Frames, scale)
+		end
+		set.Clips[name] = { Length = clip.Length, Fps = clip.Fps or 30, Frames = clip.Frames, Loop = clip.Loop, Impact = clip.Impact, Tracks = tracks }
+	end
+	clipCache[key] = set
+	return set
+end
+
+-- Pose del clip en el segundo t (en bucle o detenido en el último fotograma).
+local function sampleClip(clip, t: number, out: { CFrame })
+	local last = clip.Frames - 1
+	local f = t * clip.Fps
+	if clip.Loop then
+		f %= last
+	else
+		f = math.clamp(f, 0, last)
+	end
+	local i0 = math.floor(f)
+	local a = f - i0
+	local i1 = math.min(i0 + 1, last)
+	for j, track in clip.Tracks do
+		local c0 = track[i0 + 1]
+		out[j] = if a < 0.001 or i1 == i0 then c0 else c0:Lerp(track[i1 + 1], a)
+	end
+end
 
 -- Se rehace en cada refresco con los modelos presentes: no retiene modelos retirados.
 local entries: { [Model]: Entry } = {}
@@ -61,11 +163,17 @@ local function entryFor(previous: { [Model]: Entry }, model: Model): Entry?
 		return nil
 	end
 	local motors: { Motor } = {}
+	local joints: { Motor } = {}
 	local parts: { BasePart } = {}
 	local bodyPivot = root.Position
 	local hasArms = false
 	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("Motor6D") and descendant.Name == "Pose" then
+		if descendant:IsA("Motor6D") and descendant.Name == "Joint" then
+			local index = descendant:GetAttribute("JointIndex")
+			if typeof(index) == "number" then
+				table.insert(joints, { Motor = descendant, Group = "Clip", Side = index, Pivot = Vector3.zero })
+			end
+		elseif descendant:IsA("Motor6D") and descendant.Name == "Pose" then
 			local group = descendant:GetAttribute("Group")
 			local pivot = descendant:GetAttribute("Pivot")
 			if typeof(group) == "string" and typeof(pivot) == "Vector3" then
@@ -78,6 +186,17 @@ local function entryFor(previous: { [Model]: Entry }, model: Model): Entry?
 			end
 		elseif descendant:IsA("BasePart") and descendant ~= root and descendant.Transparency < 1 then
 			table.insert(parts, descendant)
+		end
+	end
+	-- Modelo .glb con animaciones propias: sus huesos en vez de las articulaciones "Pose".
+	local clips = nil
+	local clipName = model:GetAttribute("Clips")
+	local clipScale = model:GetAttribute("ClipScale")
+	clipScale = if typeof(clipScale) == "number" then clipScale else 1
+	if typeof(clipName) == "string" and #joints > 0 then
+		clips = clipSet(clipName, clipScale)
+		if clips then
+			motors = joints
 		end
 	end
 	if #motors == 0 then
@@ -102,6 +221,11 @@ local function entryFor(previous: { [Model]: Entry }, model: Model): Entry?
 		SpawnSeen = nil,
 		DeathSeen = nil,
 		AttackSeen = nil,
+		Clips = clips,
+		ClipScale = clipScale,
+		WalkTime = math.random() * 2,
+		PoseA = {},
+		PoseB = {},
 	}
 	-- Lo que ya ocurrió antes de verlo (al entrar en la zona) no se reproduce.
 	local spawnedAt = model:GetAttribute("SpawnedAt")
@@ -437,6 +561,125 @@ local function animate(entry: Entry, serverNow: number, clock: number, dt: numbe
 	entry.Resting = false
 end
 
+-- Enemigos con animaciones propias (.glb) ---------------------------------------------
+
+local WALK_STRIDE = 2.6 -- studs por segundo (por unidad del .glb) a los que el paso se ve natural
+local BLEND_IN = 0.1
+local BLEND_OUT = 0.18
+local DEATH_FADE_START = 0.35 -- se empieza a disolver este tiempo antes del final de Death
+local DEATH_FADE_SECONDS = 0.4
+
+local function animateClips(entry: Entry, serverNow: number, clock: number, dt: number)
+	local model = entry.Model
+	local set = entry.Clips
+	local clips = set.Clips
+	local count = set.Count
+	local pose, action = entry.PoseA, entry.PoseB
+	local scale = entry.Scale
+	local health = model:GetAttribute("Health")
+	local diedAt = model:GetAttribute("DiedAt")
+	local spawnedAt = model:GetAttribute("SpawnedAt")
+	local dead = typeof(health) == "number" and health <= 0 and typeof(diedAt) == "number"
+
+	-- Locomoción: Idle, y Walk encima según la velocidad real (el paso se acelera con ella).
+	local velocity = entry.Root.AssemblyLinearVelocity
+	local speed = if dead then 0 else Vector2.new(velocity.X, velocity.Z).Magnitude
+	local moving = math.clamp(speed / 3, 0, 1)
+	entry.WalkTime += dt * math.clamp(speed / (WALK_STRIDE * entry.ClipScale), 0.5, 1.8)
+	sampleClip(clips.Idle, clock + entry.Seed, pose)
+	if moving > 0.01 then
+		sampleClip(clips.Walk, entry.WalkTime, action)
+		for j = 1, count do
+			pose[j] = pose[j]:Lerp(action[j], moving)
+		end
+	end
+
+	-- Acción encima: muerte, golpe (normal o en área) o recibir daño.
+	local actionClip, actionTime, weight = nil, 0, 0
+	local fade, sink = 0, 0
+	if dead then
+		if entry.DeathSeen ~= diedAt then
+			entry.DeathSeen = diedAt
+			if serverNow - diedAt < 0.5 then
+				playDeathFx(entry)
+			end
+		end
+		local death = clips.Death
+		local since = serverNow - diedAt
+		actionClip, actionTime, weight = death, since, math.clamp(since / BLEND_IN, 0, 1)
+		local k = math.clamp((since - (death.Length - DEATH_FADE_START)) / DEATH_FADE_SECONDS, 0, 1)
+		fade = k
+		sink = k * k * 0.6 * scale
+	else
+		if typeof(spawnedAt) == "number" then
+			if entry.SpawnSeen ~= spawnedAt then
+				entry.SpawnSeen = spawnedAt
+				if serverNow - spawnedAt < 1 then
+					playSpawnFx(entry)
+				end
+			end
+			local k = math.clamp((serverNow - spawnedAt) / APPEAR_SECONDS, 0, 1)
+			if k < 1 then
+				fade = 1 - k
+				sink = (1 - easeOut(k)) * 1.4 * scale
+			end
+		end
+
+		-- El Impact del clip Attack cae justo cuando el servidor da el golpe: la preparación se
+		-- estira o encoge para caber en el aviso y el resto va a velocidad normal.
+		local function strike(at: any, windup: any, puffKey: number?): boolean
+			if typeof(at) ~= "number" or typeof(windup) ~= "number" or windup <= 0 then
+				return false
+			end
+			local attack = clips.Attack
+			local impact = attack.Impact or attack.Length * 0.5
+			local t = serverNow - at
+			if t < -windup or t >= attack.Length - impact then
+				return false
+			end
+			actionClip = attack
+			actionTime = if t < 0 then impact * (t + windup) / windup else impact + t
+			weight = math.clamp(math.min((t + windup) / BLEND_IN, (attack.Length - impact - t) / BLEND_OUT), 0, 1)
+			if puffKey and t >= 0 and t < 0.3 and entry.AttackSeen ~= puffKey and entry.Kind ~= "Normal" then
+				entry.AttackSeen = puffKey
+				local root = entry.Root
+				puff(groundBelow(entry) + root.CFrame.LookVector * (root.Size.Z / 2 + 1.5 * scale) + Vector3.new(0, 0.4, 0), Color3.fromRGB(196, 186, 160), if entry.Kind == "Boss" then 12 else 6, false)
+			end
+			return true
+		end
+		local attackAt = model:GetAttribute("AttackAt")
+		local slamAt = model:GetAttribute("SlamAt")
+		local striking = strike(slamAt, model:GetAttribute("SlamTelegraph"), if typeof(slamAt) == "number" then slamAt else nil)
+			or strike(attackAt, model:GetAttribute("AttackWindup"), if typeof(attackAt) == "number" then attackAt else nil)
+		if not striking then
+			local hit = clips.Hit
+			local since = clock - entry.RecoilAt
+			if since < hit.Length then
+				actionClip, actionTime = hit, since
+				weight = math.clamp(math.min(since / 0.05, (hit.Length - since) / BLEND_OUT), 0, 1) * math.clamp(entry.RecoilStrength, 0.35, 1)
+			end
+		end
+	end
+	if actionClip and weight > 0 then
+		sampleClip(actionClip, actionTime, action)
+		for j = 1, count do
+			pose[j] = if weight >= 1 then action[j] else pose[j]:Lerp(action[j], weight)
+		end
+	end
+
+	setFade(entry, fade)
+	if sink ~= 0 then
+		pose[1] = CFrame.new(0, -sink, 0) * pose[1]
+	end
+	for _, motor in entry.Motors do
+		local cf = pose[motor.Side]
+		if cf then
+			motor.Motor.Transform = cf
+		end
+	end
+	entry.Resting = false
+end
+
 -- API ---------------------------------------------------------------------------------
 
 -- Retroceso al recibir un golpe que el servidor ha confirmado (lo llama CombatController).
@@ -496,7 +739,11 @@ function EnemyAnimator.start(options: { OnBossSpawn: ((Model) -> ())?, SpawnSoun
 			end
 			local distance = (entry.Root.Position - eye).Magnitude
 			if distance <= ANIMATE_DISTANCE then
-				animate(entry, serverNow, clock, dt)
+				if entry.Clips then
+					animateClips(entry, serverNow, clock, dt)
+				else
+					animate(entry, serverNow, clock, dt)
+				end
 			else
 				rest(entry)
 				local health = entry.Model:GetAttribute("Health")

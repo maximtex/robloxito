@@ -13,7 +13,12 @@
 -- Efectos por rareza (Rara, Épica, Legendaria): destellos, luz y aura en la raíz.
 --
 -- ARTE EXTERNO: si existe ReplicatedStorage.PetModels.<PetId> (un Model con PrimaryPart),
--- se usa ese modelo en lugar del construido aquí, sin cambiar nada más.
+-- se usa ese modelo en lugar del construido aquí, con los efectos de su rareza. Una ★ Evo sin
+-- modelo propio usa el de su mascota base, más grande (EVO_ART_SCALE) y con las piezas que
+-- llevan el atributo PetTint = "Primary" / "Secondary" de los colores de su Look ("PrimaryDark":
+-- el principal oscurecido, para las manchas y patas del pelaje). Las piezas
+-- con AnimHinge y AnimAxis (Vector3, respecto a la raíz) y AnimAmp, AnimSpeed, AnimPhase y
+-- AnimOffset se animan como las de aquí (PetAnimator): orejas, colas y alas.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -760,16 +765,30 @@ local function glowColor(look: Look): Color3
 	return look.Secondary
 end
 
--- Arte externo: ReplicatedStorage.PetModels.<PetId>, si existe.
+-- Arte externo: ReplicatedStorage.PetModels.<PetId>, si existe (o el de su mascota base si es
+-- una ★ Evo sin modelo propio).
+local EVO_ART_SCALE = 1.15
+
 local function fromArt(petId: string): (Model?, BasePart?)
 	local folder = ReplicatedStorage:FindFirstChild("PetModels")
 	local art = folder and folder:FindFirstChild(petId)
+	local evolved = false
+	if not art and folder and string.sub(petId, -4) == "_Evo" then
+		art = folder:FindFirstChild(string.sub(petId, 1, -5))
+		evolved = art ~= nil
+	end
 	if not (art and art:IsA("Model") and art.PrimaryPart) then
 		return nil, nil
 	end
 	local model = art:Clone()
 	local root = model.PrimaryPart :: BasePart
 	model:PivotTo(CFrame.new())
+	if evolved then
+		model:ScaleTo(model:GetScale() * EVO_ART_SCALE)
+	end
+	local growth = if evolved then EVO_ART_SCALE else 1
+	local pet = PetConfig.Pets[petId]
+	local look = if pet then pet.Look else nil
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.CanCollide = false
@@ -779,10 +798,36 @@ local function fromArt(petId: string): (Model?, BasePart?)
 			descendant.Massless = true
 			descendant.Anchored = descendant == root
 			if descendant ~= root then
-				local weld = Instance.new("WeldConstraint")
-				weld.Part0 = root
-				weld.Part1 = descendant
-				weld.Parent = descendant
+				local tint = descendant:GetAttribute("PetTint")
+				if evolved and look and tint == "Primary" and look.Primary then
+					descendant.Color = look.Primary
+				elseif evolved and look and tint == "PrimaryDark" and look.Primary then
+					descendant.Color = darken(look.Primary, 0.38)
+				elseif evolved and look and tint == "Secondary" and look.Secondary then
+					descendant.Color = look.Secondary
+				end
+				local hinge = descendant:GetAttribute("AnimHinge")
+				local axis = descendant:GetAttribute("AnimAxis")
+				if typeof(hinge) == "Vector3" and typeof(axis) == "Vector3" and axis.Magnitude > 0 then
+					-- Pieza animada: Weld "PetAnim" (PetAnimator mueve su C0)
+					local weld = Instance.new("Weld")
+					weld.Name = "PetAnim"
+					weld.Part0 = root
+					weld.Part1 = descendant
+					weld.C0 = root.CFrame:ToObjectSpace(descendant.CFrame)
+					weld:SetAttribute("Hinge", hinge * growth)
+					weld:SetAttribute("Axis", axis.Unit)
+					for _, name in { "Offset", "Amp", "Speed", "Phase" } do
+						local value = descendant:GetAttribute("Anim" .. name)
+						weld:SetAttribute(name, if typeof(value) == "number" then value else (if name == "Speed" then 1 else 0))
+					end
+					weld.Parent = descendant
+				else
+					local weld = Instance.new("WeldConstraint")
+					weld.Part0 = root
+					weld.Part1 = descendant
+					weld.Parent = descendant
+				end
 			end
 		end
 	end
@@ -798,6 +843,8 @@ function PetModelBuilder.build(petId: string): (Model?, BasePart?)
 	end
 	local artModel, artRoot = fromArt(petId)
 	if artModel and artRoot then
+		local artLook = pet.Look or {}
+		addRarityEffects({ Model = artModel, Root = artRoot }, pet.Rarity, artLook.Secondary or artLook.Primary or WHITE)
 		return artModel, artRoot
 	end
 

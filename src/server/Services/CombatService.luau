@@ -1,7 +1,8 @@
--- Elegir objetivo con un clic o un toque: el cliente propone el modelo del enemigo al que
+-- Pedir un disparo con un clic o un toque: el cliente propone el modelo del enemigo al que
 -- apunta y el servidor comprueba que exista, esté vivo y no demasiado lejos de la posición
--- real del personaje. Si vale, pasa a ser el objetivo del arma y de las mascotas
--- (PetCombatService, que dispara solo). Nunca acepta daño ni recompensas del cliente.
+-- real del personaje. Si vale, pasa a ser el objetivo del arma y de las mascotas y se pide
+-- un disparo (PetCombatService decide cuándo y cuánto daña). Sin modelo (F o "Disparar"),
+-- PetCombatService dispara al más cercano a tiro. Nunca acepta daño ni recompensas del cliente.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,16 +32,33 @@ function CombatService.reportHit(player: Player, enemy: any)
 	end
 end
 
-local selectLimiter = RateLimiter.new(0.1, 2, 20)
+-- Avisos de "el jugador pide un disparo" (enemigo validado, o nil para el más cercano).
+local shotListeners: { (Player, any?) -> () } = {}
+function CombatService.onShotRequest(listener: (Player, any?) -> ())
+	table.insert(shotListeners, listener)
+end
+
+local function requestShot(player: Player, enemy: any?)
+	for _, listener in shotListeners do
+		task.spawn(listener, player, enemy)
+	end
+end
+
+-- Mantener pulsado repite la petición cada ~0.15 s (CombatController)
+local selectLimiter = RateLimiter.new(0.08, 2, 30)
 
 local function handleSelect(player: Player, aimed: any)
-	if selectLimiter:check(player) ~= "ok" or typeof(aimed) ~= "Instance" then
+	if selectLimiter:check(player) ~= "ok" or (aimed ~= nil and typeof(aimed) ~= "Instance") then
 		return
 	end
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not (root and root:IsA("BasePart") and humanoid and humanoid.Health > 0) then
+		return
+	end
+	if aimed == nil then
+		requestShot(player, nil)
 		return
 	end
 	local enemy = EnemyService.fromModel(aimed)
@@ -52,6 +70,7 @@ local function handleSelect(player: Player, aimed: any)
 		return
 	end
 	CombatService.reportHit(player, enemy)
+	requestShot(player, enemy)
 end
 
 function CombatService.start()

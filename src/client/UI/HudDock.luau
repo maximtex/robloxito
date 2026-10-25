@@ -76,7 +76,8 @@ function HudDock.relayout()
 	local left, right = columns.Left, columns.Right
 	left.Position = UDim2.fromOffset(layout.Left.X, layout.Left.Y)
 	left.Size = UDim2.fromOffset(layout.Left.W, 0)
-	right.Position = UDim2.new(1, -HudLayout.Sizes.Edge, 0, layout.Right.Y)
+	-- En escritorio queda a la izquierda de los botones del menú de la derecha (Right.Inset).
+	right.Position = UDim2.new(1, -(layout.Right.Inset or HudLayout.Sizes.Edge), 0, layout.Right.Y)
 	right.Size = UDim2.fromOffset(layout.Right.W, 0)
 	changed:Fire(layout)
 end

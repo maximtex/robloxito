@@ -240,16 +240,18 @@ for gardenId, garden in EggConfig.Gardens do
 	local cx, cz, radius = garden.Center.X, garden.Center.Y, garden.Radius
 	check(gardenId .. ": el paisaje construye el jardín de su zona", layout ~= nil and layout.Garden == garden)
 
-	-- Santuarios: todos dentro del seto, separados (los carteles no se tapan) y mirando al centro.
-	local inner = radius - (style.RingThickness or 1.2) / 2
+	-- Santuarios: todos dentro del terreno libre del jardín, separados (los carteles no se
+	-- tapan) y mirando al centro. El seto de LandscapeLayout.garden ya no se construye; lo que
+	-- el mapa deja libre es el círculo de WorldService (Radius + 4: ni árboles ni adornos).
+	local inner = radius + 4
 	local stands = layout.Stands
 	local zoneEggs = 0
-	for _, stand in EggConfig.Stands do
-		if stand.Enabled ~= false and (stand.Zone or ZoneConfig.DefaultZone) == garden.Zone then
+	for _, egg in EggConfig.Eggs do
+		if egg.Enabled ~= false and (egg.Zone or ZoneConfig.DefaultZone) == garden.Zone then
 			zoneEggs += 1
 		end
 	end
-	check(("%s: reúne los %d pedestales de la zona"):format(gardenId, zoneEggs), #stands == zoneEggs and zoneEggs > 0)
+	check(("%s: reúne los %d huevos de la zona"):format(gardenId, zoneEggs), #stands == zoneEggs and zoneEggs > 0)
 	local insideOk, apartOk, facingOk = true, true, true
 	for index, stand in stands do
 		if dist(stand.X, stand.Z, cx, cz) + STAND > inner then
@@ -270,7 +272,7 @@ for gardenId, garden in EggConfig.Gardens do
 			facingOk = facingOk and math.abs(stand.FacingX - math.cos(angle)) < 1e-6 and math.abs(stand.FacingZ - math.sin(angle)) < 1e-6
 		end
 	end
-	check(gardenId .. ": cada santuario cabe dentro del seto", insideOk)
+	check(gardenId .. ": cada santuario cabe en el terreno libre del jardín", insideOk)
 	check(gardenId .. ": santuarios separados (sus carteles no se tapan)", apartOk)
 	check(gardenId .. ": cada santuario mira al centro (o a la entrada)", facingOk)
 

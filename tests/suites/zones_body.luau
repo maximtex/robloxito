@@ -127,22 +127,38 @@ local t = EnemyConfig.Types
 check("la Caldera es más dura y da más que el Valle", t.Cinderling.MaxHealth > t.Shardling.MaxHealth and t.MagmaGolem.MaxHealth > t.GeodeGolem.MaxHealth
 	and t.CalderaTitan.MaxHealth > t.AmethystColossus.MaxHealth and t.CalderaTitan.Reward > t.AmethystColossus.Reward and t.Cinderling.Reward > t.Shardling.Reward)
 
-print("-- 4. Jardín de mascotas")
-local standsOk = true
-for standId, stand in EggConfig.Stands do
-	if stand.Enabled ~= false then
-		if not (PetConfig.Pets[stand.PetId] and type(stand.Price) == "number" and stand.Price > 0) then
-			standsOk = false
-			print("  pedestal sin mascota o precio válido: " .. standId)
+print("-- 4. Huevos y mascotas")
+local eggsOk = true
+for eggId, egg in EggConfig.Eggs do
+	if egg.Enabled ~= false then
+		local total = 0
+		for _, chance in egg.Chances do
+			total += chance.Chance
+			if not PetConfig.Pets[chance.PetId] then
+				eggsOk = false
+				print("  mascota desconocida en " .. eggId .. ": " .. chance.PetId)
+			end
 		end
-		if not ZoneConfig.Zones[stand.Zone or ZoneConfig.DefaultZone] then
-			standsOk = false
+		if total ~= 100 then
+			eggsOk = false
+			print("  probabilidades de " .. eggId .. " suman " .. total)
+		end
+		local zoneId = egg.Zone or ZoneConfig.DefaultZone
+		if not ZoneConfig.Zones[zoneId] or (egg.RequiredZone and not ZoneConfig.Zones[egg.RequiredZone]) then
+			eggsOk = false
 		end
 	end
 end
-check("cada pedestal del jardín vende una mascota que existe, a un precio válido", standsOk)
-local rainbow = EggConfig.Gardens.Forest.RainbowPet
-check("el pedestal arcoíris vende la mascota más cara", rainbow ~= nil and PetConfig.Pets[rainbow.PetId] ~= nil and rainbow.Price >= EggConfig.Stands.AncientEgg.Price)
+check("cada huevo suma 100 %, sus mascotas existen y su zona también", eggsOk)
+local function meanBonus(eggId)
+	local total = 0
+	for _, chance in EggConfig.Eggs[eggId].Chances do
+		total += chance.Chance / 100 * (PetConfig.Pets[chance.PetId].Multiplier - 1)
+	end
+	return total
+end
+check(("Huevo de Magma: valor medio mayor que el de Cristal (%.0f %% > %.0f %%)"):format(meanBonus("MagmaEgg") * 100, meanBonus("CrystalEgg") * 100), meanBonus("MagmaEgg") > meanBonus("CrystalEgg"))
+check("el Huevo de Magma solo se compra con la Caldera desbloqueada", EggConfig.Eggs.MagmaEgg.Zone == "EmberCaldera" and EggConfig.Eggs.MagmaEgg.RequiredZone == "EmberCaldera")
 local garden = EggConfig.Gardens.EmberCaldera
 check("la Forja de Huevos tiene su estilo en el paisaje", garden ~= nil and LandscapeConfig.Gardens[garden.Style] ~= nil)
 

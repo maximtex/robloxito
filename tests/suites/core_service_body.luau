@@ -1,3 +1,6 @@
+-- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
+-- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
+EconomyConfig.PassiveEnergy = true
 -- Fase 2 de los núcleos: CoreLogic (afinidad y mejora) y el CoreService REAL con el
 -- PlayerDataService y el SaveService reales sobre un DataStore en memoria.
 -- Desbloquear, mejorar y elegir: validación, cobro en el mismo paso, producción,

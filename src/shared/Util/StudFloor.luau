@@ -8,7 +8,10 @@ local StudFloor = {}
 local RGB = Color3.fromRGB
 
 StudFloor.BlockSize = 8
-StudFloor.BorderWidth = 1 -- como suelo_border.glb
+-- Borde de los caminos (y de las orillas del río y la lava): una fila entera de studs del
+-- camino (4 por bloque de 8, de 2 studs cada uno), como la referencia. Con 1 se veían medios
+-- studs, como una raya gris.
+StudFloor.BorderWidth = 2
 StudFloor.BaseTop = 0.28
 StudFloor.BaseThickness = 1.0
 -- Los caminos y sus bordes sobresalen esto del damero, como en la referencia; lo que se apoya
@@ -27,14 +30,28 @@ StudFloor.StudTexture = "rbxassetid://109441301720998"
 StudFloor.GrassTile = 8
 StudFloor.PathTile = 16
 
--- Muros de damero: filas de base y dos filas de remate arriba. El grosor (8) hace que el muro
--- sur de una zona acabe justo donde empieza el suelo de la siguiente.
+-- Muros de damero como la referencia: losetas cuadradas de 8x8 (alineadas con los bloques del
+-- suelo) de tierra abajo y una capa gruesa de hierba arriba que cuelga en escalones. El grosor
+-- (8) hace que el muro sur de una zona acabe justo donde empieza el suelo de la siguiente.
+-- BaseRows + TopRows: filas del muro (y alto del cristal de los portales, ZoneService).
+-- StudSize: tamaño de los studs de StudTexture en sus caras (4x4 por loseta, como el camino).
+-- GrassRows: filas de hierba de cada columna (cambia como mucho una fila de una a la
+-- siguiente); BumpChance: tramos de 2 o 3 columnas una fila más altos (nunca junto al portal).
+-- Relieve: la hierba sobresale GrassOverhang studs hacia dentro (un alero por encima de la
+-- tierra, con el borde en escalones) y, en los muros que no tienen otra zona detrás, algunos
+-- tramos (TierChance) suben 1 a TierRows filas más de hierba un grosor más atrás.
 StudFloor.Wall = {
 	Thickness = 8,
-	BlockWidth = 11.2,
-	BlockHeight = 5.2267,
+	BlockWidth = 8,
+	BlockHeight = 8,
 	BaseRows = 6,
-	TopRows = 2,
+	TopRows = 3,
+	StudSize = 2,
+	GrassRows = { 2, 4 },
+	BumpChance = 0.12,
+	GrassOverhang = 4,
+	TierChance = 0.5,
+	TierRows = 2,
 }
 
 -- Paleta sRGB exacta extraída de los archivos .glb
@@ -75,8 +92,27 @@ StudFloor.Zones = {
 			North = true,
 			South = true,
 			GateHalf = 28,
-			Base = { RGB(194, 140, 86), RGB(168, 118, 68) },
+			Base = { RGB(216, 132, 88), RGB(190, 104, 64) }, -- terracota, como la referencia
 			Top = { StudFloor.Palette.GreenLight, StudFloor.Palette.GreenDark },
+		},
+		-- Borde a medida (maqueta «Zona 1 — Bosque», simétrica): filas de norte a sur con
+		-- { Z desde, Z hasta, medio ancho del suelo }. Lo de fuera hasta el rectángulo es una
+		-- colina de bloques (StudWorld.buildWalls). La fila del medio mide lo de siempre y la del
+		-- sur llega al paso del portal.
+		Outline = {
+			{ -164, -156, 92 },
+			{ -156, -60, 100 },
+			{ -60, -52, 108 },
+			{ -52, -20, 124 },
+			{ -20, 4, 132 },
+			{ 4, 36, 124 },
+			{ 36, 60, 116 },
+			{ 60, 92, 108 },
+			{ 92, 100, 100 },
+			{ 100, 108, 92 },
+			{ 108, 116, 76 },
+			{ 116, 124, 60 },
+			{ 124, 132, 44 },
 		},
 		Paths = {
 			{ -44, 44, -28, 28 }, -- plaza del pueblo: spawn y puestos (X = ±36)
@@ -111,18 +147,59 @@ StudFloor.Zones = {
 			Base = { RGB(78, 70, 138), RGB(58, 52, 108) },
 			Top = { RGB(152, 140, 218), RGB(132, 120, 198) },
 		},
+		-- Borde a medida (maqueta «Zona 2 — Valle Morado», simétrica), como Forest.Outline. La
+		-- fila del río ocupa lo de siempre y la del sur llega al paso del portal de la Caldera.
+		Outline = {
+			{ 140, 148, 44 },
+			{ 148, 156, 60 },
+			{ 156, 164, 76 },
+			{ 164, 172, 92 },
+			{ 172, 180, 100 },
+			{ 180, 196, 108 },
+			{ 196, 212, 116 },
+			{ 212, 252, 124 },
+			{ 252, 284, 132 },
+			{ 284, 300, 124 },
+			{ 300, 388, 132 },
+			{ 388, 404, 124 },
+			{ 404, 412, 116 },
+			{ 412, 420, 108 },
+			{ 420, 428, 100 },
+			{ 428, 436, 84 },
+			{ 436, 452, 60 },
+		},
+		-- Lo de fuera del borde son terrazas (StudWorld.buildWalls): cada escalón de 8 de fondo
+		-- y más alto que el anterior; llegan Extend studs más allá del muro de siempre. El río
+		-- sigue entre ellas hasta Reach: cascada al oeste y cueva al este.
+		Hill = {
+			Extend = 32,
+			Terraces = {
+				{ Height = 12, Colors = { RGB(178, 158, 232), RGB(164, 144, 222) } },
+				{ Height = 28, Colors = { RGB(140, 112, 214), RGB(126, 98, 202) } },
+				{ Height = 48, Colors = { RGB(108, 82, 190), RGB(96, 72, 176) } },
+				{ Height = 80, Colors = { RGB(74, 56, 146), RGB(64, 48, 130) } },
+			},
+			Channel = { MinZ = 252, MaxZ = 284, Reach = 164 },
+		},
 		Paths = {
-			{ -28, 28, 140, 172 }, -- llegada desde el Bosque
-			{ -124, 124, 172, 188 }, -- camino de la llegada
+			{ -28, 28, 140, 180 }, -- llegada desde el Bosque
+			{ -100, 100, 180, 204 }, -- camino de la llegada (8 studs antes del borde)
 			{ -12, 12, 172, 428 }, -- avenida central (cruza el río por el puente)
 			{ -36, 36, 292, 324 }, -- plaza del santuario del Huevo de Cristal
-			{ -124, -108, 172, 252 }, -- ronda oeste hasta el río
-			{ 108, 124, 172, 252 }, -- ronda este hasta el río
-			{ -124, -108, 284, 428 }, -- ronda oeste pasado el río
-			{ 108, 124, 284, 428 }, -- ronda este pasado el río
-			{ -124, 124, 412, 428 }, -- camino del fondo
+			-- Rondas oeste y este: siguen los escalones del borde, 8 studs por dentro
+			{ -108, -92, 196, 220 },
+			{ 92, 108, 196, 220 },
+			{ -116, -100, 212, 252 },
+			{ 100, 116, 212, 252 },
+			{ -116, -100, 284, 308 },
+			{ 100, 116, 284, 308 },
+			{ -124, -108, 300, 396 },
+			{ 108, 124, 300, 396 },
+			{ -116, -92, 388, 412 },
+			{ 92, 116, 388, 412 },
+			{ -100, 100, 404, 420 }, -- camino del fondo
 			{ 76, 116, 308, 348 }, -- Trono de Amatista (jefe del Valle)
-			{ -28, 28, 428, 460 }, -- plazoleta del portal (entra en el paso del muro)
+			{ -28, 28, 420, 460 }, -- plazoleta del portal (entra en el paso del muro)
 		},
 		DecorSeed = 3031,
 	},
@@ -149,19 +226,101 @@ StudFloor.Zones = {
 			Base = { RGB(132, 84, 64), RGB(106, 66, 50) },
 			Top = { RGB(214, 114, 68), RGB(188, 94, 52) },
 		},
+		-- Borde a medida (maqueta «Zona 3 — Caldera de Brasas», cráter simétrico), como
+		-- Forest.Outline. Arriba cierra como el final del Valle; la última fila llega al fondo.
+		Outline = {
+			{ 460, 476, 60 },
+			{ 476, 484, 68 },
+			{ 484, 492, 76 },
+			{ 492, 500, 84 },
+			{ 500, 508, 92 },
+			{ 508, 516, 100 },
+			{ 516, 532, 108 },
+			{ 532, 548, 116 },
+			{ 548, 572, 124 },
+			{ 572, 660, 132 },
+			{ 660, 684, 124 },
+			{ 684, 700, 116 },
+			{ 700, 708, 108 },
+			{ 708, 716, 100 },
+			{ 716, 724, 92 },
+			{ 724, 732, 84 },
+			{ 732, 740, 76 },
+			{ 740, 748, 68 },
+			{ 748, 756, 60 },
+			{ 756, 772, 44 },
+		},
+		-- Paredes de roca volcánica en 5 escalones (StudWorld.buildWalls), que también cierran el
+		-- fondo del mapa (CloseSouth: el volcán más alto). El canal de lava a la altura del lago
+		-- las cruza: cascada al oeste (sigue por el suelo hasta el lago) y a un pozo al este.
+		Hill = {
+			Extend = 32,
+			CloseSouth = true,
+			Terraces = {
+				{ Height = 12, Colors = { RGB(168, 104, 78), RGB(154, 92, 68) } },
+				{ Height = 28, Colors = { RGB(132, 78, 58), RGB(118, 68, 50) } },
+				{ Height = 48, Colors = { RGB(98, 58, 46), RGB(86, 50, 40) } },
+				{ Height = 72, Colors = { RGB(70, 42, 36), RGB(60, 36, 30) } },
+				{ Height = 104, Colors = { RGB(44, 28, 26), RGB(36, 22, 20) } },
+			},
+			-- OverSteps: las terrazas no se cortan; la lava baja por encima de los escalones
+			-- (CalderaService.buildLavaFlows) en vez de abrir una ranura hasta Reach.
+			Channel = { MinZ = 612, MaxZ = 628, Reach = 164, OverSteps = true },
+		},
 		Paths = {
 			{ -28, 28, 460, 492 }, -- llegada desde el Valle
 			{ -12, 12, 492, 684 }, -- avenida hacia el Corazón de la Caldera
-			{ -124, 124, 516, 532 }, -- camino de la llegada
+			{ -100, 100, 516, 532 }, -- camino de la llegada (8 studs antes del borde)
 			{ -12, 44, 604, 644 }, -- plaza de la Forja de Huevos
-			{ -124, -108, 516, 748 }, -- ronda oeste
-			{ 108, 124, 516, 748 }, -- ronda este
+			-- Rondas oeste y este: siguen los escalones del borde, 8 studs por dentro
+			{ -108, -92, 524, 548 },
+			{ 92, 108, 524, 548 },
+			{ -116, -100, 540, 580 },
+			{ 100, 116, 540, 580 },
+			{ -124, -108, 572, 660 },
+			{ 108, 124, 572, 660 },
+			{ -116, -100, 652, 684 },
+			{ 100, 116, 652, 684 },
+			{ -108, -92, 676, 700 },
+			{ 92, 108, 676, 700 },
+			{ -100, -84, 692, 708 },
+			{ 84, 100, 692, 708 },
+			{ -92, -76, 700, 716 },
+			{ 76, 92, 700, 716 },
+			{ -84, -68, 708, 724 },
+			{ 68, 84, 708, 724 },
 			{ -28, 28, 684, 732 }, -- Corazón de la Caldera (jefe)
-			{ -124, 124, 732, 748 }, -- camino del fondo
+			{ -76, 76, 716, 732 }, -- camino del fondo
 		},
 		DecorSeed = 4047,
 	},
 }
+
+-- ¿Es suelo jugable el punto (x, z) del mundo? Con borde a medida (Outline), solo lo de dentro
+-- de sus filas; si no, el rectángulo de la zona. margin: studs libres alrededor (cuadrado).
+function StudFloor.onFloor(layout, x: number, z: number, margin: number?): boolean
+	local m = margin or 0
+	for _, dx in { -m, m } do
+		for _, dz in { -m, m } do
+			local px, pz = x + dx, z + dz
+			local inside = false
+			if layout.Outline then
+				for _, row in layout.Outline do
+					if pz >= row[1] and pz < row[2] and math.abs(px) < row[3] then
+						inside = true
+						break
+					end
+				end
+			else
+				inside = px > layout.MinX and px < layout.MaxX and pz > layout.MinZ and pz < layout.MaxZ
+			end
+			if not inside then
+				return false
+			end
+		end
+	end
+	return true
+end
 
 -- Altura extra del suelo en (x, z) del mundo: PathRaise sobre un camino o plaza de cualquier
 -- zona y 0 sobre el damero. Se suma a la altura de lo que se coloca encima.

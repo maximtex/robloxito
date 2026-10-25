@@ -29,6 +29,9 @@
 --                                       equipada (WeaponLogic; WeaponService).
 --   Bosses: { [tipo]: número }          veces que ha derrotado a cada jefe (BossRewardService:
 --                                       premio de la primera vez y acceso a la zona siguiente).
+--   Items: { Potions, Eggs, Boosts, Titles, Title, TitleSet, PotionsUsed }  pociones, huevos
+--                                       guardados y títulos (ItemLogic; ItemService). Las
+--                                       pociones activas se guardan con los segundos que les quedan.
 -- Los registros antiguos sin Energy/UpgradeLevels cargan con los valores iniciales, los
 -- que no tienen Cores (v2) empiezan con Naturaleza desbloqueada y seleccionada, y los que
 -- no tienen Rebirth (v3) empiezan sin renacimientos, los que no tienen Adventure (v4)
@@ -63,13 +66,15 @@ local RewardLogic = require(script.Parent.Parent.Util.RewardLogic)
 local LeaderboardLogic = require(script.Parent.Parent.Util.LeaderboardLogic)
 local WeaponLogic = require(ReplicatedStorage:WaitForChild("Shared").WeaponLogic)
 local WeaponConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.WeaponConfig)
+local ItemLogic = require(ReplicatedStorage:WaitForChild("Shared").ItemLogic)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 2: añade Energy y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
 -- 5: añade Adventure. 6: añade Rewards, Shop y Weekly. 7: añade Money. 8: añade Weapons y
 -- Bosses. Los registros v1 a v7 siguen cargando (sin Money empiezan con el dinero inicial;
 -- sin Weapons, con el láser al nivel de la antigua mejora "LaserPower"; sin Bosses, sin jefes).
-local SCHEMA_VERSION = 8
+-- 9: añade Items (pociones, huevos guardados y títulos; sin el campo, vacío).
+local SCHEMA_VERSION = 9
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -108,6 +113,7 @@ export type PetData = {
 	Weekly: LeaderboardLogic.Weekly, -- energía generada esta semana (clasificación semanal)
 	Weapons: WeaponLogic.WeaponData, -- armas, niveles y la equipada (WeaponService)
 	Bosses: { [string]: number }, -- jefes derrotados (BossRewardService)
+	Items: ItemLogic.ItemData, -- pociones, huevos guardados y títulos (ItemService)
 }
 
 -- "Loaded": datos cargados y bloqueados para esta sesión.
@@ -183,6 +189,7 @@ function SaveService.emptyData(): PetData
 		Weekly = LeaderboardLogic.emptyWeekly(),
 		Weapons = WeaponLogic.empty(),
 		Bosses = {},
+		Items = ItemLogic.empty(),
 	}
 end
 
@@ -372,6 +379,9 @@ local function sanitize(raw: any): PetData
 			end
 		end
 	end
+	-- Artículos: sin el campo (v8 o anteriores) empiezan vacíos. Las pociones activas siguen
+	-- con el tiempo que les quedaba.
+	result.Items = ItemLogic.sanitize(raw.Items, os.time())
 
 	return result
 end
@@ -458,6 +468,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local weekly = LeaderboardLogic.serializeWeekly(data.Weekly)
 	local weapons = WeaponLogic.serialize(data.Weapons)
 	local bosses = table.clone(data.Bosses)
+	local items = ItemLogic.serialize(data.Items or ItemLogic.empty(), os.time())
 	local key = keyFor(userId)
 
 	for attempt = 1, SAVE_ATTEMPTS do
@@ -497,6 +508,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.Weekly = weekly
 				stored.Weapons = weapons
 				stored.Bosses = bosses
+				stored.Items = items
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)

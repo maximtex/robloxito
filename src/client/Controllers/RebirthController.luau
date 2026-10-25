@@ -633,7 +633,7 @@ function RebirthController.start()
 			tokensText(RebirthLogic.tokensFor(count))
 		)
 		local startLevel = RebirthLogic.headStartLevel(data, RebirthLogic.requiredLevel(count + 1))
-		ui.Resets.Text = ("Se reinician tu energía, tu dinero, el nivel de tus armas y la %s (vuelve al nivel %d). Te quedas tus armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos y misiones."):format(UPGRADE_NAME, startLevel)
+		ui.Resets.Text = ("Se reinician tu energía, tu dinero, el nivel de tus armas y la %s (vuelve al nivel %d). Te quedas tus armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos, misiones y los huevos ya desbloqueados."):format(UPGRADE_NAME, startLevel)
 
 		local confirming = ready and os.clock() < confirmUntil
 		if pending then

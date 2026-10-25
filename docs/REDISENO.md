@@ -72,17 +72,17 @@ Todo lo construye código al arrancar, en posiciones fijas:
   que hay bajo el mapa.
 
 Regla del rediseño: no se cambia ninguna posición, tamaño ni pieza de estos constructores
-ni nada de lo que reserva sitio en el mapa. Lo nuevo reutiliza lo que ya existe (los
-pedestales venden mascotas, el puesto del láser es la Armería, las arenas de los jefes
-siguen donde están).
+ni nada de lo que reserva sitio en el mapa. Lo nuevo reutiliza lo que ya existe (el
+jardín de los huevos sigue igual, el puesto del láser es la Armería, las arenas de los
+jefes siguen donde están).
 
 ## 2. Arquitectura del rediseño
 
 ### Monedas
 | Moneda | Se gana | Se gasta |
 |---|---|---|
-| 💰 Dinero | Enemigos (cada golpe y al morir), jefes | Armas y sus mejoras, mejoras de la Armería, mascotas del jardín |
-| ⚡ Energía | Núcleos (producción), misiones, cofres, premios, jefes | Resonancia del Cristal (renacer), zonas, núcleos |
+| 💰 Dinero | Enemigos (cada golpe y al morir), jefes | Armas y sus mejoras |
+| ⚡ Energía | Núcleos (producción), misiones, cofres, premios, jefes | Resonancia del Cristal (renacer), huevos, zonas, núcleos |
 
 Las mascotas multiplican la energía (100 % de su bonificación), el daño (50 %) y el dinero
 (50 %).
@@ -97,26 +97,38 @@ Las mascotas multiplican la energía (100 % de su bonificación), el daño (50 %
   Láser" pasa a ser el nivel del Láser Básico. La Cadencia es global (todas las armas).
 - La Armería es el puesto "Mejorar Láser" del pueblo (mismo sitio y modelo; cambia su
   nombre) y también se abre con la tecla L o el botón del menú.
+- Panel con el diseño «Armería Roblox» (`WeaponController`): cabecera naranja a rayas,
+  una tarjeta por arma (cuatro a la vista, flechas para el resto) con rareza, colores,
+  números y botones (comprar, equipar, mejorar). Plasma, Cañón Cristalino y Cañón del Vacío
+  también se compran con Robux (`MonetizationConfig.WeaponProducts`, `ShopService`; llegan
+  aunque su zona siga cerrada). Las mejoras globales de la Armería (Cadencia, Poder de
+  Mascotas, Velocidad) se quitaron del panel por ahora: siguen en el servidor y en el
+  guardado, pero no se pueden comprar. El arte de cada arma (`WeaponConfig.Art`) y el
+  icono de la cabecera (`WeaponConfig.ArmoryArt.Header`) son las imágenes del diseño,
+  subidas a Roblox (Prisma, Vacío, Magma y el icono con el borde difuminado como en el
+  diseño). Sin imagen, la tarjeta muestra el icono del arma.
 - Precios con el ritmo real: Plasma 4 000 (~6 min en el Bosque), Cañón Cristalino 25 000
   (~10 min en el Valle), Cañón del Vacío 120 000 (~15 min en la Caldera).
 
-### Combate automático (fase 5)
-- Un único camino de disparo en el servidor (`PetCombatService`): cada jugador tiene un
-  objetivo; si no lo tiene, el más cercano a tiro de su arma (con comprobación de altura).
-  Se mantiene hasta que muere, sale de alcance o el jugador elige otro con un clic. Dispara
-  con la cadencia de su arma y aplica su efecto. Las mascotas atacan al mismo objetivo.
-- El clic ya no hace daño propio: elige el objetivo. F o el botón "Disparar" encienden y
-  apagan el disparo automático.
+### Disparo (fase 5) y pase "Disparo automático"
+- Un único camino de disparo en el servidor (`PetCombatService`), con la cadencia y el
+  efecto del arma equipada. Las mascotas atacan al mismo objetivo.
+- Sin el pase, el arma dispara solo cuando el jugador lo pide (`Attack`, validado en
+  `CombatService`): un clic o toque en un enemigo le dispara a él; F, X (mando) o el botón
+  "Disparar", al más cercano a tiro. Cada petición es un disparo (espera la recarga del arma,
+  pero caduca); mantener pulsado repite la petición cada 0.15 s.
+- Con el pase (`MonetizationConfig.GamePasses.AutoFire`, Id 0 hasta crearlo), el arma
+  dispara sola al enemigo más cercano a tiro. La insignia del botón (AUTO / OFF, o la tecla
+  V) lo apaga y lo enciende; sin el pase muestra "🔒 AUTO" y abre la tienda.
 
-### Mascotas sin huevos (fase 4)
-- Los pedestales del jardín venden una mascota fija cada uno (compra directa con dinero):
-  Seta Saltarina, Zorro de Musgo, Búho Lunar y, en el expositor arcoíris, el Cervatillo
-  Esmeralda. Sin azar, sin incubar.
-- Cada jefe regala su mascota de combate la primera vez (Zorrito de Cuarzo, Tortuga
-  Cristalina, Dragón de Amatista) y luego a veces otra copia (para evolucionar).
+### Mascotas y huevos (la fase 4 se deshizo)
+- El jardín de los huevos vuelve a estar como antes del rediseño: se compran e incuban
+  huevos con energía (`EggConfig`, `EggLogic`, `PetService.purchaseEgg`, `EggStandService`),
+  con el panel de huevos, la diaria `DailyEggs` y el pase `TripleHatch`.
+- Los jefes ya no regalan mascotas: dan su arma y energía (`BossRewardService`).
+- Se conserva de la fase 4 el arreglo de la mascota inicial duplicada al cargar
+  (`SaveService.sanitize`).
 - El Haxigator se sigue vendiendo por Robux en el altar.
-- Se retiran: comprar e incubar huevos, el panel de huevos, la diaria `DailyEggs` y el pase
-  `TripleHatch`. Las mascotas guardadas no se tocan.
 
 ### Jefes (fase 6)
 - Máquina de estados propia (`EnemyService.updateBoss`): Patrulla, Persecución (con
@@ -147,22 +159,25 @@ Las mascotas multiplican la energía (100 % de su bonificación), el daño (50 %
 | 5. Combate automático | ae05d96 | Un solo camino de disparo (`PetCombatService`), clic = elegir objetivo, F/botón = AUTO/OFF, proyectil por arma, arreglo del arranque de `EnemyService` |
 | 6. IA de jefes | e094955 | `EnemyService.updateBoss` (patrulla, persecución con rutas, ataques anunciados, descanso, regreso), aviso "¡Te persigue!" |
 | 7. Progresión de mapas | 9795eef | `RequiredBoss` por zona, `BossesDefeated`, panel del portal y cartel de la puerta |
-| 8. Interfaz y guardado | (este) | Mascotas suman la mitad de su bonificación al dinero (`CombatConfig.PetMoneyShare`), panel de mascotas con sus tres bonificaciones, baterías de guardado reparadas y ampliadas |
+| 8. Interfaz y guardado | 2df0941 | Mascotas suman la mitad de su bonificación al dinero (`CombatConfig.PetMoneyShare`), panel de mascotas con sus tres bonificaciones, baterías de guardado reparadas y ampliadas |
+| Huevos y pase de disparo | (sin commit) | Vuelve el jardín de los huevos (se deshace la fase 4, menos el arreglo de la mascota inicial); disparo a mano (clic, F, mantener) y automático solo con el pase `AutoFire` |
 
 ### Mapa verde
 Comprobado con `git diff 24bccd4`: no cambió ningún constructor de geometría (terreno, suelo,
 caminos, muros, árboles y decoración, Navidad, cofres, aparición, tablas, posiciones de
-enemigos y arenas). Solo cambia el contenido de los pedestales del jardín (mascotas en vez de
-huevos), el nombre flotante del puesto del láser ("Armería") y, en `LandscapeLayout`, el
-nombre de la tabla de pedestales (mismos datos).
+enemigos y arenas). Solo cambia el nombre flotante del puesto del láser ("Armería"); el
+jardín de los huevos vuelve a ser el de antes, con los pedestales más abiertos hacia los
+lados (a petición, para no apretarse con el altar): No común y Raro 4 studs, Común y el
+Arcoíris 5. Siguen sobre el suelo rosa, dentro del terreno que el mapa deja libre y sin
+tocar nada.
 
 ### Pruebas automáticas (`python tests/run_tests.py`)
 Pasan 18 de 24 baterías. Nuevas o reparadas en el rediseño: `weapons` (34), `petcombat`
-(combate automático, 17), `persist` (38, con dinero, armas y jefes al salir y volver),
-`persist_cores`, `core_service`, `tutorial`, `sandbox`, `shop`, `rebirth`, `adventure`.
-Las 6 que fallan ya fallaban en el punto de partida por motivos ajenos al rediseño
-(`sanctuary` 1, `shrines` 2, `quest` 3, `landscape` 16, `zones` 9: la Caldera ya no pide 3
-renacimientos y no hay portales de vuelta, `leaderboard` 1).
+(disparo a mano y automático con el pase, 27), `persist` (38, con dinero, armas y jefes al
+salir y volver), `persist_cores`, `core_service`, `tutorial`, `sandbox`, `shop` (79, con los
+huevos), `rebirth`, `adventure`. Las 6 que fallan ya fallaban en el punto de partida por
+motivos ajenos al rediseño (`sanctuary` 1, `shrines` 2, `quest` 1, `landscape` 16, `zones`
+9: la Caldera ya no pide 3 renacimientos y no hay portales de vuelta, `leaderboard` 1).
 
 ### Pendientes conocidos
 - `GeneratorService` (santuario del cristal) y `CoreShrineService` (altares de núcleos) siguen
@@ -172,7 +187,13 @@ renacimientos y no hay portales de vuelta, `leaderboard` 1).
   con 2 jugadores (Test > Players).
 - El guardado real no se puede probar en Studio sin "Enable Studio Access to API Services";
   está cubierto por la batería `persist` sobre un DataStore simulado.
-- Los Ids de Robux (pases, productos, Haxigator) siguen en 0.
+- Imágenes y mallas: todo lo que se ve en el juego está subido a Roblox (rbxassetid). Las
+  mallas de los huevos, la textura arcoíris y los iconos del menú estaban como archivos
+  locales en la carpeta de Studio (rbxasset://…): se perdían al actualizarse Studio y los
+  jugadores no los veían. Ahora vienen de `EggConfig.Art` (importadas de huevos.glb) e
+  `Icons.Ids`. No volver a usar archivos copiados en la carpeta de Studio.
+- Los Ids de Robux (pases, también "Disparo automático", productos y Haxigator) siguen en 0:
+  hasta crearlos, la tienda los muestra como "Próximamente" y nadie tiene el automático.
 
 ## 4. Pruebas obligatorias (fase 9)
 
@@ -181,22 +202,22 @@ renacimientos y no hay portales de vuelta, `leaderboard` 1).
 
 | # | Escenario | Resultado | Cómo |
 |---|---|---|---|
-| 1 | Jugador nuevo entra al mapa verde | ✅ | Studio: láser equipado, AUTO, mascota inicial, tutorial activo |
+| 1 | Jugador nuevo entra al mapa verde | ✅ | Studio: láser equipado, "🔒 AUTO" (sin el pase), mascota inicial, tutorial activo |
 | 2 | El mapa conserva geometría y distribución | ✅ | `git diff 24bccd4`: ningún constructor de geometría cambió (ver sección 3) |
-| 3 | Ataca automáticamente a un enemigo | ✅ | Studio: 57 disparos en ~14 s sin tocar nada; batería `petcombat` |
+| 3 | Ataca a un enemigo (a mano; solo con el pase) | ✅ | Studio: sin el pase no dispara solo (vida 20 → 20); F = un disparo, mantener = ráfaga a la cadencia; con el pase mata solo (155 → 350 💰 en 4 s); batería `petcombat` |
 | 4 | El enemigo recibe daño válido y muere | ✅ | Studio y batería `petcombat` (muerte única de EnemyLogic) |
 | 5 | Recompensa correcta | ✅ | Studio: 35 💰 · 1.375 (mascotas) = 48 por Espinillo |
 | 6 | Compra un arma y la equipa | ✅ | Studio: Plasma (4 000) y Cañón Cristalino (25 000, con el Valle); batería `weapons` |
 | 7 | Daño y cadencia del arma equipada | ✅ | Studio: Cañón Cristalino 0.45 s entre disparos y 122 💥/s; batería `petcombat` |
 | 8 | Bonificaciones de las mascotas | ✅ | Studio: el Zorrito de Cuarzo sube daño y dinero (×1.375); batería `weapons` |
-| 9 | Los huevos ya no hacen falta | ✅ | Sin compra ni incubación; el jardín vende mascotas fijas (Studio: compra de la Seta) |
+| 9 | Huevos como antes del rediseño | ✅ | Studio: Huevo del Bosque por 50 ⚡ → Seta Saltarina equipada; baterías `shop`, `rebirth`, `zones` |
 | 10 | Las mascotas guardadas no se pierden | ✅ | Baterías `persist`, `persist_cores`, `rebirth` (y arreglo de la inicial duplicada) |
 | 11 | El jefe detecta al jugador | ✅ | Studio: estado Chase y TargetUserId al acercarse |
 | 12 | Persigue y evita obstáculos | ✅ | Studio: rodeó un muro de prueba con la ruta de PathfindingService |
 | 13 | Ataca solo cuando corresponde | ✅ | Studio: ciclo Busy → Recover → Chase con avisos en el suelo |
 | 14 | El jugador puede escapar | ✅ | Studio: a 90 studs deja de perseguir |
 | 15 | Regresa a su territorio | ✅ | Studio: vuelve a Patrol junto al centro de su arena |
-| 16 | Recompensas una sola vez | ✅ | Studio: arma, mascota y energía una vez; el segundo golpe no hace nada |
+| 16 | Recompensas una sola vez | ✅ | Studio: arma y energía una vez; el segundo golpe no hace nada |
 | 17 | El siguiente mapa sigue bloqueado | ✅ | Studio: con 50 000 ⚡, BossLocked; tras el Guardián, Success; batería `zones` |
 | 18 | El progreso se conserva al volver | ✅ batería | `persist`: dinero, armas, equipada, niveles y jefes. En Studio no se puede (DataStore sin acceso a la API) |
 | 19 | Sin botones rotos ni errores | ✅ | Studio: los 9 paneles se abren y cierran; 0 errores en cliente y servidor |

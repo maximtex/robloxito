@@ -13,6 +13,10 @@
 --   de la ventana del chat; en táctil arriba a la izquierda (allí el chat empieza cerrado).
 -- - Columna derecha: aviso de datos, tutorial y (escritorio) seguimiento de misiones, hasta
 --   justo encima de los botones de combate.
+-- - Botones del menú a la derecha (escritorio, MenuBar): Misiones, Premios y Tienda en
+--   columna pegada al borde, entre el cartel de la zona y el combate (SideMenu). El
+--   seguimiento de misiones queda a su izquierda. En táctil, y en ventanas tan estrechas
+--   que el seguimiento pisaría la energía, van en la fila de abajo (sin SideMenu).
 -- - Avisos: una sola pila bajo la tarjeta de energía (y bajo la barra del jefe si se ve),
 --   con tantas filas como quepan antes de la tarjeta de mejora.
 
@@ -65,6 +69,17 @@ local SIZES = {
 	Chips = Vector2.new(140, 60), -- indicadores de mascotas (dragón, tortuga) con su rótulo debajo
 	ChipLabel = 18,
 	ChipsGap = 12, -- separación sobre el botón de ataque
+	-- Botones del menú (MenuBar): un 30 % más grandes que el resto del HUD, como en el
+	-- diseño (con la escala del HUD en 0,77 quedan a 76 px, igual que en el diseño).
+	MenuBoost = 1.3,
+	-- Columna de botones del menú a la derecha (MenuBar; solo escritorio)
+	SideTile = 76,
+	SideGap = 18,
+	SideCount = 3, -- Misiones, Premios, Tienda
+	SideEdge = 24, -- separación con el borde derecho
+	SideTop = 108, -- borde superior (a escala 1), como en el diseño
+	SideTopMin = 60, -- nunca encima del cartel de la zona (arriba a la derecha)
+	SideLabel = 7, -- el nombre asoma por debajo del último azulejo
 	-- Elementos de Roblox (no escalan con el HUD)
 	ChatTop = 4,
 	ChatShare = 0.25, -- la ventana del chat mide ~1/4 de la altura
@@ -203,11 +218,39 @@ function HudLayout.compute(screen: Vector2, touch: boolean, options: Options?): 
 		rightBottom = math.min(attack.Y, layout.Abilities[1].Y, if opts.Chips then layout.Chips.Y else math.huge) - SIZES.Gap
 	end
 	local rightX = W - SIZES.Edge - rightW
+	-- Escritorio: botones del menú en columna pegada al borde derecho, entre el cartel de la
+	-- zona y el combate. El seguimiento de misiones (columna derecha) va a su izquierda.
+	local menuScale = math.min(s * SIZES.MenuBoost, HudLayout.MaxScale)
+	layout.MenuScale = menuScale
+	if not touch then
+		local sideScale = menuScale
+		local sideW = SIZES.SideTile * sideScale
+		local sideH = (SIZES.SideCount * SIZES.SideTile + (SIZES.SideCount - 1) * SIZES.SideGap + SIZES.SideLabel) * sideScale
+		local top = SIZES.SideTop * sideScale
+		if top + sideH > rightBottom then
+			top = math.max(SIZES.SideTopMin * s, rightBottom - sideH)
+			if top + sideH > rightBottom then
+				-- No cabe ni subiéndola: se encoge hasta caber.
+				sideScale = sideScale * math.max(rightBottom - top, 1) / sideH
+				sideH = rightBottom - top
+				sideW = SIZES.SideTile * sideScale
+			end
+		end
+		local sideX = W - SIZES.SideEdge * s - sideW
+		local shiftedX = math.min(rightX, sideX - SIZES.Gap * s - rightW)
+		-- Solo si la columna derecha corrida aún no pisa la tarjeta de energía; si no (ventanas
+		-- estrechas), sin columna de botones: MenuBar los pone todos en la fila de abajo.
+		if shiftedX >= energy.X + energy.W then
+			layout.SideMenu = { X = sideX, Y = top, W = sideW, H = sideH, Scale = sideScale }
+			rightX = shiftedX
+		end
+	end
 	-- En ventanas estrechas la columna llega a la altura de la tarjeta de mejora: para encima.
 	if rightX < layout.Upgrade.X + layout.Upgrade.W then
 		rightBottom = math.min(rightBottom, layout.Upgrade.Y - SIZES.Gap)
 	end
-	layout.Right = { X = rightX, Y = SIZES.Margin, W = rightW, Bottom = rightBottom }
+	-- Inset: distancia de su borde derecho al de la pantalla (HudDock la ancla ahí).
+	layout.Right = { X = rightX, Y = SIZES.Margin, W = rightW, Bottom = rightBottom, Inset = W - rightX - rightW }
 	layout.TrackerColumn = if touch then "Left" else "Right"
 
 	-- Pila de avisos (centrada bajo la energía y la barra del jefe).

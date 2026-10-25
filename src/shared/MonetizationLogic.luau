@@ -3,7 +3,7 @@
 --
 -- Pases que tiene un jugador: tabla { [PassKey] = true } (la rellena ShopService al
 -- entrar, consultando a Roblox; no se guarda: Roblox es la fuente de verdad). En los
--- atributos viaja como texto "DoubleEnergy,PetSpace".
+-- atributos viaja como texto "DoubleEnergy,TripleHatch".
 --
 -- Datos guardados (campo Shop del registro):
 --   Receipts: { PurchaseId } últimas compras sueltas ya concedidas (no se conceden dos veces).
@@ -84,6 +84,11 @@ function MonetizationLogic.inventoryBonus(passes: Passes?): number
 	return if owns(passes, "PetSpace") then MonetizationConfig.InventoryBonus else 0
 end
 
+-- Sin el pase, el arma solo dispara cuando el jugador lo pide (clic, F o "Disparar").
+function MonetizationLogic.autoFire(passes: Passes?): boolean
+	return owns(passes, "AutoFire")
+end
+
 -- Mascotas equipadas a la vez: base + renacimiento ("Espacio de mascota") + pase.
 function MonetizationLogic.maxEquipped(rebirth: any, passes: Passes?, base: number): number
 	return RebirthLogic.maxEquipped(rebirth, base) + MonetizationLogic.petSlotBonus(passes)
@@ -97,6 +102,13 @@ end
 
 function MonetizationLogic.maxInventory(passes: Passes?, base: number): number
 	return base + MonetizationLogic.inventoryBonus(passes)
+end
+
+function MonetizationLogic.hatchCount(passes: Passes?, requested: any): number
+	if requested == MonetizationConfig.TripleCount and owns(passes, "TripleHatch") then
+		return MonetizationConfig.TripleCount
+	end
+	return 1
 end
 
 -- Ids de Roblox -> artículo ------------------------------------------------------------------
@@ -133,6 +145,19 @@ function MonetizationLogic.petProductById(productId: any): (string?, any)
 	for petId, def in MonetizationConfig.PetProducts do
 		if def.Id == productId then
 			return petId, def
+		end
+	end
+	return nil, nil
+end
+
+-- Arma de un producto: su id de WeaponConfig y su definición.
+function MonetizationLogic.weaponProductById(productId: any): (string?, any)
+	if type(productId) ~= "number" or productId <= 0 then
+		return nil, nil
+	end
+	for weaponId, def in MonetizationConfig.WeaponProducts do
+		if def.Id == productId then
+			return weaponId, def
 		end
 	end
 	return nil, nil

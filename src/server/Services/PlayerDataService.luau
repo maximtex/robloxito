@@ -7,6 +7,8 @@
 -- AdventureLogic.productionMultiplier). Al cargar se concede la producción offline desde
 -- el último guardado (CoreLogic), también con el multiplicador de renacimiento, sus horas
 -- extra y los amuletos (las bendiciones son solo para jugar).
+-- Mientras dura, la Poción de Energía (ItemLogic, inventario) también la multiplica (no la
+-- offline: el tiempo de las pociones solo corre jugando).
 -- Pases de la tienda (profile.Passes, los rellena ShopService al consultar a Roblox): el
 -- de «Energía ×2» multiplica la producción y la offline (para la offline se espera unos
 -- segundos a saber qué pases tiene).
@@ -16,7 +18,7 @@
 -- Carga:
 -- - Mientras carga ("Loading") se sigue produciendo energía y cobrando recompensas de
 --   enemigos; al terminar se SUMA a la energía guardada (no se pierde ni se duplica).
---   Gastar no es posible durante la carga (mejoras, armas, mascotas y zonas exigen datos listos).
+--   Gastar no es posible durante la carga (mejoras, armas, huevos y zonas exigen datos listos).
 -- - Si la carga falla ("Failed") se juega con valores de sesión y NUNCA se guarda: los
 --   datos buenos del DataStore no se pisan con valores por defecto.
 -- Guardado:
@@ -42,6 +44,7 @@ local RebirthLogic = require(Shared.RebirthLogic)
 local AdventureLogic = require(Shared.AdventureLogic)
 local MonetizationLogic = require(Shared.MonetizationLogic)
 local PetConfig = require(Shared.Config.PetConfig)
+local ItemLogic = require(Shared.ItemLogic)
 local SaveService = require(script.Parent.SaveService)
 local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
 local DevConfig = require(script.Parent.Parent.DevConfig)
@@ -141,6 +144,7 @@ function PlayerDataService.recalculateProduction(player: Player)
 			* RebirthLogic.energyMultiplier(profile.PetData.Rebirth)
 			* AdventureLogic.productionMultiplier(profile.PetData.Adventure, os.time())
 			* MonetizationLogic.energyMultiplier(profile.Passes)
+			* ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time()) -- Poción de Energía
 	end
 end
 
@@ -214,8 +218,10 @@ function PlayerDataService.replicate(player: Player)
 	local stats = PlayerDataService.combatStats(profile)
 	setIfChanged(player, attributes.EquippedWeapon, stats.WeaponId)
 	setIfChanged(player, attributes.Weapons, weaponsText(profile.PetData.Weapons))
-	setIfChanged(player, attributes.PlayerDamage, stats.Shot)
-	setIfChanged(player, attributes.DamagePerSecond, stats.Dps)
+	-- Con la Poción de Fuerza se muestra el daño doble (lo aplica EnemyService.damage).
+	local damageBoost = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Damage", os.time())
+	setIfChanged(player, attributes.PlayerDamage, stats.Shot * damageBoost)
+	setIfChanged(player, attributes.DamagePerSecond, stats.Dps * damageBoost)
 
 	-- Dinero en la lista de jugadores
 	local leaderstats = player:FindFirstChild("leaderstats")
@@ -339,6 +345,10 @@ end
 -- EnergyService, así que NO cuenta para las misiones de "generar energía". Se guarda en
 -- seguida para que LastSeen avance y la misma ausencia no se pueda cobrar dos veces.
 local function grantOfflineReward(player: Player, profile: Profile)
+	-- Rediseño "solo disparar": sin energía pasiva tampoco hay energía mientras no juegas.
+	if EconomyConfig.PassiveEnergy == false then
+		return
+	end
 	-- El pase «Energía ×2» también vale offline: se espera (poco) a saber si lo tiene.
 	local deadline = os.clock() + PASSES_WAIT
 	while expectPasses and not profile.PassesChecked and os.clock() < deadline and profiles[player] == profile do

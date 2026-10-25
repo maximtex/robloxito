@@ -2,7 +2,8 @@
 -- WeaponLogic valida cada acción con los datos del servidor (precio, requisito de zona,
 -- nivel máximo); aquí solo se comprueba que el perfil esté listo, se cobra y se replica.
 -- Un arma comprada se equipa al momento. Los jefes regalan la suya con WeaponService.grant
--- (BossRewardService).
+-- (BossRewardService); las compradas con Robux llegan por WeaponService.grantPurchased
+-- (ShopService).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -70,6 +71,24 @@ function WeaponService.grant(player: Player, weaponId: string): boolean
 	PlayerDataService.replicate(player)
 	PlayerDataService.saveNow(player)
 	resultRemote:FireClient(player, true, "BossDrop", "Grant", weaponId, 0)
+	return true
+end
+
+-- Entrega un arma comprada con Robux (aunque su zona siga cerrada) y la equipa. Quien
+-- llama guarda la compra. false si el arma no existe o no hay datos.
+function WeaponService.grantPurchased(player: Player, weaponId: string): boolean
+	local profile = PlayerDataService.get(player)
+	if not profile or not WeaponLogic.definition(weaponId) then
+		return false
+	end
+	local weapons = profile.PetData.Weapons
+	WeaponLogic.grant(weapons, weaponId) -- false si ya la tenía: se equipa igualmente
+	WeaponLogic.equip(weapons, weaponId)
+	PlayerDataService.markDirty(player)
+	PlayerDataService.replicate(player)
+	if resultRemote then
+		resultRemote:FireClient(player, true, "Robux", "Buy", weaponId, 0)
+	end
 	return true
 end
 

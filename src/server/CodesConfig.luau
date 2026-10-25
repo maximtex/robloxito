@@ -4,7 +4,7 @@
 -- Cada código se canjea UNA vez por jugador. Se escriben en MAYÚSCULAS, solo letras y
 -- números (el jugador puede escribirlos en minúsculas o con espacios: se normalizan).
 --   Reward       = premio, con el mismo formato que la racha (RewardConfig):
---                  Energy = { Minutes, Min }, Blessings = { Id = n }, Pet = "<PetId>"
+--                  Energy = { Minutes, Min }, Blessings = { Id = n }, Pet = true
 --   Until        = { Year, Month, Day } último día válido (hora UTC, hasta las 23:59:59).
 --                  Sin Until, el código no caduca.
 --   MinRebirths  = renacimientos mínimos para canjearlo (opcional).

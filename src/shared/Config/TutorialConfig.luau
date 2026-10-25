@@ -10,16 +10,16 @@
 -- veterano con el Valle no repite nada: el tutorial se completa solo).
 -- Sin recompensas: las mismas acciones ya las premian las misiones.
 --
--- Guide: a dónde apunta la guía del cliente ("Crystal", "Stand:<pedestal del jardín>",
--- "Arena:<zona del jefe>", "Portal:<PortalId>") o qué parte de la interfaz se señala
--- ("ArmoryButton", "PetsButton").
+-- Guide: a dónde apunta la guía del cliente ("Crystal", "Egg:<EggId>", "Arena:<zona del
+-- jefe>", "Portal:<PortalId>") o qué parte de la interfaz se señala ("ArmoryButton",
+-- "PetsButton").
 
 local TutorialConfig = {
 	Steps = {
 		{
 			Id = "Hunt",
 			Title = "Derrota enemigos",
-			Text = "Sal del pueblo: tu arma dispara sola a los enemigos cercanos. Derrota 3 y recoge su 💰.",
+			Text = "Sal del pueblo y haz clic en un enemigo para dispararle (o pulsa F / \"Disparar\" para el más cercano). Derrota 3 y recoge su 💰.",
 			Goal = { Source = "Stat", Key = "Kills" },
 			Target = 3,
 		},
@@ -34,15 +34,15 @@ local TutorialConfig = {
 		{
 			Id = "Pet",
 			Title = "Consigue una mascota",
-			Text = "En el 🐾 Jardín de mascotas (a la derecha del spawn) cada pedestal vende una. Compra la Seta Saltarina.",
+			Text = "Ve al 🥚 Jardín de los Huevos (a la derecha del spawn) y abre el Huevo del Bosque (50 ⚡).",
 			Goal = { Source = "State", Key = "PetsOwned" },
 			Target = 2, -- la inicial y una más
-			Guide = "Stand:ForestEgg",
+			Guide = "Egg:ForestEgg",
 		},
 		{
 			Id = "Boss",
-			Title = "Derrota al Guardián del Bosque",
-			Text = "Te perseguirá y avisa sus golpes en el suelo: apártate del círculo rojo. Regala un arma y una mascota.",
+			Title = "Aguanta las oleadas del Guardián",
+			Text = "En el Círculo del Guardián pulsa E en el pedestal: aguanta 10 oleadas y en la última sale el Guardián. Avisa sus golpes en el suelo: apártate del círculo rojo. Regala un arma.",
 			Goal = { Source = "Stat", Key = "BossKills" },
 			Target = 1,
 			Guide = "Arena:Forest",

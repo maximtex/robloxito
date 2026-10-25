@@ -1,3 +1,6 @@
+-- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
+-- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
+EconomyConfig.PassiveEnergy = true
 -- Renacimiento: RebirthLogic (pura) y el RebirthService REAL con PlayerDataService y
 -- SaveService reales sobre un DataStore en memoria. Requisito, reinicio en el mismo paso,
 -- fichas, tienda, multiplicadores (producción, offline, botín, daño), espacios de mascota,
@@ -84,8 +87,15 @@ check("renacer con datos no válidos: InvalidRequest", RebirthLogic.rebirth(nil,
 local maxed = { Count = RebirthConfig.MaxRebirths, Tokens = 0, Shop = {}, BestLevel = 50, LastAt = 0 }
 check("tope de renacimientos: MaxLevel", RebirthLogic.rebirth(maxed, 50, 1) == "MaxLevel" and maxed.Count == RebirthConfig.MaxRebirths)
 
-print("-- 4. El mejor nivel con el que se renació se conserva")
-check("unlockLevel recuerda el mejor nivel aunque la Resonancia vuelva a 0", RebirthLogic.unlockLevel({ BestLevel = 20 }, 0) == 20)
+print("-- 4. Huevos: el nivel que cuenta tras renacer")
+local eggProfile = { Energy = 1e6, UpgradeLevels = { GeneratorPower = 0 }, PetData = { Pets = {}, Equipped = {}, NextPetUid = 1, UnlockedZones = {} } }
+-- Los huevos del mapa ya no piden nivel: se prueba con una copia que pide nivel 16.
+local ancient = table.clone(EggConfig.Eggs.AncientEgg)
+ancient.RequiredLevel = 16
+local limits = { MaxInventory = 50, MaxEquipped = 3, UnlockUpgradeId = "GeneratorPower" }
+check("sin renacer, nivel 0: el Huevo Ancestral sigue bloqueado", EggLogic.purchase(eggProfile, ancient, 10, limits, Codes) == Codes.Locked)
+limits.UnlockLevel = RebirthLogic.unlockLevel({ BestLevel = 20 }, 0)
+check("tras renacer con nivel 20 se puede abrir aunque la Resonancia esté a 0", EggLogic.purchase(eggProfile, ancient, 10, limits, Codes) == Codes.Success)
 
 print("-- 5. RebirthService real: renacer")
 local p1 = PetService.newPlayer("Ana", 1)
@@ -124,7 +134,7 @@ check("aviso a todos: quién y cuántos", broadcast and broadcast.Name == "Rebir
 check("inventario de mascotas reenviado (huevos y espacios al día)", PetService.Pushed == pushedBefore + 1)
 advance(0)
 local saved = record(1)
-check("guardado en seguida: Version 8 y Rebirth en el registro", saved and saved.Version == 8 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1 and saved.Rebirth.BestLevel == 22)
+check("guardado en seguida: Version 9 y Rebirth en el registro", saved and saved.Version == 9 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1 and saved.Rebirth.BestLevel == 22)
 
 fireServer("Rebirth", p1)
 advance(0)

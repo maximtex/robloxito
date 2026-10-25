@@ -9,7 +9,7 @@
 --   { Source = "BossTypes" }   jefes distintos derrotados al menos una vez.
 --   { Source = "State", Key = ... }   estado actual del perfil: UpgradeLevel, PetsOwned,
 --       PetsEquipped, CombatPetsOwned, ZonesUnlocked (zonas compradas).
---   { Source = "Daily", Event = "Kill" | "Energy" | "PetAbility" | "Upgrade", Kind?, Zone? }
+--   { Source = "Daily", Event = "Kill" | "Energy" | "PetAbility" | "Upgrade" | "Egg", Kind?, Zone? }
 --       contador del día (solo para misiones diarias). Upgrade: mejoras de la Resonancia
 --       del Cristal compradas; Egg: huevos abiertos.
 -- RequiresZone: no se muestra como alcanzable (ni se ofrece como diaria) sin esa zona.
@@ -163,6 +163,14 @@ local QuestConfig = {
 			Goal = { Source = "Daily", Event = "Upgrade" },
 			Target = 10,
 			Reward = { Min = 120, Share = 1, Max = 1500 },
+		},
+		{
+			Id = "DailyEggs",
+			Title = "Incubadora",
+			Description = "Abre 3 huevos.",
+			Goal = { Source = "Daily", Event = "Egg" },
+			Target = 3,
+			Reward = { Min = 150, Share = 1, Max = 1500 },
 		},
 		{
 			Id = "DailyPets",

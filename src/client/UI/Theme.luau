@@ -1,33 +1,34 @@
 -- Paleta, tipografías y medidas de la interfaz. Estilo simulador (la referencia que eligió
--- Santiago): iconos dibujados, contorno oscuro grueso, texto blanco con borde y colores
--- vivos sobre el verde esmeralda del bosque. La comparten todos los paneles.
+-- Santiago): paneles gris carbón con textura de studs, barra de título color arena,
+-- botones rojos gruesos, contorno negro y texto blanco con borde. La comparten todos los
+-- paneles.
 
 local Theme = {
 	Colors = {
-		Panel = Color3.fromRGB(34, 74, 58), -- esmeralda
-		PanelTransparency = 0.06,
-		Stroke = Color3.fromRGB(43, 29, 63), -- contorno oscuro (el de los iconos)
+		Panel = Color3.fromRGB(46, 46, 52), -- gris carbón
+		PanelTransparency = 0.02,
+		Stroke = Color3.fromRGB(16, 14, 18), -- contorno negro (el de los iconos)
 		StrokeTransparency = 0,
-		Inset = Color3.fromRGB(24, 54, 42),
-		Text = Color3.fromRGB(246, 242, 228),
-		Muted = Color3.fromRGB(198, 202, 186), -- piedra clara
-		Accent = Color3.fromRGB(104, 214, 150), -- esmeralda
-		Buy = Color3.fromRGB(64, 182, 88),
-		BuyHighlight = Color3.fromRGB(156, 236, 140),
-		Disabled = Color3.fromRGB(76, 94, 86),
-		Secondary = Color3.fromRGB(84, 104, 94), -- botones secundarios (Quitar, Volver)
+		Inset = Color3.fromRGB(30, 30, 35), -- tarjetas y huecos, más oscuros que el panel
+		Text = Color3.fromRGB(255, 255, 255),
+		Muted = Color3.fromRGB(196, 196, 206), -- gris claro
+		Accent = Color3.fromRGB(118, 224, 104), -- verde (reclamado, activo)
+		Buy = Color3.fromRGB(228, 58, 50), -- botón principal: rojo
+		BuyHighlight = Color3.fromRGB(150, 236, 120), -- textos de éxito (verde)
+		Disabled = Color3.fromRGB(76, 76, 84),
+		Secondary = Color3.fromRGB(96, 96, 106), -- botones secundarios (Quitar, Volver)
 		Max = Color3.fromRGB(140, 104, 30),
-		Gold = Color3.fromRGB(236, 200, 120),
-		Error = Color3.fromRGB(255, 136, 120),
-		Overlay = Color3.fromRGB(8, 16, 12),
-		Outline = Color3.fromRGB(43, 29, 63), -- contorno oscuro de botones y texto
+		Gold = Color3.fromRGB(255, 206, 84),
+		Error = Color3.fromRGB(255, 120, 104),
+		Overlay = Color3.fromRGB(12, 12, 14),
+		Outline = Color3.fromRGB(16, 14, 18), -- contorno negro de botones y texto
 	},
 
 	-- Piezas del estilo simulador: azulejos del menú, barras de moneda e insignias.
 	Cartoon = {
-		Ink = Color3.fromRGB(43, 29, 63), -- contorno de iconos, azulejos y barras
+		Ink = Color3.fromRGB(16, 14, 18), -- contorno de iconos, azulejos y barras
 		Stroke = 3, -- grosor del contorno de azulejos, barras y botones grandes
-		TextStroke = 2.5, -- borde de los textos grandes (UIStroke alrededor de las letras)
+		TextStroke = 3, -- borde de los textos grandes (UIStroke alrededor de las letras)
 		Pill = Color3.fromRGB(255, 255, 255), -- barras de moneda: blanco translúcido
 		PillTransparency = 0.3,
 		Plus = Color3.fromRGB(96, 214, 96), -- botón verde "+" junto a la energía
@@ -42,6 +43,26 @@ local Theme = {
 		ButtonShade = 0.74, -- ídem en botones (más marcado: efecto de volumen)
 		ShineTransparency = 0.9, -- brillo blanco en la parte alta del panel
 		ShineHeight = 46,
+		PanelCorner = 12, -- esquinas de los paneles
+	},
+
+	-- Barra de título color arena de los paneles (con título arriba: "Title" o "Heading").
+	-- Lleva el título, el subtítulo y el botón de cerrar (rojo).
+	Header = {
+		Top = Color3.fromRGB(246, 222, 170), -- arena clara arriba
+		Bottom = Color3.fromRGB(204, 162, 104), -- arena tostada abajo
+		Line = 3, -- línea negra que la separa del cuerpo
+		GlossTransparency = 0.45, -- brillo blanco fino arriba
+		MinHeight = 56,
+		Close = Color3.fromRGB(228, 58, 50),
+	},
+
+	-- Textura del cuerpo de los paneles grandes: studs de Roblox sobre el gris carbón.
+	Grid = {
+		Image = "rbxassetid://109441301720998", -- la misma textura de studs del suelo
+		Tile = 150, -- píxeles por repetición (unos 18 px por stud)
+		Transparency = 0,
+		MinSize = 200, -- solo en paneles de al menos 200 × 200 (no en botones ni barras)
 	},
 
 	Fonts = {

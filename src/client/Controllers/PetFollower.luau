@@ -15,6 +15,7 @@ local MonetizationLogic = require(Shared.MonetizationLogic)
 local PetModelBuilder = require(script.Parent.Parent.Pets.PetModelBuilder)
 local PetLayout = require(script.Parent.Parent.Pets.PetLayout)
 local PetAnimator = require(script.Parent.Parent.Pets.PetAnimator)
+local RevealGate = require(script.Parent.Parent.Pets.RevealGate)
 
 local MAX_SHOWN = MonetizationLogic.maxEquippedCap(PetConfig.MaxEquipped)
 
@@ -46,6 +47,9 @@ local MOTIONS: { [string]: Motion } = {
 	Quartz = { Hover = 0.78, Bob = 0.08, BobSpeed = 2.5, Hop = 0.22, HopSpeed = 10, Sway = 0.1 },
 	Turtle = { Hover = 0.62, Bob = 0.03, BobSpeed = 1.2, Hop = 0.08, HopSpeed = 5, Sway = 0.12 },
 	Dragon = { Hover = 2.7, Bob = 0.3, BobSpeed = 2.2, Pitch = 0.1 },
+	-- Huevo Clásico (modelos 3D): los cubitos van dando saltitos; el Dragoncito vuela.
+	Classic = { Hover = 0.95, Bob = 0.04, BobSpeed = 2.2, Hop = 0.5, HopSpeed = 8 },
+	ClassicFly = { Hover = 2.4, Bob = 0.3, BobSpeed = 2.4, Pitch = 0.08 },
 }
 local DEFAULT_MOTION: Motion = { Hover = 1.1, Bob = 0.15, BobSpeed = 3 }
 
@@ -101,6 +105,9 @@ end
 local function rebuild(player: Player)
 	local tracker = trackers[player]
 	if not tracker then
+		return
+	end
+	if player == Players.LocalPlayer and RevealGate.isHeld() then
 		return
 	end
 	local value = player:GetAttribute(Constants.Attributes.EquippedPets)
@@ -297,6 +304,9 @@ function PetFollower.start()
 	end
 
 	RunService.Heartbeat:Connect(update)
+	RevealGate.Released:Connect(function()
+		rebuild(Players.LocalPlayer)
+	end)
 end
 
 return PetFollower

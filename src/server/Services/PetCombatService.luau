@@ -24,6 +24,8 @@
 --   de críticos; Puños golpea cuerpo a cuerpo (poco alcance, más DPS, sin efecto del arma);
 --   Magia lanza orbes que explotan y cura al jugador con una parte del daño. La Ráfaga
 --   (habilidad de Armas, StyleService.setBurst) acorta el tiempo entre disparos un rato.
+-- - Clase activa del estilo (PetData.Classes; ClassLogic.mods): más daño, cadencia y alcance,
+--   críticos, robo de vida, explosión, frenar y el combo antes.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,6 +38,7 @@ local WeaponLogic = require(Shared.WeaponLogic)
 local MonetizationLogic = require(Shared.MonetizationLogic)
 local StyleLogic = require(Shared.StyleLogic)
 local StyleConfig = require(Shared.Config.StyleConfig)
+local ClassLogic = require(Shared.ClassLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
@@ -314,17 +317,17 @@ end
 
 -- Un disparo (o golpe, u orbe, según el estilo) a `target`, con su efecto. true si el
 -- objetivo ha muerto.
-local function fire(player: Player, root: BasePart, target: any, stats, mods: any?, style: string): boolean
+local function fire(player: Player, root: BasePart, target: any, stats, mods: any?, style: string, class: ClassLogic.Mods): boolean
 	local def = WeaponLogic.definition(stats.WeaponId)
-	local effect = effectWith(StyleLogic.effect(style, def and def.Effect), mods)
+	local effect = ClassLogic.applyEffect(effectWith(StyleLogic.effect(style, def and def.Effect), mods), class)
 	local targetPosition = target.Root.Position
 	local hits = {}
-	-- Puntería (Armas): algunos disparos son críticos (solo el golpe principal)
-	local crit = StyleLogic.critMultiplier(style, PetCombatService.random())
+	-- Puntería (Armas) y la clase: algunos disparos son críticos (solo el golpe principal)
+	local crit = StyleLogic.critMultiplier(style, PetCombatService.random(), class.CritChance, class.CritPower)
 	-- Combo de golpes: cada pocos golpes seguidos, uno especial (tiro cargado, gancho, gran orbe)
 	local comboState = hitCombos[player] or { Count = 0, Last = 0 }
 	hitCombos[player] = comboState
-	local combo = StyleLogic.countHit(style, comboState, os.clock())
+	local combo = StyleLogic.countHit(style, comboState, os.clock(), class.ComboEvery)
 	local power = if combo then combo.Multiplier or 2 else 1
 	local killed = hitWith(player, target, stats.Shot * crit * power, effect.Slow, hits)
 	if combo and combo.Knockback and not killed and EnemyService.isAlive(target) then
@@ -363,8 +366,8 @@ local function fire(player: Player, root: BasePart, target: any, stats, mods: an
 		end
 	end
 
-	-- Robo de vida (Magia): una parte de todo el daño de este golpe, con tope
-	if style == "Magic" then
+	-- Robo de vida (Magia y clases): una parte de todo el daño de este golpe, con tope
+	if style == "Magic" or class.LifeSteal > 0 then
 		local dealt = 0
 		for _, hit in hits do
 			dealt += hit.Damage
@@ -372,7 +375,7 @@ local function fire(player: Player, root: BasePart, target: any, stats, mods: an
 		local character = player.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
-			heal(player, StyleLogic.lifeSteal(style, dealt, humanoid.MaxHealth))
+			heal(player, StyleLogic.lifeSteal(style, dealt, humanoid.MaxHealth, class.LifeSteal))
 		end
 	end
 
@@ -409,6 +412,11 @@ function PetCombatService.step(now: number)
 		-- Estilo de pelea (alcance, ritmo y daño de cada golpe) y la Ráfaga
 		local style = styleOf(profile)
 		stats = styledStats(profile, stats)
+		-- Clase activa del estilo: daño, cadencia y alcance de tus golpes
+		local class = ClassLogic.mods(profile.PetData.Classes, style)
+		stats.Shot = stats.Shot * class.Damage
+		stats.Cooldown = math.max(0.05, stats.Cooldown * class.Cooldown)
+		stats.Range = stats.Range * class.Range
 		if (burstUntil[player] or 0) > now then
 			stats.Cooldown = math.max(0.05, stats.Cooldown * (burstScale[player] or 0.5))
 		end
@@ -461,7 +469,7 @@ function PetCombatService.step(now: number)
 			shots += 1
 			state.NextShotAt += stats.Cooldown
 			state.ShotRequestedAt = -math.huge
-			local killed = fire(player, root, target, stats, mods, style)
+			local killed = fire(player, root, target, stats, mods, style, class)
 			-- Disparo doble (mejora de la partida): uno más gratis, al mismo objetivo o, si ha
 			-- caído, al más cercano a tiro.
 			local twin = if mods then finite(mods.Twin, 0, 0, 1) else 0
@@ -471,7 +479,7 @@ function PetCombatService.step(now: number)
 				end
 				local other = if EnemyService.isAlive(target) then target else EnemyService.findInRadius(root.Position, stats.Range, 1, player)[1]
 				if other and inReach(root, other, stats.Range) then
-					fire(player, root, other, stats, mods, style)
+					fire(player, root, other, stats, mods, style, class)
 				end
 			end
 			if killed then

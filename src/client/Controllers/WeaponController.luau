@@ -1,7 +1,7 @@
 -- Armería (panel "Armory") con el diseño «Armería Roblox»: cabecera naranja a rayas con
 -- ARMERÍA (o GUANTES / BASTONES: cada estilo de pelea tiene su tienda y solo se ve la de tu
--- estilo, WeaponConfig.Category), el botón ⚡ MEJORAS (habilidades del estilo,
--- SkillsController), el dinero y la X roja; debajo, una tarjeta por arma (cuatro a la vista; las
+-- estilo, WeaponConfig.Category), los botones ⚡ MEJORAS (habilidades del estilo,
+-- SkillsController) y 🎭 CLASES (ClassesController), el dinero y la X roja; debajo, una tarjeta por arma (cuatro a la vista; las
 -- flechas pasan al resto) con su arte, su rareza, sus números y sus botones: comprar con
 -- dinero o con Robux, equipar y mejorar. Se abre en el puesto del pueblo, con la tecla L o
 -- con el botón "Armas" del menú. Solo muestra y pide: el servidor valida y cobra
@@ -59,6 +59,7 @@ local GRAY = { Color3.fromRGB(138, 148, 143), Color3.fromRGB(92, 102, 96) }
 local DARK = { Color3.fromRGB(58, 70, 86), Color3.fromRGB(35, 44, 56) }
 local PURPLE = { Color3.fromRGB(240, 138, 255), Color3.fromRGB(168, 48, 232) }
 local RED = { Color3.fromRGB(255, 90, 78), Color3.fromRGB(216, 30, 30) }
+local ORANGE = { Color3.fromRGB(255, 186, 92), Color3.fromRGB(232, 104, 32) }
 
 local DISPLAY = Theme.Fonts.Display -- Fredoka One
 local BOLD = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.ExtraBold)
@@ -637,17 +638,34 @@ local function buildGui()
 	local skills = chunkyButton(header, "Skills", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 520, 0.5, 0),
-		Size = UDim2.fromOffset(210, 58),
+		Size = UDim2.fromOffset(190, 58),
 		ZIndex = 4,
 	}, 12, 4)
 	fill(skills, PURPLE, 58)
 	outlinedText(skills, "Label", {
 		Size = UDim2.fromScale(1, 1),
 		Font = DISPLAY,
-		TextSize = 30,
+		TextSize = 28,
 		TextColor3 = WHITE,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Text = "⚡ MEJORAS",
+		ZIndex = 5,
+	}, 3.5)
+	-- 🎭 CLASES: la pasiva de tu estilo (comprar, subir y elegir con 💎)
+	local classes = chunkyButton(header, "Classes", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 720, 0.5, 0),
+		Size = UDim2.fromOffset(170, 58),
+		ZIndex = 4,
+	}, 12, 4)
+	fill(classes, ORANGE, 58)
+	outlinedText(classes, "Label", {
+		Size = UDim2.fromScale(1, 1),
+		Font = DISPLAY,
+		TextSize = 28,
+		TextColor3 = WHITE,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "🎭 CLASES",
 		ZIndex = 5,
 	}, 3.5)
 
@@ -762,6 +780,7 @@ local function buildGui()
 		HeaderEmoji = headerEmoji,
 		Title = title,
 		Skills = skills,
+		Classes = classes,
 		Close = close,
 		Money = moneyLabel,
 		Row = row,
@@ -1094,6 +1113,10 @@ function WeaponController.start()
 	ui.Skills.Activated:Connect(function()
 		PanelManager.close(PANEL_NAME)
 		PanelManager.open("Skills")
+	end)
+	ui.Classes.Activated:Connect(function()
+		PanelManager.close(PANEL_NAME)
+		PanelManager.open("Classes")
 	end)
 	local menuEntry = MenuBar.add({
 		Id = "Armory",

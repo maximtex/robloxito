@@ -29,6 +29,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local StyleConfig = require(Shared.Config.StyleConfig)
 local SkillLogic = require(Shared.SkillLogic)
+local ClassLogic = require(Shared.ClassLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Toasts = require(script.Parent.Parent.UI.Toasts)
@@ -81,6 +82,19 @@ local function equippedSkill(style: string, slot: number): (string, { [string]: 
 	end
 	local owned = SkillLogic.parseOwned(player:GetAttribute(Constants.Attributes.Skills))
 	return skillId, def.Skills[skillId], owned[skillId] or 1
+end
+
+-- Pasivas de la clase activa del estilo (para las recargas que se dibujan); se recalculan
+-- solo si cambian los atributos.
+local classCache: { Key: string, Mods: ClassLogic.Mods }? = nil
+local function classMods(style: string): ClassLogic.Mods
+	local owned = player:GetAttribute(Constants.Attributes.Classes)
+	local active = player:GetAttribute(Constants.Attributes.ClassActive)
+	local key = ("%s|%s|%s"):format(tostring(owned), tostring(active), style)
+	if not (classCache and classCache.Key == key) then
+		classCache = { Key = key, Mods = ClassLogic.mods(ClassLogic.parse(owned, active), style) }
+	end
+	return (classCache :: any).Mods
 end
 
 local function playSound(name: string, at: Vector3?)
@@ -1226,7 +1240,7 @@ function StyleController.start()
 		local style = styleId()
 		for slot, ui in buttons do
 			local _, ability, level = equippedSkill(style, slot)
-			local total = SkillLogic.cooldown(ability, level)
+			local total = SkillLogic.cooldown(ability, level) * classMods(style).SkillCooldown
 			local readyAt = player:GetAttribute(READY_ATTRIBUTES[slot])
 			local left = if typeof(readyAt) == "number" then readyAt - serverNow() else 0
 			if left > 0 then
@@ -1250,7 +1264,7 @@ function StyleController.start()
 		if dashUi.Frame.Visible then
 			local dashAt = player:GetAttribute(Constants.Attributes.DashReadyAt)
 			local left = if typeof(dashAt) == "number" then dashAt - serverNow() else 0
-			local total = StyleConfig.Styles.Fists.Dash.Cooldown
+			local total = StyleConfig.Styles.Fists.Dash.Cooldown * classMods("Fists").DashCooldown
 			dashUi.Cooldown.Size = UDim2.fromScale(1, if left > 0 then math.clamp(left / total, 0, 1) else 0)
 		end
 	end)

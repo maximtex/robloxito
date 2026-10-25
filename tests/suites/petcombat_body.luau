@@ -82,6 +82,13 @@ local PetCombatService = (function()
 	PETCOMBAT_SOURCE_HERE
 end)()
 
+-- Las pruebas 1 a 8 miden el arma y el estilo SIN clase (la gratis también suma): pasivas
+-- neutras hasta la sección 9, que usa las de verdad.
+local realClassMods = ClassLogic.mods
+ClassLogic.mods = function()
+	return ClassLogic.neutral()
+end
+
 local failures = 0
 local function check(name, ok)
 	if not ok then
@@ -348,5 +355,57 @@ now = run(now, 1)
 local burst = shots(ana)
 check(("Armas · Ráfaga: dispara el doble de rápido (%d en 1 s)"):format(#burst), #burst >= 4 and #burst <= 6)
 PetCombatService.setBurst(ana, 0)
+
+print("-- 9. Clases (pasiva de la clase activa del estilo)")
+ClassLogic.mods = realClassMods
+reset()
+profiles[ana] = profileWith("Laser") -- sin datos de clases: la gratis (Soldado, nivel 1)
+local soldierTarget = newEnemy(100, 20, 0, 100000)
+now = run(now, 0.6)
+local soldierShots = shots(ana)
+local soldierCombos = 0
+for _, shot in soldierShots do
+	if shot.Combo then
+		soldierCombos += 1 -- tiro cargado (×2), según venga el contador de la prueba anterior
+	end
+end
+check(("Soldado (gratis): cada disparo hace 8 × 1.08 = 8.64 (%d disparos)"):format(#soldierShots), #soldierShots >= 1 and near2(damageOf(soldierTarget), 8.64 * (#soldierShots + soldierCombos)))
+
+reset()
+local demo = profileWith("Laser")
+demo.PetData.Classes = ClassLogic.empty()
+ClassLogic.buy(demo.PetData.Classes, "Demolisher", 1e9)
+profiles[ana] = demo
+local demoTarget = newEnemy(101, 20, 0, 100000)
+local demoClose = newEnemy(102, 23, 0, 100000)
+now = run(now, 0.6)
+local demoShots = shots(ana)
+check(("Demoledor: el láser explota y hace el 30 %% al de al lado (%d disparos)"):format(#demoShots), #demoShots >= 1 and near2(damageOf(demoTarget), 8 * #demoShots) and near2(damageOf(demoClose), 2.4 * #demoShots) and demoShots[1].Splash == 5)
+
+reset()
+local berserk = profileWith("Laser")
+berserk.PetData.Style = "Fists"
+berserk.PetData.Classes = ClassLogic.empty()
+ClassLogic.buy(berserk.PetData.Classes, "Berserker", 1e9)
+profiles[ana] = berserk
+ana.Humanoid.MaxHealth = 100
+ana.Humanoid.Health = 50
+local berserkTarget = newEnemy(103, 8, 0, 100000)
+now = run(now, 0.6)
+local berserkHits = shots(ana)
+local berserkDealt = damageOf(berserkTarget)
+-- Puños: 10.5 por golpe × 1.2 (Berserker) = 12.6, y se cura el 3 % de lo que pega
+check(("Berserker: Puños pega ×1.2 y se cura el 3 %% del daño (%d golpes)"):format(#berserkHits), #berserkHits >= 1 and berserkDealt >= 12.6 * #berserkHits - 1e-6 and near2(ana.Humanoid.Health, 50 + berserkDealt * 0.03))
+ana.Humanoid.Health = 100
+
+reset()
+local sniper = profileWith("Laser")
+sniper.PetData.Classes = ClassLogic.empty()
+ClassLogic.buy(sniper.PetData.Classes, "Sniper", 1e9)
+profiles[ana] = sniper
+local laserRange = WeaponLogic.definition("Laser").Range
+local farTarget = newEnemy(104, laserRange + 4, 0, 100000)
+now = run(now, 0.6)
+check("Francotirador: llega más lejos que el láser normal (+20 %)", #shots(ana) >= 1 and farTarget.Status.Health < 100000)
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

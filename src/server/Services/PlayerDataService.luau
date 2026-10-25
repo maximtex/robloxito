@@ -47,6 +47,7 @@ local PetConfig = require(Shared.Config.PetConfig)
 local ItemLogic = require(Shared.ItemLogic)
 local StyleLogic = require(Shared.StyleLogic)
 local SkillLogic = require(Shared.SkillLogic)
+local ClassLogic = require(Shared.ClassLogic)
 local SaveService = require(script.Parent.SaveService)
 local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
 local DevConfig = require(script.Parent.Parent.DevConfig)
@@ -176,19 +177,21 @@ function PlayerDataService.combatStats(profile: Profile): CombatStats
 	}
 end
 
--- Velocidad al caminar (mejora, amuleto y estilo: Puños corren más y Magia camina más
--- lento) y vida máxima (Puños: +50 %) del personaje. Al cambiar la vida máxima se conserva
--- la parte de vida que tenía.
+-- Velocidad al caminar (mejora, amuleto, estilo: Puños corren más y Magia camina más
+-- lento, y clase) y vida máxima (Puños: +50 %, y clase) del personaje. Al cambiar la vida
+-- máxima se conserva la parte de vida que tenía.
 local BASE_HEALTH = 100
 local function applyBody(humanoid: Humanoid, profile: Profile)
 	local speedLevel = profile.UpgradeLevels.WalkSpeed or 0
 	local speedDef = EconomyConfig.Upgrades.WalkSpeed
 	local perLevel = if speedDef and type(speedDef.SpeedPerLevel) == "number" then speedDef.SpeedPerLevel else 2.5
 	local amuletMult = AdventureLogic.walkSpeedMultiplier(profile.PetData.Adventure)
-	local baseSpeed = (28 + speedLevel * perLevel) * amuletMult * StyleLogic.walkSpeed(profile.PetData.Style)
+	local style = StyleLogic.sanitize(profile.PetData.Style)
+	local class = ClassLogic.mods(profile.PetData.Classes, style)
+	local baseSpeed = (28 + speedLevel * perLevel) * amuletMult * StyleLogic.walkSpeed(style) * class.WalkSpeed
 	humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
 	humanoid.WalkSpeed = baseSpeed
-	local maxHealth = BASE_HEALTH * StyleLogic.maxHealth(profile.PetData.Style)
+	local maxHealth = math.floor(BASE_HEALTH * StyleLogic.maxHealth(style) * class.MaxHealth + 0.5)
 	local current = humanoid.MaxHealth
 	if type(current) == "number" and type(humanoid.Health) == "number" and math.abs(current - maxHealth) > 0.01 then
 		local fraction = if current > 0 then math.clamp(humanoid.Health / current, 0, 1) else 1
@@ -251,7 +254,13 @@ function PlayerDataService.replicate(player: Player)
 	setIfChanged(player, attributes.Skills, SkillLogic.ownedText(skills))
 	setIfChanged(player, attributes.SkillSlots, SkillLogic.slotsText(skills))
 	setIfChanged(player, attributes.StylePicked, skills.Picked == true)
-	setIfChanged(player, attributes.DamagePerSecond, StyleLogic.dps(stats.Dps, style) * damageBoost)
+	-- Clases: las que tiene (con nivel) y la activa de cada estilo
+	local classes = profile.PetData.Classes or ClassLogic.empty()
+	setIfChanged(player, attributes.Classes, ClassLogic.ownedText(classes))
+	setIfChanged(player, attributes.ClassActive, ClassLogic.activeText(classes))
+	-- DPS de tus golpes con la clase (daño y cadencia; las habilidades van aparte)
+	local class = ClassLogic.mods(classes, style)
+	setIfChanged(player, attributes.DamagePerSecond, StyleLogic.dps(stats.Dps, style) * damageBoost * class.Damage / class.Cooldown)
 
 	-- Dinero en la lista de jugadores
 	local leaderstats = player:FindFirstChild("leaderstats")

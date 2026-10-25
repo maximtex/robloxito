@@ -29,6 +29,10 @@
 --   la marca de un elemento (las habilidades elementales Q/R, AbilityService) le hace ×1.5 y
 --   gasta la marca («¡Combo elemental!»). Se multiplican, hasta ×COMBO.Max.
 -- - Daño que recibe el jugador según el estilo (Puños menos, Armas más; la Furia, la mitad).
+-- - Clases (ClassConfig, ClassLogic): StyleAction("BuyClass" | "UpgradeClass", classId) y
+--   ("SelectClass", classId): comprar y subir con 💎 y elegir la activa de su estilo. Sus
+--   pasivas, aquí: daño y recarga de las habilidades, recarga del dash, daño que recibes y
+--   daño a los jefes (gancho de EnemyService); las demás en PetCombatService y PlayerDataService.
 -- - StyleEvent: efectos ya resueltos a quien la usa y a los cercanos; "Result" solo a él.
 
 local Players = game:GetService("Players")
@@ -40,6 +44,7 @@ local Constants = require(Shared.Constants)
 local StyleConfig = require(Shared.Config.StyleConfig)
 local StyleLogic = require(Shared.StyleLogic)
 local SkillLogic = require(Shared.SkillLogic)
+local ClassLogic = require(Shared.ClassLogic)
 local AbilityLogic = require(Shared.AbilityLogic)
 local CaveLogic = require(Shared.CaveLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -127,6 +132,25 @@ local function skillsOf(profile): SkillLogic.SkillData
 	end
 	return skills
 end
+
+local function classesOf(profile): ClassLogic.ClassData
+	local classes = profile.PetData.Classes
+	if not classes then
+		classes = ClassLogic.empty()
+		profile.PetData.Classes = classes
+	end
+	return classes
+end
+
+-- Pasivas de la clase activa del estilo actual del jugador (neutras sin datos)
+local function classModsOf(player: Player): ClassLogic.Mods
+	local profile = PlayerDataService.get(player)
+	if not profile then
+		return ClassLogic.neutral()
+	end
+	return ClassLogic.mods(profile.PetData.Classes, StyleLogic.sanitize(profile.PetData.Style))
+end
+StyleService.classModsOf = classModsOf
 
 -- DPS del estilo (con el arma, la cadencia, mascotas y bonificaciones)
 local function styleDps(profile, style: string): number
@@ -631,6 +655,7 @@ local function useAbility(player: Player, slot: number)
 		return
 	end
 	local level = math.max(1, SkillLogic.level(skills, skillId))
+	local class = ClassLogic.mods(profile.PetData.Classes, style)
 	local now = os.clock()
 	local own = readyAt[player] or {}
 	readyAt[player] = own
@@ -642,7 +667,7 @@ local function useAbility(player: Player, slot: number)
 		Player = player,
 		Style = style,
 		SkillId = skillId,
-		Damage = styleDps(profile, style) * (ability.DamageRatio or 0) * SkillLogic.power(level),
+		Damage = styleDps(profile, style) * (ability.DamageRatio or 0) * SkillLogic.power(level) * class.SkillDamage,
 		-- La Ráfaga y la Furia no se potencian a sí mismas
 		Buffed = (buffUntil[player] or 0) > now and skillId ~= "Burst" and skillId ~= "Rage",
 	}
@@ -650,7 +675,7 @@ local function useAbility(player: Player, slot: number)
 		result(player, { Success = false, Code = "NoTarget", Style = style, Slot = slot })
 		return
 	end
-	local cooldown = SkillLogic.cooldown(ability, level)
+	local cooldown = SkillLogic.cooldown(ability, level) * class.SkillCooldown
 	own[skillId] = now + cooldown
 	local ready = serverNow() + cooldown
 	player:SetAttribute(SLOT_ATTRIBUTES[slot], ready)
@@ -735,6 +760,39 @@ function StyleService.skillAction(player: Player, action: string, skillId: any, 
 	return Codes[code] or code, cost
 end
 
+-- Comprar, subir y elegir clases (con 💎) ---------------------------------------------------
+
+local CLASS_ACTIONS = { BuyClass = true, UpgradeClass = true, SelectClass = true }
+
+-- Devuelve el código y los 💎 cobrados.
+function StyleService.classAction(player: Player, action: string, classId: any): (string, number)
+	local profile = PlayerDataService.get(player)
+	if not profile or profile.DataState == "Loading" then
+		return Codes.NotReady, 0
+	end
+	if type(classId) ~= "string" or #classId > 40 then
+		return Codes.InvalidRequest, 0
+	end
+	local classes = classesOf(profile)
+	local code, cost = "InvalidRequest", 0
+	if action == "BuyClass" then
+		code, cost = ClassLogic.buy(classes, classId, profile.Energy)
+	elseif action == "UpgradeClass" then
+		code, cost = ClassLogic.upgrade(classes, classId, profile.Energy)
+	elseif action == "SelectClass" then
+		code = ClassLogic.select(classes, classId)
+	end
+	if code == "Success" then
+		profile.Energy -= cost
+		PlayerDataService.markDirty(player)
+		PlayerDataService.replicate(player) -- también la vida y la velocidad de la clase
+		if action ~= "SelectClass" then
+			PlayerDataService.saveNow(player) -- lo comprado con 💎 no se pierde con una caída
+		end
+	end
+	return Codes[code] or code, cost
+end
+
 -- Dash de Puños ---------------------------------------------------------------------------
 
 local function dash(player: Player)
@@ -752,8 +810,9 @@ local function dash(player: Player)
 	local direction = moveDirection(player, root)
 	local origin = root.Position
 	local reach = dashReach(player, origin, direction, spec.Distance)
-	dashReadyAt[player] = now + spec.Cooldown
-	player:SetAttribute(Constants.Attributes.DashReadyAt, serverNow() + spec.Cooldown)
+	local cooldown = spec.Cooldown * classModsOf(player).DashCooldown -- clase (Monje)
+	dashReadyAt[player] = now + cooldown
+	player:SetAttribute(Constants.Attributes.DashReadyAt, serverNow() + cooldown)
 	local finish = origin + direction * reach
 	if reach > 0 then
 		local character = player.Character :: Model
@@ -782,6 +841,18 @@ function StyleService.start()
 			result(player, { Success = code == Codes.Success, Code = code, Action = action, Skill = value, Slot = extra, Cost = cost })
 			return
 		end
+		if CLASS_ACTIONS[action] then
+			local rate = shopLimiter:check(player)
+			if rate == "flood" then
+				return
+			elseif rate == "cooldown" then
+				result(player, { Success = false, Code = Codes.TooFast, Action = action, Class = value })
+				return
+			end
+			local code, cost = StyleService.classAction(player, action, value)
+			result(player, { Success = code == Codes.Success, Code = code, Action = action, Class = value, Cost = cost })
+			return
+		end
 		if limiter:check(player) ~= "ok" then
 			return
 		end
@@ -796,14 +867,22 @@ function StyleService.start()
 		end
 	end)
 
-	-- Daño que recibe el jugador según su estilo (Puños menos, Armas más; con Furia, menos)
+	-- Daño que recibe el jugador según su estilo (Puños menos, Armas más; con Furia, menos) y
+	-- su clase (Tanque, Criomante)
 	EnemyService.setIncomingDamageModifier(function(player: Player, amount: number): number
 		local style = styleOf(player)
 		local taken = if style then StyleLogic.damageTaken(style, amount) else amount
 		if (rageUntil[player] or 0) > os.clock() and style == "Fists" then
 			taken *= math.clamp(rageTaken[player] or 0.5, 0, 1)
 		end
-		return taken
+		return taken * classModsOf(player).DamageTaken
+	end)
+	-- Daño a los jefes según la clase (Comando Élite)
+	EnemyService.setOutgoingDamageModifier(function(player: Player, enemy: any, amount: number): number
+		if enemy and enemy.Kind == "Boss" then
+			return amount * classModsOf(player).BossDamage
+		end
+		return amount
 	end)
 
 	local function watch(player: Player)

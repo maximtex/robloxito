@@ -545,9 +545,11 @@ function VillageService.start()
 	root.Parent = Workspace
 
 	-- Puestos del pueblo a los lados de la plaza (X = -36 y X = +36), mirando al centro: Tienda
-	-- y Armería al este; Premios y ⚡ Mejoras (habilidades y velocidad, con 💎; el panel Skills)
-	-- al oeste. Las misiones se abren desde el menú (📜, tecla M).
-	buildStall(root, "Rewards", Vector2.new(-36, -12), Vector2.new(0, -12), "Premios", "Rewards", "🎁")
+	-- y Armería al este; 🎭 Clases (pasivas de cada estilo, con 💎; el panel Classes) y
+	-- ⚡ Mejoras (habilidades y velocidad, con 💎; el panel Skills) al oeste. Las misiones se
+	-- abren desde el menú (📜, tecla M) y los Premios desde el menú (🎁, tecla J), su casita y
+	-- el cofre.
+	buildStall(root, "Rewards", Vector2.new(-36, -12), Vector2.new(0, -12), "Clases", "Classes", "🎭")
 	buildStall(root, "Quests", Vector2.new(-36, 12), Vector2.new(0, 12), "Mejoras", "Skills", "⚡")
 	buildStall(root, "Shop", Vector2.new(36, -12), Vector2.new(0, -12), "Tienda", "Shop", "🛒")
 	-- El puesto del láser (modelo "LaserShop" de puestos_pueblo.glb) es la Armería

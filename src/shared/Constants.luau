@@ -267,6 +267,10 @@ local Constants = {
 		-- ("Burst:1,Grenade:3") y las puestas de cada estilo ("Weapons=Burst,Grenade;…").
 		Skills = "Skills",
 		SkillSlots = "SkillSlots",
+		-- Clases de los estilos (ClassLogic): las que tiene con su nivel ("Soldier:2,Sniper:1")
+		-- y la activa de cada estilo ("Weapons=Sniper;Fists=Brawler;Magic=Apprentice").
+		Classes = "Classes",
+		ClassActive = "ClassActive",
 		-- Ya eligió su estilo al empezar (si no, el cliente le enseña el selector).
 		StylePicked = "StylePicked",
 		-- Hasta cuándo dura la Furia de Puños (hora del servidor) y el dash (Shift).

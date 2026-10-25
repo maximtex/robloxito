@@ -76,6 +76,7 @@ local WaveLogic = require(ReplicatedStorage:WaitForChild("Shared").WaveLogic)
 local StyleLogic = require(ReplicatedStorage:WaitForChild("Shared").StyleLogic)
 local CaveLogic = require(ReplicatedStorage:WaitForChild("Shared").CaveLogic)
 local SkillLogic = require(ReplicatedStorage:WaitForChild("Shared").SkillLogic)
+local ClassLogic = require(ReplicatedStorage:WaitForChild("Shared").ClassLogic)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 2: añade Energy y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
@@ -89,7 +90,8 @@ local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 13: añade EconomyVersion (economía de 💰 y 💎: sin el campo, la ⚡ guardada se convierte
 --     en 💰 al cargar; ver migrateEconomy) y Skills (habilidades de los estilos; sin el campo,
 --     las iniciales, y quien ya jugaba no vuelve a elegir estilo).
-local SCHEMA_VERSION = 13
+-- 14: añade Classes (clases de los estilos; sin el campo, la gratis de cada estilo).
+local SCHEMA_VERSION = 14
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -134,6 +136,7 @@ export type PetData = {
 	Cave: { number }, -- bichos derrotados para cada puerta de la cueva (CaveService)
 	EconomyVersion: number, -- versión de la economía de este registro (EconomyConfig.Version)
 	Skills: SkillLogic.SkillData, -- habilidades de cada estilo, niveles y las puestas (StyleService)
+	Classes: ClassLogic.ClassData, -- clases de cada estilo, niveles y la activa (StyleService)
 	-- Solo en memoria (no se guarda): lo convertido al cargar, para avisar al jugador.
 	EconomyConverted: { Energy: number, Money: number }?,
 }
@@ -217,6 +220,7 @@ function SaveService.emptyData(): PetData
 		Cave = CaveLogic.sanitizeProgress(nil),
 		EconomyVersion = EconomyConfig.Version,
 		Skills = SkillLogic.empty(),
+		Classes = ClassLogic.empty(),
 	}
 end
 
@@ -447,6 +451,8 @@ local function sanitize(raw: any): PetData
 	if raw.Skills == nil and type(raw.Pets) == "table" then
 		result.Skills.Picked = true
 	end
+	-- Clases: sin el campo (v13 o anteriores), la gratis de cada estilo.
+	result.Classes = ClassLogic.sanitize(raw.Classes)
 
 	return result
 end
@@ -539,6 +545,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local cave = CaveLogic.serializeProgress(data.Cave)
 	local economyVersion = if isFiniteNumber(data.EconomyVersion) then data.EconomyVersion else EconomyConfig.Version
 	local skills = SkillLogic.serialize(data.Skills or SkillLogic.empty())
+	local classes = ClassLogic.serialize(data.Classes or ClassLogic.empty())
 	local key = keyFor(userId)
 
 	for attempt = 1, SAVE_ATTEMPTS do
@@ -584,6 +591,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.Cave = cave
 				stored.EconomyVersion = economyVersion
 				stored.Skills = skills
+				stored.Classes = classes
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)

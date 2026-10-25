@@ -83,7 +83,11 @@ BASE = [
     ("WaveLogic", "src/shared/WaveLogic.luau"),
     # Estilo de pelea (campo Style del guardado v11).
     ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+    ("SkillLogic", "src/shared/SkillLogic.luau"),
     ("StyleLogic", "src/shared/StyleLogic.luau"),
+    # Clases de los estilos (campo Classes del guardado v14).
+    ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
+    ("ClassLogic", "src/shared/ClassLogic.luau"),
     # Puertas de la cueva (campo Cave del guardado v12).
     ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
     ("CaveLogic", "src/shared/CaveLogic.luau"),
@@ -251,7 +255,10 @@ def build_quest():
         ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
         ("WaveLogic", "src/shared/WaveLogic.luau"),
         ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("SkillLogic", "src/shared/SkillLogic.luau"),
         ("StyleLogic", "src/shared/StyleLogic.luau"),
+        ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
+        ("ClassLogic", "src/shared/ClassLogic.luau"),
         ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
         ("CaveLogic", "src/shared/CaveLogic.luau"),
     ] + CORE + [
@@ -359,6 +366,7 @@ PET_COMBAT_REQUIRES = [
     "local MonetizationLogic = require(Shared.MonetizationLogic)",
     "local StyleLogic = require(Shared.StyleLogic)",
     "local StyleConfig = require(Shared.Config.StyleConfig)",
+    "local ClassLogic = require(Shared.ClassLogic)",
     "local PlayerDataService = require(script.Parent.PlayerDataService)",
     "local RemoteService = require(script.Parent.RemoteService)",
     "local EnemyService = require(script.Parent.EnemyService)",
@@ -381,7 +389,10 @@ def build_petcombat():
         ("MonetizationConfig", "src/shared/Config/MonetizationConfig.luau"),
         ("MonetizationLogic", "src/shared/MonetizationLogic.luau"),
         ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("SkillLogic", "src/shared/SkillLogic.luau"),
         ("StyleLogic", "src/shared/StyleLogic.luau"),
+        ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
+        ("ClassLogic", "src/shared/ClassLogic.luau"),
         ("EnemyLogic", "src/server/Util/EnemyLogic.luau"),
         ("RateLimiter", "src/server/Util/RateLimiter.luau"),
     ]:
@@ -430,10 +441,26 @@ def build_styles():
     out = [harness("landscape_stubs.luau")]
     for n, p in [
         ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("SkillLogic", "src/shared/SkillLogic.luau"),
         ("StyleLogic", "src/shared/StyleLogic.luau"),
     ]:
         out.append(mod(n, p))
     out.append(suite("styles_body.luau"))
+    return "\n".join(out)
+
+
+def build_classes():
+    # Clases de los estilos: lógica pura con su configuración real.
+    out = [harness("landscape_stubs.luau")]
+    for n, p in [
+        ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("SkillLogic", "src/shared/SkillLogic.luau"),
+        ("StyleLogic", "src/shared/StyleLogic.luau"),
+        ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
+        ("ClassLogic", "src/shared/ClassLogic.luau"),
+    ]:
+        out.append(mod(n, p))
+    out.append(suite("classes_body.luau"))
     return "\n".join(out)
 
 
@@ -590,6 +617,7 @@ def build_waves():
         ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
         ("WaveLogic", "src/shared/WaveLogic.luau"),
         ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
+        ("SkillLogic", "src/shared/SkillLogic.luau"),
         ("StyleLogic", "src/shared/StyleLogic.luau"),
         ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
         ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
@@ -668,6 +696,7 @@ SUITES = [
     ("energy", "Energía solo de matar: sin producción pasiva ni offline, energía de los enemigos", build_energy),
     ("waves", "Oleadas: arenas, aparición, dificultad, mejoras, racha y botín de cada enemigo", build_waves),
     ("styles", "Estilos de pelea: armas, puños y magia (ataque, pasivas y habilidades)", build_styles),
+    ("classes", "Clases de cada estilo: comprar, subir, elegir y sus pasivas", build_classes),
     ("cave", "Cueva de los Espinillos: salas, pasillos, entrada, salidas y bichos de cada sala", build_cave),
     ("items", "Inventario: pociones, huevos guardados, botín de los jefes y títulos", build_items),
 ]

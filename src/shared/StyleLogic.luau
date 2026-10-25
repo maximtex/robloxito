@@ -75,12 +75,15 @@ function StyleLogic.effect(styleId: any, weaponEffect: { [string]: any }?): { [s
 	return result
 end
 
--- Multiplicador de un golpe (crítico de Armas). `roll` en [0, 1).
-function StyleLogic.critMultiplier(styleId: any, roll: number): number
+-- Multiplicador de un golpe (crítico de Armas). `roll` en [0, 1). La clase suma
+-- probabilidad (`extraChance`) y fuerza (`extraPower`) al crítico, también en otros estilos.
+function StyleLogic.critMultiplier(styleId: any, roll: number, extraChance: number?, extraPower: number?): number
 	local def = StyleLogic.definition(styleId)
 	local passive = def and def.Passive
-	if passive and finite(passive.CritChance) and finite(roll) and roll < passive.CritChance then
-		return passive.CritMultiplier or 2
+	local chance = (if passive and finite(passive.CritChance) then passive.CritChance else 0) + (if finite(extraChance) then math.max(0, extraChance :: number) else 0)
+	if chance > 0 and finite(roll) and roll < chance then
+		local base = if passive and finite(passive.CritMultiplier) then passive.CritMultiplier else 2
+		return base + (if finite(extraPower) then math.max(0, extraPower :: number) else 0)
 	end
 	return 1
 end
@@ -104,8 +107,9 @@ end
 
 -- Combo de golpes: con el contador `state` ({ Count, Last, Style }) y la hora `now`, cuenta
 -- este golpe y devuelve el combo del estilo si toca (cada HitCombo.Every golpes seguidos del
--- mismo estilo, sin parar más de Window segundos). Cambia `state`.
-function StyleLogic.countHit(styleId: any, state: { [string]: any }, now: number): { [string]: any }?
+-- mismo estilo, sin parar más de Window segundos; `fewer` golpes antes con la clase, como
+-- mínimo cada 2). Cambia `state`.
+function StyleLogic.countHit(styleId: any, state: { [string]: any }, now: number, fewer: number?): { [string]: any }?
 	local def = StyleLogic.definition(styleId)
 	local combo = def and def.HitCombo
 	if not (combo and finite(now)) then
@@ -117,7 +121,8 @@ function StyleLogic.countHit(styleId: any, state: { [string]: any }, now: number
 	end
 	state.Last = now
 	state.Count = (if finite(state.Count) then state.Count else 0) + 1
-	if state.Count >= (combo.Every or 3) then
+	local every = math.max(2, (combo.Every or 3) - (if finite(fewer) then math.floor(fewer :: number) else 0))
+	if state.Count >= every then
 		state.Count = 0
 		return combo
 	end
@@ -131,15 +136,18 @@ function StyleLogic.maxHealth(styleId: any): number
 	return if finite(factor) then math.clamp(factor, 0.5, 3) else 1
 end
 
--- Curación por un golpe que ha hecho `dealt` de daño (Magia), con su tope por golpe.
-function StyleLogic.lifeSteal(styleId: any, dealt: number, maxHealth: number): number
+-- Curación por un golpe que ha hecho `dealt` de daño (Magia; `extra` de la clase en
+-- cualquier estilo), con el tope por golpe (MaxHealPerShot de la Magia o LIFESTEAL_CAP).
+local LIFESTEAL_CAP = 0.03
+function StyleLogic.lifeSteal(styleId: any, dealt: number, maxHealth: number, extra: number?): number
 	local def = StyleLogic.definition(styleId)
 	local passive = def and def.Passive
-	if not (passive and finite(passive.LifeSteal) and finite(dealt) and finite(maxHealth)) or dealt <= 0 or maxHealth <= 0 then
+	local rate = (if passive and finite(passive.LifeSteal) then passive.LifeSteal else 0) + (if finite(extra) then math.max(0, extra :: number) else 0)
+	if rate <= 0 or not (finite(dealt) and finite(maxHealth)) or dealt <= 0 or maxHealth <= 0 then
 		return 0
 	end
-	local cap = if finite(passive.MaxHealPerShot) then passive.MaxHealPerShot * maxHealth else math.huge
-	return math.min(dealt * passive.LifeSteal, cap)
+	local cap = (if passive and finite(passive.MaxHealPerShot) then passive.MaxHealPerShot else LIFESTEAL_CAP) * maxHealth
+	return math.min(dealt * rate, cap)
 end
 
 -- Habilidad puesta en el hueco `slot` del estilo (1 = Z, 2 = X): su definición y su id. Con

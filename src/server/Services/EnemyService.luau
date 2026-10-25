@@ -178,6 +178,8 @@ local killModifier: ((Player, Enemy) -> (number?, number?))? = nil
 -- Modificador del daño que los enemigos hacen a los jugadores (lo registra
 -- PetCombatService para la Tortuga). Un único punto: nunca se aplica dos veces.
 local incomingModifier: ((Player, number) -> number)? = nil
+-- Daño que hace el jugador según su clase (StyleService: más a los jefes)
+local outgoingModifier: ((Player, any, number) -> number)? = nil
 local folder: Folder
 local rewardRemote: RemoteEvent
 -- Avisos de "este jugador ha derrotado a este enemigo" (los usa QuestService). Solo
@@ -893,6 +895,13 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 		if profile then
 			amount *= ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Damage", os.time())
 		end
+		-- Clase (StyleService): p. ej. más daño a los jefes
+		if outgoingModifier then
+			local ok, result = pcall(outgoingModifier, player, enemy, amount)
+			if ok and type(result) == "number" and result == result then
+				amount = math.clamp(result, 0, amount * 3)
+			end
+		end
 	end
 	local dealt, killed = EnemyLogic.applyDamage(enemy.Status, player.UserId, amount)
 	if dealt <= 0 then
@@ -1024,6 +1033,10 @@ end
 
 function EnemyService.setIncomingDamageModifier(modifier: (Player, number) -> number)
 	incomingModifier = modifier
+end
+
+function EnemyService.setOutgoingDamageModifier(modifier: (Player, any, number) -> number)
+	outgoingModifier = modifier
 end
 
 local function damagePlayer(enemy: Enemy, player: Player, humanoid: Humanoid, amount: number)

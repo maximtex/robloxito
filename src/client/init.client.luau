@@ -17,6 +17,7 @@ local WeaponController = require(script.Controllers.WeaponController)
 local AbilityController = require(script.Controllers.AbilityController)
 local StyleController = require(script.Controllers.StyleController)
 local SkillsController = require(script.Controllers.SkillsController)
+local ClassesController = require(script.Controllers.ClassesController)
 local StylePickerController = require(script.Controllers.StylePickerController)
 local QuestController = require(script.Controllers.QuestController)
 local CoreController = require(script.Controllers.CoreController)
@@ -48,6 +49,7 @@ task.spawn(WeaponController.start) -- Armería: comprar, equipar y mejorar armas
 task.spawn(AbilityController.start) -- habilidad elemental (Q), junto al botón de ataque
 task.spawn(StyleController.start) -- estilo de pelea (C), sus habilidades (Z y X) y el dash de Puños
 task.spawn(SkillsController.start) -- ⚡ Mejoras: comprar, subir y poner las habilidades (B)
+task.spawn(ClassesController.start) -- 🎭 Clases: la pasiva de cada estilo, con 💎 (H)
 task.spawn(StylePickerController.start) -- elegir estilo al empezar (jugador nuevo)
 task.spawn(QuestController.start)
 task.spawn(CoreController.start)

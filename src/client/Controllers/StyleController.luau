@@ -39,7 +39,7 @@ local Toasts = require(script.Parent.Parent.UI.Toasts)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local CombatController = require(script.Parent.CombatController)
 local CharacterPose = require(script.Parent.CharacterPose)
-local SwordAnimations = require(script.Parent.SwordAnimations)
+local StyleAnimations = require(script.Parent.StyleAnimations)
 local AimPoint = require(script.Parent.AimPoint)
 local WaveFx = require(script.Parent.WaveFx)
 
@@ -1133,10 +1133,10 @@ end
 -- Guerrero: Onda cortante (y Corte dimensional): una media luna que vuela de `from` a `to`
 local function slashWaveFx(owner: Player, from: Vector3, to: Vector3, width: number, hits: any)
 	local color = tint or StyleConfig.Styles.Warrior.Color
-	if not SwordAnimations.enabled() then
+	if not StyleAnimations.enabled("Warrior") then
 		CharacterPose.slash(owner.Character, 3)
 	elseif owner == player then
-		SwordAnimations.slash(1)
+		StyleAnimations.slash(1)
 	end
 	local offset = to - from
 	local distance = offset.Magnitude

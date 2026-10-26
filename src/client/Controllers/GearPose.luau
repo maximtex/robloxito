@@ -1,7 +1,7 @@
 -- Postura de reposo de cada jugador según lo que lleva en la mano (CharacterPose.setRest):
 -- el arma medio levantada (al frente si TÚ apuntas con el clic derecho), la espada en guardia
--- (cruzada si bloquea: atributo Blocking; con las animaciones de espada, nada: lo hacen
--- ellas, SwordAnimations) o el bastón. Con Puños, los brazos normales. Solo se
+-- (cruzada si bloquea: atributo Blocking) o el bastón. Si el estilo tiene sus animaciones,
+-- nada: lo hacen ellas (StyleAnimations). Con Puños, los brazos normales. Solo se
 -- ve; lo hace cada cliente con todos los personajes (atributos CombatStyle y Blocking).
 
 local Players = game:GetService("Players")
@@ -11,7 +11,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CharacterPose = require(script.Parent.CharacterPose)
 local AimCamera = require(script.Parent.AimCamera)
-local SwordAnimations = require(script.Parent.SwordAnimations)
+local StyleAnimations = require(script.Parent.StyleAnimations)
 
 local GearPose = {}
 
@@ -19,14 +19,14 @@ local localPlayer = Players.LocalPlayer
 
 local function poseFor(player: Player): string?
 	local style = player:GetAttribute(Constants.Attributes.CombatStyle)
+	-- Con las animaciones del estilo, la postura la ponen ellas (StyleAnimations; Roblox las
+	-- enseña a todos): nada a mano
+	if type(style) == "string" and StyleAnimations.enabled(style) then
+		return nil
+	end
 	if style == "Weapons" then
 		return if player == localPlayer and AimCamera.isAds() then "Aim" else "Gun"
 	elseif style == "Warrior" then
-		-- Con las animaciones de espada, la guardia y el bloqueo son animaciones
-		-- (SwordAnimations; Roblox las enseña a todos): nada a mano
-		if SwordAnimations.enabled() then
-			return nil
-		end
 		return if player:GetAttribute(Constants.Attributes.Blocking) == true then "Block" else "Sword"
 	elseif style == "Magic" then
 		return "Staff"

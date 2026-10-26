@@ -115,6 +115,13 @@ local StyleConfig = {
 			-- Combo de golpes: cada Every disparos seguidos (sin parar más de Window s), uno
 			-- cargado que hace ×Multiplier (PetCombatService).
 			HitCombo = { Every = 5, Window = 1.6, Multiplier = 2, Name = "¡Tiro cargado!" },
+			-- Animaciones (publicadas en Roblox; StyleAnimations las pone en tu personaje)
+			Animations = {
+				Guard = "rbxassetid://97145337559173", -- el arma medio levantada (se repite)
+				Aim = "rbxassetid://88074758199655", -- las dos manos en el arma, al frente
+				Shot = "rbxassetid://111940463532578", -- retroceso del disparo
+				Reload = "rbxassetid://74064624724049", -- cambiar el cargador
+			},
 			Passive = {
 				Name = "Puntería",
 				Icon = "🎯",
@@ -277,9 +284,9 @@ local StyleConfig = {
 			-- bloqueo (y no bloqueaste hace menos de ParryRearm s), no te hace nada, el bicho queda
 			-- aturdido Stun s y tu siguiente tajo en CounterSeconds s hace ×CounterMultiplier.
 			Block = { DamageTaken = 0.3, ParryWindow = 0.35, ParryRearm = 0.8, Stun = 1.5, CounterSeconds = 2, CounterMultiplier = 2.5, WalkSpeed = 0.5 },
-			-- Animaciones de la espada (publicadas en Roblox; SwordAnimations las pone en tu
-			-- personaje y Roblox las enseña a los demás). Vacío = los movimientos hechos a mano
-			-- (CharacterPose).
+			-- Animaciones de la espada (publicadas en Roblox; StyleAnimations las pone en tu
+			-- personaje y Roblox las enseña a los demás). Sin ellas, los movimientos hechos a
+			-- mano (CharacterPose).
 			Animations = {
 				Guard = "rbxassetid://139812042784083", -- espada en guardia (se repite)
 				Slashes = {
@@ -455,6 +462,15 @@ local StyleConfig = {
 			-- mueves, sin daño, que no cruza paredes ni puertas cerradas de la cueva.
 			Dash = { Distance = 16, Cooldown = 2.5 },
 			HitCombo = { Every = 3, Window = 1.2, Multiplier = 2, Name = "¡Gancho!", Knockback = 22 },
+			-- Animaciones (publicadas en Roblox; StyleAnimations las pone en tu personaje)
+			Animations = {
+				Guard = "rbxassetid://72227312054591", -- puños en guardia (se repite)
+				Punches = {
+					"rbxassetid://123639911749294", -- jab (izquierda)
+					"rbxassetid://82475920022600", -- directo (derecha)
+				},
+				Hook = "rbxassetid://116881478839232", -- el gancho del combo
+			},
 			Passive = {
 				Name = "Piel dura",
 				Icon = "🛡️",
@@ -628,6 +644,12 @@ local StyleConfig = {
 				Nature = { Name = "Naturaleza", Icon = "🌿", Color = RGB(120, 220, 100), Text = "El orbe cargado enraíza 1.5 s y te curas más", RootSeconds = 1.5, LifeSteal = 0.03 },
 				Shadow = { Name = "Sombra", Icon = "🌑", Color = RGB(150, 90, 230), Text = "Debilita: reciben un 15 % más de daño 3 s", Vulnerable = 0.15, VulnerableSeconds = 3 },
 				Celestial = { Name = "Celestial", Icon = "🌟", Color = RGB(255, 225, 120), Text = "Cada golpe te cura un 1 % de tu vida", Heal = 0.01 },
+			},
+			-- Animaciones (publicadas en Roblox; StyleAnimations las pone en tu personaje)
+			Animations = {
+				Guard = "rbxassetid://97687620779682", -- el bastón en la mano (se repite)
+				Charge = "rbxassetid://103550823174900", -- bastón arriba cargando el orbe (se repite)
+				Cast = "rbxassetid://118213005926250", -- lanzar: el bastón apunta al frente
 			},
 			Passive = {
 				Name = "Robo de vida",

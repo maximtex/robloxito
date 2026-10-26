@@ -54,7 +54,7 @@ local CharacterPose = require(script.Parent.CharacterPose)
 local AimPoint = require(script.Parent.AimPoint)
 local AimCamera = require(script.Parent.AimCamera)
 local CombatHud = require(script.Parent.CombatHud)
-local SwordAnimations = require(script.Parent.SwordAnimations)
+local StyleAnimations = require(script.Parent.StyleAnimations)
 local MagicLogic = require(Shared.MagicLogic)
 local GunLogic = require(Shared.GunLogic)
 
@@ -1101,6 +1101,7 @@ function CombatController.start()
 			chargeOrb:Destroy()
 			chargeOrb = nil
 		end
+		StyleAnimations.charging(false)
 	end
 	local function startChargeOrb()
 		stopChargeOrb()
@@ -1138,7 +1139,11 @@ function CombatController.start()
 				send(aimFn() or facingAim(), "Charge")
 				startChargeOrb()
 				setTurning(aimFn)
-				CharacterPose.cast(player.Character, magicSpec.Charge.Full)
+				if StyleAnimations.enabled("Magic") then
+					StyleAnimations.charging(true)
+				else
+					CharacterPose.cast(player.Character, magicSpec.Charge.Full)
+				end
 			end
 		end)
 	end
@@ -1339,6 +1344,7 @@ function CombatController.start()
 		local reloadEnd = player:GetAttribute(Constants.Attributes.ReloadEnd)
 		if type(reloadEnd) == "number" and reloadEnd > 0 then
 			playStyleSound("Reload", nil)
+			StyleAnimations.reload(reloadEnd - Workspace:GetServerTimeNow())
 		end
 	end)
 
@@ -1705,7 +1711,11 @@ function CombatController.start()
 			end
 			if style == "Fists" then
 				-- Puñetazo: el personaje lanza el puño y el golpe estalla en el enemigo
-				CharacterPose.punch(character)
+				if not StyleAnimations.enabled("Fists") then
+					CharacterPose.punch(character)
+				elseif isOwner then
+					StyleAnimations.punch(combo ~= nil)
+				end
 				punchFx(hand, target, color, combo ~= nil)
 				impactRing(target, if combo then 5 else 2.6, color)
 				emitAt("Spark", target, color, if combo then 20 else 8)
@@ -1725,10 +1735,10 @@ function CombatController.start()
 				local arcColor = if counter then THEME.Gold else color
 				-- La animación de la espada la pone tu cliente en tu personaje (los demás la ven
 				-- por Roblox); sin animaciones, el movimiento a mano en cada cliente
-				if not SwordAnimations.enabled() then
+				if not StyleAnimations.enabled("Warrior") then
 					CharacterPose.slash(character, step)
 				elseif isOwner then
-					SwordAnimations.slash(step)
+					StyleAnimations.slash(step)
 				end
 				slashArc(center, direction, radius, arcColor, step, counter or step == 3)
 				if step == 3 then
@@ -1759,7 +1769,11 @@ function CombatController.start()
 					others:Destroy()
 					othersCharging[owner] = nil
 				end
-				CharacterPose.cast(character, 0.12)
+				if not StyleAnimations.enabled("Magic") then
+					CharacterPose.cast(character, 0.12)
+				elseif isOwner then
+					StyleAnimations.cast()
+				end
 				local orbAt = CharacterPose.gearPoint(character, "Orb") or hand
 				playStyleSound("MagicBolt", soundAt, if charge then 0.6 elseif spark then 1.35 else 1)
 				magicOrb(orbAt, target, color, function()
@@ -1784,7 +1798,11 @@ function CombatController.start()
 				local feel = GUN_FEEL[gun] or GUN_FEEL.Pistol
 				local isBow = def.Model == "Bow"
 				local muzzle = CharacterPose.gearPoint(character, "Muzzle") or hand
-				CharacterPose.recoil(character, feel.Recoil)
+				if not StyleAnimations.enabled("Weapons") then
+					CharacterPose.recoil(character, feel.Recoil)
+				elseif isOwner then
+					StyleAnimations.shot()
+				end
 				if not isBow then
 					muzzleFlash(muzzle, color, feel.Flash)
 				end

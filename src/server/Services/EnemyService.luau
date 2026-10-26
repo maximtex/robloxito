@@ -1153,7 +1153,9 @@ end
 -- Retroceso breve lejos de `from` (solo enemigos normales y fuertes; los jefes no se
 -- mueven). Un LinearVelocity de KNOCKBACK_SECONDS empuja (el Humanoid anularía una simple
 -- velocidad) y el enemigo queda quieto un instante para que su IA no luche contra él.
-function EnemyService.knockback(enemy: Enemy, from: Vector3, force: number)
+-- `lift`: parte de la fuerza que va hacia arriba (0.2 si no se dice; el gancho de Puños lo
+-- levanta más).
+function EnemyService.knockback(enemy: Enemy, from: Vector3, force: number, lift: number?)
 	if enemy.Kind == "Boss" or not EnemyService.isAlive(enemy) or enemy.Status.State == "Return" then
 		return
 	end
@@ -1184,7 +1186,7 @@ function EnemyService.knockback(enemy: Enemy, from: Vector3, force: number)
 	mover.RelativeTo = Enum.ActuatorRelativeTo.World
 	mover.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
 	mover.MaxForce = 1e7
-	mover.VectorVelocity = direction * strength + Vector3.new(0, strength * 0.2, 0)
+	mover.VectorVelocity = direction * strength + Vector3.new(0, strength * math.clamp(lift or 0.2, 0, 1), 0)
 	mover.Parent = enemy.Root
 	Debris:AddItem(mover, KNOCKBACK_SECONDS)
 end

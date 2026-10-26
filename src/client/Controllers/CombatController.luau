@@ -87,6 +87,11 @@ local GUN_FEEL = {
 	Sniper = { Recoil = 1.6, Flash = 1.4, Kick = 1.9, Tracer = 0.22 },
 	Launcher = { Recoil = 1.8, Flash = 1.8, Kick = 2, Tracer = 0.2 },
 }
+-- Puños: al pegar te echas encima del enemigo (hasta PUNCH_LUNGE_MAX studs, a esta velocidad)
+-- y te quedas a PUNCH_REACH del punto donde el puño lo toca (el largo del brazo)
+local PUNCH_REACH = 1.7
+local PUNCH_LUNGE_MAX = 7
+local PUNCH_LUNGE_SPEED = 80
 local SELECT_RANGE = 75 -- el automático solo apunta si hay enemigos a esta distancia
 local AUTO_ON = Color3.fromRGB(96, 214, 96)
 local AUTO_OFF = Color3.fromRGB(120, 120, 128)
@@ -318,32 +323,159 @@ local function comboLabel(position: Vector3, text: string, color: Color3)
 	Debris:AddItem(anchor, 0.9)
 end
 
--- Puñetazo: estela curva del puño hacia el enemigo y estrella de impacto (más grande en el
--- gancho del combo)
-local function punchFx(from: Vector3, target: Vector3, color: Color3, big: boolean?)
-	local offset = target - from
-	local distance = offset.Magnitude
-	if distance > 0.5 then
-		local streak = fxPart(Vector3.new(0.5, 0.5, math.min(distance, 9)), CFrame.lookAt(from + offset.Unit * math.min(distance, 9) / 2, target), color)
-		streak.Transparency = 0.35
-		TweenService:Create(streak, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.05, 0.05, streak.Size.Z), Transparency = 1 }):Play()
-		Debris:AddItem(streak, 0.15)
+-- Dónde toca el puño a un enemigo: el borde de su cuerpo que da hacia `from` (a la altura del
+-- pecho, sin salirse del bicho). Devuelve el punto, la dirección del golpe (plana) y cuánto
+-- falta desde `from` hasta ese borde.
+local function punchContact(from: Vector3, fallback: Vector3, model: any): (Vector3, Vector3, number)
+	local center, radius, bottom, top = fallback, 1.5, fallback.Y - 1.5, fallback.Y + 1.5
+	if typeof(model) == "Instance" and model:IsA("Model") and model.Parent then
+		local ok, cframe, size = pcall(function()
+			return (model :: Model):GetBoundingBox()
+		end)
+		if ok then
+			center = cframe.Position
+			radius = math.clamp(math.min(size.X, size.Z) * 0.42, 0.8, 6)
+			bottom = center.Y - size.Y / 2
+			top = center.Y + size.Y / 2
+		end
 	end
-	flashBall(target, Color3.new(1, 1, 1), 0.6, if big then 6 else 3.2, if big then 0.22 else 0.14)
+	local flat = Vector3.new(center.X - from.X, 0, center.Z - from.Z)
+	local distance = flat.Magnitude
+	local direction = if distance > 0.05 then flat / distance else Vector3.new(0, 0, -1)
+	local low, high = bottom + 0.8, top - 0.5
+	if low > high then
+		low = (bottom + top) / 2
+		high = low
+	end
+	local reach = math.max(0, distance - radius)
+	return Vector3.new(from.X, math.clamp(from.Y, low, high), from.Z) + direction * reach, direction, reach
+end
+
+-- Puñetazo: el golpe estalla donde el puño toca al enemigo (de la mano no sale nada):
+-- destello, un disco de choque que se abre hacia delante y rayas de impacto alrededor. El
+-- gancho del combo, más grande y hacia arriba (lo levanta).
+local function punchFx(contact: Vector3, direction: Vector3, color: Color3, big: boolean?)
+	local forward = if direction.Magnitude > 0.01 then direction.Unit else Vector3.new(0, 0, -1)
+	local white = Color3.new(1, 1, 1)
+	flashBall(contact, white, 0.5, if big then 4.2 else 2.3, if big then 0.15 else 0.09)
 	if big then
-		flashBall(target, color, 1, 7.5, 0.3)
+		flashBall(contact, color, 1, 6.5, 0.28)
 	end
-	-- Estrella: puntas que salen del golpe
-	for index = 1, if big then 10 else 6 do
-		local angle = index / 6 * math.pi * 2
-		local direction = Vector3.new(math.cos(angle), math.sin(angle) * 0.6 + 0.2, math.sin(angle))
-		local spike = fxPart(Vector3.new(0.25, 0.25, 1.6), CFrame.lookAt(target, target + direction) * CFrame.new(0, 0, -0.8), color)
-		TweenService:Create(spike, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			CFrame = CFrame.lookAt(target, target + direction) * CFrame.new(0, 0, -2.4),
+	-- Disco de choque mirando hacia donde va el golpe (los cilindros van a lo largo de X)
+	local facing = CFrame.lookAt(contact, contact + forward) * CFrame.Angles(0, math.rad(90), 0)
+	local wave = fxPart(Vector3.new(0.12, 0.7, 0.7), facing, white:Lerp(color, 0.35))
+	wave.Shape = Enum.PartType.Cylinder
+	wave.Transparency = 0.1
+	local waveSize = if big then 7 else 3.8
+	TweenService:Create(wave, TweenInfo.new(if big then 0.22 else 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.04, waveSize, waveSize),
+		CFrame = facing * CFrame.new(if big then 1.4 else 0.8, 0, 0),
+		Transparency = 1,
+	}):Play()
+	Debris:AddItem(wave, 0.26)
+	-- Rayas de impacto: salen alrededor del golpe (un poco hacia ti, para que se vean)
+	local side = forward:Cross(Vector3.yAxis)
+	side = if side.Magnitude > 0.01 then side.Unit else Vector3.xAxis
+	local up = side:Cross(forward).Unit
+	local count = if big then 10 else 7
+	local length = if big then 1.8 else 1.1
+	for index = 1, count do
+		local angle = (index + math.random() * 0.4) / count * math.pi * 2
+		local radial = side * math.cos(angle) + up * math.sin(angle)
+		local lift = if big then Vector3.new(0, 0.45, 0) else Vector3.zero
+		local line = (radial - forward * 0.25 + lift).Unit
+		local start = CFrame.lookAt(contact, contact + line)
+		local spike = fxPart(Vector3.new(0.13, 0.13, length), start * CFrame.new(0, 0, -length / 2 - 0.3), if index % 2 == 0 then white else color)
+		TweenService:Create(spike, TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			CFrame = start * CFrame.new(0, 0, -length / 2 - (if big then 2.6 else 1.6)),
+			Size = Vector3.new(0.04, 0.04, length * 0.5),
 			Transparency = 1,
 		}):Play()
-		Debris:AddItem(spike, 0.2)
+		Debris:AddItem(spike, 0.16)
 	end
+	-- Gancho: una estela que sube (el enemigo sale volando hacia arriba)
+	if big then
+		local rise = fxPart(Vector3.new(0.5, 0.5, 4), CFrame.lookAt(contact, contact + Vector3.yAxis) * CFrame.new(0, 0, -2), white:Lerp(color, 0.5))
+		rise.Transparency = 0.2
+		TweenService:Create(rise, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = Vector3.new(0.05, 0.05, 6),
+			CFrame = CFrame.lookAt(contact, contact + Vector3.yAxis) * CFrame.new(0, 0, -4),
+			Transparency = 1,
+		}):Play()
+		Debris:AddItem(rise, 0.3)
+	end
+end
+
+-- Sacudida y zoom de la cámara de AbilityController (se pide al usarla: AbilityController
+-- también requiere este módulo). Respetan "Reducir movimiento".
+local cameraFx: any = nil
+local function shakeCamera(amount: number, fov: number?)
+	if cameraFx == nil then
+		local ok, module = pcall(require, script.Parent.AbilityController)
+		cameraFx = if ok then module else false
+	end
+	if cameraFx then
+		if cameraFx.shake then
+			cameraFx.shake(amount)
+		end
+		if fov and cameraFx.kickFov then
+			cameraFx.kickFov(fov)
+		end
+	end
+end
+
+-- Tu personaje se echa hacia delante `distance` studs (sin cruzar paredes ni bichos) para que
+-- el puño llegue de verdad. Devuelve cuánto dura la embestida (0 si no hace falta).
+local lungeMover: LinearVelocity? = nil
+local function lunge(root: BasePart, direction: Vector3, distance: number): number
+	distance = math.min(distance, PUNCH_LUNGE_MAX)
+	if distance < 0.6 then
+		return 0
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { root.Parent :: Instance, fxFolder }
+	local blocked = Workspace:Raycast(root.Position, direction * (distance + 1.2), params)
+	if blocked then
+		distance = math.min(distance, blocked.Distance - 1.2)
+	end
+	if distance < 0.6 then
+		return 0
+	end
+	local seconds = math.clamp(distance / PUNCH_LUNGE_SPEED, 0.05, 0.1)
+	if lungeMover then
+		lungeMover:Destroy()
+	end
+	local attachment = root:FindFirstChild("PunchLungeAttachment")
+	if not attachment then
+		attachment = Instance.new("Attachment")
+		attachment.Name = "PunchLungeAttachment"
+		attachment.Parent = root
+	end
+	local velocity = direction * (distance / seconds)
+	local mover = Instance.new("LinearVelocity")
+	mover.Name = "PunchLunge"
+	mover.Attachment0 = attachment :: Attachment
+	mover.RelativeTo = Enum.ActuatorRelativeTo.World
+	mover.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+	mover.PrimaryTangentAxis = Vector3.xAxis
+	mover.SecondaryTangentAxis = Vector3.zAxis
+	mover.PlaneVelocity = Vector2.new(velocity.X, velocity.Z)
+	mover.MaxForce = 1e6
+	mover.Parent = root
+	lungeMover = mover
+	root.CFrame = CFrame.lookAt(root.Position, root.Position + direction)
+	task.delay(seconds, function()
+		if lungeMover == mover then
+			lungeMover = nil
+			mover:Destroy()
+			-- Sin pasarse de largo
+			if root.Parent then
+				root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+			end
+		end
+	end)
+	return seconds
 end
 
 -- Orbe mágico: se carga en la mano (crece) y luego viaja girando, con chispas, hasta el
@@ -1710,20 +1842,49 @@ function CombatController.start()
 				end
 			end
 			if style == "Fists" then
-				-- Puñetazo: el personaje lanza el puño y el golpe estalla en el enemigo
+				-- Puñetazo: el personaje lanza el puño, se echa encima del enemigo (el tuyo; los
+				-- demás lo ven por Roblox) y el golpe estalla justo donde el puño lo toca, con un
+				-- frenazo de la animación y la cámara que tiembla. El gancho (el 3.º seguido) es
+				-- más grande y lo levanta por los aires.
+				local big = combo ~= nil
 				if not StyleAnimations.enabled("Fists") then
 					CharacterPose.punch(character)
 				elseif isOwner then
-					StyleAnimations.punch(combo ~= nil)
+					StyleAnimations.punch(big)
 				end
-				punchFx(hand, target, color, combo ~= nil)
-				impactRing(target, if combo then 5 else 2.6, color)
-				emitAt("Spark", target, color, if combo then 20 else 8)
-				chainFx(target)
-				if combo then
-					comboLabel(target, combo, color)
+				playStyleSound("PunchSwing", soundAt, if big then 0.8 else 1)
+				local first = if typeof(event.Hits) == "table" then event.Hits[1] else nil
+				local hitModel = if typeof(first) == "table" then first.Model else nil
+				if event.Miss == true or hitModel == nil then
+					-- Al aire: solo el soplo delante del puño
+					local flat = Vector3.new(target.X - from.X, 0, target.Z - from.Z)
+					local ahead = if flat.Magnitude > 0.05 then flat.Unit * math.min(flat.Magnitude, 2.5) else Vector3.zero
+					emitAt("Miss", from + ahead, Color3.new(1, 1, 1), 4)
+					impact()
+				else
+					local _, direction, reach = punchContact(from, target, hitModel)
+					local lungeSeconds = 0
+					if isOwner and root and root:IsA("BasePart") then
+						lungeSeconds = lunge(root, direction, reach - PUNCH_REACH)
+					end
+					-- El golpe llega cuando el brazo está estirado (y la embestida ha terminado)
+					task.delay(math.max(lungeSeconds, if big then 0.12 else 0.06), function()
+						local now = if root and root:IsA("BasePart") and root.Parent then root.Position + Vector3.new(0, 1.2, 0) else from
+						local contact, towards = punchContact(now, target, hitModel)
+						punchFx(contact, towards, color, big)
+						emitAt("Spark", contact, color, if big then 20 else 9)
+						if big then
+							impactRing(target, 5, color)
+							comboLabel(target, combo :: string, color)
+						end
+						chainFx(contact)
+						if isOwner then
+							shakeCamera(if big then 0.62 else 0.34, if big then 5 else 1.5)
+							StyleAnimations.hitstop(if big then 0.09 else 0.045)
+						end
+						impact(if big then "PunchHook" else "PunchHit")
+					end)
 				end
-				impact()
 			elseif style == "Warrior" then
 				-- Tajo de espada: el brazo barre y un arco de luz pasa delante (el 3.º, una
 				-- rueda alrededor); el contraataque tras una parada sale dorado y más grande

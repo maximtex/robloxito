@@ -98,6 +98,9 @@ local StyleConfig = {
 		SwordSwing = { Id = "rbxassetid://134671877618939", Volume = 0.45, Pitch = 1 },
 		SwordSpin = { Id = "rbxassetid://125914564702009", Volume = 0.5, Pitch = 1 },
 		SwordHit = { Id = "rbxassetid://138293953015099", Volume = 0.4, Pitch = 1 },
+		PunchSwing = { Id = "rbxassetid://137832890763917", Volume = 0.5, Pitch = 1 }, -- el puño cortando el aire
+		PunchHit = { Id = "rbxassetid://140626490819228", Volume = 0.45, Pitch = 1 }, -- jab y directo
+		PunchHook = { Id = "rbxassetid://140712924060867", Volume = 0.55, Pitch = 1 }, -- el gancho del combo
 		Parry = { Id = "rbxassetid://5763723309", Volume = 0.6, Pitch = 1 },
 		MagicBolt = { Id = "rbxassetid://9116394876", Volume = 0.25, Pitch = 2.2 },
 		Blink = { Id = "rbxassetid://112075927683042", Volume = 0.5, Pitch = 1 },
@@ -461,7 +464,9 @@ local StyleConfig = {
 			-- Dash (tecla Shift, B del mando o su botón): un salto rápido hacia donde te
 			-- mueves, sin daño, que no cruza paredes ni puertas cerradas de la cueva.
 			Dash = { Distance = 16, Cooldown = 2.5 },
-			HitCombo = { Every = 3, Window = 1.2, Multiplier = 2, Name = "¡Gancho!", Knockback = 22 },
+			-- El 3.º golpe seguido es un gancho: doble daño y lo lanza hacia atrás y hacia arriba
+			-- (Lift: parte de la fuerza que va hacia arriba)
+			HitCombo = { Every = 3, Window = 1.2, Multiplier = 2, Name = "¡Gancho!", Knockback = 30, Lift = 0.55 },
 			-- Animaciones (publicadas en Roblox; StyleAnimations las pone en tu personaje)
 			Animations = {
 				Guard = "rbxassetid://72227312054591", -- puños en guardia (se repite)

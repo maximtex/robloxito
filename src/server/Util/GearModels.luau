@@ -1,6 +1,6 @@
 -- Modelos de lo que lleva el jugador en la mano (GearService): el arma de fuego según su tipo
--- (pistola, rifle, escopeta, francotirador, bazuca o arco: GunLogic), la espada del Guerrero
--- y el bastón de la Magia, hechos con piezas y con el color del objeto.
+-- (pistola, rifle, escopeta, francotirador, bazuca o arco: GunLogic), la espada del Guerrero,
+-- el bastón de la Magia y los guantes de Puños, hechos con piezas y con el color del objeto.
 -- Todos se construyen en el espacio del agarre de la mano (como una herramienta de Roblox):
 -- origen = la palma, -Z = a lo largo del brazo (hacia delante con el brazo levantado) y +Y =
 -- arriba con el brazo levantado. Así:
@@ -184,6 +184,54 @@ function GearModels.staff(color: Color3, orbColor: Color3): Model
 	point(handle, "Orb", Vector3.new(0, 0, 3.95))
 	weldAll(model, handle)
 	model:SetAttribute("GearKind", "Staff")
+	return model
+end
+
+-- Guantes de Puños: uno en cada mano, del tamaño de la mano del avatar (un puño acolchado
+-- redondo y el puño de la muñeca), del color de los guantes equipados; los mejores llevan una
+-- franja brillante. A diferencia del resto, se construyen ya soldados al personaje: devuelve
+-- el modelo (en el personaje) o nil si no tiene manos.
+function GearModels.gloves(character: Model, color: Color3, glowing: boolean?): Model?
+	local model = Instance.new("Model")
+	model.Name = "HeldGear"
+	local cuffColor = Color3.new(1, 1, 1):Lerp(color, 0.25)
+	local made = 0
+	for _, side in { "Right", "Left" } do
+		local hand = character:FindFirstChild(side .. "Hand")
+		if hand and hand:IsA("BasePart") then
+			local size = hand.Size
+			local width = math.max(size.X, size.Z)
+			-- Las piezas se colocan en el espacio de la mano: +Y = hacia la muñeca
+			local pieces = {
+				{ "Fist", Vector3.one * width * 1.85, CFrame.new(0, -size.Y * 0.14, -size.Z * 0.08), color, Enum.PartType.Ball },
+				{ "Knuckles", Vector3.one * width * 1.55, CFrame.new(0, size.Y * 0.14, -size.Z * 0.05), color, Enum.PartType.Ball },
+				{ "Cuff", Vector3.new(size.Y * 0.34, width * 1.4, width * 1.4), CFrame.new(0, size.Y * 0.52, 0) * CFrame.Angles(0, 0, math.rad(90)), cuffColor, Enum.PartType.Cylinder },
+			}
+			if glowing then
+				table.insert(pieces, { "Stripe", Vector3.new(size.Y * 0.1, width * 1.48, width * 1.48), CFrame.new(0, size.Y * 0.4, 0) * CFrame.Angles(0, 0, math.rad(90)), color, Enum.PartType.Cylinder })
+			end
+			for _, spec in pieces do
+				local piece = part(model, side .. spec[1], spec[2], hand.CFrame * spec[3], spec[4], if spec[1] == "Stripe" then Enum.Material.Neon else Enum.Material.SmoothPlastic, spec[5])
+				local weld = Instance.new("Weld")
+				weld.Name = "GearWeld"
+				weld.Part0 = hand
+				weld.Part1 = piece
+				weld.C0 = spec[3]
+				weld.Parent = piece
+			end
+			made += 1
+		end
+	end
+	if made == 0 then
+		model:Destroy()
+		return nil
+	end
+	local primary = model:FindFirstChild("RightFist") or model:FindFirstChildWhichIsA("BasePart")
+	if primary and primary:IsA("BasePart") then
+		model.PrimaryPart = primary
+	end
+	model:SetAttribute("GearKind", "Gloves")
+	model.Parent = character
 	return model
 end
 

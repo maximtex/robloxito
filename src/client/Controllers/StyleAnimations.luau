@@ -7,7 +7,7 @@
 --   disparo, Disparo (retroceso) y Recarga (al ritmo de la recarga del arma).
 -- - Guerrero: Tajo, Revés y Giro (el paso del combo que manda el servidor) y Bloqueo (atributo
 --   Blocking).
--- - Puños: Jab y Directo alternos, y el Gancho en el combo.
+-- - Puños: Jab y Directo alternos, y el Gancho en el combo (con un frenazo al impactar).
 -- - Magia: Cargar (bastón arriba mientras cargas el orbe) y Lanzar.
 -- Prioridades: guardia (Action) < apuntar, bloquear y cargar (Action2) < golpes (Action3). Lo que
 -- no anima un golpe (las piernas al andar) sigue con la animación de Roblox. Sin animaciones de
@@ -53,12 +53,12 @@ local function currentStyle(): string?
 	return if type(value) == "string" then value else nil
 end
 
-local function load(character: Model): { [string]: StyleTracks }
+local function load(character: Model): ({ [string]: StyleTracks }, Animator?)
 	local loaded = {}
 	local humanoid = character:WaitForChild("Humanoid", 10)
 	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator") or (humanoid and humanoid:WaitForChild("Animator", 10))
 	if not (animator and animator:IsA("Animator")) then
-		return loaded
+		return loaded, nil
 	end
 	local function track(id: any, priority: Enum.AnimationPriority, looped: boolean): AnimationTrack?
 		if type(id) ~= "string" or id == "" then
@@ -98,7 +98,7 @@ local function load(character: Model): { [string]: StyleTracks }
 			loaded[style] = set
 		end
 	end
-	return loaded
+	return loaded, animator
 end
 
 local function setPlaying(track: AnimationTrack?, wanted: boolean, fade: number?)
@@ -225,6 +225,31 @@ function StyleAnimations.punch(combo: boolean?)
 	playOnce(list[punchSide])
 end
 
+-- Puños: frenazo al impactar (el golpe se queda quieto `seconds` y sigue): da peso al golpe
+function StyleAnimations.hitstop(seconds: number)
+	local set = setFor("Fists")
+	if not set then
+		return
+	end
+	local playing = {}
+	for _, track in set.Punches or {} do
+		table.insert(playing, track)
+	end
+	if set.Hook then
+		table.insert(playing, set.Hook)
+	end
+	for _, track in playing do
+		if track and track.IsPlaying then
+			track:AdjustSpeed(0)
+			task.delay(seconds, function()
+				if track.IsPlaying then
+					track:AdjustSpeed(1)
+				end
+			end)
+		end
+	end
+end
+
 -- Magia: empieza o deja de cargar un orbe
 function StyleAnimations.charging(on: boolean)
 	charging = on
@@ -242,15 +267,90 @@ function StyleAnimations.cast()
 	playOnce(set.Cast)
 end
 
-local function onCharacter(character: Model)
+local function dropAll()
+	for _, set in tracks do
+		for _, value in set do
+			local list = if type(value) == "table" then value else { value }
+			for _, track in list do
+				if typeof(track) == "Instance" then
+					track:Stop(0)
+					track:Destroy()
+				end
+			end
+		end
+	end
 	tracks = {}
+end
+
+-- Carga (o recarga) las animaciones en el personaje y pone las que tocan
+local loadToken = 0
+local animatorNow: Animator? = nil
+local function reload(character: Model)
+	loadToken += 1
+	local token = loadToken
+	task.spawn(function()
+		local loaded, animator = load(character)
+		if token == loadToken and player.Character == character then
+			dropAll()
+			tracks = loaded
+			animatorNow = animator
+			refresh()
+		end
+	end)
+end
+
+-- ¿Mueve de verdad la guardia al personaje? (si se puso antes de que el avatar terminara de
+-- montarse, Roblox la da por puesta pero no está entre las que suenan)
+local function guardWorks(): boolean
+	local style = currentStyle()
+	local set = style and tracks[style]
+	local guard = set and set.Guard
+	local animator = animatorNow
+	if not (guard and animator and animator.Parent) then
+		return true
+	end
+	for _, playing in animator:GetPlayingAnimationTracks() do
+		if playing == guard then
+			return true
+		end
+	end
+	return false
+end
+
+-- Al cargarse el aspecto del avatar Roblox vuelve a montar sus articulaciones (p. ej. como
+-- AnimationConstraint): lo que ya sonaba deja de mover los brazos. Se cargan cuando ya están
+-- (un momento después de la última), y si aun así la guardia no suena, se recargan.
+local JOINTS = { RightShoulder = true, LeftShoulder = true, ["Right Shoulder"] = true, ["Left Shoulder"] = true }
+local SETTLE = 0.15
+local function onCharacter(character: Model)
+	dropAll()
+	animatorNow = nil
 	charging = false
 	aimUntil = 0
-	task.spawn(function()
-		local loaded = load(character)
+	local changedAt = os.clock()
+	character.DescendantAdded:Connect(function(descendant)
+		if JOINTS[descendant.Name] and (descendant:IsA("Motor6D") or descendant:IsA("AnimationConstraint")) then
+			changedAt = os.clock()
+			task.delay(SETTLE, function()
+				if player.Character == character and os.clock() - changedAt >= SETTLE - 0.01 then
+					reload(character)
+				end
+			end)
+		end
+	end)
+	task.delay(SETTLE, function()
 		if player.Character == character then
-			tracks = loaded
-			refresh()
+			reload(character)
+		end
+	end)
+	task.spawn(function()
+		local retries = 0
+		while player.Character == character and character.Parent and retries < 5 do
+			task.wait(1.5)
+			if player.Character == character and not guardWorks() then
+				retries += 1
+				reload(character)
+			end
 		end
 	end)
 end

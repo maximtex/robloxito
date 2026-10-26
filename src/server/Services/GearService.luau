@@ -1,8 +1,9 @@
 -- Lo que se ve en la mano de cada jugador según su estilo de pelea (lo ven todos): el arma de
--- fuego de su tipo con el estilo Armas, la espada con el Guerrero y el bastón con la Magia
--- (GearModels; con Puños, nada). Se cambia al cambiar de estilo o de objeto equipado
--- (atributos CombatStyle y EquippedWeapon) y al reaparecer. Solo se ve: el daño y de dónde
--- sale cada golpe lo deciden PetCombatService y el cliente (CharacterPose.gearPoint).
+-- fuego de su tipo con el estilo Armas, la espada con el Guerrero, el bastón con la Magia y
+-- los guantes en las dos manos con Puños (GearModels). Se cambia al cambiar de estilo o de
+-- objeto equipado (atributos CombatStyle y EquippedWeapon) y al reaparecer. Solo se ve: el
+-- daño y de dónde sale cada golpe lo deciden PetCombatService y el cliente
+-- (CharacterPose.gearPoint).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
+local StyleConfig = require(Shared.Config.StyleConfig)
 local GunLogic = require(Shared.GunLogic)
 local MagicLogic = require(Shared.MagicLogic)
 local GearModels = require(script.Parent.Parent.Util.GearModels)
@@ -49,12 +51,20 @@ local function refresh(player: Player, force: boolean?)
 	end
 	local key = style .. ":" .. weaponId
 	local existing = character:FindFirstChild("HeldGear")
-	if not force and shown[player] == key and (existing ~= nil or style == "Fists") then
+	if not force and shown[player] == key and existing ~= nil then
 		return
 	end
 	shown[player] = key
 	if existing then
 		existing:Destroy()
+	end
+	if style == "Fists" then
+		-- Los guantes equipados (su color; los mejores brillan) o, sin guantes, del color del estilo
+		local def = WeaponConfig.Weapons[weaponId]
+		local gloves = def ~= nil and def.Category == "Fists"
+		local color = if gloves and def.Color then def.Color else StyleConfig.Styles.Fists.Color
+		GearModels.gloves(character, color, gloves and (def.Order or 101) >= 106)
+		return
 	end
 	local model = build(style, weaponId)
 	if model and not GearModels.attach(character, model) then

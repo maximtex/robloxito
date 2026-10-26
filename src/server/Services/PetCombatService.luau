@@ -983,7 +983,7 @@ local function firePunch(player: Player, state: State, root: BasePart, aim: Vect
 	if target then
 		killed = hitWith(player, target, stats.Shot * crit * power, effect.Slow, hits)
 		if combo and combo.Knockback and not killed and EnemyService.isAlive(target) then
-			EnemyService.knockback(target, root.Position, combo.Knockback)
+			EnemyService.knockback(target, root.Position, combo.Knockback, combo.Lift)
 		end
 		if not killed then
 			setTarget(state, target)

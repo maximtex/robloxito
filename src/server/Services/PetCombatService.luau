@@ -261,6 +261,17 @@ local function stateOf(player: Player): State
 	return state
 end
 
+-- Lo que tarda en llegar un aviso del jugador (la mitad de su ping), como mucho 0.15 s
+local function oneWayLatency(player: Player): number
+	local ok, ping = pcall(function()
+		return (player :: any):GetNetworkPing()
+	end)
+	if ok and type(ping) == "number" and ping == ping then
+		return math.clamp(ping / 2, 0, 0.15)
+	end
+	return 0
+end
+
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -1269,6 +1280,22 @@ function PetCombatService.blockIncoming(player: Player, enemy: any?): number
 	end
 	local now = os.clock()
 	local factor, parried = WarriorLogic.incoming(state.Block, now)
+	if factor < 1 and not parried then
+		-- Bloqueado (sin parada): chispas en la espada
+		local root = rootOf(player)
+		if root then
+			local at = root.Position
+			if enemy and enemy.Root then
+				-- Un poco hacia el bicho (donde choca la espada)
+				local dx, dz = enemy.Root.Position.X - at.X, enemy.Root.Position.Z - at.Z
+				local length = math.sqrt(dx * dx + dz * dz)
+				if length > 0.1 then
+					at = Vector3.new(at.X + dx / length * 1.5, at.Y, at.Z + dz / length * 1.5)
+				end
+			end
+			broadcast(player, at, { Kind = "Blocked", Position = at })
+		end
+	end
 	if parried then
 		local spec = StyleConfig.Styles.Warrior.Block
 		state.CounterUntil = now + spec.CounterSeconds
@@ -1324,7 +1351,8 @@ function PetCombatService.start()
 			return
 		elseif mode == "BlockOn" then
 			if style == "Warrior" then
-				WarriorLogic.startBlock(state.Block, now)
+				-- Cuenta desde que lo pulsó (sin el viaje del aviso): la parada es justa con lag
+				WarriorLogic.startBlock(state.Block, now - oneWayLatency(player))
 				state.HeldUntil = -math.huge
 				player:SetAttribute(Constants.Attributes.Blocking, true)
 			end

@@ -13,6 +13,8 @@ local PortalController = require(script.Controllers.PortalController)
 local CombatController = require(script.Controllers.CombatController)
 local AimCamera = require(script.Controllers.AimCamera)
 local GearPose = require(script.Controllers.GearPose)
+local AttackWarning = require(script.Controllers.AttackWarning)
+local SwordAnimations = require(script.Controllers.SwordAnimations)
 local WaveVisibility = require(script.Controllers.WaveVisibility)
 local WaveController = require(script.Controllers.WaveController)
 local WeaponController = require(script.Controllers.WeaponController)
@@ -45,6 +47,8 @@ PetFollower.start()
 WaveVisibility.start() -- oleadas privadas: solo se ven los enemigos de tu partida (o del mundo)
 AimCamera.start() -- apuntar con el clic derecho (Armas) y caminar más lento al bloquear
 GearPose.start() -- cómo se lleva el arma, la espada o el bastón en la mano
+AttackWarning.start() -- ¡! y media luna en el suelo cuando un bicho te va a pegar
+SwordAnimations.start() -- animaciones de la espada del Guerrero (guardia, tajos, giro, bloqueo)
 task.spawn(PetController.start)
 task.spawn(PortalController.start)
 task.spawn(CombatController.start)

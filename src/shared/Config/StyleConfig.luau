@@ -276,7 +276,19 @@ local StyleConfig = {
 			-- caminas más lento. Parada perfecta: si te pegan en los primeros ParryWindow s de un
 			-- bloqueo (y no bloqueaste hace menos de ParryRearm s), no te hace nada, el bicho queda
 			-- aturdido Stun s y tu siguiente tajo en CounterSeconds s hace ×CounterMultiplier.
-			Block = { DamageTaken = 0.3, ParryWindow = 0.3, ParryRearm = 0.8, Stun = 1.5, CounterSeconds = 2, CounterMultiplier = 2.5, WalkSpeed = 0.5 },
+			Block = { DamageTaken = 0.3, ParryWindow = 0.35, ParryRearm = 0.8, Stun = 1.5, CounterSeconds = 2, CounterMultiplier = 2.5, WalkSpeed = 0.5 },
+			-- Animaciones de la espada (publicadas en Roblox; SwordAnimations las pone en tu
+			-- personaje y Roblox las enseña a los demás). Vacío = los movimientos hechos a mano
+			-- (CharacterPose).
+			Animations = {
+				Guard = "rbxassetid://139812042784083", -- espada en guardia (se repite)
+				Slashes = {
+					"rbxassetid://93691437653340", -- Tajo: de derecha a izquierda
+					"rbxassetid://91310235080419", -- Revés: de izquierda a derecha
+					"rbxassetid://77829434960786", -- ¡Giro! (vuelta completa)
+				},
+				Block = "rbxassetid://81075562399143", -- espada atravesada (se repite)
+			},
 			Passive = {
 				Name = "Sed de batalla",
 				Icon = "🩸",

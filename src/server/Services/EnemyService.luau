@@ -12,7 +12,9 @@
 --   Láser) y replicándola con PlayerDataService. Cada golpe suelta además un poco de dinero.
 --   El cliente recibe dónde estaba el enemigo para dibujar las monedas que salen de él.
 -- - Atacan a los jugadores que se acercan (DetectRange) o que les disparan dentro de su
---   radio; el daño respeta el escudo de aparición y la defensa de las tortugas.
+--   radio; el daño respeta el escudo de aparición y la defensa de las tortugas. Cada golpe se
+--   prepara quieto y avisado (AttackWindup; atributos AttackTarget, AttackDir, AttackReach y
+--   AttackAt) y solo alcanza por delante: se puede esquivar, bloquear o parar (Guerrero).
 -- - Al morir el modelo se retira (tras dejar que el cliente lo disuelva) y reaparece tras
 --   RespawnSeconds, reutilizando el mismo modelo (sin crear ni filtrar instancias ni conexiones).
 -- - Presentación: las piezas van unidas con Motor6D por grupos (cuerpo, brazos, piernas)
@@ -145,6 +147,7 @@ type Enemy = {
 	Control: EnemyLogic.Control, -- estados de las habilidades (os.clock)
 	Target: Player?,
 	NextAttack: number,
+	WindupUntil: number?, -- preparando un golpe hasta entonces (os.clock): quieto, comprometido
 	NextSlam: number,
 	NextWander: number,
 	Enraged: boolean,
@@ -877,6 +880,7 @@ local function respawn(enemy: Enemy)
 	enemy.LastHomeDistance = math.huge
 	local now = os.clock()
 	enemy.NextAttack = now + 1
+	enemy.WindupUntil = nil
 	enemy.NextSlam = now + (if enemy.Def.Slam then enemy.Def.Slam.Interval else math.huge)
 	if enemy.Brain then
 		resetBrain(enemy, now)
@@ -886,6 +890,7 @@ local function respawn(enemy: Enemy)
 	-- La barra de vida permanece oculta hasta que el jugador/mascotas ataquen a este enemigo.
 	enemy.Billboard.Enabled = false
 	enemy.Model:SetAttribute("AttackAt", nil)
+	enemy.Model:SetAttribute("AttackTarget", nil)
 	enemy.Model:SetAttribute("SlamAt", nil)
 	enemy.Model:SetAttribute("DiedAt", nil)
 	enemy.Model:SetAttribute("SpawnedAt", Workspace:GetServerTimeNow())
@@ -1317,21 +1322,53 @@ local function acquireTarget(enemy: Enemy): Player?
 	return best
 end
 
+-- Golpe cuerpo a cuerpo avisado: el bicho se compromete (se queda quieto mirando a su
+-- objetivo durante AttackWindup, con los ojos encendidos) y al final pega solo por delante y
+-- a su alcance: apartarse o rodearlo lo esquiva; el Guerrero puede bloquearlo o pararlo.
+-- Atributos para el cliente (AttackWarning y EnemyAnimator): AttackTarget (UserId de a quién
+-- va), AttackDir (hacia dónde), AttackReach (alcance) y AttackAt (hora del golpe).
+local HIT_SLACK = 1.5 -- studs de margen al validar el golpe
+local FRONT_DOT = -0.1 -- un poco más de medio círculo por delante
 local function attack(enemy: Enemy, target: Player)
 	local generation = enemy.Generation
+	local windup = enemy.Def.AttackWindup
+	local origin = enemy.Root.Position
+	local targetRoot = characterOf(target)
+	local forward = if targetRoot then Vector3.new(targetRoot.Position.X - origin.X, 0, targetRoot.Position.Z - origin.Z) else Vector3.zero
+	if forward.Magnitude > 0.05 then
+		forward = forward.Unit
+		enemy.Root.CFrame = CFrame.lookAt(origin, origin + forward)
+	else
+		local look = enemy.Root.CFrame.LookVector
+		forward = Vector3.new(look.X, 0, look.Z)
+		forward = if forward.Magnitude > 0.05 then forward.Unit else Vector3.new(0, 0, -1)
+	end
+	local reach = enemy.Def.AttackRange + enemy.Radius + HIT_SLACK
+	enemy.WindupUntil = os.clock() + windup
+	enemy.Humanoid:MoveTo(origin)
 	setEyes(enemy, WINDUP_EYES) -- aviso del golpe
-	-- Momento del golpe para la animación del cliente (preparación y golpe).
-	enemy.Model:SetAttribute("AttackAt", Workspace:GetServerTimeNow() + enemy.Def.AttackWindup)
-	task.delay(enemy.Def.AttackWindup, function()
+	enemy.Model:SetAttribute("AttackTarget", target.UserId)
+	enemy.Model:SetAttribute("AttackDir", forward)
+	enemy.Model:SetAttribute("AttackReach", reach)
+	-- Momento del golpe para la animación y el aviso del cliente (preparación y golpe).
+	enemy.Model:SetAttribute("AttackAt", Workspace:GetServerTimeNow() + windup)
+	task.delay(windup, function()
 		if enemy.Generation ~= generation or enemy.Status.State == "Dead" then
 			return
 		end
+		enemy.WindupUntil = nil
 		setEyes(enemy, restingEyes(enemy))
 		if EnemyLogic.isStunned(enemy.Control, os.clock()) then
 			return -- aturdido durante la preparación: el golpe se pierde
 		end
 		local root, humanoid = characterOf(target)
-		if root and humanoid and flat(root.Position - enemy.Root.Position) <= enemy.Def.AttackRange + enemy.Radius + 1.5 then
+		if not (root and humanoid) then
+			return
+		end
+		local offset = Vector3.new(root.Position.X - enemy.Root.Position.X, 0, root.Position.Z - enemy.Root.Position.Z)
+		local distance = offset.Magnitude
+		local inFront = distance < enemy.Radius + 1 or offset.Unit:Dot(forward) >= FRONT_DOT
+		if distance <= reach and inFront then
 			damagePlayer(enemy, target, humanoid, enemy.Def.Damage)
 		end
 	end)
@@ -2059,6 +2096,13 @@ local function updateEnemy(enemy: Enemy, now: number)
 			enemy.NextSlam = now + interval
 			slam(enemy)
 		end
+	end
+
+	-- Preparando un golpe: se queda quieto hasta soltarlo (así se puede esquivar)
+	if enemy.WindupUntil and now < enemy.WindupUntil then
+		status.State = "Attack"
+		enemy.Humanoid:MoveTo(position)
+		return
 	end
 
 	local offset = targetRoot.Position - position

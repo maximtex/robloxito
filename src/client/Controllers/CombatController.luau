@@ -54,6 +54,7 @@ local CharacterPose = require(script.Parent.CharacterPose)
 local AimPoint = require(script.Parent.AimPoint)
 local AimCamera = require(script.Parent.AimCamera)
 local CombatHud = require(script.Parent.CombatHud)
+local SwordAnimations = require(script.Parent.SwordAnimations)
 local MagicLogic = require(Shared.MagicLogic)
 local GunLogic = require(Shared.GunLogic)
 
@@ -1722,7 +1723,13 @@ function CombatController.start()
 				local direction = if typeof(event.Direction) == "Vector3" then event.Direction else target - center
 				local radius = tonumber(event.Radius) or 10
 				local arcColor = if counter then THEME.Gold else color
-				CharacterPose.slash(character, step)
+				-- La animación de la espada la pone tu cliente en tu personaje (los demás la ven
+				-- por Roblox); sin animaciones, el movimiento a mano en cada cliente
+				if not SwordAnimations.enabled() then
+					CharacterPose.slash(character, step)
+				elseif isOwner then
+					SwordAnimations.slash(step)
+				end
 				slashArc(center, direction, radius, arcColor, step, counter or step == 3)
 				if step == 3 then
 					impactRing(center, radius * 0.9, arcColor)
@@ -1839,6 +1846,12 @@ function CombatController.start()
 					playVaried(killSound, 0.9, 0.05)
 				end
 			end
+		elseif event.Kind == "Blocked" and typeof(event.Position) == "Vector3" then
+			-- Golpe bloqueado con la espada (sin parada): chispas y choque de metal
+			local at = event.Position :: Vector3
+			flashBall(at, Color3.new(1, 1, 1), 0.5, 2.6, 0.12)
+			emitAt("Spark", at, Color3.fromRGB(210, 225, 255), 10)
+			playStyleSound("SwordHit", if isOwner then nil else at, 0.7)
 		elseif event.Kind == "Parry" and typeof(event.Position) == "Vector3" then
 			-- Parada perfecta del Guerrero: destello blanco, chispas doradas
 			local at = event.Position :: Vector3

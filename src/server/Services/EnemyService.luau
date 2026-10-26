@@ -181,7 +181,7 @@ local streaks: { [Player]: WaveLogic.Streak } = {}
 local killModifier: ((Player, Enemy) -> (number?, number?))? = nil
 -- Modificador del daño que los enemigos hacen a los jugadores (lo registra
 -- PetCombatService para la Tortuga). Un único punto: nunca se aplica dos veces.
-local incomingModifier: ((Player, number) -> number)? = nil
+local incomingModifier: ((Player, number, any?) -> number)? = nil
 -- Daño que hace el jugador según su clase (StyleService: más a los jefes)
 local outgoingModifier: ((Player, any, number) -> number)? = nil
 local folder: Folder
@@ -1192,7 +1192,9 @@ function EnemyService.markStatus(enemy: Enemy, name: string, seconds: number)
 	end
 end
 
-function EnemyService.setIncomingDamageModifier(modifier: (Player, number) -> number)
+-- Daño que recibe un jugador (estilo, clase, bloqueo del Guerrero): (jugador, daño, el
+-- enemigo que le pega) -> daño final.
+function EnemyService.setIncomingDamageModifier(modifier: (Player, number, any?) -> number)
 	incomingModifier = modifier
 end
 
@@ -1206,7 +1208,7 @@ local function damagePlayer(enemy: Enemy, player: Player, humanoid: Humanoid, am
 	end
 	local final = amount * (enemy.DamageMultiplier or 1) -- oleadas: suave al principio, fuerte al final
 	if incomingModifier then
-		local ok, result = pcall(incomingModifier, player, final)
+		local ok, result = pcall(incomingModifier, player, final, enemy)
 		if ok and type(result) == "number" and result == result then
 			final = math.clamp(result, 0, final * 2) -- nunca curación ni más del doble (estilo Armas: algo más)
 		end
@@ -2166,6 +2168,12 @@ end
 
 -- Arranque --------------------------------------------------------------------------
 
+-- Vida de un tipo con la escala global (EnemyConfig.HealthScale: todos aguantan más)
+local function baseHealth(def): number
+	local scale = EnemyConfig.HealthScale
+	return math.max(1, math.floor(def.MaxHealth * (if type(scale) == "number" and scale > 0 then scale else 1)))
+end
+
 local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSettings, leashCenter: Vector3?, leashRadius: number?, pooled: boolean?): Enemy?
 	local def = EnemyConfig.Types[typeId]
 	if not def then
@@ -2225,7 +2233,7 @@ local function createEnemy(zoneId: string, typeId: string, home: Vector3, zoneSe
 		SafeZones = safeZones,
 		SafeAreas = safeAreasOf(zoneId, zoneSettings),
 		RewardMultiplier = zoneSettings.RewardMultiplier or 1,
-		Status = { State = "Idle", Health = def.MaxHealth, MaxHealth = def.MaxHealth, Contributions = {} },
+		Status = { State = "Idle", Health = baseHealth(def), MaxHealth = baseHealth(def), Contributions = {} },
 		Control = EnemyLogic.newControl(),
 		Target = nil,
 		NextAttack = 0,
@@ -2434,7 +2442,7 @@ function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vect
 	enemy.LeashRadius = finiteOr(opts.LeashRadius, def.LeashRange)
 	enemy.DetectRange = finiteOr(opts.DetectRange, def.DetectRange)
 	enemy.RewardMultiplier = finiteOr(opts.RewardMultiplier, 1) * (if eliteSpec then eliteSpec.Reward else 1)
-	enemy.Status.MaxHealth = math.max(1, math.floor(def.MaxHealth * finiteOr(opts.HealthMultiplier, 1) * (if eliteSpec then eliteSpec.Health else 1)))
+	enemy.Status.MaxHealth = math.max(1, math.floor(baseHealth(def) * finiteOr(opts.HealthMultiplier, 1) * (if eliteSpec then eliteSpec.Health else 1)))
 	enemy.OnWaveDeath = opts.OnDeath
 	enemy.LastHitBy = nil
 	enemy.Run = opts.Run
@@ -2489,7 +2497,7 @@ function EnemyService.setBossWaveControlled(zoneId: string, controlled: boolean)
 	if controlled then
 		EnemyService.despawn(boss)
 	else
-		boss.Status.MaxHealth = boss.Def.MaxHealth
+		boss.Status.MaxHealth = baseHealth(boss.Def)
 		boss.OnWaveDeath = nil
 		boss.Generation += 1
 		respawn(boss)
@@ -2503,7 +2511,7 @@ function EnemyService.wakeBoss(zoneId: string, healthMultiplier: number?, onDeat
 	if not boss then
 		return nil
 	end
-	boss.Status.MaxHealth = math.max(1, math.floor(boss.Def.MaxHealth * finiteOr(healthMultiplier, 1)))
+	boss.Status.MaxHealth = math.max(1, math.floor(baseHealth(boss.Def) * finiteOr(healthMultiplier, 1)))
 	boss.OnWaveDeath = onDeath
 	boss.LastHitBy = nil
 	boss.Generation += 1

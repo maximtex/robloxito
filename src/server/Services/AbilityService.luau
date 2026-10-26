@@ -325,6 +325,50 @@ local function runReactions(ctx: Context)
 	end
 end
 
+-- Golpe elemental de fuera (el bastón y las habilidades de Magia, por
+-- PetCombatService.setElementHook): mira la marca del enemigo. Si hace combo con `element`,
+-- la gasta, dispara el combo (con `amount` como daño base) y devuelve el multiplicador del
+-- golpe; si no, le deja su marca. Con `burn` ({ Tick, Seconds }) además le quema.
+function AbilityService.elementalHit(player: Player, enemy: any, element: string, amount: number, burn: any?): number
+	if not (AbilityLogic.get(element) and EnemyService.isAlive(enemy)) then
+		return 1
+	end
+	local root, humanoid = characterOf(player)
+	if not (root and humanoid) then
+		return 1
+	end
+	local aura = EnemyService.auraOf(enemy)
+	local reactionId = AbilityLogic.reaction(aura, element)
+	local multiplier = 1
+	if reactionId then
+		multiplier = AbilityConfig.Reactions[reactionId].Multiplier or 1
+		EnemyService.setAura(enemy, nil)
+		local ctx: Context = {
+			Player = player,
+			State = stateOf(player),
+			Ability = AbilityConfig.Abilities[element],
+			ElementId = element,
+			Level = 1,
+			Base = math.max(0, amount),
+			Root = root,
+			Humanoid = humanoid,
+			Hits = {},
+			Engaged = true,
+			Reactions = {},
+		}
+		local entry = { Id = reactionId, Enemy = enemy, Position = enemy.Root.Position, Aura = aura }
+		-- Después del golpe que lo dispara
+		task.defer(applyReaction, ctx, entry)
+	elseif AbilityLogic.leavesAura(element) then
+		EnemyService.setAura(enemy, element, AbilityConfig.Aura.Seconds)
+	end
+	if type(burn) == "table" and type(burn.Tick) == "number" and burn.Tick > 0 and type(burn.Seconds) == "number" then
+		addBurn(player, enemy, burn.Tick, { BurnTickSeconds = 1, BurnSeconds = burn.Seconds })
+		EnemyService.markStatus(enemy, "Burn", burn.Seconds)
+	end
+	return multiplier
+end
+
 -- Ejecutores por tipo. Devuelven false si no hay objetivo (no se gasta la recarga).
 local EXECUTE: { [string]: (Context) -> boolean } = {}
 

@@ -22,7 +22,7 @@ local TutorialConfig = {
 			-- (WaveConfig.Arenas.Tutorial) con consejos en pantalla.
 			Id = "Waves",
 			Title = "Juega tu primera oleada",
-			Text = "Ve al círculo brillante delante de ti y pulsa E en el altar. Dentro atacas solo: aguanta 3 oleadas cortas.",
+			Text = "Ve al círculo brillante delante de ti y pulsa E en el altar. Dentro apunta con el ratón y haz clic (o mantén) para atacar: aguanta 3 oleadas cortas.",
 			Goal = { Source = "Stat", Key = "WaveWins" },
 			Target = 1,
 			Guide = "Waves",

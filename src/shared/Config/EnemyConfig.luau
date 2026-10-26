@@ -11,6 +11,8 @@
 
 local EnemyConfig = {
 	AiTickSeconds = 0.15,
+	-- Todos los bichos (y jefes) tienen esta vez su MaxHealth: más duros de farmear
+	HealthScale = 1.5,
 
 	-- Bichos élite de las mazmorras del Valle y la Caldera (CaveConfig.Caves.*.EliteChance en
 	-- las salas y WaveConfig.Arenas.*.EliteChance en las oleadas): más grandes (Scale), brillan

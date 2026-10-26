@@ -6,9 +6,9 @@
 --   Owned: { [id]: true }    armas, guantes y bastones que tiene (los iniciales siempre)
 --   Levels: { [id]: number } nivel de mejora de cada uno (0..MaxLevel)
 --   Equipped: string         arma con la que dispara el estilo Armas (siempre una que tiene)
---   Slots: { Fists, Magic }  guantes y bastón equipados de los otros dos estilos
+--   Slots: { Warrior, Fists, Magic }  espada, guantes y bastón de los otros estilos
 -- Lo que ya no existe en WeaponConfig se conserva en Archived tal cual.
--- Cada objeto es de una categoría (WeaponConfig, Category: "Weapons", "Fists" o "Magic"):
+-- Cada objeto es de una categoría (WeaponConfig, Category: "Weapons", "Warrior", "Fists" o "Magic"):
 -- la de cada estilo, con su tienda, su equipado y sus niveles aparte.
 
 local WeaponConfig = require(script.Parent.Config.WeaponConfig)
@@ -24,7 +24,7 @@ export type WeaponData = {
 	Archived: { [string]: any }?,
 }
 
-local OTHER_CATEGORIES = { "Fists", "Magic" }
+local OTHER_CATEGORIES = { "Warrior", "Fists", "Magic" }
 
 local function isFinite(value: any): boolean
 	return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
@@ -219,10 +219,10 @@ function WeaponLogic.equip(data: WeaponData, weaponId: any): string
 	return "Success"
 end
 
--- Lo que lleva equipado el estilo `styleId` (Armas: el arma; Puños: los guantes; Magia: el
--- bastón). Siempre algo que tiene (si no, el inicial de su categoría).
+-- Lo que lleva equipado el estilo `styleId` (Armas: el arma; Guerrero: la espada; Puños: los
+-- guantes; Magia: el bastón). Siempre algo que tiene (si no, el inicial de su categoría).
 function WeaponLogic.equippedFor(data: WeaponData, styleId: any): string
-	if styleId == "Fists" or styleId == "Magic" then
+	if styleId == "Warrior" or styleId == "Fists" or styleId == "Magic" then
 		local id = data.Slots and data.Slots[styleId]
 		if id and data.Owned[id] and WeaponLogic.category(id) == styleId then
 			return id

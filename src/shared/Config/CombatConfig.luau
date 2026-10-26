@@ -12,9 +12,9 @@ local CombatConfig = {
 	PetDamageShare = 0.5,
 	PetMoneyShare = 0.5, -- y la mitad de su bonificación al dinero de los enemigos
 
-	-- El arma dispara sola (PetCombatService) con la cadencia y el alcance de WeaponConfig.
-	-- Con un clic o toque se elige el enemigo apuntado, el más cercano a la línea del cursor.
-	AimRadius = 1, -- margen (studs) alrededor del cuerpo del enemigo para darlo por apuntado con el cursor
+	-- Se apunta con el ratón o el toque (AimPoint): el disparo va hacia ese punto y da a quien
+	-- esté en el camino (PetCombatService, AimLogic), con la cadencia y el alcance de WeaponConfig.
+	AimRadius = 1, -- margen (studs) alrededor del cuerpo del enemigo para que el cursor lo apunte a él
 
 	-- Animación de ataque. Orden de preferencia:
 	-- 1. AttackAnimationId: un rbxassetid://... propio (sin configurar).

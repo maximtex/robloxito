@@ -33,6 +33,7 @@ local PetCombatService = require(Services.PetCombatService)
 local WaveService = require(Services.WaveService)
 local AbilityService = require(Services.AbilityService)
 local StyleService = require(Services.StyleService)
+local GearService = require(Services.GearService)
 local CaveService = require(Services.CaveService)
 local RebirthService = require(Services.RebirthService)
 local AdventureService = require(Services.AdventureService)
@@ -81,6 +82,9 @@ safeStart("PetCombatService", PetCombatService)
 safeStart("WaveService", WaveService) -- oleadas: después de EnemyService y PetCombatService
 safeStart("AbilityService", AbilityService)
 safeStart("StyleService", StyleService) -- estilos de pelea: después de PetCombatService
+safeStart("GearService", GearService) -- el arma, la espada o el bastón en la mano
+-- Marca y combos elementales de los golpes del bastón y de las habilidades de Magia
+PetCombatService.setElementHook(AbilityService.elementalHit)
 safeStart("CaveService", CaveService) -- viaje a la Cueva de los Espinillos (la construye WorldService)
 safeStart("RebirthService", RebirthService)
 safeStart("AdventureService", AdventureService)

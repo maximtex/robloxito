@@ -13,7 +13,7 @@ local function near(a, b)
 end
 
 print("-- Configuración")
-local configOk = #StyleConfig.Order == 3
+local configOk = #StyleConfig.Order == 4
 for _, id in StyleConfig.Order do
 	local def = StyleConfig.Styles[id]
 	local count, free, priced = 0, 0, 0
@@ -34,7 +34,7 @@ for _, id in StyleConfig.Order do
 		and def.Skills[def.StartSkills[1]].Price == 0 and def.Skills[def.StartSkills[2]].Price == 0
 		and type(def.Pros) == "string" and type(def.Cons) == "string"
 end
-check("tres estilos (Armas, Puños, Magia) con pasiva, ventaja, desventaja y 4 habilidades: 2 de inicio y 2 que se compran", configOk)
+check("cuatro estilos (Armas, Guerrero, Puños, Magia) con pasiva, ventaja, desventaja y 4 habilidades: 2 de inicio y 2 que se compran", configOk)
 local handlersOk = true
 for _, id in StyleConfig.Order do
 	for skillId in StyleConfig.Styles[id].Skills do
@@ -78,7 +78,7 @@ check("sonidos con Id de Roblox", soundsOk)
 
 print("-- Elegir")
 check("sin estilo o uno raro: Armas", StyleLogic.sanitize(nil) == "Weapons" and StyleLogic.sanitize("Nope") == "Weapons" and StyleLogic.sanitize(5) == "Weapons")
-check("los que existen se quedan", StyleLogic.sanitize("Fists") == "Fists" and StyleLogic.sanitize("Magic") == "Magic")
+check("los que existen se quedan", StyleLogic.sanitize("Fists") == "Fists" and StyleLogic.sanitize("Magic") == "Magic" and StyleLogic.sanitize("Warrior") == "Warrior")
 check("cambiar: la primera vez sí; muy seguido, no", StyleLogic.canSwitch(nil, 10) and not StyleLogic.canSwitch(10, 10 + StyleConfig.SwitchCooldown - 0.1) and StyleLogic.canSwitch(10, 10 + StyleConfig.SwitchCooldown))
 
 print("-- El disparo según el estilo")
@@ -90,16 +90,19 @@ check("Puños: golpes de 10.5 cada 0.35 s (×1.5 de DPS), alcance 9", near(fists
 local fastFists = StyleLogic.applyStats({ Shot = 8, Cooldown = 0.36, Range = 60 }, "Fists", 0.4)
 check("Puños con cadencia: también más rápidos (×0.9), mismo golpe", near(fastFists.Cooldown, 0.315) and near(fastFists.Shot, 10.5))
 local magic = StyleLogic.applyStats(laser, "Magic", 0.4)
-check("Magia: orbes que cargan, de 16 cada 0.8 s, alcance 45", near(magic.Shot, 16) and near(magic.Cooldown, 0.8) and magic.Range == 45)
-check("DPS que se muestra: ×1.5 con Puños, igual con Armas y Magia", StyleLogic.dps(20, "Fists") == 30 and StyleLogic.dps(20, "Weapons") == 20 and StyleLogic.dps(20, "Magic") == 20 and StyleLogic.dps(0 / 0, "Fists") == 0)
+check("Magia: bolas de 9.45 cada 0.45 s (×1.05 de DPS), alcance 45", near(magic.Shot, 9.45) and near(magic.Cooldown, 0.45) and magic.Range == 45)
+local sword = StyleLogic.applyStats(laser, "Warrior", 0.4)
+check("Guerrero: tajos de 13.5 cada 0.5 s (×1.35 de DPS), alcance 11", near(sword.Shot, 13.5) and near(sword.Cooldown, 0.5) and sword.Range == 11)
+check("DPS que se muestra: ×1.5 Puños, ×1.35 Guerrero, ×1.05 Magia, igual con Armas", StyleLogic.dps(20, "Fists") == 30 and near(StyleLogic.dps(20, "Warrior"), 27) and StyleLogic.dps(20, "Weapons") == 20 and near(StyleLogic.dps(20, "Magic"), 21) and StyleLogic.dps(0 / 0, "Fists") == 0)
 local weaponEffect = { Splash = { Radius = 6, Fraction = 0.5 } }
 local slowGloves = { Slow = { Factor = 0.6, Seconds = 1.5 } }
 local bigStaff = { Splash = { Radius = 11, Fraction = 0.7 }, Chain = { Count = 1, Range = 14, Fraction = 0.6 } }
-check("efecto: Armas el del arma; Puños el de sus guantes (sin guantes especiales, nada); Magia su explosión (7, 50 %)", StyleLogic.effect("Weapons", weaponEffect) == weaponEffect and next(StyleLogic.effect("Fists", nil)) == nil
+check("efecto: Armas el del arma; Puños el de sus guantes (sin guantes especiales, nada); Magia su explosión (6 del bastón, o 4 al 40 %)", StyleLogic.effect("Weapons", weaponEffect) == weaponEffect and next(StyleLogic.effect("Fists", nil)) == nil
 	and StyleLogic.effect("Fists", slowGloves).Slow.Factor == 0.6 and StyleLogic.effect("Fists", slowGloves) ~= slowGloves
-	and StyleLogic.effect("Magic", weaponEffect).Splash.Radius == 7 and StyleLogic.effect("Magic", nil).Splash.Fraction == 0.5)
+	and StyleLogic.effect("Magic", weaponEffect).Splash.Radius == 6 and StyleLogic.effect("Magic", nil).Splash.Radius == 4 and StyleLogic.effect("Magic", nil).Splash.Fraction == 0.4)
 check("Magia con un bastón especial: su área si es más grande y su rayo que salta", StyleLogic.effect("Magic", bigStaff).Splash.Radius == 11 and StyleLogic.effect("Magic", bigStaff).Chain.Count == 1
-	and StyleLogic.effect("Magic", slowGloves).Slow ~= nil and StyleLogic.effect("Magic", slowGloves).Splash.Radius == 7)
+	and StyleLogic.effect("Magic", slowGloves).Slow ~= nil and StyleLogic.effect("Magic", slowGloves).Splash.Radius == 4)
+check("Guerrero: el efecto de su espada (sin especial, nada)", next(StyleLogic.effect("Warrior", nil)) == nil and StyleLogic.effect("Warrior", slowGloves).Slow.Factor == 0.6)
 
 print("-- Pasivas")
 check("Puntería: críticos ×2 con un 20 %", StyleLogic.critMultiplier("Weapons", 0.1) == 2 and StyleLogic.critMultiplier("Weapons", 0.5) == 1 and StyleLogic.critMultiplier("Fists", 0) == 1 and StyleLogic.critMultiplier("Weapons", 0 / 0) == 1)
@@ -129,20 +132,53 @@ for index = 1, 6 do
 	table.insert(seq, StyleLogic.countHit("Fists", counter, index * 0.4) ~= nil)
 end
 check("Puños: cada 3 golpes seguidos, un gancho", not seq[1] and not seq[2] and seq[3] and not seq[4] and not seq[5] and seq[6])
-local magicCounter = {}
-for index = 1, 3 do
-	StyleLogic.countHit("Magic", magicCounter, index)
+local pauseCounter = {}
+for index = 1, 2 do
+	StyleLogic.countHit("Fists", pauseCounter, index * 0.4)
 end
-check("parar más de lo que dura el combo lo reinicia", StyleLogic.countHit("Magic", magicCounter, 100) == nil and magicCounter.Count == 1)
+check("parar más de lo que dura el combo lo reinicia", StyleLogic.countHit("Fists", pauseCounter, 100) == nil and pauseCounter.Count == 1)
 local mixed = {}
 StyleLogic.countHit("Fists", mixed, 1)
 StyleLogic.countHit("Fists", mixed, 1.2)
 check("cambiar de estilo también lo reinicia", StyleLogic.countHit("Weapons", mixed, 1.4) == nil and mixed.Count == 1)
-check("el gran orbe hace ×2.5 y agranda el área; el tiro cargado, cada 5", StyleConfig.Styles.Magic.HitCombo.Multiplier == 2.5 and StyleConfig.Styles.Magic.HitCombo.SplashScale > 1 and StyleConfig.Styles.Weapons.HitCombo.Every == 5)
+check("el tiro cargado, cada 5; la Magia ya no tiene (carga el orbe)", StyleConfig.Styles.Weapons.HitCombo.Every == 5 and StyleConfig.Styles.Magic.HitCombo == nil)
+
+print("-- Magia: maná y orbe cargado (MagicLogic)")
+check("maná: 100 y se recupera 14/s (30/s si llevas 1.5 s sin gastar), sin pasarse", MagicLogic.maxMana() == 100 and near(MagicLogic.regen(50, 1, 0), 64) and near(MagicLogic.regen(50, 1, 2), 80) and MagicLogic.regen(95, 1, 5) == 100 and MagicLogic.regen(0 / 0, 1, 0) == 100)
+check("la bola gasta 8 y sin maná la chispa hace el 35 %", MagicLogic.boltCost() == 8 and near(MagicLogic.spark(10), 3.5))
+local half = MagicLogic.charged(20, 0.75)
+local full = MagicLogic.charged(20, 1.5)
+local over = MagicLogic.charged(20, 9)
+check("orbe cargado: a la mitad 20 × 1.35 × 1.6 = 43.2, explosión de 10 y 26 de maná", near(half.Damage, 43.2) and near(half.Radius, 10) and near(half.Cost, 26) and near(half.Charge, 0.5))
+check("al máximo: 67.2, explosión de 14, 40 de maná; cargar más no da más", near(full.Damage, 67.2) and near(full.Radius, 14) and near(full.Cost, 40) and near(over.Damage, full.Damage))
+check("habilidades de Magia: gastan maná y dejan su marca elemental", MagicLogic.skillCost(StyleConfig.Styles.Magic.Skills.Meteors) == 25 and StyleConfig.Styles.Magic.Skills.Nova.Element == "Ice" and MagicLogic.skillCost(StyleConfig.Styles.Weapons.Skills.Burst) == 0)
+
+print("-- Guerrero: combo de tajos y bloqueo (WarriorLogic)")
+local combo = WarriorLogic.newCombo()
+local s1 = WarriorLogic.nextSlash(combo, 1)
+local s2 = WarriorLogic.nextSlash(combo, 1.5)
+local s3, giro = WarriorLogic.nextSlash(combo, 2)
+local s4 = WarriorLogic.nextSlash(combo, 2.7)
+check("tajo, revés y giro (alrededor, ×1.8); luego vuelve a empezar", s1 == 1 and s2 == 2 and s3 == 3 and giro.Arc == 180 and giro.Ratio == 1.8 and s4 == 1)
+WarriorLogic.nextSlash(combo, 3)
+check("parar más de 1.1 s reinicia el combo", WarriorLogic.nextSlash(combo, 5) == 1)
+check("después del giro se tarda más (×1.4)", near(WarriorLogic.recovery(giro, 0.5), 0.7) and WarriorLogic.recovery(StyleConfig.Styles.Warrior.Slashes[1], 0.5) == 0.5)
+local block = WarriorLogic.newBlock()
+check("sin bloquear: todo el daño", WarriorLogic.incoming(block, 0) == 1)
+WarriorLogic.startBlock(block, 10)
+local f1, p1 = WarriorLogic.incoming(block, 10.2)
+local f2, p2 = WarriorLogic.incoming(block, 10.25)
+check("bloqueando a tiempo (0.3 s): parada perfecta (0) una vez; luego el 30 %", f1 == 0 and p1 == true and f2 == 0.3 and p2 == false)
+WarriorLogic.stopBlock(block)
+WarriorLogic.startBlock(block, 10.5)
+check("machacar el bloqueo no da paradas (hay que esperar 0.8 s)", WarriorLogic.incoming(block, 10.55) == 0.3)
+WarriorLogic.stopBlock(block)
+WarriorLogic.startBlock(block, 12)
+check("bloqueando tarde (más de 0.3 s): solo el 30 %", WarriorLogic.incoming(block, 12.5) == 0.3)
 
 print("-- Habilidades compradas y sus niveles (SkillLogic)")
 local skills = SkillLogic.empty()
-check("al empezar: las dos iniciales de cada estilo, a nivel 1 y puestas en Z y X", skills.Owned.Burst == 1 and skills.Owned.Quake == 1 and skills.Owned.Nova == 1 and skills.Owned.Pierce == nil
+check("al empezar: las dos iniciales de cada estilo, a nivel 1 y puestas en Z y X", skills.Owned.Burst == 1 and skills.Owned.Quake == 1 and skills.Owned.Nova == 1 and skills.Owned.Cleave == 1 and skills.Owned.Leap == 1 and skills.Owned.Pierce == nil
 	and SkillLogic.equipped(skills, "Weapons", 1) == "Burst" and SkillLogic.equipped(skills, "Magic", 2) == "Nova" and skills.Picked == false)
 local code, cost = SkillLogic.buy(skills, "ChainLightning", 149)
 check("comprar sin 💎 suficientes: InsufficientEnergy con su precio", code == "InsufficientEnergy" and cost == 150 and skills.Owned.ChainLightning == nil)

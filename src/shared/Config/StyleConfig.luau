@@ -3,12 +3,17 @@
 -- Todos salen del daño por segundo (DPS) de tu arma (nivel, cadencia, mascotas, renacimiento
 -- y aventuras), así que mejorar o comprar armas sirve con cualquier estilo. Cada uno juega
 -- distinto, con su ventaja y su desventaja (Pros / Cons, para el panel):
--- - Armas: disparas tu arma tal cual, de lejos y con críticos, pero recibes más daño.
+-- - Armas: apuntas con la mira y disparas tu arma de fuego (pistola, rifle, escopeta,
+--   francotirador o bazuca: WeaponConfig.Guns) con su cargador y su recarga; clic derecho
+--   para apuntar. De lejos y con críticos, pero recibes más daño.
+-- - Guerrero: espada. Combo de 3 tajos (el 3.º gira y pega a todos), bloquea con clic
+--   derecho y, si bloquea justo a tiempo, para el golpe, aturde y contraataca (Block).
 -- - Puños: cuerpo a cuerpo y rapidísimos, corres más y aguantas más, pero hay que pegarse.
--- - Magia: orbes que explotan en área y te curan, pero caminas más lento y cada hechizo
---   tarda en cargar.
--- Combos (HitCombo): cada pocos golpes seguidos sale uno especial (tiro cargado, gancho,
--- gran orbe). Los de las habilidades entre sí y con las elementales: StyleService.
+-- - Magia: bolas que persiguen al bicho más cercano a tu cursor, orbe gigante si mantienes
+--   (Charge), maná (Mana), el elemento de tu bastón (combos con las marcas elementales) y
+--   teletransporte (Blink). Caminas más lento.
+-- Combos (HitCombo): cada pocos golpes seguidos sale uno especial (tiro cargado, gancho).
+-- Los de las habilidades entre sí y con las elementales: StyleService.
 -- Cada estilo tiene una PASIVA (siempre activa) y CUATRO HABILIDADES del Mundo 1 (Skills): empieza con
 -- dos (StartSkills) y las otras dos se compran con 💎 diamantes; lleva puestas dos, una en
 -- la tecla Z (R1 del mando o su botón) y otra en la X (L1), cada una con su recarga. Cada
@@ -20,21 +25,26 @@
 -- puesto ⚡ Mejoras del Mundo 2 (SkillsController enseña las del mundo en el que estás) y piden
 -- haber llegado allí (Requires). Usan el efecto de una del Mundo 1 (Base), más grande, con su
 -- propio color (Color) y algo más: Bombardeo (varias granadas: Count), Rayo triple (Beams),
--- Cometa (explota al llegar: EndRadius) y Terremoto titán (varios golpes: Waves).
+-- Cometa (explota al llegar: EndRadius) y Terremoto titán (varios golpes: Waves). Las del
+-- Guerrero también usan el efecto de otra (Base) con su aspecto (Color, Visual): Giro de acero
+-- (Torbellino), Grito de guerra (Furia, con DamageBoost) y Onda cortante (Rayo perforante).
+-- Las de Magia dejan su marca elemental (Element) y gastan maná (ManaCost).
 -- Números de cada estilo: Range / Cooldown / DpsScale (su ataque), DamageTaken (daño que
 -- recibes: ×1 normal) y WalkSpeed (velocidad al caminar: ×1 normal).
--- Lógica pura en StyleLogic; servidor en StyleService y PetCombatService (el disparo);
--- cliente en StyleController (elegir, botones y efectos), CombatController (cada golpe) y
--- CharacterPose (los movimientos del personaje).
+-- Lógica pura en StyleLogic (y GunLogic, MagicLogic y WarriorLogic); servidor en
+-- StyleService, PetCombatService (cada golpe) y GearService (lo que llevas en la mano);
+-- cliente en StyleController (elegir, botones y efectos), CombatController (cada golpe,
+-- mira, balas, maná, apuntar y bloquear) y CharacterPose (los movimientos del personaje).
 --
--- [PROVISIONAL] Primer balance: Armas ≈ ×1.2 con críticos, Puños ×1.5 pero hay que
--- acercarse (y aguantan más), Magia ×1 con área y curación.
+-- [PROVISIONAL] Primer balance: Armas ≈ ×1.1-1.25 sostenido (con la recarga) más críticos,
+-- Guerrero ×1.35 a varios a la vez, Puños ×1.5 pero hay que acercarse (y aguantan más),
+-- Magia ×1.05 con área, elementos, orbe cargado y curación.
 
 local RGB = Color3.fromRGB
 
 local StyleConfig = {
 	Default = "Weapons",
-	Order = { "Weapons", "Fists", "Magic" },
+	Order = { "Weapons", "Warrior", "Fists", "Magic" },
 	SwitchCooldown = 1.5, -- segundos entre dos cambios de estilo
 
 	-- Niveles de las habilidades (SkillLogic): del 1 al Max. Cada nivel por encima del 1:
@@ -75,6 +85,22 @@ local StyleConfig = {
 		Combo = { Id = "rbxassetid://9116394876", Volume = 0.5, Pitch = 1.2 },
 		Switch = { Id = "rbxassetid://9116394876", Volume = 0.45, Pitch = 1.5 }, -- campanillas
 		Ready = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.3, Pitch = 1.4 },
+		-- Golpes de cada estilo (CombatController): disparo de cada tipo de arma, recarga,
+		-- tajos de espada, parada perfecta, bola mágica y teletransporte
+		GunPistol = { Id = "rbxassetid://132539859090895", Volume = 0.45, Pitch = 1 },
+		GunRifle = { Id = "rbxassetid://86298841850357", Volume = 0.35, Pitch = 1 },
+		GunShotgun = { Id = "rbxassetid://132255180302885", Volume = 0.5, Pitch = 1 },
+		GunSniper = { Id = "rbxassetid://130570662564570", Volume = 0.5, Pitch = 1 },
+		GunLauncher = { Id = "rbxassetid://2853035419", Volume = 0.5, Pitch = 1 },
+		GunBow = { Id = "rbxassetid://9126229267", Volume = 0.45, Pitch = 1.6 },
+		Explosion = { Id = "rbxasset://sounds/impact_explosion_03.mp3", Volume = 0.55, Pitch = 0.9 },
+		Reload = { Id = "rbxassetid://117963160131194", Volume = 0.45, Pitch = 1 },
+		SwordSwing = { Id = "rbxassetid://134671877618939", Volume = 0.45, Pitch = 1 },
+		SwordSpin = { Id = "rbxassetid://125914564702009", Volume = 0.5, Pitch = 1 },
+		SwordHit = { Id = "rbxassetid://138293953015099", Volume = 0.4, Pitch = 1 },
+		Parry = { Id = "rbxassetid://5763723309", Volume = 0.6, Pitch = 1 },
+		MagicBolt = { Id = "rbxassetid://9116394876", Volume = 0.25, Pitch = 2.2 },
+		Blink = { Id = "rbxassetid://112075927683042", Volume = 0.5, Pitch = 1 },
 	},
 
 	Styles = {
@@ -82,9 +108,9 @@ local StyleConfig = {
 			DisplayName = "Armas",
 			Icon = "🔫",
 			Color = RGB(90, 200, 255),
-			Attack = "Disparas tu arma: mucho alcance y su efecto (área, salto o ralentiza).",
-			Pros = "Pegas de lejos y con críticos",
-			Cons = "Recibes un 15 % más de daño",
+			Attack = "Apuntas con la mira y disparas: pistola, rifle, escopeta, francotirador o bazuca, cada una con su cargador. Clic derecho: apuntar.",
+			Pros = "Pegas de lejos, con críticos y apuntando con clic derecho",
+			Cons = "Recibes un 15 % más de daño y tienes que recargar (R)",
 			DamageTaken = 1.15,
 			-- Combo de golpes: cada Every disparos seguidos (sin parar más de Window s), uno
 			-- cargado que hace ×Multiplier (PetCombatService).
@@ -102,7 +128,7 @@ local StyleConfig = {
 					Order = 1,
 					Name = "Ráfaga",
 					Icon = "💨",
-					Text = "Durante 4 s disparas el doble de rápido.",
+					Text = "Durante 4 s disparas el doble de rápido y sin gastar balas.",
 					Cooldown = 16,
 					Duration = 4,
 					CooldownScale = 0.5, -- tiempo entre disparos mientras dura
@@ -112,9 +138,9 @@ local StyleConfig = {
 					Order = 2,
 					Name = "Granada",
 					Icon = "💣",
-					Text = "Lanzas una granada a tu objetivo: explota en área y los empuja.",
+					Text = "Lanzas una granada donde apuntas: explota en área y los empuja.",
 					Cooldown = 10,
-					Range = 45, -- objetivo: el enemigo más cercano a esta distancia
+					Range = 45, -- llega como mucho a esta distancia (donde apuntas)
 					Delay = 0.7, -- lo que tarda en llegar y explotar
 					Radius = 11,
 					DamageRatio = 3, -- × DPS del estilo a cada enemigo
@@ -126,7 +152,7 @@ local StyleConfig = {
 					Order = 3,
 					Name = "Rayo perforante",
 					Icon = "🎯",
-					Text = "Un rayo recto hacia tu objetivo que atraviesa a todos los que pilla.",
+					Text = "Un rayo recto hacia donde apuntas que atraviesa a todos los que pilla.",
 					Cooldown = 9,
 					Length = 55, -- largo del rayo
 					Width = 5,
@@ -159,9 +185,9 @@ local StyleConfig = {
 					Color = RGB(255, 110, 60),
 					Name = "Bombardeo",
 					Icon = "🧨",
-					Text = "Lanzas una granada a cada uno de los 4 enemigos más cercanos: explotan en área grande.",
+					Text = "Lanzas 4 granadas donde apuntas (una en el centro y tres alrededor): explotan en área grande.",
 					Cooldown = 12,
-					Count = 4, -- granadas (una a cada uno de los más cercanos)
+					Count = 4, -- granadas (una donde apuntas y las demás alrededor)
 					Range = 55,
 					Delay = 0.8,
 					Radius = 13,
@@ -179,7 +205,7 @@ local StyleConfig = {
 					Color = RGB(255, 214, 80),
 					Name = "Rayo triple",
 					Icon = "🔱",
-					Text = "Tres rayos dorados en abanico hacia tu objetivo que atraviesan a todos.",
+					Text = "Tres rayos dorados en abanico hacia donde apuntas que atraviesan a todos.",
 					Cooldown = 10,
 					Beams = 3,
 					Spread = 22, -- grados entre rayos
@@ -198,7 +224,7 @@ local StyleConfig = {
 					Color = RGB(255, 80, 80),
 					Name = "Sobrecarga",
 					Icon = "🔥",
-					Text = "Durante 6 s disparas casi el triple de rápido.",
+					Text = "Durante 6 s disparas casi el triple de rápido y sin gastar balas.",
 					Cooldown = 20,
 					Duration = 6,
 					CooldownScale = 0.35,
@@ -219,6 +245,182 @@ local StyleConfig = {
 					Interval = 0.3,
 					Range = 55,
 					DamageRatio = 1.2,
+					Price = 12000,
+					UpgradeScale = 6,
+				},
+			},
+		},
+		Warrior = {
+			DisplayName = "Guerrero",
+			Icon = "🗡️",
+			Color = RGB(240, 80, 90),
+			Attack = "Combo de 3 tajos con tu espada (el 3.º gira y pega a todos). Clic derecho: bloqueas; si bloqueas justo a tiempo, contraatacas.",
+			Pros = "Pegas a varios a la vez, +30 % de vida y bloqueas los golpes",
+			Cons = "Cuerpo a cuerpo y más lento que los Puños",
+			Range = 11, -- hasta el borde del enemigo
+			Cooldown = 0.5, -- entre tajos
+			DpsScale = 1.35,
+			DamageTaken = 0.85,
+			WalkSpeed = 1.05,
+			MaxHealth = 1.3,
+			-- Combo de tajos (WarriorLogic): cada tajo seguido (sin parar más de ComboWindow s) es el
+			-- siguiente. Ratio: × el daño de un tajo; Arc: grados a cada lado (180 = alrededor);
+			-- RangeScale: × alcance; Recovery: × lo que tarda el siguiente.
+			ComboWindow = 1.1,
+			Slashes = {
+				{ Name = "Tajo", Ratio = 1, Arc = 70, MaxTargets = 4 },
+				{ Name = "Revés", Ratio = 1.1, Arc = 70, MaxTargets = 4 },
+				{ Name = "¡Giro!", Ratio = 1.8, Arc = 180, RangeScale = 1.2, MaxTargets = 8, Knockback = 24, Recovery = 1.4 },
+			},
+			-- Bloquear (mantener clic derecho, L2 o el botón 🛡️): recibes DamageTaken del daño y
+			-- caminas más lento. Parada perfecta: si te pegan en los primeros ParryWindow s de un
+			-- bloqueo (y no bloqueaste hace menos de ParryRearm s), no te hace nada, el bicho queda
+			-- aturdido Stun s y tu siguiente tajo en CounterSeconds s hace ×CounterMultiplier.
+			Block = { DamageTaken = 0.3, ParryWindow = 0.3, ParryRearm = 0.8, Stun = 1.5, CounterSeconds = 2, CounterMultiplier = 2.5, WalkSpeed = 0.5 },
+			Passive = {
+				Name = "Sed de batalla",
+				Icon = "🩸",
+				Text = "Cada enemigo que derrotas te cura un 5 % de tu vida.",
+				KillHeal = 0.05,
+			},
+			StartSkills = { "Cleave", "Leap" },
+			Skills = {
+				Cleave = {
+					Order = 1,
+					Base = "Whirlwind", -- su efecto: golpes a tu alrededor
+					Color = RGB(235, 235, 245),
+					Name = "Giro de acero",
+					Icon = "🌀",
+					Text = "Giras con la espada: 3 tajos a todos los que tienes alrededor.",
+					Cooldown = 10,
+					Radius = 13,
+					Pulses = 3,
+					Interval = 0.25,
+					DamageRatio = 1.3, -- × DPS en cada tajo
+					Pull = 0,
+					MaxTargets = 12,
+					Price = 0,
+				},
+				Leap = {
+					Order = 2,
+					Name = "Salto aplastante",
+					Icon = "🔨",
+					Text = "Saltas hacia donde apuntas y caes con un golpe que aturde y empuja a todos alrededor.",
+					Cooldown = 9,
+					Distance = 28, -- como mucho
+					Delay = 0.55, -- lo que tarda en caer
+					Radius = 13,
+					DamageRatio = 2.8,
+					Stun = 1,
+					Knockback = 30,
+					MaxTargets = 12,
+					Price = 0,
+				},
+				WarCry = {
+					Order = 3,
+					Base = "Rage",
+					Color = RGB(255, 90, 70),
+					Name = "Grito de guerra",
+					Icon = "📣",
+					Text = "Durante 6 s pegas más rápido, un 30 % más fuerte y recibes la mitad de daño.",
+					Cooldown = 18,
+					Duration = 6,
+					CooldownScale = 0.7,
+					DamageBoost = 1.3,
+					DamageTaken = 0.5,
+					Price = 150,
+					UpgradeScale = 1.5,
+				},
+				SlashWave = {
+					Order = 4,
+					Base = "Pierce",
+					Visual = "SlashWave", -- se ve como una onda de corte
+					Color = RGB(255, 140, 150),
+					Name = "Onda cortante",
+					Icon = "🌙",
+					Text = "Lanzas una onda de corte hacia donde apuntas que atraviesa a todos.",
+					Cooldown = 9,
+					Length = 40,
+					Width = 7,
+					DamageRatio = 3.2,
+					MaxTargets = 12,
+					Price = 400,
+					UpgradeScale = 2,
+				},
+				-- Mundo 2
+				BladeStorm = {
+					Order = 5,
+					World = 2,
+					Requires = "World2",
+					Base = "Cleave",
+					Color = RGB(255, 220, 110),
+					Name = "Tormenta de espadas",
+					Icon = "⚔️",
+					Text = "Una tormenta de espadas a tu alrededor: 6 tajos que atraen a todos hacia ti.",
+					Cooldown = 14,
+					Radius = 16,
+					Pulses = 6,
+					Interval = 0.22,
+					DamageRatio = 1.6,
+					Pull = 8,
+					MaxTargets = 16,
+					Price = 1500,
+					UpgradeScale = 3,
+				},
+				MeteorStrike = {
+					Order = 6,
+					World = 2,
+					Requires = "World2",
+					Base = "Leap",
+					Color = RGB(255, 130, 60),
+					Name = "Impacto meteoro",
+					Icon = "☄️",
+					Text = "Saltas muy lejos y caes como un meteoro: daño enorme y aturde a todos alrededor.",
+					Cooldown = 12,
+					Distance = 40,
+					Delay = 0.65,
+					Radius = 20,
+					DamageRatio = 5,
+					Stun = 1.6,
+					Knockback = 40,
+					MaxTargets = 16,
+					Price = 3000,
+					UpgradeScale = 4,
+				},
+				WarGod = {
+					Order = 7,
+					World = 2,
+					Requires = "World2",
+					Base = "WarCry",
+					Color = RGB(255, 200, 60),
+					Name = "Dios de la guerra",
+					Icon = "👑",
+					Text = "Durante 8 s pegas el doble de rápido, un 50 % más fuerte y recibes un 75 % menos de daño.",
+					Cooldown = 22,
+					Duration = 8,
+					CooldownScale = 0.5,
+					DamageBoost = 1.5,
+					DamageTaken = 0.25,
+					Price = 6000,
+					UpgradeScale = 5,
+				},
+				RiftSlash = {
+					Order = 8,
+					World = 2,
+					Requires = "World2",
+					Base = "SlashWave",
+					Visual = "SlashWave",
+					Color = RGB(200, 110, 255),
+					Name = "Corte dimensional",
+					Icon = "🌌",
+					Text = "Tres ondas de corte en abanico hacia donde apuntas que atraviesan a todos.",
+					Cooldown = 11,
+					Beams = 3,
+					Spread = 20,
+					Length = 60,
+					Width = 8,
+					DamageRatio = 4.5,
+					MaxTargets = 16,
 					Price = 12000,
 					UpgradeScale = 6,
 				},
@@ -385,15 +587,36 @@ local StyleConfig = {
 			DisplayName = "Magia",
 			Icon = "✨",
 			Color = RGB(190, 120, 255),
-			Attack = "Cargas orbes mágicos que explotan y dañan a los que estén cerca.",
-			Pros = "Daño en área y te curas al pegar",
-			Cons = "Caminas un 10 % más lento y cada hechizo tarda en cargar",
+			Attack = "Clic: bola que persigue al bicho más cercano a tu cursor. Mantén para cargar un orbe gigante. Gastas maná. Clic derecho o Shift: teletransporte.",
+			Pros = "Hechizos que persiguen, área, el elemento de tu bastón y teletransporte",
+			Cons = "Caminas un 10 % más lento y gastas maná",
 			Range = 45,
-			Cooldown = 0.8, -- cada orbe carga (más lento que un disparo, pero pega más)
-			DpsScale = 1,
+			Cooldown = 0.45, -- entre bolas rápidas
+			DpsScale = 1.05,
 			WalkSpeed = 0.9,
-			Splash = { Radius = 7, Fraction = 0.5 },
-			HitCombo = { Every = 4, Window = 2, Multiplier = 2.5, Name = "¡Gran orbe!", SplashScale = 1.6 },
+			Splash = { Radius = 4, Fraction = 0.4 }, -- la bola rápida (el orbe cargado, Charge)
+			-- Las bolas persiguen al bicho más cercano al punto apuntado (a esta distancia de él y
+			-- a tu alcance); si no hay, explotan donde apuntas.
+			LockRadius = 12,
+			-- Maná: cada bola gasta BoltCost y el orbe cargado Charge.Cost; se recupera Regen por
+			-- segundo (IdleRegen si llevas IdleSeconds sin gastar). Sin maná lanzas chispas
+			-- (SparkScale del daño, sin explosión ni elemento). Las habilidades gastan ManaCost.
+			Mana = { Max = 100, Regen = 14, IdleRegen = 30, IdleSeconds = 1.5, BoltCost = 8, SparkScale = 0.35 },
+			-- Orbe cargado: mantén el clic (desde MinHold s); a los Full s está al máximo. Daño =
+			-- DPS · (BaseSeconds + segundos cargando) · Bonus; explosión de Radius[1] a Radius[2]
+			-- y maná de Cost[1] a Cost[2] según lo cargado.
+			Charge = { MinHold = 0.25, Full = 1.5, BaseSeconds = 0.6, Bonus = 1.6, Radius = { 6, 14 }, Fraction = 0.7, Cost = { 12, 40 } },
+			-- Teletransporte (clic derecho corto, Shift o su botón): hacia donde apuntas.
+			Blink = { Distance = 18, Cooldown = 3, Cost = 15 },
+			-- Efecto de cada elemento en los golpes del bastón (además de su marca y sus combos)
+			Elements = {
+				Fire = { Name = "Fuego", Icon = "🔥", Color = RGB(255, 120, 50), Text = "Quema: un 12 % del golpe cada segundo, 3 s", Burn = 0.12, BurnSeconds = 3 },
+				Ice = { Name = "Hielo", Icon = "❄️", Color = RGB(150, 220, 255), Text = "Frena un 35 % 1.5 s", Slow = 0.65, SlowSeconds = 1.5 },
+				Lightning = { Name = "Rayo", Icon = "⚡", Color = RGB(255, 240, 110), Text = "Salta a 2 bichos más (45 %)", Chain = { Count = 2, Range = 14, Fraction = 0.45 } },
+				Nature = { Name = "Naturaleza", Icon = "🌿", Color = RGB(120, 220, 100), Text = "El orbe cargado enraíza 1.5 s y te curas más", RootSeconds = 1.5, LifeSteal = 0.03 },
+				Shadow = { Name = "Sombra", Icon = "🌑", Color = RGB(150, 90, 230), Text = "Debilita: reciben un 15 % más de daño 3 s", Vulnerable = 0.15, VulnerableSeconds = 3 },
+				Celestial = { Name = "Celestial", Icon = "🌟", Color = RGB(255, 225, 120), Text = "Cada golpe te cura un 1 % de tu vida", Heal = 0.01 },
+			},
 			Passive = {
 				Name = "Robo de vida",
 				Icon = "💜",
@@ -404,14 +627,16 @@ local StyleConfig = {
 			StartSkills = { "Meteors", "Nova" },
 			Skills = {
 				Meteors = {
+					Element = "Fire", -- su marca elemental (combos con tu bastón)
+					ManaCost = 25,
 					Order = 1,
 					Name = "Meteoros",
 					Icon = "☄️",
-					Text = "Caen 6 meteoros sobre tu objetivo y los de alrededor.",
+					Text = "Caen 6 meteoros donde apuntas y alrededor.",
 					Cooldown = 15,
-					Range = 45, -- objetivo: el tuyo o el enemigo más cercano a esta distancia
+					Range = 45, -- caen donde apuntas, a esta distancia como mucho
 					Count = 6,
-					Spread = 9, -- cada meteoro cae a esta distancia como mucho del objetivo
+					Spread = 9, -- cada meteoro cae a esta distancia como mucho del centro
 					Radius = 7,
 					DamageRatio = 1.5, -- × DPS del estilo a cada enemigo de cada meteoro
 					Delay = 0.6, -- lo que tarda en caer el primero (se ve el aviso)
@@ -420,6 +645,8 @@ local StyleConfig = {
 					Price = 0,
 				},
 				Nova = {
+					Element = "Ice", -- su marca elemental (combos con tu bastón)
+					ManaCost = 25,
 					Order = 2,
 					Name = "Nova de hielo",
 					Icon = "❄️",
@@ -432,10 +659,12 @@ local StyleConfig = {
 					Price = 0,
 				},
 				ChainLightning = {
+					Element = "Lightning", -- su marca elemental (combos con tu bastón)
+					ManaCost = 30,
 					Order = 3,
 					Name = "Cadena de rayos",
 					Icon = "⚡",
-					Text = "Un rayo mágico salta de enemigo en enemigo (hasta 6) y los aturde.",
+					Text = "Un rayo mágico sale hacia el enemigo al que apuntas, salta de uno en uno (hasta 6) y los aturde.",
 					Cooldown = 10,
 					Range = 40, -- primer objetivo
 					Jumps = 6,
@@ -446,10 +675,12 @@ local StyleConfig = {
 					UpgradeScale = 1.5,
 				},
 				BlackHole = {
+					Element = "Shadow", -- su marca elemental (combos con tu bastón)
+					ManaCost = 40,
 					Order = 4,
 					Name = "Agujero negro",
 					Icon = "🌀",
-					Text = "Abres un agujero negro en tu objetivo: atrae y daña 3 s y luego explota.",
+					Text = "Abres un agujero negro donde apuntas: atrae y daña 3 s y luego explota.",
 					Cooldown = 22,
 					Range = 45,
 					Radius = 14,
@@ -464,6 +695,8 @@ local StyleConfig = {
 				},
 				-- Mundo 2
 				StarRain = {
+					Element = "Celestial", -- su marca elemental (combos con tu bastón)
+					ManaCost = 35,
 					Order = 5,
 					World = 2,
 					Requires = "World2",
@@ -471,7 +704,7 @@ local StyleConfig = {
 					Color = RGB(255, 220, 90),
 					Name = "Lluvia de estrellas",
 					Icon = "🌠",
-					Text = "Caen 12 estrellas sobre tu objetivo y todo lo que hay alrededor.",
+					Text = "Caen 12 estrellas donde apuntas y sobre todo lo que hay alrededor.",
 					Cooldown = 14,
 					Range = 55,
 					Count = 12,
@@ -485,6 +718,8 @@ local StyleConfig = {
 					UpgradeScale = 3,
 				},
 				Supernova = {
+					Element = "Ice", -- su marca elemental (combos con tu bastón)
+					ManaCost = 35,
 					Order = 6,
 					World = 2,
 					Requires = "World2",
@@ -502,6 +737,8 @@ local StyleConfig = {
 					UpgradeScale = 4,
 				},
 				Thunderstorm = {
+					Element = "Lightning", -- su marca elemental (combos con tu bastón)
+					ManaCost = 40,
 					Order = 7,
 					World = 2,
 					Requires = "World2",
@@ -520,6 +757,8 @@ local StyleConfig = {
 					UpgradeScale = 5,
 				},
 				Singularity = {
+					Element = "Shadow", -- su marca elemental (combos con tu bastón)
+					ManaCost = 50,
 					Order = 8,
 					World = 2,
 					Requires = "World2",

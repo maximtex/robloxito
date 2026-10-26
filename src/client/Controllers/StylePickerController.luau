@@ -1,8 +1,8 @@
 -- Elegir estilo al empezar: a un jugador nuevo (atributo StylePicked = false con sus datos
--- ya cargados) se le enseña una pantalla con los tres estilos (Armas, Puños y Magia), cada
--- uno con lo que hace, su ventaja, su desventaja y sus dos primeras habilidades. Al elegir
--- se pide StyleAction("Pick", estilo) y StyleService lo pone y lo marca (no se vuelve a
--- preguntar; luego se cambia cuando se quiera con la tecla C).
+-- ya cargados) se le enseña una pantalla con los cuatro estilos (Armas, Guerrero, Puños y
+-- Magia), cada uno con lo que hace, su ventaja, su desventaja y sus dos primeras
+-- habilidades. Al elegir se pide StyleAction("Pick", estilo) y StyleService lo pone y lo
+-- marca (no se vuelve a preguntar; luego se cambia cuando se quiera con la tecla C).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -17,7 +17,8 @@ local UiKit = require(script.Parent.Parent.UI.UiKit)
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
 local INK = Color3.fromRGB(43, 29, 63)
-local BASE = Vector2.new(900, 520)
+local BASE = Vector2.new(1010, 560)
+local CARD_WIDTH = 240
 
 local StylePickerController = {}
 
@@ -78,7 +79,7 @@ local function build()
 	UiKit.create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		Padding = UDim.new(0, 18),
+		Padding = UDim.new(0, 16),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, row)
 	local buttons = {}
@@ -86,7 +87,7 @@ local function build()
 		local def = StyleConfig.Styles[id]
 		local card = UiKit.create("Frame", {
 			Name = id,
-			Size = UDim2.fromOffset(280, BASE.Y - 110),
+			Size = UDim2.fromOffset(CARD_WIDTH, BASE.Y - 110),
 			BackgroundColor3 = THEME.Inset,
 			LayoutOrder = order,
 		}, row)
@@ -116,10 +117,10 @@ local function build()
 			table.insert(skills, ("%s %s"):format(skill.Icon, skill.Name))
 		end
 		UiKit.text(card, "Body", {
-			Position = UDim2.fromOffset(16, 120),
-			Size = UDim2.new(1, -32, 0, 200),
+			Position = UDim2.fromOffset(14, 118),
+			Size = UDim2.new(1, -28, 0, 250),
 			Font = FONTS.Body,
-			TextSize = 15,
+			TextSize = 14,
 			RichText = true,
 			TextWrapped = true,
 			TextXAlignment = Enum.TextXAlignment.Left,

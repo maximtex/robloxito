@@ -1,10 +1,12 @@
 -- Combate en el cliente (solo presentación y entrada; el servidor decide todo):
--- - Disparar: un clic o toque en un enemigo le dispara a él; F, X (mando), el botón táctil
---   o el botón "Disparar", al más cercano a tiro. Mantener pulsado sigue disparando (el
---   servidor respeta la cadencia del arma: PetCombatService). Con el pase "Disparo
---   automático" el arma dispara sola; la insignia (AUTO / OFF, o V) lo enciende o apaga, y
---   sin el pase (🔒 AUTO) abre la tienda. Sobre el botón, el arma equipada y su daño por
---   segundo.
+-- - Disparar apuntando (AimPoint): un clic dispara hacia el cursor (mantener pulsado sigue
+--   disparando y el personaje mira hacia donde apuntas); F, hacia el ratón; un toque corto
+--   en el mundo, hacia el dedo; X (mando), el botón táctil ⚔ o "Disparar", hacia donde mira
+--   el personaje. El servidor decide a quién da (lo que haya en el camino) y si falla, con la
+--   cadencia del arma (PetCombatService). Con el pase "Disparo automático" el arma dispara
+--   sola hacia donde apuntas cuando va a dar a alguien; la insignia (AUTO / OFF, o V) lo
+--   enciende o apaga, y sin el pase (🔒 AUTO) abre la tienda. Sobre el botón, el arma
+--   equipada y su daño por segundo. En PC el cursor es una mira.
 -- - Cada disparo confirmado (PetAbility "PlayerShot") se dibuja según el proyectil del arma
 --   (WeaponConfig): rayo, bola de plasma, espina, rayo de cristal que salta entre enemigos
 --   o esfera que explota; luego los impactos (destello, chispas, número de daño, sonido).
@@ -17,8 +19,6 @@
 -- - Botín: monedas (💰) y diamantes (💎) que saltan del enemigo y vuelan hacia ti al
 --   cobrar, el ORBE DORADO (botín ×10) con su destello, un aviso al derrotarlo (uno solo
 --   que se actualiza, para que las hordas no llenen la pila) y anuncio al derrotar a un jefe.
--- - Dentro de una partida de oleadas el arma dispara sola aunque no tengas el pase: la
---   insignia muestra "AUTO ⚔".
 -- - Barra de vida grande del jefe al acercarse a su arena.
 -- - Mascotas de combate: rayo del Zorrito, nova del Dragón (con aviso y recarga visible)
 --   y escudo de la Tortuga, solo para acciones ya confirmadas por el servidor.
@@ -28,6 +28,7 @@ local ContextActionService = game:GetService("ContextActionService")
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -50,13 +51,20 @@ local HudDock = require(script.Parent.Parent.UI.HudDock)
 local EnemyAnimator = require(script.Parent.EnemyAnimator)
 local WaveVisibility = require(script.Parent.WaveVisibility)
 local CharacterPose = require(script.Parent.CharacterPose)
+local AimPoint = require(script.Parent.AimPoint)
+local AimCamera = require(script.Parent.AimCamera)
+local CombatHud = require(script.Parent.CombatHud)
+local MagicLogic = require(Shared.MagicLogic)
+local GunLogic = require(Shared.GunLogic)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
 local LAYOUT = Theme.Layout
 local ATTACK_ACTION = "RebirthAttack"
 local AUTO_ACTION = "RebirthAutoFire"
-local REPEAT_SECONDS = 0.15 -- mantener pulsado repite la petición de disparo
+local REPEAT_SECONDS = 0.12 -- mantener pulsado (o el automático) repite el aviso al servidor
+local TAP_SECONDS = 0.3 -- un toque en el mundo más corto que esto (y casi sin moverse) dispara
+local TAP_MOVE = 14 -- píxeles: si el dedo se mueve más, era para girar la cámara
 local BOSS_BAR_RANGE = 30 -- distancia extra al borde de la arena para mostrar la barra
 local KIND_COLORS = {
 	Normal = Color3.fromRGB(255, 244, 214),
@@ -69,8 +77,16 @@ local BOSS_ENRAGED_COLOR = Color3.fromRGB(255, 140, 60)
 local BOSS_CHASE_COLOR = Color3.fromRGB(255, 120, 120)
 local MAX_DAMAGE_NUMBERS = 14 -- más números a la vez no se leen y cuestan rendimiento
 local SOUND_GAP = 0.06 -- el mismo sonido no se repite antes de este intervalo
-local AIM_DISTANCE = 300 -- largo de la línea del cursor (desde la cámara) para buscar al enemigo apuntado
-local SELECT_RANGE = 75 -- studs del personaje al enemigo para poder elegirlo (CombatService)
+-- Cómo se siente cada tipo de arma al disparar: retroceso del brazo, fogonazo, salto de la
+-- mira (CombatHud.kick) y grosor del trazo de la bala
+local GUN_FEEL = {
+	Pistol = { Recoil = 0.7, Flash = 1, Kick = 0.7, Tracer = 0.12 },
+	Rifle = { Recoil = 0.45, Flash = 0.8, Kick = 0.4, Tracer = 0.1 },
+	Shotgun = { Recoil = 1.4, Flash = 1.6, Kick = 1.5, Tracer = 0.07 },
+	Sniper = { Recoil = 1.6, Flash = 1.4, Kick = 1.9, Tracer = 0.22 },
+	Launcher = { Recoil = 1.8, Flash = 1.8, Kick = 2, Tracer = 0.2 },
+}
+local SELECT_RANGE = 75 -- el automático solo apunta si hay enemigos a esta distancia
 local AUTO_ON = Color3.fromRGB(96, 214, 96)
 local AUTO_OFF = Color3.fromRGB(120, 120, 128)
 local COIN_COLOR = Color3.fromRGB(255, 200, 40)
@@ -114,6 +130,38 @@ local function playVaried(sound: Sound?, pitch: number, variation: number)
 	lastPlayed[sound] = now
 	sound.PlaybackSpeed = pitch * (1 + (math.random() * 2 - 1) * variation)
 	sound:Play()
+end
+
+-- Sonido de StyleConfig.Sounds: el tuyo sin posición; el de otros, en su sitio (se oye cerca)
+local styleSounds: { [string]: Sound } = {}
+local function playStyleSound(key: string, at: Vector3?, pitch: number?)
+	local spec = StyleConfig.Sounds[key]
+	if not spec then
+		return
+	end
+	if at then
+		local holder = Instance.new("Attachment")
+		holder.WorldPosition = at
+		holder.Parent = Workspace.Terrain
+		local sound = Instance.new("Sound")
+		sound.SoundId = spec.Id
+		sound.Volume = spec.Volume * 0.8
+		sound.PlaybackSpeed = (spec.Pitch or 1) * (pitch or 1)
+		sound.RollOffMaxDistance = 110
+		sound.Parent = holder
+		sound:Play()
+		Debris:AddItem(holder, 4)
+		return
+	end
+	local sound = styleSounds[key]
+	if not sound then
+		sound = Instance.new("Sound")
+		sound.SoundId = spec.Id
+		sound.Volume = spec.Volume
+		sound.Parent = SoundService
+		styleSounds[key] = sound
+	end
+	playVaried(sound, (spec.Pitch or 1) * (pitch or 1), 0.05)
 end
 
 local function fxPart(size: Vector3, cframe: CFrame, color: Color3): Part
@@ -191,7 +239,6 @@ local function emitAt(kind: string, position: Vector3, color: Color3, amount: nu
 end
 
 -- Rayo de un disparo: un haz de luz de `from` a `to` que se estrecha y se apaga
-local SLASH_TO = Color3.fromRGB(120, 236, 206)
 local function beamEffect(from: Vector3, to: Vector3, color: Color3, thickness: number)
 	local dist = (to - from).Magnitude
 	if dist > 0.2 then
@@ -362,6 +409,86 @@ local function impactRing(center: Vector3, radius: number, color: Color3)
 	Debris:AddItem(wave, 0.4)
 end
 
+-- Fogonazo en la boca del arma (y una luz breve)
+local function muzzleFlash(at: Vector3, color: Color3, size: number)
+	local flash = fxPart(Vector3.one * 0.4 * size, CFrame.new(at), Color3.fromRGB(255, 240, 190))
+	flash.Shape = Enum.PartType.Ball
+	flash.Transparency = 0.05
+	local light = Instance.new("PointLight")
+	light.Color = color:Lerp(Color3.fromRGB(255, 220, 150), 0.5)
+	light.Range = 9 * size
+	light.Brightness = 3
+	light.Parent = flash
+	TweenService:Create(flash, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.one * 1.2 * size, Transparency = 1 }):Play()
+	Debris:AddItem(flash, 0.1)
+	emitAt("Spark", at, color, math.floor(3 * size + 0.5))
+end
+
+-- Trazo de una bala: línea fina y brillante que se apaga enseguida
+local function tracer(from: Vector3, to: Vector3, color: Color3, thickness: number)
+	local dist = (to - from).Magnitude
+	if dist < 0.3 then
+		return
+	end
+	local line = fxPart(Vector3.new(dist, thickness, thickness), CFrame.lookAt((from + to) / 2, to) * CFrame.Angles(0, math.rad(90), 0), color:Lerp(Color3.new(1, 1, 1), 0.45))
+	line.Shape = Enum.PartType.Cylinder
+	line.Transparency = 0.1
+	TweenService:Create(line, TweenInfo.new(0.09, Enum.EasingStyle.Linear), { Transparency = 1, Size = Vector3.new(dist, thickness * 0.3, thickness * 0.3) }):Play()
+	Debris:AddItem(line, 0.12)
+end
+
+-- Cohete de la bazuca: viaja de `from` a `to` en `seconds` dejando humo (la explosión la
+-- dibuja el aviso "ShotImpact")
+local function rocketFx(from: Vector3, to: Vector3, color: Color3, seconds: number)
+	local rocket = fxPart(Vector3.new(0.5, 0.5, 1.4), CFrame.lookAt(from, to), color)
+	rocket.Material = Enum.Material.Neon
+	local tail = Instance.new("Attachment")
+	tail.Position = Vector3.new(0, 0, 0.7)
+	tail.Parent = rocket
+	local smoke = Instance.new("ParticleEmitter")
+	smoke.Color = ColorSequence.new(Color3.fromRGB(255, 200, 120), Color3.fromRGB(90, 90, 96))
+	smoke.Size = NumberSequence.new(0.5, 1.6)
+	smoke.Transparency = NumberSequence.new(0.2, 1)
+	smoke.Lifetime = NumberRange.new(0.3, 0.6)
+	smoke.Speed = NumberRange.new(0.5, 1.5)
+	smoke.Rate = 90
+	smoke.LightEmission = 0.4
+	smoke.Parent = tail
+	local tween = TweenService:Create(rocket, TweenInfo.new(math.max(0.05, seconds), Enum.EasingStyle.Linear), { CFrame = CFrame.lookAt(to, to + (to - from).Unit) })
+	tween.Completed:Once(function()
+		rocket:Destroy()
+	end)
+	tween:Play()
+	Debris:AddItem(rocket, seconds + 0.5)
+end
+
+-- Tajo de espada: un arco brillante que barre delante del personaje (`step` 1 de derecha a
+-- izquierda, 2 al revés) o una rueda completa (el giro). Las piezas aparecen una tras otra.
+local function slashArc(center: Vector3, direction: Vector3, radius: number, color: Color3, step: number, big: boolean?)
+	local flat = Vector3.new(direction.X, 0, direction.Z)
+	flat = if flat.Magnitude > 0.05 then flat.Unit else Vector3.new(0, 0, -1)
+	local base = CFrame.lookAt(center, center + flat)
+	local full = step == 3
+	local segments = if full then 18 else 9
+	local spread = if full then 360 else 150
+	local sweep = if step == 2 then -1 else 1
+	local distance = math.max(2.5, radius * 0.7)
+	local chord = 2 * distance * math.sin(math.rad(spread / segments) / 2) + 0.4
+	local glow = color:Lerp(Color3.new(1, 1, 1), 0.35)
+	for index = 1, segments do
+		local t = (index - 0.5) / segments
+		local angle = math.rad((-spread / 2 + spread * t) * sweep)
+		local outward = base:VectorToWorldSpace(Vector3.new(math.sin(angle), 0, -math.cos(angle)))
+		local position = center + outward * distance + Vector3.new(0, 0.2, 0)
+		task.delay((index - 1) * (if full then 0.012 else 0.016), function()
+			local piece = fxPart(Vector3.new(0.14, if big then 1.3 else 0.8, chord), CFrame.lookAt(position, position + outward:Cross(Vector3.yAxis)), glow)
+			piece.Transparency = 0.15
+			TweenService:Create(piece, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1, Size = Vector3.new(0.05, 0.2, chord) }):Play()
+			Debris:AddItem(piece, 0.22)
+		end)
+	end
+end
+
 -- Enemigos vivos a tiro del personaje (Workspace.Enemies.<Zona>.<Modelo>)
 local function enemiesInRange(origin: Vector3): { { Model: Model, Position: Vector3 } }
 	local list = {}
@@ -383,40 +510,6 @@ local function enemiesInRange(origin: Vector3): { { Model: Model, Position: Vect
 		end
 	end
 	return list
-end
-
--- Modelo del enemigo (Workspace.Enemies.<Zona>.<Modelo>) al que pertenece una pieza
-local function enemyModelOf(instance: Instance, enemiesFolder: Instance): Model?
-	local current: Instance? = instance
-	while current and current.Parent and current.Parent.Parent ~= enemiesFolder do
-		current = current.Parent
-	end
-	if current and current:IsA("Model") and current.Parent and current.Parent.Parent == enemiesFolder then
-		return current
-	end
-	return nil
-end
-
-local aimParams = RaycastParams.new()
-aimParams.FilterType = Enum.RaycastFilterType.Include
-
--- Enemigo que toca la línea del cursor o del toque (su cuerpo, con un margen de AimRadius),
--- si está lo bastante cerca para elegirlo. Solo es una propuesta: el servidor comprueba que
--- exista, esté vivo y cerca.
-local function pickTarget(root: BasePart, aimRay: Ray): (Model?, Vector3?)
-	local enemiesFolder = Workspace:FindFirstChild("Enemies")
-	if not enemiesFolder then
-		return nil, nil
-	end
-	aimParams.FilterDescendantsInstances = { enemiesFolder }
-	local hit = Workspace:Spherecast(aimRay.Origin, CombatConfig.AimRadius, aimRay.Direction.Unit * AIM_DISTANCE, aimParams)
-	local model = hit and enemyModelOf(hit.Instance, enemiesFolder)
-	for _, candidate in enemiesInRange(root.Position) do
-		if candidate.Model == model then
-			return candidate.Model, candidate.Position
-		end
-	end
-	return nil, nil
 end
 
 -- Reacción del enemigo al recibir daño: destello blanco breve con un Highlight local
@@ -892,36 +985,91 @@ function CombatController.start()
 		task.spawn(loadAnimation, player.Character)
 	end
 
-	-- Clic o toque sobre un enemigo: le pide un disparo (el servidor comprueba el enemigo y
-	-- decide el disparo). true si apuntaba a uno.
-	local function shootAt(aimRay: Ray): boolean
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if not (root and root:IsA("BasePart")) then
-			return false
-		end
-		local aimed, at = pickTarget(root, aimRay)
-		if aimed and at then
-			attackRemote:FireServer(aimed)
-			emitAt("Glint", at, SLASH_TO, 4)
-			flashEnemy(aimed, SLASH_TO)
-			return true
-		end
-		return false
+	local styleActionRemote = remotes:WaitForChild(Constants.Remotes.StyleAction) :: RemoteEvent
+
+	-- Estilo de pelea ahora
+	local function styleNow(): string
+		local value = player:GetAttribute(Constants.Attributes.CombatStyle)
+		return if typeof(value) == "string" and StyleConfig.Styles[value] then value else "Weapons"
 	end
-	-- F, X (mando), el botón táctil o "Disparar": al más cercano a tiro (lo elige el servidor)
-	local function shootNearest(): boolean
-		attackRemote:FireServer()
-		return true
+	local function isMelee(style: string): boolean
+		return style == "Warrior" or style == "Fists"
 	end
 
-	-- Mantener pulsado: repite la petición mientras no se suelte lo que la empezó (el botón
-	-- del ratón, ese dedo o la acción de F). Solo una repetición a la vez.
+	-- Cada aviso lleva el punto al que apuntas (AimPoint) y qué haces: "Shot" (un golpe),
+	-- "Hold" (sigues pulsando; "Release" al soltar), "Aim" (solo apuntas, para el automático) o
+	-- "Charge" (cargas un orbe). Los cambios de estado (apuntar, bloquear, recargar) van sin
+	-- punto (signal).
+	local function send(aim: Vector3?, mode: string): boolean
+		if not aim then
+			return false
+		end
+		attackRemote:FireServer(aim, mode)
+		return true
+	end
+	local function signal(mode: string)
+		attackRemote:FireServer(nil, mode)
+	end
+	local function mouseAim(): Vector3?
+		return AimPoint.mouse()
+	end
+	local function facingAim(): Vector3?
+		return AimPoint.facing()
+	end
+	-- Cuerpo a cuerpo (Guerrero y Puños): al bicho más cercano a tu alcance (sin mira)
+	local function meleeAim(): Vector3?
+		local def = StyleConfig.Styles[styleNow()]
+		return AimPoint.melee((def and def.Range) or 9)
+	end
+	local function styledAim(aimFn: () -> Vector3?): () -> Vector3?
+		return function()
+			if isMelee(styleNow()) then
+				return meleeAim()
+			end
+			return aimFn()
+		end
+	end
+
+	-- Mientras mantienes pulsado, el personaje mira hacia donde ataca (y camina de lado); al
+	-- soltar vuelve a girar solo hacia donde anda.
+	local turnConnection: RBXScriptConnection? = nil
+	local turnAim: (() -> Vector3?)? = nil
+	local function setTurning(aimFn: (() -> Vector3?)?)
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		turnAim = aimFn
+		if aimFn and not turnConnection then
+			if humanoid then
+				humanoid.AutoRotate = false
+			end
+			turnConnection = RunService.RenderStepped:Connect(function()
+				if turnAim then
+					AimPoint.faceToward(turnAim())
+				end
+			end)
+		elseif not aimFn and turnConnection then
+			turnConnection:Disconnect()
+			turnConnection = nil
+			if humanoid and not AimCamera.isAds() then
+				humanoid.AutoRotate = true
+			end
+		end
+	end
+
+	-- Mantener pulsado: el primer aviso es un golpe y luego "Hold" mientras no se suelte lo que
+	-- lo empezó (el botón del ratón o la acción de F / X / ⚔). Solo una repetición a la vez.
 	local hold: { By: any }? = nil
-	local function startHold(by: any, fire: () -> boolean)
+	local function startHold(by: any, aimFn: () -> Vector3?, turn: boolean)
 		local current = { By = by }
 		hold = current
-		if fire() and animationTrack then
+		local aim = aimFn()
+		if turn then
+			AimPoint.faceToward(aim)
+			setTurning(aimFn)
+		else
+			setTurning(nil)
+		end
+		if send(aim, "Shot") and animationTrack and isMelee(styleNow()) then
 			animationTrack:Play()
 		end
 		task.spawn(function()
@@ -930,54 +1078,266 @@ function CombatController.start()
 				if hold ~= current then
 					return
 				end
-				fire()
+				send(aimFn(), "Hold")
 			end
 		end)
 	end
 	local function stopHold(by: any)
 		if hold and hold.By == by then
 			hold = nil
+			setTurning(nil)
+			signal("Release")
 		end
 	end
 
-	ContextActionService:BindAction(ATTACK_ACTION, function(_, inputState)
-		if inputState == Enum.UserInputState.Begin then
-			startHold(ATTACK_ACTION, shootNearest)
+	-- Magia: clic corto = bola; mantener = cargar un orbe que crece en el bastón (al soltar sale)
+	local magicSpec = StyleConfig.Styles.Magic
+	local magicPress: { By: any, Charging: boolean, Aim: () -> Vector3? }? = nil
+	local chargeOrb: Part? = nil
+	local chargeStarted = 0
+	local function stopChargeOrb()
+		if chargeOrb then
+			chargeOrb:Destroy()
+			chargeOrb = nil
+		end
+	end
+	local function startChargeOrb()
+		stopChargeOrb()
+		local element = MagicLogic.elementDef(MagicLogic.element(player:GetAttribute(Constants.Attributes.EquippedWeapon)))
+		local orb = fxPart(Vector3.one * 0.6, CFrame.new(), element.Color or Color3.new(1, 1, 1))
+		orb.Shape = Enum.PartType.Ball
+		orb.Transparency = 0.15
+		local light = Instance.new("PointLight")
+		light.Color = element.Color or Color3.new(1, 1, 1)
+		light.Range = 10
+		light.Brightness = 2
+		light.Parent = orb
+		chargeOrb = orb
+		chargeStarted = os.clock() - magicSpec.Charge.MinHold
+		playStyleSound("Charge", nil)
+	end
+	RunService.RenderStepped:Connect(function()
+		if chargeOrb then
+			local character = player.Character
+			local at = CharacterPose.gearPoint(character, "Orb") or CharacterPose.handPosition(character)
+			if at then
+				local fraction = math.clamp((os.clock() - chargeStarted) / magicSpec.Charge.Full, 0, 1)
+				chargeOrb.Size = Vector3.one * (0.6 + 2.8 * fraction)
+				chargeOrb.CFrame = CFrame.new(at)
+				chargeOrb.Transparency = if fraction >= 1 then 0.05 + math.abs(math.sin(os.clock() * 10)) * 0.25 else 0.15
+			end
+		end
+	end)
+	local function magicDown(by: any, aimFn: () -> Vector3?)
+		local press = { By = by, Charging = false, Aim = aimFn }
+		magicPress = press
+		task.delay(magicSpec.Charge.MinHold, function()
+			if magicPress == press then
+				press.Charging = true
+				send(aimFn() or facingAim(), "Charge")
+				startChargeOrb()
+				setTurning(aimFn)
+				CharacterPose.cast(player.Character, magicSpec.Charge.Full)
+			end
+		end)
+	end
+	local function magicUp(by: any)
+		local press = magicPress
+		if not (press and press.By == by) then
+			return
+		end
+		magicPress = nil
+		local aim = press.Aim() or facingAim()
+		AimPoint.faceToward(aim)
+		if press.Charging then
+			stopChargeOrb()
+			setTurning(nil)
+			send(aim, "Release")
 		else
-			stopHold(ATTACK_ACTION)
+			send(aim, "Shot")
+		end
+	end
+
+	-- Atacar con lo que empieza el golpe (`by`) hacia `aimFn`, según el estilo
+	local function attackDown(by: any, aimFn: () -> Vector3?, turn: boolean)
+		local style = styleNow()
+		if style == "Magic" then
+			magicDown(by, aimFn)
+			return
+		end
+		startHold(by, styledAim(aimFn), turn or isMelee(style))
+	end
+	local function attackUp(by: any)
+		magicUp(by)
+		stopHold(by)
+	end
+	player.CharacterAdded:Connect(function()
+		hold = nil
+		magicPress = nil
+		stopChargeOrb()
+		setTurning(nil)
+	end)
+
+	-- Clic derecho (o L2, o el botón 🛡️): apuntar con Armas, bloquear con Guerrero; con Magia,
+	-- un clic derecho corto es el teletransporte (mantenerlo sigue girando la cámara).
+	local altHeld: string? = nil
+	local function blink(aim: Vector3?)
+		styleActionRemote:FireServer("Blink", aim or facingAim())
+	end
+	local function altDown(fromPad: boolean)
+		local style = styleNow()
+		if altHeld then
+			return
+		end
+		if style == "Weapons" then
+			altHeld = "Ads"
+			AimCamera.setAds(true)
+			signal("AdsOn")
+		elseif style == "Warrior" then
+			altHeld = "Block"
+			AimCamera.setSlow(StyleConfig.Styles.Warrior.Block.WalkSpeed)
+			signal("BlockOn")
+		elseif style == "Magic" and fromPad then
+			blink(facingAim())
+		end
+	end
+	local function altUp()
+		if altHeld == "Ads" then
+			AimCamera.setAds(false)
+			signal("AdsOff")
+		elseif altHeld == "Block" then
+			AimCamera.setSlow(1)
+			signal("BlockOff")
+		end
+		altHeld = nil
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.CombatStyle):Connect(function()
+		altUp()
+		magicPress = nil
+		stopChargeOrb()
+	end)
+	player.CharacterAdded:Connect(altUp)
+
+	-- F con ratón: hacia el cursor. X del mando y el botón táctil ⚔: hacia donde mira.
+	ContextActionService:BindAction(ATTACK_ACTION, function(_, inputState, input)
+		if inputState == Enum.UserInputState.Begin then
+			local withMouse = input.UserInputType == Enum.UserInputType.Keyboard and UserInputService.MouseEnabled
+			attackDown(ATTACK_ACTION, if withMouse then mouseAim else facingAim, withMouse)
+		elseif inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
+			attackUp(ATTACK_ACTION)
 		end
 		return Enum.ContextActionResult.Sink
 	end, true, Enum.KeyCode.F, Enum.KeyCode.ButtonX)
 	ContextActionService:SetTitle(ATTACK_ACTION, "⚔")
 	ContextActionService:SetPosition(ATTACK_ACTION, UDim2.new(1, -170, 1, -150))
+	-- El botón "Disparar" de la pantalla: hacia donde mira el personaje (el cursor está encima
+	-- del botón)
 	ui.Button.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			startHold(Enum.UserInputType.MouseButton1, shootNearest)
+			attackDown(Enum.UserInputType.MouseButton1, facingAim, false)
 		elseif input.UserInputType == Enum.UserInputType.Touch then
-			startHold(input, shootNearest)
+			attackDown(input, facingAim, false)
 		end
 	end)
 
+	-- En el mundo: clic (hacia el cursor) o toque corto (hacia el dedo; arrastrar es para la
+	-- cámara y no ataca); clic derecho y L2 (ver arriba)
+	local taps: { [InputObject]: { At: number, Position: Vector3 } } = {}
+	local rightPress: { At: number }? = nil
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if input.KeyCode == Enum.KeyCode.ButtonL2 then
+			altDown(true)
+			return
+		end
 		if gameProcessed then
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			startHold(Enum.UserInputType.MouseButton1, function()
-				local mouse = UserInputService:GetMouseLocation()
-				return shootAt(Workspace.CurrentCamera:ViewportPointToRay(mouse.X, mouse.Y))
-			end)
+			attackDown(Enum.UserInputType.MouseButton1, mouseAim, true)
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			rightPress = { At = os.clock() }
+			altDown(false)
 		elseif input.UserInputType == Enum.UserInputType.Touch then
-			startHold(input, function()
-				return shootAt(Workspace.CurrentCamera:ScreenPointToRay(input.Position.X, input.Position.Y))
-			end)
+			taps[input] = { At = os.clock(), Position = input.Position }
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.ButtonL2 then
+			altUp()
+			return
+		end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			stopHold(Enum.UserInputType.MouseButton1)
+			attackUp(Enum.UserInputType.MouseButton1)
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			local press = rightPress
+			rightPress = nil
+			if altHeld then
+				altUp()
+			elseif press and styleNow() == "Magic" and os.clock() - press.At <= TAP_SECONDS then
+				-- Clic derecho corto con Magia: teletransporte hacia el cursor
+				blink(mouseAim())
+			end
 		elseif input.UserInputType == Enum.UserInputType.Touch then
-			stopHold(input)
+			attackUp(input)
+			local tap = taps[input]
+			taps[input] = nil
+			if tap and os.clock() - tap.At <= TAP_SECONDS and (input.Position - tap.Position).Magnitude <= TAP_MOVE then
+				local aim = if isMelee(styleNow()) then meleeAim() else AimPoint.fromScreen(input.Position.X, input.Position.Y)
+				AimPoint.faceToward(aim)
+				send(aim, "Shot")
+			end
+		end
+	end)
+
+	-- Bloquear en pantallas táctiles (Guerrero): botón 🛡️ que se mantiene
+	local BLOCK_ACTION = "RebirthBlock"
+	local function refreshBlockButton()
+		ContextActionService:UnbindAction(BLOCK_ACTION)
+		if styleNow() == "Warrior" then
+			ContextActionService:BindAction(BLOCK_ACTION, function(_, inputState)
+				if inputState == Enum.UserInputState.Begin then
+					altDown(true)
+				elseif inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
+					altUp()
+				end
+				return Enum.ContextActionResult.Sink
+			end, true)
+			ContextActionService:SetTitle(BLOCK_ACTION, "🛡️")
+			ContextActionService:SetPosition(BLOCK_ACTION, UDim2.new(1, -250, 1, -110))
+		end
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.CombatStyle):Connect(refreshBlockButton)
+	refreshBlockButton()
+
+	-- R: recargar (Armas) si al cargador le faltan balas; si está lleno, la R sigue siendo la
+	-- habilidad secundaria del núcleo
+	local function canReload(): boolean
+		local ammo = player:GetAttribute(Constants.Attributes.Ammo)
+		local magazine = player:GetAttribute(Constants.Attributes.AmmoMax)
+		local reloadEnd = player:GetAttribute(Constants.Attributes.ReloadEnd)
+		return styleNow() == "Weapons" and type(ammo) == "number" and type(magazine) == "number" and ammo < magazine and not (type(reloadEnd) == "number" and reloadEnd > Workspace:GetServerTimeNow())
+	end
+	ContextActionService:BindActionAtPriority("RebirthReload", function(_, inputState)
+		if inputState ~= Enum.UserInputState.Begin then
+			return Enum.ContextActionResult.Pass
+		end
+		if canReload() then
+			signal("Reload")
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.R)
+	CombatHud.start(ui.ButtonFrame)
+	CombatHud.onResourceTapped(function()
+		if canReload() then
+			signal("Reload")
+		end
+	end)
+	-- Sonido de recarga (también la automática al vaciar el cargador)
+	player:GetAttributeChangedSignal(Constants.Attributes.ReloadEnd):Connect(function()
+		local reloadEnd = player:GetAttribute(Constants.Attributes.ReloadEnd)
+		if type(reloadEnd) == "number" and reloadEnd > 0 then
+			playStyleSound("Reload", nil)
 		end
 	end)
 
@@ -987,9 +1347,8 @@ function CombatController.start()
 	end
 	local function refreshAutoFire()
 		local owned = hasAutoPass()
-		local on = player:GetAttribute(Constants.Attributes.AutoFire) == true
-		-- Sin el pase, "AUTO ⚔" = disparo automático gratis dentro de las oleadas.
-		ui.AutoBadge.Text = if on and not owned then "AUTO ⚔" elseif not owned then "🔒 AUTO" elseif on then "AUTO" else "OFF"
+		local on = owned and player:GetAttribute(Constants.Attributes.AutoFire) == true
+		ui.AutoBadge.Text = if not owned then "🔒 AUTO" elseif on then "AUTO" else "OFF"
 		ui.AutoBadge.BackgroundColor3 = if on then AUTO_ON else AUTO_OFF
 	end
 	local function toggleAutoFire()
@@ -1014,8 +1373,36 @@ function CombatController.start()
 	player:GetAttributeChangedSignal(Constants.Attributes.Passes):Connect(refreshAutoFire)
 	refreshAutoFire()
 
+	-- Automático (con el pase y encendido): mientras haya enemigos cerca manda hacia dónde
+	-- apuntas (el ratón; con mando o táctil, delante del personaje) y el servidor dispara solo
+	-- cuando el disparo va a dar a alguien. Mientras mantienes pulsado no hace falta.
+	task.spawn(function()
+		local lastSent: Vector3? = nil
+		local lastAt = 0
+		while true do
+			task.wait(REPEAT_SECONDS)
+			if hold ~= nil or magicPress ~= nil or altHeld == "Block" or player:GetAttribute(Constants.Attributes.AutoFire) ~= true or not hasAutoPass() then
+				continue
+			end
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if not (root and root:IsA("BasePart")) or #enemiesInRange(root.Position) == 0 then
+				continue
+			end
+			local last = UserInputService:GetLastInputType()
+			local pointer = UserInputService.MouseEnabled and last ~= Enum.UserInputType.Touch and not string.find(last.Name, "Gamepad", 1, true)
+			local aim = if isMelee(styleNow()) then meleeAim() elseif pointer then AimPoint.mouse() else AimPoint.facing()
+			local now = os.clock()
+			if aim and (lastSent == nil or (aim - lastSent).Magnitude > 0.5 or now - lastAt > 0.3) then
+				send(aim, "Aim")
+				lastSent = aim
+				lastAt = now
+			end
+		end
+	end)
+
 	-- Arma equipada (o el estilo, si no es Armas) y su daño por segundo sobre el botón
-	local ATTACK_WORDS = { Weapons = "Disparar", Fists = "Golpear", Magic = "Lanzar" }
+	local ATTACK_WORDS = { Weapons = "Disparar", Warrior = "Atacar", Fists = "Golpear", Magic = "Lanzar" }
 	local function refreshWeaponPill()
 		local def = WeaponConfig.Weapons[player:GetAttribute(Constants.Attributes.EquippedWeapon)] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
 		local dps = player:GetAttribute(Constants.Attributes.DamagePerSecond)
@@ -1230,6 +1617,16 @@ function CombatController.start()
 		tween:Play()
 	end
 
+	-- Orbes que están cargando otros magos (aviso "Charging"); se quitan al lanzarlo
+	local othersCharging: { [Player]: Part } = {}
+	Players.PlayerRemoving:Connect(function(leaving)
+		local orb = othersCharging[leaving]
+		if orb then
+			orb:Destroy()
+			othersCharging[leaving] = nil
+		end
+	end)
+
 	petAbilityRemote.OnClientEvent:Connect(function(event)
 		if typeof(event) ~= "table" or typeof(event.Owner) ~= "Instance" then
 			return
@@ -1240,10 +1637,15 @@ function CombatController.start()
 		if event.Kind == "PlayerShot" and typeof(event.Target) == "Vector3" then
 			local def = WeaponConfig.Weapons[event.WeaponId] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
 			local style = if typeof(event.Style) == "string" and StyleConfig.Styles[event.Style] then event.Style else "Weapons"
-			-- El color del arma, o el de los guantes / el bastón (si no, el del estilo)
+			-- El color del arma, o el de los guantes / la espada (si no, el del estilo); la
+			-- magia, el de su elemento
 			local gearOfStyle = style == "Weapons" or def.Category == style
 			local color = if gearOfStyle then def.Color else StyleConfig.Styles[style].Color
-			-- Rayos que saltan de enemigo en enemigo (armas, guantes y bastones de cristal)
+			local elementSpec = if style == "Magic" and typeof(event.Element) == "string" then StyleConfig.Styles.Magic.Elements[event.Element] else nil
+			if elementSpec and elementSpec.Color then
+				color = elementSpec.Color
+			end
+			-- Rayos que saltan de enemigo en enemigo (cristal, rayo)
 			local function chainFx(from: Vector3)
 				if typeof(event.Chain) ~= "table" then
 					return
@@ -1262,24 +1664,41 @@ function CombatController.start()
 			local character = owner.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			local target = event.Target :: Vector3
+			-- Tu personaje mira hacia donde va el disparo (el automático, F con el mando) si
+			-- está quieto y no estás manteniendo pulsado (entonces ya mira al cursor)
+			if isOwner and hold == nil and not AimCamera.isAds() then
+				local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+				if humanoid and humanoid.MoveDirection.Magnitude < 0.1 then
+					AimPoint.faceToward(target)
+				end
+			end
 			local from = if root and root:IsA("BasePart") then root.Position + Vector3.new(0, 1.2, 0) else target
 			local hand = CharacterPose.handPosition(character) or from
-			local function impact()
+			local soundAt = if isOwner then nil else from
+			-- Números, chispas y sonido de acierto (y la ✕ de la mira si es tuyo).
+			-- `styleSound`: el sonido del golpe de este estilo en vez del genérico
+			local function impact(styleSound: string?)
 				emitAt("Glint", target, color, if crit then 10 else 4)
 				if typeof(event.Splash) == "number" then
 					impactRing(target, event.Splash, color)
 				end
 				-- Crítico: número dorado y más grande
 				showHits(event.Hits, if crit then THEME.Gold else color, isOwner, 0.8, if crit then 1.6 else nil)
-				if isOwner and typeof(event.Hits) == "table" and #event.Hits > 0 then
+				if typeof(event.Hits) == "table" and #event.Hits > 0 then
 					local killed = false
 					for _, hit in event.Hits do
 						killed = killed or (typeof(hit) == "table" and hit.Killed == true)
 					end
-					if killed then
-						playVaried(killSound, 0.9, 0.05)
-					else
-						playVaried(hitSound, if style == "Fists" then 0.95 elseif crit then 1.6 else 1.35, 0.07)
+					if styleSound then
+						playStyleSound(styleSound, soundAt)
+					end
+					if isOwner then
+						CombatHud.hitMarker(killed)
+						if killed then
+							playVaried(killSound, 0.9, 0.05)
+						elseif not styleSound then
+							playVaried(hitSound, if style == "Fists" then 0.95 elseif crit then 1.6 else 1.35, 0.07)
+						end
 					end
 				end
 			end
@@ -1294,47 +1713,176 @@ function CombatController.start()
 					comboLabel(target, combo, color)
 				end
 				impact()
-			elseif style == "Magic" then
-				-- Orbe que se carga en las manos, viaja girando y explota con runas
-				CharacterPose.cast(character, 0.12)
-				magicOrb(hand, target, color, function()
-					flashBall(target, color, 1, if combo then 11 else 6, if combo then 0.32 else 0.22)
-					impactRing(target, if combo then 6 else 3.5, Color3.new(1, 1, 1))
-					chainFx(target)
-					if combo then
-						comboLabel(target, combo, color)
-					end
-					impact()
-				end, if combo then 1.9 else 1)
-			elseif def.Projectile == "Bolt" or def.Projectile == "Orb" then
-				CharacterPose.aim(character)
-				travelBall(hand, target, color, (if def.Projectile == "Orb" then 1.5 else 0.9) * (if combo then 1.8 else 1), if def.Projectile == "Orb" then 70 else 90, function()
-					if combo then
-						comboLabel(target, combo, color)
-						impactRing(target, 4, color)
-					end
-					impact()
-				end)
-			else
-				CharacterPose.aim(character)
-				beamEffect(hand, target, color, (if def.Projectile == "Thorn" then 0.22 elseif def.Projectile == "Prism" then 0.45 else 0.3) * (if combo then 2.4 else 1))
-				if combo then
-					comboLabel(target, combo, color)
-					flashBall(target, Color3.new(1, 1, 1), 0.6, 4, 0.18)
+			elseif style == "Warrior" then
+				-- Tajo de espada: el brazo barre y un arco de luz pasa delante (el 3.º, una
+				-- rueda alrededor); el contraataque tras una parada sale dorado y más grande
+				local step = math.clamp(math.floor(tonumber(event.Step) or 1), 1, 3)
+				local counter = event.Counter == true
+				local center = if root and root:IsA("BasePart") then root.Position else target
+				local direction = if typeof(event.Direction) == "Vector3" then event.Direction else target - center
+				local radius = tonumber(event.Radius) or 10
+				local arcColor = if counter then THEME.Gold else color
+				CharacterPose.slash(character, step)
+				slashArc(center, direction, radius, arcColor, step, counter or step == 3)
+				if step == 3 then
+					impactRing(center, radius * 0.9, arcColor)
 				end
-				if typeof(event.Chain) == "table" then
-					-- El rayo de cristal salta de enemigo en enemigo
-					local previous = target
-					for _, point in event.Chain do
-						if typeof(point) == "Vector3" then
-							beamEffect(previous, point, color, 0.25)
-							emitAt("Glint", point, color, 3)
-							previous = point
+				playStyleSound(if step == 3 then "SwordSpin" else "SwordSwing", soundAt, if counter then 0.85 else 1)
+				local slashes = StyleConfig.Styles.Warrior.Slashes
+				local hitSomeone = typeof(event.Hits) == "table" and #event.Hits > 0
+				if hitSomeone then
+					emitAt("Spark", target, arcColor, if step == 3 or counter then 18 else 9)
+					if counter then
+						comboLabel(target, "¡Contraataque!", THEME.Gold)
+						flashBall(target, Color3.new(1, 1, 1), 0.8, 6, 0.22)
+					elseif step == 3 and slashes and slashes[3] and slashes[3].Name then
+						comboLabel(target, slashes[3].Name, color)
+					end
+				end
+				chainFx(target)
+				impact("SwordHit")
+			elseif style == "Magic" then
+				-- Bola de energía desde la esfera del bastón, del color de su elemento: chispa
+				-- pequeña sin maná, orbe enorme si la cargaste
+				local charge = tonumber(event.Charge)
+				local spark = event.Spark == true
+				local scale = if charge then 1.3 + charge * 1.3 elseif spark then 0.5 else 1
+				local others = othersCharging[owner]
+				if others then
+					others:Destroy()
+					othersCharging[owner] = nil
+				end
+				CharacterPose.cast(character, 0.12)
+				local orbAt = CharacterPose.gearPoint(character, "Orb") or hand
+				playStyleSound("MagicBolt", soundAt, if charge then 0.6 elseif spark then 1.35 else 1)
+				magicOrb(orbAt, target, color, function()
+					local big = charge ~= nil and charge >= 0.5
+					flashBall(target, color, 1, if charge then 5 + charge * 9 elseif spark then 2.5 else 5, if big then 0.34 else 0.2)
+					impactRing(target, if charge then 3 + charge * 5 elseif spark then 1.6 else 3, Color3.new(1, 1, 1))
+					if big then
+						playStyleSound("Explosion", soundAt, 1.25)
+						emitAt("Glint", target, color, 14)
+					end
+					chainFx(target)
+					if charge and charge >= 0.99 then
+						comboLabel(target, "¡Orbe cargado!", color)
+					end
+					impact()
+				end, scale)
+			else
+				-- Armas: fogonazo en la boca del arma, retroceso, trazo de cada bala (los
+				-- perdigones de la escopeta, la bala que atraviesa del francotirador), flecha con
+				-- el arco y un cohete con la bazuca (su explosión llega luego en "ShotImpact")
+				local gun = if typeof(event.Gun) == "string" then event.Gun else GunLogic.kind(event.WeaponId)
+				local feel = GUN_FEEL[gun] or GUN_FEEL.Pistol
+				local isBow = def.Model == "Bow"
+				local muzzle = CharacterPose.gearPoint(character, "Muzzle") or hand
+				CharacterPose.recoil(character, feel.Recoil)
+				if not isBow then
+					muzzleFlash(muzzle, color, feel.Flash)
+				end
+				playStyleSound(if isBow then "GunBow" else "Gun" .. gun, soundAt)
+				if isOwner then
+					CombatHud.kick(feel.Kick)
+				end
+				if typeof(event.Delay) == "number" then
+					rocketFx(muzzle, target, color, event.Delay)
+				else
+					local tracers = if typeof(event.Tracers) == "table" then event.Tracers else { { To = target, Hit = event.Miss ~= true } }
+					local first = true
+					for _, line in tracers do
+						if typeof(line) == "table" and typeof(line.To) == "Vector3" then
+							local to = line.To :: Vector3
+							if isBow and first then
+								travelBall(muzzle, to, color, 0.5, 140, function()
+									emitAt("Glint", to, color, 4)
+								end)
+							else
+								tracer(muzzle, to, color, feel.Tracer)
+							end
+							if line.Hit == true then
+								emitAt("Spark", to, color, if gun == "Shotgun" then 2 else 5)
+							else
+								emitAt("Miss", to, Color3.fromRGB(200, 200, 200), 2)
+							end
+							first = false
 						end
 					end
+					if combo then
+						comboLabel(target, combo, color)
+						flashBall(target, Color3.new(1, 1, 1), 0.6, 4, 0.18)
+					end
+					chainFx(target)
+					impact()
 				end
-				impact()
 			end
+		elseif event.Kind == "ShotImpact" and typeof(event.Position) == "Vector3" then
+			-- Explosión del cohete de la bazuca
+			local def = WeaponConfig.Weapons[event.WeaponId] or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
+			local center = event.Position :: Vector3
+			local radius = tonumber(event.Radius) or 8
+			local crit = event.Crit == true
+			flashBall(center, Color3.fromRGB(255, 220, 140), 1.5, radius * 1.5, 0.3)
+			flashBall(center, def.Color, 1, radius * 1.9, 0.42)
+			impactRing(center, radius, def.Color)
+			emitAt("Spark", center, Color3.fromRGB(255, 190, 90), 24)
+			emitAt("Miss", center, Color3.fromRGB(110, 110, 116), 8)
+			playStyleSound("Explosion", if isOwner then nil else center)
+			showHits(event.Hits, if crit then THEME.Gold else def.Color, isOwner, 1, if crit then 1.6 else nil)
+			if isOwner and typeof(event.Hits) == "table" and #event.Hits > 0 then
+				local killed = false
+				for _, hit in event.Hits do
+					killed = killed or (typeof(hit) == "table" and hit.Killed == true)
+				end
+				CombatHud.hitMarker(killed)
+				if killed then
+					playVaried(killSound, 0.9, 0.05)
+				end
+			end
+		elseif event.Kind == "Parry" and typeof(event.Position) == "Vector3" then
+			-- Parada perfecta del Guerrero: destello blanco, chispas doradas
+			local at = event.Position :: Vector3
+			flashBall(at, Color3.new(1, 1, 1), 1, 7, 0.25)
+			emitAt("Spark", at, THEME.Gold, 22)
+			impactRing(at, 5, THEME.Gold)
+			comboLabel(at, "¡Parada perfecta!", THEME.Gold)
+			playStyleSound("Parry", if isOwner then nil else at)
+		elseif event.Kind == "Charging" then
+			-- Otro mago cargando un orbe: crece en su bastón (el tuyo lo dibuja tu cliente)
+			if isOwner then
+				return
+			end
+			local previous = othersCharging[owner]
+			if previous then
+				previous:Destroy()
+			end
+			local elementSpec = if typeof(event.Element) == "string" then StyleConfig.Styles.Magic.Elements[event.Element] else nil
+			local color = if elementSpec and elementSpec.Color then elementSpec.Color else StyleConfig.Styles.Magic.Color
+			local orb = fxPart(Vector3.one * 0.6, CFrame.new(), color)
+			orb.Shape = Enum.PartType.Ball
+			orb.Transparency = 0.2
+			othersCharging[owner] = orb
+			local began = os.clock()
+			local full = StyleConfig.Styles.Magic.Charge.Full
+			local connection
+			connection = RunService.RenderStepped:Connect(function()
+				local character = owner.Character
+				local at = CharacterPose.gearPoint(character, "Orb") or CharacterPose.handPosition(character)
+				local elapsed = os.clock() - began
+				if not orb.Parent or othersCharging[owner] ~= orb or elapsed > full + 2.5 or not at then
+					connection:Disconnect()
+					if orb.Parent then
+						orb:Destroy()
+					end
+					if othersCharging[owner] == orb then
+						othersCharging[owner] = nil
+					end
+					return
+				end
+				local fraction = math.clamp(elapsed / full, 0, 1)
+				orb.Size = Vector3.one * (0.6 + 2.8 * fraction)
+				orb.CFrame = CFrame.new(at)
+			end)
 		elseif event.Kind == "FoxBolt" and typeof(event.Target) == "Vector3" then
 			-- Rayo turquesa desde el zorrito hasta el objetivo (daño ya aplicado).
 			-- Bola de luz con estela; tarda según la distancia para que se vea el recorrido.

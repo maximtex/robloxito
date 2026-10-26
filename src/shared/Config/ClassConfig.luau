@@ -1,5 +1,5 @@
 -- Clases de cada estilo de pelea: una PASIVA que mejora cómo juegas ese estilo. Cada estilo
--- tiene cinco: la primera es gratis y las otras cuatro se compran con 💎 diamantes (cada vez
+-- (Armas, Guerrero, Puños y Magia) tiene cinco: la primera es gratis y las otras cuatro se compran con 💎 diamantes (cada vez
 -- más caras; la última es la definitiva). Llevas una activa por estilo (se cambia gratis
 -- cuando quieras) y solo cuenta mientras juegas ese estilo. Cada clase sube de nivel con 💎
 -- (del 1 al Levels.Max) y su pasiva se hace más fuerte.
@@ -61,9 +61,11 @@ local ClassConfig = {
 		ComboEvery = { Order = 17, Icon = "🥊", Text = "Combo %s golpe antes" },
 	},
 
-	-- Orden de las clases de cada estilo (la primera, la gratis)
+	-- Orden de los estilos (como StyleConfig.Order) y de las clases de cada uno (la primera, la gratis)
+	Order = { "Weapons", "Warrior", "Fists", "Magic" },
 	Styles = {
 		Weapons = { "Soldier", "Sniper", "Gunner", "Demolisher", "Commando" },
+		Warrior = { "Squire", "Duelist", "Paladin", "Blademaster", "Warlord" },
 		Fists = { "Brawler", "Monk", "Tank", "Berserker", "Champion" },
 		Magic = { "Apprentice", "Pyromancer", "Cryomancer", "Archmage", "Sorcerer" },
 	},
@@ -114,6 +116,53 @@ local ClassConfig = {
 			Price = 3000,
 			UpgradeScale = 2.5,
 			Bonuses = { Damage = { 0.15, 0.35 }, CritPower = { 0.5, 1.5 }, BossDamage = { 0.25, 0.6 } },
+		},
+
+		-- 🗡️ Guerrero ------------------------------------------------------------------------
+		Squire = {
+			Style = "Warrior",
+			Name = "Escudero",
+			Icon = "🛡️",
+			Text = "Equilibrado: tajos más fuertes y recibes algo menos de daño.",
+			Price = 0,
+			UpgradeScale = 0.5,
+			Bonuses = { Damage = { 0.08, 0.2 }, Defense = { 0.05, 0.12 } },
+		},
+		Duelist = {
+			Style = "Warrior",
+			Name = "Duelista",
+			Icon = "🤺",
+			Text = "Tajos más rápidos y muchos críticos.",
+			Price = 200,
+			UpgradeScale = 1,
+			Bonuses = { FireRate = { 0.08, 0.22 }, CritChance = { 0.1, 0.25 } },
+		},
+		Paladin = {
+			Style = "Warrior",
+			Name = "Paladín",
+			Icon = "⚜️",
+			Text = "Mucha más vida y te curas con cada tajo.",
+			Price = 500,
+			UpgradeScale = 1.3,
+			Bonuses = { Health = { 0.2, 0.5 }, LifeSteal = { 0.02, 0.05 } },
+		},
+		Blademaster = {
+			Style = "Warrior",
+			Name = "Maestro de espadas",
+			Icon = "⚔️",
+			Text = "Tu espada llega más lejos y pega mucho más fuerte.",
+			Price = 1200,
+			UpgradeScale = 1.7,
+			Bonuses = { Range = { 0.15, 0.35 }, Damage = { 0.15, 0.35 } },
+		},
+		Warlord = {
+			Style = "Warrior",
+			Name = "Señor de la guerra",
+			Icon = "👑",
+			Text = "La definitiva: más daño, habilidades brutales y destrozas a los jefes.",
+			Price = 3000,
+			UpgradeScale = 2.5,
+			Bonuses = { Damage = { 0.2, 0.4 }, SkillDamage = { 0.2, 0.5 }, BossDamage = { 0.25, 0.6 } },
 		},
 
 		-- 👊 Puños ---------------------------------------------------------------------------

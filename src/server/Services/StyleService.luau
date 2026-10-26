@@ -1,5 +1,6 @@
 -- Estilos de pelea (StyleConfig): elegir estilo, sus pasivas fuera del disparo, sus
--- habilidades (4 por estilo, 2 puestas: SkillLogic), los combos y el dash de Puños. El
+-- habilidades (4 por estilo, 2 puestas: SkillLogic), los combos, el dash de Puños y el
+-- teletransporte de Magia. El
 -- disparo de cada estilo (alcance, ritmo, daño, crítico, robo de vida y los combos de golpes)
 -- lo hace PetCombatService; aquí:
 -- - StyleAction("Set", styleId): cambia el estilo (con una espera corta entre cambios), se
@@ -7,14 +8,21 @@
 --   vida las pone PlayerDataService con StyleLogic).
 -- - StyleAction("Pick", styleId): la elección del estilo al empezar (StylePicker): lo pone y
 --   marca PetData.Skills.Picked (ya no se vuelve a preguntar).
--- - StyleAction("Ability", slot): usa la habilidad puesta en la Z (1) o la X (2) si está
---   lista. Todo lo decide el servidor:
---     Armas:  Ráfaga, Granada, Rayo perforante (franja recta hacia el objetivo) y Torreta
---             (dispara sola al más cercano un rato).
+-- - StyleAction("Ability", slot, aimPoint): usa la habilidad puesta en la Z (1) o la X (2)
+--   si está lista, hacia el punto al que apuntas (el ratón; con el botón, delante). Todo lo
+--   decide el servidor:
+--     Armas:  Ráfaga, Granada (cae donde apuntas), Rayo perforante (franja recta hacia donde
+--             apuntas) y Torreta (dispara sola al más cercano un rato).
+--     Guerrero: Giro de acero (tajos alrededor), Salto aplastante (HANDLERS.Leap: saltas
+--             hacia donde apuntas y al caer golpeas, aturdes y empujas alrededor), Grito de
+--             guerra (como la Furia, y pegas más fuerte) y Onda cortante (franja recta).
 --     Puños:  Terremoto, Embestida, Furia (pegas más rápido y recibes la mitad) y Torbellino
 --             (4 golpes alrededor que atraen).
---     Magia:  Meteoros, Nova de hielo, Cadena de rayos (salta de enemigo en enemigo y aturde)
---             y Agujero negro (atrae y daña, y al final explota).
+--     Magia:  Meteoros (donde apuntas), Nova de hielo, Cadena de rayos (empieza en el enemigo
+--             junto a donde apuntas, salta de enemigo en enemigo y aturde) y Agujero negro
+--             (donde apuntas: atrae y daña, y al final explota).
+--   Las de Magia gastan maná (ManaCost; sin maná: Result "NoMana"). Una habilidad con Base
+--   usa el efecto de otra (también en cadena: la del Mundo 2 sobre la del Mundo 1).
 --   El daño son múltiplos del DPS del estilo × el nivel de la habilidad (SkillLogic.power)
 --   y pasa por EnemyService.damage (mismas recompensas y muertes). La recarga es por
 --   habilidad (cambiar de estilo o de hueco no la reinicia; la acorta su nivel) y se replica
@@ -23,12 +31,15 @@
 --   comprar y subir con 💎 (profile.Energy) y ponerla en la Z o la X (SkillLogic valida).
 -- - StyleAction("Dash"): el dash de Puños (StyleConfig.Styles.Fists.Dash): un salto corto
 --   hacia donde te mueves, sin cruzar paredes ni puertas cerradas; DashReadyAt.
+-- - StyleAction("Blink", aimPoint): el teletransporte de Magia (StyleConfig.Styles.Magic.Blink)
+--   hacia el punto (o hacia donde te mueves), gasta maná y comparte DashReadyAt.
 -- - Combos de habilidades (COMBO): una habilidad que da a un enemigo aturdido o congelado
 --   (Terremoto, Embestida, Nova, Cadena de rayos) hace ×1.5 («¡Remate!», «¡Hielo roto!»…);
 --   con tu Ráfaga o tu Furia activas, las demás habilidades hacen ×1.4; y a un enemigo con
 --   la marca de un elemento (las habilidades elementales Q/R, AbilityService) le hace ×1.5 y
 --   gasta la marca («¡Combo elemental!»). Se multiplican, hasta ×COMBO.Max.
--- - Daño que recibe el jugador según el estilo (Puños menos, Armas más; la Furia, la mitad).
+-- - Daño que recibe el jugador según el estilo (Puños y Guerrero menos, Armas más; la Furia,
+--   la mitad; bloqueando con el Guerrero, PetCombatService.blockIncoming).
 -- - Clases (ClassConfig, ClassLogic): StyleAction("BuyClass" | "UpgradeClass", classId) y
 --   ("SelectClass", classId): comprar y subir con 💎 y elegir la activa de su estilo. Sus
 --   pasivas, aquí: daño y recarga de las habilidades, recarga del dash, daño que recibes y
@@ -45,6 +56,7 @@ local StyleConfig = require(Shared.Config.StyleConfig)
 local StyleLogic = require(Shared.StyleLogic)
 local SkillLogic = require(Shared.SkillLogic)
 local ClassLogic = require(Shared.ClassLogic)
+local MagicLogic = require(Shared.MagicLogic)
 local AbilityLogic = require(Shared.AbilityLogic)
 local CaveLogic = require(Shared.CaveLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -57,6 +69,8 @@ local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local BROADCAST_RANGE = 150
 local DASH_STEP = 2 -- la embestida se comprueba cada tantos studs (suelo y puertas)
 local DASH_WALL_GAP = 2.5 -- se para a esta distancia de una pared
+local CHAIN_AIM = 12 -- la Cadena de rayos empieza en un enemigo a esto (o menos) de donde apuntas
+local MAX_AIM_DISTANCE = 400
 local SLOT_ATTRIBUTES = { Constants.Attributes.StyleReadyAt, Constants.Attributes.StyleReadyAt2 }
 local Codes = Constants.PurchaseCodes
 
@@ -67,8 +81,8 @@ local COMBO = {
 	Element = 1.5, -- a un enemigo con marca elemental (la gasta)
 	Max = 2.5,
 	Names = {
-		Stunned = { Weapons = "¡Tiro certero!", Fists = "¡Remate!", Magic = "¡Hielo roto!" },
-		Buffed = { Weapons = "¡Ráfaga cargada!", Fists = "¡Furia desatada!", Magic = "¡Poder arcano!" },
+		Stunned = { Weapons = "¡Tiro certero!", Warrior = "¡Golpe de gracia!", Fists = "¡Remate!", Magic = "¡Hielo roto!" },
+		Buffed = { Weapons = "¡Ráfaga cargada!", Warrior = "¡Furia guerrera!", Fists = "¡Furia desatada!", Magic = "¡Poder arcano!" },
 		Element = "¡Combo elemental!",
 	},
 }
@@ -94,6 +108,20 @@ local function rootOf(player: Player): BasePart?
 		return root
 	end
 	return nil
+end
+
+-- Punto apuntado que manda el cliente con la habilidad (nil si no vale)
+local function validAim(player: Player, aim: any): Vector3?
+	local root = rootOf(player)
+	if typeof(aim) ~= "Vector3" or not root then
+		return nil
+	end
+	for _, value in { aim.X, aim.Y, aim.Z } do
+		if value ~= value or value == math.huge or value == -math.huge then
+			return nil
+		end
+	end
+	return if (aim - root.Position).Magnitude <= MAX_AIM_DISTANCE then aim else nil
 end
 
 local function serverNow(): number
@@ -167,6 +195,8 @@ type Cast = {
 	Damage: number, -- daño base de cada golpe (DPS × DamageRatio × nivel)
 	Buffed: boolean,
 	Color: Color3?, -- el de sus efectos (las del Mundo 2 traen el suyo)
+	Aim: Vector3?, -- punto al que apuntaba el jugador al usarla (ratón, toque o delante)
+	Element: string?, -- Magia: deja su marca elemental y dispara combos (AbilityService)
 	Combo: string?,
 	ComboAt: Vector3?,
 }
@@ -182,11 +212,16 @@ local function comboFor(cast: Cast, enemy: any, ignoreStun: boolean?): (number, 
 		multiplier *= COMBO.Buffed
 		name = name or COMBO.Names.Buffed[cast.Style]
 	end
-	local aura = EnemyService.auraOf(enemy)
-	if aura then
-		multiplier *= COMBO.Element
-		name = COMBO.Names.Element
-		EnemyService.setAura(enemy, nil) -- se gasta
+	if cast.Element then
+		-- Habilidades de Magia: su elemento deja marca o dispara el combo de la pareja
+		multiplier *= PetCombatService.elementHit(cast.Player, enemy, cast.Element, cast.Damage)
+	else
+		local aura = EnemyService.auraOf(enemy)
+		if aura then
+			multiplier *= COMBO.Element
+			name = COMBO.Names.Element
+			EnemyService.setAura(enemy, nil) -- se gasta
+		end
 	end
 	return math.min(multiplier, COMBO.Max), name
 end
@@ -238,6 +273,32 @@ end
 
 local function nearestTarget(player: Player, center: Vector3, range: number): any?
 	return targetsAround(player, center, range, 1)[1]
+end
+
+-- Punto apuntado para la habilidad, sin pasar de `range` desde el personaje (nil si no apuntó).
+-- A la altura del suelo apuntado si está cerca de la tuya; si no, a la tuya.
+local function aimedPoint(cast: Cast, root: BasePart, range: number): Vector3?
+	local aim = cast.Aim
+	if not aim then
+		return nil
+	end
+	local origin = root.Position
+	local flat = Vector3.new(aim.X - origin.X, 0, aim.Z - origin.Z)
+	if flat.Magnitude > range then
+		flat = flat.Unit * range
+	end
+	local y = if math.abs(aim.Y - origin.Y) <= 12 then aim.Y + 1 else origin.Y
+	return Vector3.new(origin.X + flat.X, y, origin.Z + flat.Z)
+end
+
+-- Dirección (en plano) hacia el punto apuntado; nil si no apuntó o está encima
+local function aimedDirection(cast: Cast, root: BasePart): Vector3?
+	local aim = cast.Aim
+	if not aim then
+		return nil
+	end
+	local flat = Vector3.new(aim.X - root.Position.X, 0, aim.Z - root.Position.Z)
+	return if flat.Magnitude > 0.5 then flat.Unit else nil
 end
 
 -- Atrae a `enemy` hacia `center` (el retroceso de EnemyService, hacia dentro)
@@ -325,18 +386,31 @@ function HANDLERS.Burst(cast: Cast, ability: any, root: BasePart, level: number)
 	return true
 end
 
--- Armas: Granada (vuela hasta tu objetivo y explota al llegar). Count (Bombardeo): una a
--- cada uno de los enemigos más cercanos, una detrás de otra.
+-- Armas: Granada (vuela hasta donde apuntas y explota al llegar). Count (Bombardeo): la
+-- primera donde apuntas y las demás en corro alrededor, una detrás de otra. Sin punto
+-- (clientes antiguos), a los enemigos más cercanos.
 function HANDLERS.Grenade(cast: Cast, ability: any, root: BasePart): boolean
 	local player = cast.Player
 	local count = math.max(1, math.floor(ability.Count or 1))
-	local targets = targetsAround(player, root.Position, ability.Range, count)
-	if #targets == 0 then
+	local landings = {}
+	local aimed = aimedPoint(cast, root, ability.Range)
+	if aimed then
+		table.insert(landings, aimed)
+		local ring = ability.Radius * 1.2
+		for index = 2, count do
+			local angle = (index - 2) / math.max(1, count - 1) * math.pi * 2
+			table.insert(landings, aimed + Vector3.new(math.cos(angle) * ring, 0, math.sin(angle) * ring))
+		end
+	else
+		for _, target in targetsAround(player, root.Position, ability.Range, count) do
+			table.insert(landings, target.Root.Position)
+		end
+	end
+	if #landings == 0 then
 		return false
 	end
 	local token = generation[player] or 0
-	for index, target in targets do
-		local landing = target.Root.Position
+	for index, landing in landings do
 		local delay = ability.Delay + (index - 1) * 0.1
 		broadcast(player, root.Position, fx(cast, {
 			Kind = "Grenade",
@@ -363,17 +437,21 @@ function HANDLERS.Grenade(cast: Cast, ability: any, root: BasePart): boolean
 	return true
 end
 
--- Armas: Rayo perforante (franja recta hacia el objetivo más cercano)
+-- Armas: Rayo perforante (franja recta hacia donde apuntas; sin punto, hacia el más cercano)
 function HANDLERS.Pierce(cast: Cast, ability: any, root: BasePart): boolean
 	local player = cast.Player
 	local origin = root.Position
-	local target = nearestTarget(player, origin, ability.Length)
-	if not target then
-		return false
+	local aim = aimedDirection(cast, root)
+	if not aim then
+		local target = nearestTarget(player, origin, ability.Length)
+		if not target then
+			return false
+		end
+		local toward = target.Root.Position - origin
+		local flat = Vector3.new(toward.X, 0, toward.Z)
+		aim = if flat.Magnitude > 0.05 then flat.Unit else Vector3.new(0, 0, -1)
 	end
-	local toward = target.Root.Position - origin
-	local aim = Vector3.new(toward.X, 0, toward.Z)
-	aim = if aim.Magnitude > 0.05 then aim.Unit else Vector3.new(0, 0, -1)
+	assert(aim, "dirección del rayo")
 	-- Beams (Rayo triple): varios rayos en abanico, Spread grados entre uno y otro; cada
 	-- enemigo recibe como mucho un rayo
 	local beams = math.max(1, math.floor(ability.Beams or 1))
@@ -394,7 +472,7 @@ function HANDLERS.Pierce(cast: Cast, ability: any, root: BasePart): boolean
 				hit(cast, enemy, hits)
 			end
 		end
-		broadcast(player, origin, fx(cast, { Kind = "Pierce", From = origin + Vector3.new(0, 1.2, 0), To = finish + Vector3.new(0, 1.2, 0), Width = ability.Width, Hits = hits }))
+		broadcast(player, origin, fx(cast, { Kind = ability.Visual or "Pierce", From = origin + Vector3.new(0, 1.2, 0), To = finish + Vector3.new(0, 1.2, 0), Width = ability.Width, Hits = hits }))
 	end
 	announceCombo(cast)
 	return true
@@ -519,12 +597,53 @@ function HANDLERS.Dash(cast: Cast, ability: any, root: BasePart): boolean
 	return true
 end
 
+-- Guerrero: Salto aplastante (saltas hacia donde apuntas y caes con un golpe en área). El
+-- cliente del jugador hace el salto (StyleController); al caer, si no llegó, se le pone allí.
+function HANDLERS.Leap(cast: Cast, ability: any, root: BasePart): boolean
+	local player = cast.Player
+	local origin = root.Position
+	local direction = aimedDirection(cast, root) or moveDirection(player, root)
+	local wanted = ability.Distance
+	if cast.Aim then
+		local flat = Vector3.new(cast.Aim.X - origin.X, 0, cast.Aim.Z - origin.Z)
+		wanted = math.clamp(flat.Magnitude, 4, ability.Distance)
+	end
+	local reach = dashReach(player, origin, direction, wanted)
+	local landing = origin + direction * reach
+	local delay = ability.Delay or 0.55
+	local token = generation[player] or 0
+	broadcast(player, origin, fx(cast, { Kind = "Leap", From = origin, To = landing, Delay = delay, Radius = ability.Radius }))
+	task.delay(delay, function()
+		if not player.Parent or (generation[player] or 0) ~= token then
+			return
+		end
+		local here = rootOf(player)
+		if not here then
+			return
+		end
+		if (here.Position - landing).Magnitude > 8 then
+			(player.Character :: Model):PivotTo(CFrame.lookAt(landing, landing + direction))
+		end
+		local hits = {}
+		for _, enemy in targetsAround(player, landing, ability.Radius, ability.MaxTargets) do
+			local killed = hit(cast, enemy, hits)
+			if not killed and EnemyService.isAlive(enemy) then
+				stun(enemy, ability.Stun)
+				EnemyService.knockback(enemy, landing, ability.Knockback)
+			end
+		end
+		broadcast(player, landing, fx(cast, { Kind = "Quake", Position = landing, Radius = ability.Radius, Hits = hits }))
+		announceCombo(cast)
+	end)
+	return true
+end
+
 -- Puños: Furia (pegas más rápido y recibes la mitad de daño)
 function HANDLERS.Rage(cast: Cast, ability: any, root: BasePart, level: number): boolean
 	local player = cast.Player
 	local duration = SkillLogic.duration(ability, level)
 	local untilClock = os.clock() + duration
-	PetCombatService.setBurst(player, untilClock, ability.CooldownScale)
+	PetCombatService.setBurst(player, untilClock, ability.CooldownScale, ability.DamageBoost)
 	buffUntil[player] = untilClock
 	rageUntil[player] = untilClock
 	rageTaken[player] = ability.DamageTaken or 0.5
@@ -561,14 +680,18 @@ function HANDLERS.Whirlwind(cast: Cast, ability: any, root: BasePart): boolean
 	return true
 end
 
--- Magia: Meteoros
+-- Magia: Meteoros (caen donde apuntas; sin punto, sobre el más cercano)
 function HANDLERS.Meteors(cast: Cast, ability: any, root: BasePart): boolean
 	local player = cast.Player
-	local target = nearestTarget(player, root.Position, ability.Range)
-	if not target then
-		return false -- sin nadie a tiro no se gasta
+	local center = aimedPoint(cast, root, ability.Range)
+	if not center then
+		local target = nearestTarget(player, root.Position, ability.Range)
+		if not target then
+			return false -- sin nadie a tiro no se gasta
+		end
+		center = target.Root.Position
 	end
-	local center = target.Root.Position
+	assert(center, "centro de los meteoros")
 	local points = {}
 	for _, offset in StyleLogic.meteorOffsets(ability.Count, ability.Spread) do
 		table.insert(points, center + Vector3.new(offset.X, 0, offset.Y))
@@ -616,10 +739,23 @@ function HANDLERS.Nova(cast: Cast, ability: any, root: BasePart): boolean
 	return true
 end
 
--- Magia: Cadena de rayos (salta al siguiente más cercano que aún no ha tocado)
+-- Magia: Cadena de rayos: empieza en el enemigo más cercano a donde apuntas (a CHAIN_AIM
+-- studs o menos de ese punto, y a tu alcance) y salta al siguiente más cercano que aún no ha
+-- tocado. Sin punto, empieza en el más cercano a ti.
 function HANDLERS.ChainLightning(cast: Cast, ability: any, root: BasePart): boolean
 	local player = cast.Player
-	local current = nearestTarget(player, root.Position, ability.Range)
+	local current = nil
+	local aimed = aimedPoint(cast, root, ability.Range)
+	if aimed then
+		for _, candidate in targetsAround(player, aimed, CHAIN_AIM, 6) do
+			if (candidate.Root.Position - root.Position).Magnitude - (candidate.Radius or 0) <= ability.Range then
+				current = candidate
+				break
+			end
+		end
+	else
+		current = nearestTarget(player, root.Position, ability.Range)
+	end
 	if not current then
 		return false
 	end
@@ -658,11 +794,15 @@ end
 -- Magia: Agujero negro (atrae y daña un rato y luego explota)
 function HANDLERS.BlackHole(cast: Cast, ability: any, root: BasePart, level: number): boolean
 	local player = cast.Player
-	local target = nearestTarget(player, root.Position, ability.Range)
-	if not target then
-		return false
+	local center = aimedPoint(cast, root, ability.Range)
+	if not center then
+		local target = nearestTarget(player, root.Position, ability.Range)
+		if not target then
+			return false
+		end
+		center = target.Root.Position
 	end
-	local center = target.Root.Position
+	assert(center, "centro del agujero negro")
 	local duration = SkillLogic.duration(ability, level)
 	local token = generation[player] or 0
 	local tickScale = (ability.TickRatio or 0.5) / math.max(0.01, ability.DamageRatio)
@@ -698,7 +838,7 @@ end
 
 StyleService.Handlers = HANDLERS
 
-local function useAbility(player: Player, slot: number)
+local function useAbility(player: Player, slot: number, aim: Vector3?)
 	local style, profile = styleOf(player)
 	local root = rootOf(player)
 	if not (style and profile and root) then
@@ -706,8 +846,13 @@ local function useAbility(player: Player, slot: number)
 	end
 	local skills = skillsOf(profile)
 	local ability, skillId = StyleLogic.ability(style, slot, skills)
-	-- Las del Mundo 2 usan el efecto de una del Mundo 1 (Base)
+	-- Las del Mundo 2 usan el efecto de una del Mundo 1 (Base), que a su vez puede usar el de
+	-- otra (las del Guerrero: Giro de acero → Torbellino, Grito de guerra → Furia…)
 	local baseId = if ability and ability.Base then ability.Base else skillId
+	local baseDef = baseId and SkillLogic.definition(baseId)
+	if baseId and not HANDLERS[baseId] and baseDef and baseDef.Base then
+		baseId = baseDef.Base
+	end
 	local handler = baseId and HANDLERS[baseId]
 	if not (ability and skillId and handler) then
 		return
@@ -721,6 +866,12 @@ local function useAbility(player: Player, slot: number)
 		result(player, { Success = false, Code = "NotReady", Style = style, Slot = slot, ReadyAt = serverNow() + (own[skillId] - now) })
 		return
 	end
+	-- Magia: las habilidades gastan maná
+	local manaCost = MagicLogic.skillCost(ability)
+	if manaCost > 0 and PetCombatService.mana(player) < manaCost then
+		result(player, { Success = false, Code = "NoMana", Style = style, Slot = slot, Cost = manaCost })
+		return
+	end
 	local cast: Cast = {
 		Player = player,
 		Style = style,
@@ -729,10 +880,15 @@ local function useAbility(player: Player, slot: number)
 		-- La Ráfaga y la Furia (y las que las usan) no se potencian a sí mismas
 		Buffed = (buffUntil[player] or 0) > now and baseId ~= "Burst" and baseId ~= "Rage",
 		Color = ability.Color,
+		Aim = aim,
+		Element = ability.Element,
 	}
 	if not handler(cast, ability, root, level) then
 		result(player, { Success = false, Code = "NoTarget", Style = style, Slot = slot })
 		return
+	end
+	if manaCost > 0 then
+		PetCombatService.spendMana(player, manaCost)
 	end
 	local cooldown = SkillLogic.cooldown(ability, level) * class.SkillCooldown
 	own[skillId] = now + cooldown
@@ -881,6 +1037,44 @@ local function dash(player: Player)
 	broadcast(player, origin, { Kind = "QuickDash", From = origin, To = finish })
 end
 
+-- Teletransporte de Magia (clic derecho corto, Shift o su botón) ---------------------------
+
+local function blink(player: Player, aim: Vector3?)
+	local style = styleOf(player)
+	local root = rootOf(player)
+	local def = StyleLogic.definition(style)
+	local spec = def and def.Blink
+	if not (root and spec) then
+		return
+	end
+	local now = os.clock()
+	if (dashReadyAt[player] or 0) > now then
+		return
+	end
+	if not PetCombatService.spendMana(player, spec.Cost or 0) then
+		result(player, { Success = false, Code = "NoMana", Action = "Blink", Cost = spec.Cost })
+		return
+	end
+	local origin = root.Position
+	local direction = moveDirection(player, root)
+	if aim then
+		local flat = Vector3.new(aim.X - origin.X, 0, aim.Z - origin.Z)
+		if flat.Magnitude > 1 then
+			direction = flat.Unit
+		end
+	end
+	local reach = dashReach(player, origin, direction, spec.Distance)
+	dashReadyAt[player] = now + spec.Cooldown
+	player:SetAttribute(Constants.Attributes.DashReadyAt, serverNow() + spec.Cooldown)
+	local finish = origin + direction * reach
+	if reach > 0 then
+		local character = player.Character :: Model
+		character:PivotTo(CFrame.lookAt(finish, finish + direction))
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+	broadcast(player, origin, { Kind = "Blink", From = origin, To = finish })
+end
+
 function StyleService.start()
 	eventRemote = RemoteService.get(Constants.Remotes.StyleEvent)
 
@@ -920,19 +1114,25 @@ function StyleService.start()
 		elseif action == "Pick" then
 			setStyle(player, value, true)
 		elseif action == "Ability" then
-			useAbility(player, if value == 2 then 2 else 1)
+			useAbility(player, if value == 2 then 2 else 1, validAim(player, extra))
 		elseif action == "Dash" then
 			dash(player)
+		elseif action == "Blink" then
+			blink(player, validAim(player, value))
 		end
 	end)
 
 	-- Daño que recibe el jugador según su estilo (Puños menos, Armas más; con Furia, menos) y
 	-- su clase (Tanque, Criomante)
-	EnemyService.setIncomingDamageModifier(function(player: Player, amount: number): number
+	EnemyService.setIncomingDamageModifier(function(player: Player, amount: number, enemy: any?): number
 		local style = styleOf(player)
 		local taken = if style then StyleLogic.damageTaken(style, amount) else amount
-		if (rageUntil[player] or 0) > os.clock() and style == "Fists" then
+		if (rageUntil[player] or 0) > os.clock() and (style == "Fists" or style == "Warrior") then
 			taken *= math.clamp(rageTaken[player] or 0.5, 0, 1)
+		end
+		-- Guerrero: bloqueo (y parada perfecta: nada de daño)
+		if style == "Warrior" then
+			taken *= PetCombatService.blockIncoming(player, enemy)
 		end
 		return taken * classModsOf(player).DamageTaken
 	end)

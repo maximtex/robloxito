@@ -26,7 +26,7 @@
 -- está en ese paso del tutorial (partida corta con consejos en pantalla, "Hint"); a los demás
 -- ese altar les dice que las oleadas están en la cueva. Ganar suma WaveWins (GameEvents
 -- "WaveWon").
--- Dentro del círculo el arma dispara sola (PetCombatService.setFreeAutoFire).
+-- Dentro de la partida se apunta y se dispara igual que fuera (sin disparo automático gratis).
 -- Todo lo decide el servidor; el cliente (WaveController) solo dibuja lo que se le manda.
 
 local Players = game:GetService("Players")
@@ -1167,11 +1167,7 @@ function WaveService.start()
 		end
 	end
 
-	-- Dentro de una partida (y del círculo) el arma dispara sola y lleva las mejoras elegidas
-	PetCombatService.setFreeAutoFire(function(player: Player): boolean
-		local run = activeParticipant(player)
-		return run ~= nil and isInside(run, player)
-	end)
+	-- Dentro de una partida el arma lleva las mejoras elegidas
 	PetCombatService.setShotModifier(function(player: Player)
 		local _, participant = activeParticipant(player)
 		return if participant then participant.Mods else nil

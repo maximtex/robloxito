@@ -356,7 +356,7 @@ end
 -- "Soldier:2,Sniper:1,Brawler:1"
 function ClassLogic.ownedText(data: ClassData): string
 	local parts = {}
-	for _, styleId in { "Weapons", "Fists", "Magic" } do
+	for _, styleId in ClassConfig.Order do
 		for _, classId in ClassLogic.ordered(styleId) do
 			local level = data.Owned[classId]
 			if level then
@@ -367,10 +367,10 @@ function ClassLogic.ownedText(data: ClassData): string
 	return table.concat(parts, ",")
 end
 
--- "Weapons=Sniper;Fists=Brawler;Magic=Apprentice"
+-- "Weapons=Sniper;Warrior=Squire;Fists=Brawler;Magic=Apprentice"
 function ClassLogic.activeText(data: ClassData): string
 	local parts = {}
-	for _, styleId in { "Weapons", "Fists", "Magic" } do
+	for _, styleId in ClassConfig.Order do
 		table.insert(parts, ("%s=%s"):format(styleId, ClassLogic.active(data, styleId) or ""))
 	end
 	return table.concat(parts, ";")

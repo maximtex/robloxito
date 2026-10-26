@@ -23,6 +23,8 @@ local WeaponConfig = require(Shared.Config.WeaponConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local WeaponLogic = require(Shared.WeaponLogic)
 local StyleLogic = require(Shared.StyleLogic)
+local GunLogic = require(Shared.GunLogic)
+local MagicLogic = require(Shared.MagicLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local Icons = require(script.Parent.Parent.UI.Icons)
@@ -881,15 +883,29 @@ function WeaponController.start()
 			local isEquipped = equipped == weaponId
 			card.RingStroke.Transparency = if isEquipped then 0 else 0.7
 			card.TagText.Text = if has then ("Nv. %d/%d"):format(level, WeaponConfig.MaxLevel) else def.Tagline or ""
-			-- Números con el ritmo y el alcance de su estilo (Puños: cuerpo a cuerpo)
+			-- Números con el ritmo y el alcance de su estilo (y de su tipo de arma); la tercera
+			-- línea: el tipo y el cargador (armas), el elemento (bastones) o cuerpo a cuerpo
 			local styled = StyleLogic.applyStats({
 				Shot = WeaponLogic.shotDamage(weaponId, level or 0, pets),
 				Cooldown = WeaponLogic.cooldown(weaponId, cadence),
 				Range = def.Range,
 			}, category, def.Cooldown)
+			if category == "Weapons" then
+				styled = GunLogic.applyStats(styled, weaponId)
+			end
 			card.Stats[1].Text = short(styled.Shot) .. " " .. info.Hit
 			card.Stats[2].Text = ("Velocidad de ataque: %.2f s"):format(styled.Cooldown)
-			card.Stats[3].Text = if category == "Fists" then "Cuerpo a cuerpo" else ("%d de alcance"):format(styled.Range)
+			if category == "Weapons" then
+				local gun = GunLogic.spec(weaponId)
+				card.Stats[3].Text = ("%s · %d balas · %d"):format(gun.Name or styled.Gun, styled.Magazine, styled.Range)
+			elseif category == "Magic" then
+				local element = MagicLogic.elementDef(MagicLogic.element(weaponId))
+				card.Stats[3].Text = ("%s %s · %d de alcance"):format(element.Icon or "", element.Name or "", styled.Range)
+			elseif category == "Warrior" then
+				card.Stats[3].Text = "Espada · cuerpo a cuerpo"
+			else
+				card.Stats[3].Text = "Cuerpo a cuerpo"
+			end
 
 			-- Principal: texto grande, texto pequeño debajo, color y qué hace
 			local label, sub, size, colors, onPrimary = "", "", 28, GREEN, function() end
@@ -1139,8 +1155,8 @@ function WeaponController.start()
 			PanelManager.toggle(PANEL_NAME)
 		end,
 	})
-	-- El azulejo dice qué tienda abre (Armas, Guantes o Bastones)
-	local MENU_WORDS = { Weapons = "Armas", Fists = "Guantes", Magic = "Bastones" }
+	-- El azulejo dice qué tienda abre (Armas, Espadas, Guantes o Bastones)
+	local MENU_WORDS = { Weapons = "Armas", Warrior = "Espadas", Fists = "Guantes", Magic = "Bastones" }
 	local function refreshMenuLabel()
 		menuEntry.setLabel(MENU_WORDS[currentCategory()] or "Armas")
 	end

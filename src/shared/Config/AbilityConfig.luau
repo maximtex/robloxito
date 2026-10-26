@@ -109,6 +109,14 @@ local AbilityConfig = {
 			Color = Color3.fromRGB(255, 170, 110),
 			Multiplier = 2,
 		},
+		Overload = {
+			Name = "¡Sobrecarga!",
+			Pair = { "Fire", "Lightning" },
+			Color = Color3.fromRGB(255, 170, 70),
+			Radius = 9,
+			BurstRatio = 1.5, -- explosión alrededor
+			Knockback = 24,
+		},
 		Superconduct = {
 			Name = "¡Superconductor!",
 			Pair = { "Ice", "Lightning" },

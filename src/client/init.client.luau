@@ -11,6 +11,8 @@ local PetFollower = require(script.Controllers.PetFollower)
 local PetController = require(script.Controllers.PetController)
 local PortalController = require(script.Controllers.PortalController)
 local CombatController = require(script.Controllers.CombatController)
+local AimCamera = require(script.Controllers.AimCamera)
+local GearPose = require(script.Controllers.GearPose)
 local WaveVisibility = require(script.Controllers.WaveVisibility)
 local WaveController = require(script.Controllers.WaveController)
 local WeaponController = require(script.Controllers.WeaponController)
@@ -41,13 +43,15 @@ CoreShrineController.start()
 EggShrineAnimator.start() -- los huevos de los santuarios flotan y giran
 PetFollower.start()
 WaveVisibility.start() -- oleadas privadas: solo se ven los enemigos de tu partida (o del mundo)
+AimCamera.start() -- apuntar con el clic derecho (Armas) y caminar más lento al bloquear
+GearPose.start() -- cómo se lleva el arma, la espada o el bastón en la mano
 task.spawn(PetController.start)
 task.spawn(PortalController.start)
 task.spawn(CombatController.start)
 task.spawn(WaveController.start) -- oleadas: panel, mejoras, resumen y racha
 task.spawn(WeaponController.start) -- Armería: comprar, equipar y mejorar armas (L)
 task.spawn(AbilityController.start) -- habilidad elemental (Q), junto al botón de ataque
-task.spawn(StyleController.start) -- estilo de pelea (C), sus habilidades (Z y X) y el dash de Puños
+task.spawn(StyleController.start) -- estilo de pelea (C), sus habilidades (Z y X), el dash y el teletransporte
 task.spawn(SkillsController.start) -- ⚡ Mejoras: comprar, subir y poner las habilidades (B)
 task.spawn(ClassesController.start) -- 🎭 Clases: la pasiva de cada estilo, con 💎 (H)
 task.spawn(StylePickerController.start) -- elegir estilo al empezar (jugador nuevo)

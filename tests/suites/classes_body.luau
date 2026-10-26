@@ -38,7 +38,7 @@ local total = 0
 for _ in ClassConfig.Classes do
 	total += 1
 end
-check("5 clases por estilo (15), la primera gratis y cada vez más caras, con pasivas conocidas", configOk and total == 15)
+check("5 clases por estilo (20: Armas, Guerrero, Puños y Magia), la primera gratis y cada vez más caras, con pasivas conocidas", configOk and total == 20)
 local lastOk = true
 for _, styleId in StyleConfig.Order do
 	local ids = ClassConfig.Styles[styleId]
@@ -125,7 +125,7 @@ check("Demoledor con un arma que ya explota: más grande y más fuerte", near(bi
 local pyroData = ClassLogic.empty()
 ClassLogic.buy(pyroData, "Pyromancer", 1e9)
 local pyro = ClassLogic.applyEffect(StyleLogic.effect("Magic", nil), ClassLogic.mods(pyroData, "Magic"))
-check("Piromante: el orbe de Magia (7, 50 %) explota más grande", near(pyro.Splash.Radius, 10) and near(pyro.Splash.Fraction, 0.6))
+check("Piromante: la bola de Magia (4, 40 %) explota más grande", near(pyro.Splash.Radius, 7) and near(pyro.Splash.Fraction, 0.5))
 local cryoData = ClassLogic.empty()
 ClassLogic.buy(cryoData, "Cryomancer", 1e9)
 local cryo = ClassLogic.mods(cryoData, "Magic")

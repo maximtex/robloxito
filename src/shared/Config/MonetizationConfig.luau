@@ -51,7 +51,7 @@ local MonetizationConfig = {
 			Order = 0,
 			Icon = "🎯",
 			Name = "Disparo automático",
-			Description = "Tu arma dispara sola al enemigo más cercano, sin hacer clic. Se puede apagar.",
+			Description = "Tu arma dispara sola hacia donde apuntas en cuanto hay un enemigo en la mira, sin hacer clic. Se puede apagar.",
 			Color = Color3.fromRGB(255, 130, 100),
 		},
 	},

@@ -185,8 +185,8 @@ local Constants = {
 		-- Armas: la equipada y las que tiene con su nivel ("Laser:3,PlasmaBlaster:0").
 		EquippedWeapon = "EquippedWeapon",
 		Weapons = "Weapons",
-		-- true si su arma dispara sola al enemigo más cercano (tiene el pase y lo tiene
-		-- encendido; PetCombatService).
+		-- true si su arma dispara sola hacia donde apunta cuando va a dar a alguien (tiene el
+		-- pase y lo tiene encendido; PetCombatService).
 		AutoFire = "AutoFire",
 		-- Jefes que ha derrotado alguna vez, separados por comas (portales y tutorial).
 		BossesDefeated = "BossesDefeated",
@@ -247,13 +247,12 @@ local Constants = {
 		StreakUntil = "StreakUntil",
 		StreakBest = "StreakBest",
 		-- Modo de oleadas en el que juega ahora (WaveConfig.Arenas; nil si ninguno; WaveService).
-		-- Dentro del círculo el arma dispara sola aunque no tenga el pase.
 		WaveArena = "WaveArena",
 		-- Partida de oleadas (número) del jugador y de cada enemigo de esa partida (en el
 		-- modelo y en sus efectos). Las partidas son privadas: cada jugador solo ve, golpea y
 		-- recibe golpes de los enemigos con su mismo valor (nil = el mundo normal).
 		WaveRun = "WaveRun",
-		-- Estilo de pelea elegido (StyleConfig: "Weapons" | "Fists" | "Magic"), hora del
+		-- Estilo de pelea elegido (StyleConfig: "Weapons" | "Warrior" | "Fists" | "Magic"), hora del
 		-- servidor en que su habilidad vuelve a estar lista y hasta cuándo dura la Ráfaga.
 		CombatStyle = "CombatStyle",
 		StyleReadyAt = "StyleReadyAt",
@@ -276,6 +275,16 @@ local Constants = {
 		-- Hasta cuándo dura la Furia de Puños (hora del servidor) y el dash (Shift).
 		StyleRageUntil = "StyleRageUntil",
 		DashReadyAt = "DashReadyAt",
+		-- Armas (PetCombatService): balas en el cargador, su tamaño y hasta cuándo recarga
+		-- (hora del servidor; 0 = no recarga).
+		Ammo = "Ammo",
+		AmmoMax = "AmmoMax",
+		ReloadEnd = "ReloadEnd",
+		-- Magia: maná que tiene (entero) y el máximo.
+		Mana = "Mana",
+		ManaMax = "ManaMax",
+		-- Guerrero: está bloqueando (lo ven todos: pose de guardia).
+		Blocking = "Blocking",
 	},
 
 	PurchaseCodes = {

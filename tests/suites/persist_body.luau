@@ -202,7 +202,7 @@ join(gus)
 advance(0)
 gp = PlayerDataService.get(gus)
 check("al volver: todo sigue igual (y el láser conserva su nivel 7)", gp.Money == 4321 and gp.PetData.Weapons.Equipped == "PlasmaBlaster" and gp.PetData.Weapons.Levels.PlasmaBlaster == 3 and gp.PetData.Weapons.Levels.Laser == 7 and gp.PetData.Bosses.ForestWarden == 2)
-check("el cliente ve el arma equipada y las que tiene", gus:GetAttribute("EquippedWeapon") == "PlasmaBlaster" and gus:GetAttribute("Weapons") == "Laser:7,PlasmaBlaster:3,LeatherGloves:0,ApprenticeWand:0" and gus:GetAttribute("BossesDefeated") == "ForestWarden")
+check("el cliente ve el arma equipada y las que tiene", gus:GetAttribute("EquippedWeapon") == "PlasmaBlaster" and gus:GetAttribute("Weapons") == "Laser:7,PlasmaBlaster:3,LeatherGloves:0,ApprenticeWand:0,WoodenSword:0" and gus:GetAttribute("BossesDefeated") == "ForestWarden")
 storeData.player_9 = { Version = 8, Money = 0 / 0, Weapons = { Owned = { "Laser", "Nope" }, Levels = { Laser = 999 }, Equipped = "Nope" }, Bosses = { ForestWarden = -3, Bad = 0 / 0 } }
 local hal = newPlayer("Hal", 9)
 join(hal)

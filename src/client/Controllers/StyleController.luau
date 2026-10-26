@@ -2,10 +2,13 @@
 -- - Dos botones redondos con las habilidades puestas del estilo (atributo SkillSlots,
 --   SkillLogic): la de la Z (R1 del mando o tocarlo) y la de la X (L1), junto a los de las
 --   habilidades elementales, cada uno con su recarga (más corta con su nivel). La insignia ⇄
---   del primero (o la tecla C) abre el panel para elegir estilo: Armas, Puños o Magia, cada
---   uno con su ataque, su ventaja y su desventaja, su pasiva y sus cuatro habilidades. La
---   insignia ⚡ del segundo (o la tecla B) abre las ⚡ Mejoras (SkillsController).
--- - Puños: dash con Shift (o el botón 💨 en pantallas táctiles), con su recarga.
+--   del primero (o la tecla C) abre el panel para elegir estilo: Armas, Guerrero, Puños o
+--   Magia, cada uno con su ataque, su ventaja y su desventaja, su pasiva y sus cuatro
+--   habilidades. La insignia ⚡ del segundo (o la tecla B) abre las ⚡ Mejoras
+--   (SkillsController).
+-- - Puños: dash con Shift (o el botón 💨 en pantallas táctiles), con su recarga. Magia: el
+--   teletransporte con Shift (o el botón ✨; también el clic derecho corto, CombatController).
+-- - Guerrero: Salto aplastante (tu cliente hace el salto: leapMove) y la onda cortante.
 -- - Combos (StyleEvent "Combo"): el nombre grande sobre el enemigo y un aviso.
 -- - Efectos de las habilidades ya resueltas (StyleEvent), con el movimiento del personaje
 --   (CharacterPose): Ráfaga (apunta y chispas doradas mientras dura), Granada (la lanza por
@@ -36,6 +39,7 @@ local Toasts = require(script.Parent.Parent.UI.Toasts)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local CombatController = require(script.Parent.CombatController)
 local CharacterPose = require(script.Parent.CharacterPose)
+local AimPoint = require(script.Parent.AimPoint)
 local WaveFx = require(script.Parent.WaveFx)
 
 local THEME = Theme.Colors
@@ -43,9 +47,10 @@ local FONTS = Theme.Fonts
 local INK = Color3.fromRGB(43, 29, 63)
 local CREAM = Color3.fromRGB(255, 246, 224)
 local PANEL_NAME = "Style"
-local PANEL_SIZE = Vector2.new(780, 540)
+local PANEL_SIZE = Vector2.new(1030, 566) -- cuatro tarjetas de estilo
 local ABILITY_ACTIONS = { "RebirthStyleAbility", "RebirthStyleAbility2" }
 local ABILITY_KEYS = { { Enum.KeyCode.Z, Enum.KeyCode.ButtonR1 }, { Enum.KeyCode.X, Enum.KeyCode.ButtonL1 } }
+local ABILITY_FACING = 22 -- sin ratón, las habilidades apuntan a esta distancia delante de ti
 local KEY_LABELS = { "Z", "X" }
 local PANEL_ACTION = "RebirthStylePanel"
 local SKILLS_ACTION = "RebirthSkillsPanel"
@@ -196,7 +201,7 @@ local function buildPanel()
 		local def = StyleConfig.Styles[id]
 		local card = UiKit.create("Frame", {
 			Name = id,
-			Size = UDim2.fromOffset(236, 440),
+			Size = UDim2.fromOffset(236, 462),
 			BackgroundColor3 = THEME.Inset,
 			LayoutOrder = order,
 		}, row)
@@ -222,7 +227,7 @@ local function buildPanel()
 		UiKit.outline(name, 2, INK)
 		UiKit.text(card, "Attack", {
 			Position = UDim2.fromOffset(12, 78),
-			Size = UDim2.new(1, -24, 0, 36),
+			Size = UDim2.new(1, -24, 0, 80),
 			Font = FONTS.Body,
 			TextSize = 13,
 			TextWrapped = true,
@@ -231,10 +236,10 @@ local function buildPanel()
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Text = def.Attack,
 		})
-		line(card, "Pros", 118, 34, "✅ " .. def.Pros, Color3.fromRGB(150, 240, 150))
-		line(card, "Cons", 152, 34, "❌ " .. def.Cons, Color3.fromRGB(255, 150, 140))
+		line(card, "Pros", 162, 34, "✅ " .. def.Pros, Color3.fromRGB(150, 240, 150))
+		line(card, "Cons", 198, 34, "❌ " .. def.Cons, Color3.fromRGB(255, 150, 140))
 		local passive = def.Passive
-		line(card, "Passive", 190, 52, ("<b>%s Pasiva · %s</b>\n%s"):format(passive.Icon, passive.Name, passive.Text))
+		line(card, "Passive", 236, 56, ("<b>%s Pasiva · %s</b>\n%s"):format(passive.Icon, passive.Name, passive.Text))
 		-- Sus cuatro habilidades del Mundo 1 (las dos iniciales y las dos que se compran con 💎;
 		-- las del Mundo 2 se ven en su puesto ⚡ Mejoras)
 		local names = {}
@@ -243,7 +248,7 @@ local function buildPanel()
 			local price = if (skill.Price or 0) > 0 then (" <font color=\"#9AD8FF\">💎%d</font>"):format(skill.Price) else ""
 			table.insert(names, ("%s %s%s"):format(skill.Icon, skill.Name, price))
 		end
-		line(card, "Skills", 244, 140, "<b>Habilidades</b>\n" .. table.concat(names, "\n") .. "\n<font color=\"#C4C4CE\">⚡ Mejoras (B): compra, sube y elige 2</font>")
+		line(card, "Skills", 296, 110, "<b>Habilidades</b>\n" .. table.concat(names, "\n") .. "\n<font color=\"#C4C4CE\">⚡ Mejoras (B): compra, sube y elige 2</font>")
 		local choose = UiKit.button(card, "Choose", {
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -12),
@@ -379,14 +384,15 @@ local function makeButton(screenGui: ScreenGui, slot: number)
 	local label = UiKit.text(frame, "StyleName", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 1, 5),
-		Size = UDim2.fromOffset(96, 18),
+		Size = UDim2.fromOffset(BUTTON_SIZE + GAP - 4, 18), -- sin pisar el nombre de al lado
 		Font = FONTS.Display,
 		TextSize = 13,
+		TextScaled = true, -- los nombres largos («Salto aplastante») se achican
 		TextColor3 = CREAM,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextTruncate = Enum.TextTruncate.AtEnd,
 		ZIndex = 4,
 	})
+	UiKit.create("UITextSizeConstraint", { MaxTextSize = 13, MinTextSize = 8 }, label)
 	UiKit.create("UIStroke", { Color = INK, Thickness = 2.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, label)
 	return {
 		Slot = slot,
@@ -518,7 +524,8 @@ end
 
 -- Terremoto: dos ondas naranjas, polvo y sacudida
 local function quakeFx(owner: Player, position: Vector3, radius: number, hits: any)
-	local color = tint or StyleConfig.Styles.Fists.Color
+	local ownerStyle = owner:GetAttribute(Constants.Attributes.CombatStyle)
+	local color = tint or (if ownerStyle == "Warrior" then StyleConfig.Styles.Warrior.Color else StyleConfig.Styles.Fists.Color)
 	local ground = groundBelow(position)
 	CharacterPose.slam(owner.Character)
 	WaveFx.ring(ground, color, 2, radius * 2, 0.55, 0.1)
@@ -1040,8 +1047,148 @@ local function quickDashFx(owner: Player, from: Vector3, to: Vector3)
 	playSound("Dash", if owner == player then nil else from)
 end
 
+-- Guerrero: Salto aplastante. Tu cliente hace el salto (tu personaje es tuyo: el servidor
+-- solo te pone en el sitio si no llegaste); todos ven la estela y el aviso donde caerá.
+local function leapMove(from: Vector3, to: Vector3, delay: number)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not (root and root:IsA("BasePart") and humanoid) then
+		return
+	end
+	local flat = Vector3.new(to.X - root.Position.X, 0, to.Z - root.Position.Z)
+	local seconds = math.max(0.2, delay)
+	local horizontal = flat / seconds
+	if flat.Magnitude > 0.1 then
+		root.CFrame = CFrame.lookAt(root.Position, root.Position + flat.Unit)
+	end
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "LeapAttachment"
+	attachment.Parent = root
+	local mover = Instance.new("LinearVelocity")
+	mover.Name = "LeapMover"
+	mover.Attachment0 = attachment
+	mover.RelativeTo = Enum.ActuatorRelativeTo.World
+	mover.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+	mover.PrimaryTangentAxis = Vector3.xAxis
+	mover.SecondaryTangentAxis = Vector3.zAxis
+	mover.PlaneVelocity = Vector2.new(horizontal.X, horizontal.Z)
+	mover.MaxForce = math.huge
+	mover.Parent = root
+	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	-- Sube y baja en el tiempo del salto (la gravedad hace el resto)
+	root.AssemblyLinearVelocity = Vector3.new(horizontal.X, Workspace.Gravity * seconds / 2, horizontal.Z)
+	task.delay(seconds, function()
+		mover:Destroy()
+		attachment:Destroy()
+		if root.Parent then
+			root.AssemblyLinearVelocity = Vector3.new(0, math.min(root.AssemblyLinearVelocity.Y, 0), 0)
+		end
+	end)
+end
+
+local function leapFx(owner: Player, from: Vector3, to: Vector3, delay: number, radius: number)
+	local color = tint or StyleConfig.Styles.Warrior.Color
+	local character = owner.Character
+	CharacterPose.slam(character)
+	if owner == player then
+		leapMove(from, to, delay)
+	end
+	-- Aviso en el suelo donde vas a caer
+	local ground = groundBelow(to)
+	local mark = fxPart(Vector3.new(0.15, radius * 2, radius * 2), CFrame.new(ground + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90)), color)
+	mark.Shape = Enum.PartType.Cylinder
+	mark.Transparency = 0.75
+	local inner = fxPart(Vector3.new(0.2, 0.5, 0.5), mark.CFrame, color)
+	inner.Shape = Enum.PartType.Cylinder
+	inner.Transparency = 0.4
+	TweenService:Create(inner, TweenInfo.new(delay, Enum.EasingStyle.Linear), { Size = Vector3.new(0.2, radius * 2, radius * 2), Transparency = 0.6 }):Play()
+	Debris:AddItem(mark, delay + 0.05)
+	Debris:AddItem(inner, delay + 0.05)
+	-- Estela del personaje en el aire
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		local top = Instance.new("Attachment")
+		top.Position = Vector3.new(0, 1.2, 0)
+		top.Parent = root
+		local bottom = Instance.new("Attachment")
+		bottom.Position = Vector3.new(0, -1.2, 0)
+		bottom.Parent = root
+		local trail = Instance.new("Trail")
+		trail.Attachment0 = top
+		trail.Attachment1 = bottom
+		trail.Lifetime = 0.25
+		trail.LightEmission = 1
+		trail.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
+		trail.Transparency = NumberSequence.new(0.3, 1)
+		trail.Parent = root
+		Debris:AddItem(trail, delay + 0.3)
+		Debris:AddItem(top, delay + 0.3)
+		Debris:AddItem(bottom, delay + 0.3)
+	end
+	playSound("Dash", if owner == player then nil else from)
+end
+
+-- Guerrero: Onda cortante (y Corte dimensional): una media luna que vuela de `from` a `to`
+local function slashWaveFx(owner: Player, from: Vector3, to: Vector3, width: number, hits: any)
+	local color = tint or StyleConfig.Styles.Warrior.Color
+	CharacterPose.slash(owner.Character, 3)
+	local offset = to - from
+	local distance = offset.Magnitude
+	if distance > 0.5 then
+		local direction = offset.Unit
+		local travel = math.clamp(distance / 90, 0.15, 0.6)
+		local pieces = 9
+		local arc = math.rad(130)
+		local glow = color:Lerp(Color3.new(1, 1, 1), 0.3)
+		for index = 1, pieces do
+			local t = (index - 0.5) / pieces
+			local angle = -arc / 2 + arc * t
+			-- Media luna: las puntas van un poco por detrás del centro
+			local local0 = Vector3.new(math.sin(angle) * width * 0.6, 0, -math.cos(angle) * width * 0.25)
+			local base = CFrame.lookAt(from, from + direction)
+			local start = base * CFrame.new(local0)
+			local piece = fxPart(Vector3.new(0.2, 1.2 * (1 - math.abs(t - 0.5)) + 0.4, width * 0.6 * arc / pieces + 0.3), start * CFrame.Angles(0, angle + math.rad(90), 0), glow)
+			piece.Transparency = 0.1
+			local finish = CFrame.lookAt(to, to + direction) * CFrame.new(local0) * CFrame.Angles(0, angle + math.rad(90), 0)
+			TweenService:Create(piece, TweenInfo.new(travel, Enum.EasingStyle.Linear), { CFrame = finish }):Play()
+			TweenService:Create(piece, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, travel - 0.1), { Transparency = 1 }):Play()
+			Debris:AddItem(piece, travel + 0.1)
+		end
+	end
+	CombatController.showHits(hits, color, owner == player, 1.1)
+	if owner == player then
+		WaveFx.kick(3)
+	end
+	playSound("SwordSpin", if owner == player then nil else from)
+end
+
+-- Magia: Teletransporte. Destello donde estabas y donde apareces, y una estela entre ambos
+local function blinkFx(owner: Player, from: Vector3, to: Vector3)
+	local color = StyleConfig.Styles.Magic.Color
+	for _, at in { from, to } do
+		local ball = fxPart(Vector3.one * 1, CFrame.new(at), color)
+		ball.Shape = Enum.PartType.Ball
+		ball.Transparency = 0.2
+		TweenService:Create(ball, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.one * 6, Transparency = 1 }):Play()
+		Debris:AddItem(ball, 0.35)
+		WaveFx.sparkle(at, color, 14)
+	end
+	local distance = (to - from).Magnitude
+	if distance > 0.5 then
+		local streak = fxPart(Vector3.new(0.5, 0.5, distance), CFrame.lookAt(from:Lerp(to, 0.5), to), Color3.new(1, 1, 1))
+		streak.Transparency = 0.4
+		TweenService:Create(streak, TweenInfo.new(0.25), { Transparency = 1, Size = Vector3.new(0.05, 0.05, distance) }):Play()
+		Debris:AddItem(streak, 0.3)
+	end
+	if owner == player then
+		WaveFx.kick(2)
+	end
+	playSound("Blink", if owner == player then nil else from)
+end
+
 -- Combo: su nombre grande sobre el enemigo (y un aviso para quien lo hizo)
-local COMBO_COLORS = { Weapons = Color3.fromRGB(120, 220, 255), Fists = Color3.fromRGB(255, 170, 80), Magic = Color3.fromRGB(210, 150, 255) }
+local COMBO_COLORS = { Weapons = Color3.fromRGB(120, 220, 255), Warrior = Color3.fromRGB(255, 120, 130), Fists = Color3.fromRGB(255, 170, 80), Magic = Color3.fromRGB(210, 150, 255) }
 local function comboFx(owner: Player, name: string, position: Vector3, style: string?)
 	local color = COMBO_COLORS[style or ""] or Color3.fromRGB(255, 220, 90)
 	local anchor = fxPart(Vector3.one * 0.2, CFrame.new(position + Vector3.new(0, 4, 0)), color)
@@ -1151,7 +1298,10 @@ function StyleController.start()
 			})
 		end
 		refreshCards()
-		dashUi.Frame.Visible = style == "Fists" and UserInputService.TouchEnabled
+		-- 💨 dash de Puños o ✨ teletransporte de Magia
+		dashUi.Frame.Visible = (style == "Fists" or style == "Magic") and UserInputService.TouchEnabled
+		dashUi.Button.Text = if style == "Magic" then "✨" else "💨"
+		dashUi.Frame.BackgroundColor3 = def.Color
 	end
 	local lastStyle = styleId()
 	player:GetAttributeChangedSignal(Constants.Attributes.CombatStyle):Connect(function()
@@ -1171,15 +1321,22 @@ function StyleController.start()
 	player:GetAttributeChangedSignal(Constants.Attributes.SkillSlots):Connect(refreshButtons)
 	player:GetAttributeChangedSignal(Constants.Attributes.Skills):Connect(refreshButtons)
 
-	-- Usar las habilidades (1: Z / R1, 2: X / L1)
+	-- Usar las habilidades (1: Z / R1, 2: X / L1) hacia donde apuntas: con la tecla, el
+	-- ratón; con el mando o el botón de la pantalla, delante del personaje
 	for slot, ui in buttons do
-		local function use()
-			actionRemote:FireServer("Ability", slot)
+		local function use(aim: Vector3?)
+			if aim then
+				AimPoint.faceToward(aim)
+			end
+			actionRemote:FireServer("Ability", slot, aim)
 		end
-		ui.Button.Activated:Connect(use)
-		ContextActionService:BindAction(ABILITY_ACTIONS[slot], function(_, inputState)
+		ui.Button.Activated:Connect(function()
+			use(AimPoint.facing(ABILITY_FACING))
+		end)
+		ContextActionService:BindAction(ABILITY_ACTIONS[slot], function(_, inputState, input)
 			if inputState == Enum.UserInputState.Begin then
-				use()
+				local withMouse = input.UserInputType == Enum.UserInputType.Keyboard and UserInputService.MouseEnabled
+				use(if withMouse then AimPoint.mouse() else AimPoint.facing(ABILITY_FACING))
 			end
 			return Enum.ContextActionResult.Pass
 		end, false, table.unpack(ABILITY_KEYS[slot]))
@@ -1196,10 +1353,18 @@ function StyleController.start()
 		end
 		return Enum.ContextActionResult.Pass
 	end, false, Enum.KeyCode.B)
-	-- Dash de Puños (Shift, el stick izquierdo pulsado del mando o el botón 💨)
+	-- Dash de Puños o teletransporte de Magia (Shift, el stick izquierdo pulsado del mando o
+	-- el botón 💨 / ✨). El teletransporte va hacia donde andas; quieto, hacia el ratón.
 	local function tryDash()
-		if styleId() == "Fists" then
+		local style = styleId()
+		if style == "Fists" then
 			actionRemote:FireServer("Dash")
+		elseif style == "Magic" then
+			local character = player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local moving = humanoid ~= nil and humanoid.MoveDirection.Magnitude > 0.1
+			local pointer = UserInputService.MouseEnabled and UserInputService:GetLastInputType() ~= Enum.UserInputType.Touch
+			actionRemote:FireServer("Blink", if not moving and pointer then AimPoint.mouse() else nil)
 		end
 	end
 	ContextActionService:BindAction(DASH_ACTION, function(_, inputState)
@@ -1271,7 +1436,7 @@ function StyleController.start()
 		if dashUi.Frame.Visible then
 			local dashAt = player:GetAttribute(Constants.Attributes.DashReadyAt)
 			local left = if typeof(dashAt) == "number" then dashAt - serverNow() else 0
-			local total = StyleConfig.Styles.Fists.Dash.Cooldown * classMods("Fists").DashCooldown
+			local total = if styleId() == "Magic" then StyleConfig.Styles.Magic.Blink.Cooldown else StyleConfig.Styles.Fists.Dash.Cooldown * classMods("Fists").DashCooldown
 			dashUi.Cooldown.Size = UDim2.fromScale(1, if left > 0 then math.clamp(left / total, 0, 1) else 0)
 		end
 	end)
@@ -1293,11 +1458,16 @@ function StyleController.start()
 			local ui = buttons[if event.Slot == 2 then 2 else 1]
 			if event.Success == false then
 				if event.Code == "NoTarget" then
-					Toasts.show("🎯 No hay enemigos cerca", { Color = THEME.Error, Key = "StyleNotice" })
+					Toasts.show("🎯 Apunta a un enemigo (a tu alcance)", { Color = THEME.Error, Key = "StyleNotice" })
+				elseif event.Code == "NoMana" then
+					Toasts.show("💧 Te falta maná", { Color = Color3.fromRGB(120, 150, 255), Key = "StyleNotice" })
+					if event.Action ~= "Blink" then
+						bounce(ui.Button, -0.08)
+					end
 				elseif event.Code == "NotReady" then
 					bounce(ui.Button, -0.08)
 				end
-			elseif event.Action ~= "Set" then
+			elseif event.Action ~= "Set" and event.Action ~= "Blink" then
 				bounce(ui.Button, 0.18)
 			end
 		elseif event.Kind == "Burst" then
@@ -1340,6 +1510,12 @@ function StyleController.start()
 			blackHoleBlastFx(owner, event.Position, tonumber(event.Radius) or 14, event.Hits)
 		elseif event.Kind == "QuickDash" and typeof(event.From) == "Vector3" and typeof(event.To) == "Vector3" then
 			quickDashFx(owner, event.From, event.To)
+		elseif event.Kind == "Leap" and typeof(event.From) == "Vector3" and typeof(event.To) == "Vector3" then
+			leapFx(owner, event.From, event.To, tonumber(event.Delay) or 0.55, tonumber(event.Radius) or 13)
+		elseif event.Kind == "SlashWave" and typeof(event.From) == "Vector3" and typeof(event.To) == "Vector3" then
+			slashWaveFx(owner, event.From, event.To, tonumber(event.Width) or 7, event.Hits)
+		elseif event.Kind == "Blink" and typeof(event.From) == "Vector3" and typeof(event.To) == "Vector3" then
+			blinkFx(owner, event.From, event.To)
 		elseif event.Kind == "Combo" and typeof(event.Name) == "string" and typeof(event.Position) == "Vector3" then
 			comboFx(owner, event.Name, event.Position, if typeof(event.Style) == "string" then event.Style else nil)
 		end

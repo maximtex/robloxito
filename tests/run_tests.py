@@ -299,7 +299,8 @@ def build_sandbox_early():
 
 
 def build_combat():
-    enemy_service = read("src", "server", "Services", "EnemyService.luau")
+    # Los modelos (BUILDERS / SHAPES) viven en la parte Rigs de EnemyService.
+    enemy_service = read("src", "server", "Services", "EnemyService", "Rigs.luau")
     builders = re.findall(r"^function BUILDERS\.([A-Za-z]+)", enemy_service, re.M)
     shapes_block = re.search(r"^local SHAPES = \{\n(.*?)^\}", enemy_service, re.M | re.S).group(1)
     shapes = re.findall(r"^\s+([A-Za-z]+) = \{", shapes_block, re.M)
@@ -483,7 +484,7 @@ def build_anim():
 
 
 def build_pose():
-    source = read("src", "server", "Services", "EnemyService.luau")
+    source = read("src", "server", "Services", "EnemyService", "Rigs.luau")  # modelos y articulaciones
     function_text = source[source.index("local ARM_PARTS"):source.index("local function addJoints")]
     names = set()
     for match in re.finditer(r'(?:box|orb|limb|piece|eye|crystalSpike)\(rig, "(\w+)"( \.\. (side|index|side \.\. forward))?', source):

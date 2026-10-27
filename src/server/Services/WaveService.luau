@@ -118,7 +118,9 @@ type Run = {
 	EmptySince: number?,
 	NextSpawnAt: number,
 	NextEscortAt: number,
-	Boss: any?,
+	-- Jefes vivos de la partida: uno, o los dos en que se parte el Coloso del Equilibrio
+	-- (EnemyConfig.Types.*.Split). Se gana cuando cae el último.
+	Bosses: { any },
 	LastBroadcast: number,
 }
 
@@ -224,6 +226,23 @@ end
 
 -- Envíos ---------------------------------------------------------------------------------
 
+-- Nombre de los jefes de la partida en la fase del jefe ("Ignis y Glacius" tras partirse)
+local function bossName(run: Run): string?
+	if run.Phase ~= "Boss" then
+		return nil
+	end
+	local names = {}
+	for _, boss in run.Bosses do
+		if EnemyService.isAlive(boss) then
+			table.insert(names, boss.Def.DisplayName)
+		end
+	end
+	if #names == 0 and run.Arena.Boss then
+		return (EnemyConfig.Types[run.Arena.Boss] or {}).DisplayName
+	end
+	return table.concat(names, " y ")
+end
+
 local function stateOf(run: Run)
 	local remaining = #run.Queue + run.AliveCount
 	return {
@@ -242,7 +261,7 @@ local function stateOf(run: Run)
 		Center = run.Center,
 		Radius = WaveConfig.Place.AreaRadius,
 		Best = best[run.ArenaId] or 0,
-		Boss = if run.Phase == "Boss" and run.Arena.Boss then (EnemyConfig.Types[run.Arena.Boss] or {}).DisplayName else nil,
+		Boss = bossName(run),
 	}
 end
 
@@ -418,10 +437,12 @@ local function despawnAll(run: Run)
 	table.clear(run.Alive)
 	run.AliveCount = 0
 	table.clear(run.Queue)
-	if run.Boss and EnemyService.isAlive(run.Boss) then
-		EnemyService.despawn(run.Boss)
+	for _, boss in run.Bosses do
+		if EnemyService.isAlive(boss) then
+			EnemyService.despawn(boss)
+		end
 	end
-	run.Boss = nil
+	table.clear(run.Bosses)
 end
 
 local function insideCount(run: Run): number
@@ -441,36 +462,114 @@ local finish: (Run, boolean) -> ()
 local enterChoice: (Run) -> ()
 local recordCleared: (Run, number) -> ()
 
--- El jefe de la partida (de la reserva: uno para cada partida), frente al altar.
-local function spawnBoss(run: Run): boolean
+-- Cayó el último jefe: victoria (con modo infinito, se cobra y cada uno elige si sigue)
+local function bossesDefeated(run: Run)
+	recordCleared(run, run.Wave)
+	if WaveLogic.hasEndless(run.ArenaId) then
+		enterChoice(run)
+	else
+		finish(run, true)
+	end
+end
+
+-- Saca un jefe de la reserva (uno para cada partida) en `position`. Al morir sale de
+-- run.Bosses y, si era el último, se gana. onSplit: el Coloso del Equilibrio (se parte).
+local function spawnOneBoss(run: Run, typeId: string, position: Vector3, onSplit: ((any) -> ())?): any?
 	local arena = run.Arena
 	local area = WaveConfig.Place.AreaRadius
 	local id = run.Id
-	local boss = EnemyService.spawnPooled(run.ZoneId, arena.Boss, run.Center + Vector3.new(0, 0, -area * 0.55), {
+	local def = EnemyConfig.Types[typeId]
+	local split = def and def.Split
+	local boss
+	boss = EnemyService.spawnPooled(run.ZoneId, typeId, Vector3.new(position.X, run.Center.Y, position.Z), {
 		LeashCenter = run.Center,
 		LeashRadius = area + INSIDE_SLACK + 2,
 		HealthMultiplier = WaveLogic.bossHealthMultiplier(run.Players),
 		RewardMultiplier = 1,
-		PoolLimit = (arena.Pool and arena.Pool[arena.Boss]) or 4,
+		PoolLimit = (arena.Pool and arena.Pool[typeId]) or 4,
 		Run = id,
 		MoneyMultiplier = WaveConfig.MoneyMultiplier,
 		CollisionSlot = run.Slot,
 		Arena = { Center = run.Center, Radius = area, Name = arena.DisplayName },
 		Territory = area + 4,
+		OnSplit = onSplit,
+		SplitAt = if onSplit and split then split.HealthFraction else nil,
 		OnDeath = function()
-			if runs[id] == run and run.Phase == "Boss" then
-				recordCleared(run, run.Wave)
-				-- Con modo infinito: se cobra la victoria y cada uno elige si sigue
-				if WaveLogic.hasEndless(run.ArenaId) then
-					enterChoice(run)
-				else
-					finish(run, true)
-				end
+			if runs[id] ~= run or run.Phase ~= "Boss" then
+				return
 			end
+			local index = table.find(run.Bosses, boss)
+			if index then
+				table.remove(run.Bosses, index)
+			end
+			if #run.Bosses > 0 then
+				broadcast(run) -- queda el otro
+				return
+			end
+			bossesDefeated(run)
 		end,
 	})
-	run.Boss = boss
-	return boss ~= nil
+	if boss then
+		table.insert(run.Bosses, boss)
+	end
+	return boss
+end
+
+-- El Coloso del Equilibrio llega a la mitad de su vida: explota (efecto para la partida) y en
+-- su sitio salen sus dos mitades (Split.Into), una a cada lado, con la vida entera.
+local function splitBoss(run: Run, giant: any)
+	if runs[run.Id] ~= run or run.Phase ~= "Boss" then
+		return
+	end
+	local split = giant.Def.Split
+	local index = table.find(run.Bosses, giant)
+	if not (index and split and type(split.Into) == "table") then
+		return
+	end
+	local position = giant.Root.Position
+	local right = giant.Root.CFrame.RightVector
+	right = Vector3.new(right.X, 0, right.Z)
+	right = if right.Magnitude > 0.1 then right.Unit else Vector3.xAxis
+	table.remove(run.Bosses, index)
+	EnemyService.despawn(giant) -- sin botín: lo dan sus mitades
+	local names = {}
+	for _, typeId in split.Into do
+		local half = EnemyConfig.Types[typeId]
+		table.insert(names, if half then half.DisplayName else typeId)
+	end
+	fxTo(run, { Kind = "Split", Position = position, Names = names })
+	local count = #split.Into
+	for i, typeId in split.Into do
+		local side = i - (count + 1) / 2
+		spawnOneBoss(run, typeId, position + right * side * 2 * (split.Spread or 8))
+	end
+	if #run.Bosses == 0 then
+		warn("[WaveService] No hay sitio en la reserva para las mitades de " .. tostring(giant.TypeId) .. ": la partida se da por ganada.")
+		bossesDefeated(run)
+		return
+	end
+	broadcast(run)
+end
+
+-- El jefe de la partida, frente al altar. Si se parte (Split), con su aviso; con
+-- Arena.SplitAtStart salen directamente sus dos mitades (las Oleadas Gemelas de la Grieta).
+local function spawnBoss(run: Run): boolean
+	local arena = run.Arena
+	local area = WaveConfig.Place.AreaRadius
+	local front = run.Center + Vector3.new(0, 0, -area * 0.55)
+	local def = EnemyConfig.Types[arena.Boss]
+	local split = def and def.Split
+	if split and arena.SplitAtStart then
+		local count = #split.Into
+		for i, typeId in split.Into do
+			spawnOneBoss(run, typeId, front + Vector3.new((i - (count + 1) / 2) * 2 * (split.Spread or 8), 0, 0))
+		end
+		return #run.Bosses > 0
+	end
+	local onSplit = if split then function(enemy)
+		splitBoss(run, enemy)
+	end else nil
+	return spawnOneBoss(run, arena.Boss, front, onSplit) ~= nil
 end
 
 local function startWave(run: Run, wave: number)
@@ -698,8 +797,7 @@ function finish(run: Run, victory: boolean)
 	if run.Phase == "Done" then
 		return
 	end
-	-- Lo que quede se retira sin botín (el jefe derrotado ya se fue solo).
-	run.Boss = if victory then nil else run.Boss
+	-- Lo que quede se retira sin botín (los jefes derrotados ya se fueron solos).
 	despawnAll(run)
 	run.Phase = "Done"
 	run.EndsAt = 0
@@ -716,8 +814,7 @@ end
 -- Jefe derrotado en un modo con modo infinito: se cobra la victoria y cada jugador tiene
 -- Endless.ChoiceSeconds para elegir si sigue ("Endless", true/false).
 function enterChoice(run: Run)
-	run.Boss = nil
-	despawnAll(run) -- la escolta se retira
+	despawnAll(run) -- la escolta se retira (los jefes ya cayeron)
 	payVictory(run)
 	run.Phase = "Choice"
 	run.EndsAt = os.clock() + WaveConfig.Endless.ChoiceSeconds
@@ -856,7 +953,7 @@ local function tryStart(player: Player, placeId: string?): boolean
 		EmptySince = nil,
 		NextSpawnAt = 0,
 		NextEscortAt = 0,
-		Boss = nil,
+		Bosses = {},
 		LastBroadcast = 0,
 	}
 	runs[run.Id] = run

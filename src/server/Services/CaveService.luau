@@ -162,14 +162,16 @@ local function launchTrap(caveId: string, cave, room, root: BasePart)
 	local spot = CaveLogic.trapSpot(room, root.Position.X, root.Position.Z, traps.Spread or 4, random:NextNumber(), random:NextNumber())
 	local floorY = StudWorld.FloorTop
 	local strikeAt = Workspace:GetServerTimeNow() + traps.Warning
+	-- Cuevas con salas de distinto tipo (la Grieta Elemental: lava y hielo): la de esta sala
+	local roomKind = traps.RoomKinds and traps.RoomKinds[room.Local]
 	local event = {
-		Kind = traps.Kind,
+		Kind = if roomKind then roomKind.Kind else traps.Kind,
 		Cave = caveId,
 		Position = Vector3.new(spot.X, floorY, spot.Y),
 		Radius = traps.Radius,
 		StrikeAt = strikeAt,
 		Warning = traps.Warning,
-		Color = traps.Color,
+		Color = if roomKind then roomKind.Color else traps.Color,
 	}
 	-- A todos los que estén en esta cueva (para que vean las de los demás)
 	for _, other in Players:GetPlayers() do

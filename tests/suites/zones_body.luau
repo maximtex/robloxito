@@ -251,8 +251,10 @@ for portalId, portal in ZoneConfig.Portals do
 			print("  se pisan " .. portalId .. " y " .. otherId)
 		end
 	end
-	local guarded = false
-	for _, safe in EnemyConfig.Zones[portal.Zone].SafeZones do
+	-- (una zona sin bichos, como el pueblo del Mundo 2, ya es segura entera)
+	local enemyZone = EnemyConfig.Zones[portal.Zone]
+	local guarded = enemyZone == nil
+	for _, safe in (enemyZone and enemyZone.SafeZones) or {} do
 		guarded = guarded or ((safe.Center - portal.Offset).Magnitude < 1 and safe.Radius >= ZoneConfig.PortalRadius)
 	end
 	if not guarded then
@@ -318,7 +320,7 @@ local function onFloor(zoneId: string, offset, what: string, margin: number?)
 		print(("  %s de %s fuera del suelo (%.0f, %.0f)"):format(what, zoneId, x, z))
 	end
 end
-for _, zoneId in { "FrozenTundra", "GoblinFortress", "World2" } do
+for _, zoneId in { "FrozenTundra", "GoblinFortress", "World2", "DividedLands" } do
 	onFloor(zoneId, ZoneConfig.Zones[zoneId].Arrival, "la llegada", 4)
 	local enemies = EnemyConfig.Zones[zoneId]
 	for _, spawn in (enemies and enemies.Spawns) or {} do
@@ -331,7 +333,7 @@ for _, zoneId in { "FrozenTundra", "GoblinFortress", "World2" } do
 	end
 end
 for eggId, egg in EggConfig.Eggs do
-	if egg.Enabled ~= false and (egg.Zone == "FrozenTundra" or egg.Zone == "World2") then
+	if egg.Enabled ~= false and (egg.Zone == "FrozenTundra" or egg.Zone == "World2" or egg.Zone == "DividedLands") then
 		onFloor(egg.Zone, egg.StandOffset, eggId, 4)
 	end
 end
@@ -339,7 +341,12 @@ for portalId, p in ZoneConfig.WorldPortals do
 	onFloor(p.Zone, p.Offset, portalId, 8)
 end
 for portalId, p in ZoneConfig.Portals do
-	onFloor(p.Target, Vector2.new(0, -150), "el paso de " .. portalId, 4)
+	-- Al cruzar llegas al borde de la zona nueva que da a la puerta (al sur si la puerta está al norte)
+	local north = p.Offset.Y < 0
+	onFloor(p.Target, Vector2.new(0, if north then 150 else -150), "el paso de " .. portalId, 4)
+	if StudFloor.Zones[p.Zone] then
+		onFloor(p.Zone, Vector2.new(p.Offset.X, p.Offset.Y + (if north then 10 else -10)), "la puerta " .. portalId, 4)
+	end
 end
 check("llegadas, enemigos, arenas, huevos y portales de las zonas nuevas caen en su suelo", floorOk)
 

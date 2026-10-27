@@ -166,6 +166,10 @@ type Enemy = {
 	DamageMultiplier: number?, -- daño que hace (oleadas; nil = 1)
 	Territory: number?, -- territorio del jefe (si no, Def.Brain.Territory)
 	Variant: string?, -- "Elite" o "MiniBoss" (mazmorras: más grande, brilla, más vida y botín)
+	-- Jefe que se parte (oleadas: el Coloso del Equilibrio): al bajar a SplitAt de su vida
+	-- máxima no baja más y se avisa a OnSplit (WaveService lo cambia por sus dos mitades)
+	SplitAt: number?,
+	OnSplit: ((any) -> ())?,
 }
 
 local EnemyService = {}
@@ -451,38 +455,76 @@ function BUILDERS.Shard(rig: Rig, look)
 	end
 end
 
--- Gólem de Geoda: bloques de pizarra con crecimientos de cristal.
+-- Material de la piedra de un estilo: look.Material (nombre de Enum.Material) o `default`
+local function stoneOf(material: any, default: Enum.Material): Enum.Material
+	if type(material) == "string" then
+		local ok, value = pcall(function()
+			return (Enum.Material :: any)[material]
+		end)
+		if ok and value then
+			return value
+		end
+	end
+	return default
+end
+
+-- Gólem de Geoda: bloques de pizarra con crecimientos de cristal (look.Material cambia la
+-- piedra: los brutos de las Tierras Divididas son de basalto o de hielo glaciar).
 function BUILDERS.Golem(rig: Rig, look)
-	box(rig, "Torso", Vector3.new(3.6, 3.8, 2.8), CFrame.new(0, 3.9, 0), look.Primary, Enum.Material.Slate)
-	box(rig, "Head", Vector3.new(1.8, 1.4, 1.6), CFrame.new(0, 6.5, -0.2), look.Primary, Enum.Material.Slate)
+	local stone = stoneOf(look.Material, Enum.Material.Slate)
+	box(rig, "Torso", Vector3.new(3.6, 3.8, 2.8), CFrame.new(0, 3.9, 0), look.Primary, stone)
+	box(rig, "Head", Vector3.new(1.8, 1.4, 1.6), CFrame.new(0, 6.5, -0.2), look.Primary, stone)
 	for index, spec in { { Vector3.new(1.4, 6.2, 0.6), Vector3.new(0, 0, -0.4) }, { Vector3.new(-1.5, 6.0, 0.5), Vector3.new(0, 0, 0.4) }, { Vector3.new(0.6, 5.2, 1.5), Vector3.new(0.6, 0, 0) }, { Vector3.new(-0.7, 4.4, 1.5), Vector3.new(0.7, 0, 0) } } do
 		crystalSpike(rig, "Crystal" .. index, Vector3.new(0.5, 1.6, 0.5), spec[1], spec[2], look.Secondary)
 	end
 	for side = -1, 1, 2 do
 		eye(rig, "Eye" .. side, 0.32, Vector3.new(side * 0.45, 6.6, -1.02), look.Eyes)
-		orb(rig, "Shoulder" .. side, 1.6, Vector3.new(side * 2.4, 5, 0), look.Primary, Enum.Material.Slate)
-		limb(rig, "Arm" .. side, Vector3.new(side * 2.4, 5, 0), Vector3.new(side * 2.6, 2.4, -0.6), 1.1, look.Primary, Enum.Material.Slate)
-		orb(rig, "Fist" .. side, 1.9, Vector3.new(side * 2.6, 2.3, -0.6), look.Primary, Enum.Material.Slate)
-		box(rig, "Leg" .. side, Vector3.new(1.2, 1.9, 1.2), CFrame.new(side * 0.9, 0.95, 0), look.Primary, Enum.Material.Slate)
+		orb(rig, "Shoulder" .. side, 1.6, Vector3.new(side * 2.4, 5, 0), look.Primary, stone)
+		limb(rig, "Arm" .. side, Vector3.new(side * 2.4, 5, 0), Vector3.new(side * 2.6, 2.4, -0.6), 1.1, look.Primary, stone)
+		orb(rig, "Fist" .. side, 1.9, Vector3.new(side * 2.6, 2.3, -0.6), look.Primary, stone)
+		box(rig, "Leg" .. side, Vector3.new(1.2, 1.9, 1.2), CFrame.new(side * 0.9, 0.95, 0), look.Primary, stone)
 	end
 end
 
 -- Coloso de Amatista (jefe): gigante de pizarra con corona de amatista y núcleo brillante.
 -- look.Material (nombre de Enum.Material) cambia la piedra: el Gólem de Hielo es de hielo glaciar.
+-- look.Split: gigante de dos mitades (el Coloso del Equilibrio): su lado derecho (+X) lleva
+-- los colores y la piedra de Split (Primary, Secondary, Eyes, Material).
 function BUILDERS.Colossus(rig: Rig, look)
-	local stone = if type(look.Material) == "string" then (Enum.Material :: any)[look.Material] else Enum.Material.Slate
-	box(rig, "Torso", Vector3.new(7, 8, 5), CFrame.new(0, 8, 0), look.Primary, stone)
-	box(rig, "Head", Vector3.new(3, 2.4, 2.6), CFrame.new(0, 13.2, -0.4), look.Primary, stone)
-	orb(rig, "CoreGem", 1.8, Vector3.new(0, 8.5, -2.55), look.Secondary, Enum.Material.Neon)
+	local stone = stoneOf(look.Material, Enum.Material.Slate)
+	local split = look.Split
+	-- Colores de cada lado (side = -1 izquierda, 1 derecha)
+	local function sideLook(side: number): (Color3, Color3, Color3, Enum.Material)
+		if split and side > 0 then
+			return split.Primary or look.Primary, split.Secondary or look.Secondary, split.Eyes or look.Eyes, stoneOf(split.Material, stone)
+		end
+		return look.Primary, look.Secondary, look.Eyes, stone
+	end
+	if split then
+		-- Torso, cabeza y núcleo en dos mitades, con una veta brillante en medio
+		for side = -1, 1, 2 do
+			local primary, secondary, _, material = sideLook(side)
+			box(rig, "TorsoHalf" .. side, Vector3.new(3.5, 8, 5), CFrame.new(side * 1.75, 8, 0), primary, material)
+			box(rig, "HeadHalf" .. side, Vector3.new(1.5, 2.4, 2.6), CFrame.new(side * 0.75, 13.2, -0.4), primary, material)
+			orb(rig, "CoreGemHalf" .. side, 1.5, Vector3.new(side * 0.55, 8.5, -2.55), secondary, Enum.Material.Neon)
+		end
+		box(rig, "Seam", Vector3.new(0.35, 8.2, 5.1), CFrame.new(0, 8, 0), Color3.fromRGB(255, 240, 255), Enum.Material.Neon)
+	else
+		box(rig, "Torso", Vector3.new(7, 8, 5), CFrame.new(0, 8, 0), look.Primary, stone)
+		box(rig, "Head", Vector3.new(3, 2.4, 2.6), CFrame.new(0, 13.2, -0.4), look.Primary, stone)
+		orb(rig, "CoreGem", 1.8, Vector3.new(0, 8.5, -2.55), look.Secondary, Enum.Material.Neon)
+	end
 	for index, spec in { { Vector3.new(0, 15.4, -0.4), Vector3.zero, 3.2 }, { Vector3.new(-1.1, 14.9, -0.3), Vector3.new(0, 0, 0.4), 2.4 }, { Vector3.new(1.1, 14.9, -0.3), Vector3.new(0, 0, -0.4), 2.4 }, { Vector3.new(-3.6, 12.6, 0.5), Vector3.new(0, 0, 0.5), 2.8 }, { Vector3.new(3.6, 12.6, 0.5), Vector3.new(0, 0, -0.5), 2.8 } } do
-		crystalSpike(rig, "Crown" .. index, Vector3.new(0.9, spec[3], 0.9), spec[1], spec[2], look.Secondary)
+		local _, secondary = sideLook(if spec[1].X > 0 then 1 elseif spec[1].X < 0 then -1 else (if index % 2 == 0 then 1 else -1))
+		crystalSpike(rig, "Crown" .. index, Vector3.new(0.9, spec[3], 0.9), spec[1], spec[2], secondary)
 	end
 	for side = -1, 1, 2 do
-		eye(rig, "Eye" .. side, 0.6, Vector3.new(side * 0.8, 13.4, -1.72), look.Eyes)
-		orb(rig, "Shoulder" .. side, 3, Vector3.new(side * 4.6, 10.5, 0), look.Primary, stone)
-		limb(rig, "Arm" .. side, Vector3.new(side * 4.6, 10.5, 0), Vector3.new(side * 5.2, 4.2, -1.5), 2, look.Primary, stone)
-		orb(rig, "Fist" .. side, 3.4, Vector3.new(side * 5.2, 4, -1.5), look.Primary, stone)
-		box(rig, "Leg" .. side, Vector3.new(2.2, 3.8, 2.2), CFrame.new(side * 1.6, 1.9, 0), look.Primary, stone)
+		local primary, _, eyes, material = sideLook(side)
+		eye(rig, "Eye" .. side, 0.6, Vector3.new(side * 0.8, 13.4, -1.72), eyes)
+		orb(rig, "Shoulder" .. side, 3, Vector3.new(side * 4.6, 10.5, 0), primary, material)
+		limb(rig, "Arm" .. side, Vector3.new(side * 4.6, 10.5, 0), Vector3.new(side * 5.2, 4.2, -1.5), 2, primary, material)
+		orb(rig, "Fist" .. side, 3.4, Vector3.new(side * 5.2, 4, -1.5), primary, material)
+		box(rig, "Leg" .. side, Vector3.new(2.2, 3.8, 2.2), CFrame.new(side * 1.6, 1.9, 0), primary, material)
 	end
 end
 
@@ -1069,6 +1111,11 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 			end
 		end
 	end
+	-- Jefe que se parte: ningún golpe lo baja de la vida del corte (ni lo mata de golpe)
+	local splitFloor = if enemy.OnSplit and enemy.SplitAt then math.max(1, math.floor(enemy.Status.MaxHealth * enemy.SplitAt)) else nil
+	if splitFloor and type(amount) == "number" then
+		amount = math.clamp(amount, 0, math.max(0, enemy.Status.Health - splitFloor))
+	end
 	local dealt, killed = EnemyLogic.applyDamage(enemy.Status, player.UserId, amount)
 	if dealt <= 0 then
 		return 0, false, 0
@@ -1090,6 +1137,16 @@ function EnemyService.damage(enemy: Enemy, player: Player, amount: number): (num
 	end
 	enemy.Billboard.Enabled = true
 	syncHealth(enemy)
+	-- Llega al corte: se parte (WaveService lo retira y saca sus dos mitades)
+	if splitFloor and enemy.Status.Health <= splitFloor then
+		local onSplit = enemy.OnSplit
+		enemy.OnSplit = nil
+		enemy.SplitAt = nil
+		if onSplit then
+			task.spawn(onSplit, enemy)
+		end
+		return dealt, false, earnedHit
+	end
 	-- Furia del jefe
 	local enrage = enemy.Def.Enrage
 	if enrage and not enemy.Enraged and enemy.Status.Health <= enemy.Status.MaxHealth * enrage.HealthFraction then
@@ -2450,6 +2507,9 @@ export type WaveSpawnOptions = {
 	-- Jefes: su arena (para la barra del jefe del cliente) y su territorio
 	Arena: { Center: Vector3, Radius: number, Name: string }?,
 	Territory: number?,
+	-- Jefe que se parte: al bajar a SplitAt (parte de la vida máxima) se llama a OnSplit una vez
+	SplitAt: number?,
+	OnSplit: ((any) -> ())?,
 }
 
 local function finiteOr(value: any, default: number): number
@@ -2475,6 +2535,11 @@ function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vect
 		if not enemy then
 			return nil
 		end
+		-- Tamaño propio (los jefes gigantes de las oleadas), una vez por instancia
+		local scale = enemy.Def.Scale
+		if type(scale) == "number" and scale > 0 and scale ~= 1 then
+			scaleEnemy(enemy, scale)
+		end
 		if elite then
 			makeElite(enemy)
 		end
@@ -2490,6 +2555,8 @@ function EnemyService.spawnPooled(zoneId: string, typeId: string, position: Vect
 	enemy.RewardMultiplier = finiteOr(opts.RewardMultiplier, 1) * (if eliteSpec then eliteSpec.Reward else 1)
 	enemy.Status.MaxHealth = math.max(1, math.floor(baseHealth(def) * finiteOr(opts.HealthMultiplier, 1) * (if eliteSpec then eliteSpec.Health else 1)))
 	enemy.OnWaveDeath = opts.OnDeath
+	enemy.OnSplit = opts.OnSplit
+	enemy.SplitAt = if opts.OnSplit then math.clamp(finiteOr(opts.SplitAt, 0.5), 0.05, 0.95) else nil
 	enemy.LastHitBy = nil
 	enemy.Run = opts.Run
 	enemy.Model:SetAttribute(RUN_ATTRIBUTE, opts.Run)
@@ -2518,6 +2585,8 @@ function EnemyService.despawn(enemy: Enemy?)
 	end
 	enemy.Generation += 1 -- anula reapariciones y disoluciones pendientes
 	enemy.OnWaveDeath = nil
+	enemy.OnSplit = nil
+	enemy.SplitAt = nil
 	enemy.LastHitBy = nil
 	enemy.Target = nil
 	clearControl(enemy)

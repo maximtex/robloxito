@@ -89,9 +89,12 @@ local GUN_FEEL = {
 }
 -- Puños: al pegar te echas encima del enemigo (hasta PUNCH_LUNGE_MAX studs, a esta velocidad)
 -- y te quedas a PUNCH_REACH del punto donde el puño lo toca (el largo del brazo)
-local PUNCH_REACH = 1.7
+local PUNCH_REACH = 2.1
 local PUNCH_LUNGE_MAX = 7
 local PUNCH_LUNGE_SPEED = 80
+local PUNCH_CROWD_RADIUS = 3.5 -- con otro bicho así de cerca, no te lanzas
+local PUNCH_MAX_SPEED = 45 -- tras lanzarte, más rápido que esto es que algo te ha empujado
+local PUNCH_MAX_RISE = 60
 local SELECT_RANGE = 75 -- el automático solo apunta si hay enemigos a esta distancia
 local AUTO_ON = Color3.fromRGB(96, 214, 96)
 local AUTO_OFF = Color3.fromRGB(120, 120, 128)
@@ -424,20 +427,75 @@ local function shakeCamera(amount: number, fov: number?)
 	end
 end
 
--- Tu personaje se echa hacia delante `distance` studs (sin cruzar paredes ni bichos) para que
--- el puño llegue de verdad. Devuelve cuánto dura la embestida (0 si no hace falta).
+-- ¿Hay otro bicho pegado a ti (aparte del que golpeas)? Entonces no te lanzas: empujarte
+-- entre varios cuerpos te mandaría volando.
+local function crowded(root: BasePart, target: any): boolean
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { root.Parent :: Instance, fxFolder }
+	for _, part in Workspace:GetPartBoundsInRadius(root.Position, PUNCH_CROWD_RADIUS, params) do
+		local node: Instance? = part.Parent
+		while node and node ~= Workspace do
+			if node:IsA("Model") and node:GetAttribute("EnemyType") ~= nil then
+				if node ~= target then
+					return true
+				end
+				break
+			end
+			node = node.Parent
+		end
+	end
+	return false
+end
+
+-- Tras cada puñetazo, un momento sin salir disparado: si algún choque con los bichos te lanza
+-- más rápido de lo normal, se frena (andar, saltar y el dash no llegan a esas velocidades)
+local steadyUntil = 0
+local steadyRoot: BasePart? = nil
+local steadyConnection: RBXScriptConnection? = nil
+local function keepSteady(root: BasePart, seconds: number)
+	steadyUntil = math.max(steadyUntil, os.clock() + seconds)
+	steadyRoot = root
+	if steadyConnection then
+		return
+	end
+	steadyConnection = RunService.Heartbeat:Connect(function()
+		local current = steadyRoot
+		if os.clock() > steadyUntil or not (current and current.Parent) then
+			if steadyConnection then
+				steadyConnection:Disconnect()
+				steadyConnection = nil
+			end
+			return
+		end
+		if current:FindFirstChild("PunchLunge") then
+			return -- la embestida misma sí va rápida
+		end
+		local velocity = current.AssemblyLinearVelocity
+		local flat = Vector3.new(velocity.X, 0, velocity.Z)
+		if flat.Magnitude > PUNCH_MAX_SPEED or velocity.Y > PUNCH_MAX_RISE then
+			current.AssemblyLinearVelocity = Vector3.new(0, math.min(velocity.Y, 0), 0)
+			current.AssemblyAngularVelocity = Vector3.zero
+		end
+	end)
+end
+
+-- Tu personaje se echa hacia delante `distance` studs para que el puño llegue de verdad: sin
+-- cruzar paredes ni meterse en otros bichos, y sin lanzarse si tienes varios encima.
+-- Devuelve cuánto dura la embestida (0 si no hace falta).
 local lungeMover: LinearVelocity? = nil
-local function lunge(root: BasePart, direction: Vector3, distance: number): number
+local function lunge(root: BasePart, direction: Vector3, distance: number, target: any): number
 	distance = math.min(distance, PUNCH_LUNGE_MAX)
-	if distance < 0.6 then
+	if distance < 0.6 or crowded(root, target) then
 		return 0
 	end
+	-- Un cuerpo del ancho del tuyo a lo largo del camino: se para antes de lo primero que toque
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { root.Parent :: Instance, fxFolder }
-	local blocked = Workspace:Raycast(root.Position, direction * (distance + 1.2), params)
+	local blocked = Workspace:Spherecast(root.Position, 1.2, direction * (distance + 1), params)
 	if blocked then
-		distance = math.min(distance, blocked.Distance - 1.2)
+		distance = math.min(distance, blocked.Distance - 0.5)
 	end
 	if distance < 0.6 then
 		return 0
@@ -461,17 +519,19 @@ local function lunge(root: BasePart, direction: Vector3, distance: number): numb
 	mover.PrimaryTangentAxis = Vector3.xAxis
 	mover.SecondaryTangentAxis = Vector3.zAxis
 	mover.PlaneVelocity = Vector2.new(velocity.X, velocity.Z)
-	mover.MaxForce = 1e6
+	-- Fuerza justa para tu peso: si choca con algo, se queda ahí en vez de atravesarlo
+	mover.MaxForce = math.max(root.AssemblyMass, 1) * 2500
 	mover.Parent = root
 	lungeMover = mover
 	root.CFrame = CFrame.lookAt(root.Position, root.Position + direction)
+	keepSteady(root, seconds + 0.6)
 	task.delay(seconds, function()
 		if lungeMover == mover then
 			lungeMover = nil
 			mover:Destroy()
 			-- Sin pasarse de largo
 			if root.Parent then
-				root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+				root.AssemblyLinearVelocity = Vector3.new(0, math.min(root.AssemblyLinearVelocity.Y, 0), 0)
 			end
 		end
 	end)
@@ -964,46 +1024,65 @@ local function buildGui()
 		BackgroundTransparency = 1,
 	}, screenGui)
 	local topScale = UiKit.create("UIScale", {}, top)
-	local bossBar, _ = UiKit.panel(top, "BossBar", Vector2.new(440, 54), Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0))
-	bossBar.Visible = false
-	local bossName = UiKit.text(bossBar, "Name", {
-		Position = UDim2.fromOffset(16, 6),
-		Size = UDim2.new(1, -32, 0, 20),
-		Font = FONTS.Display,
-		TextSize = 18,
-	})
-	local bossTrack = UiKit.create("Frame", {
-		Name = "Track",
-		Position = UDim2.fromOffset(16, 30),
-		Size = UDim2.new(1, -32, 0, 14),
-		BackgroundColor3 = THEME.Inset,
-	}, bossBar)
-	UiKit.corner(bossTrack, 7)
-	-- Tramo claro que se vacía con retraso: deja ver cuánto daño acaba de recibir.
-	local bossTrail = UiKit.create("Frame", {
-		Name = "Trail",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(255, 236, 200),
-		BackgroundTransparency = 0.25,
-	}, bossTrack)
-	UiKit.corner(bossTrail, 7)
-	local bossFill = UiKit.create("Frame", {
-		Name = "Fill",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(230, 90, 100),
-		ZIndex = 2,
-	}, bossTrack)
-	UiKit.corner(bossFill, 7)
-	-- Marca de la furia (a la mitad de vida, como en EnemyConfig).
-	local enrageMark = UiKit.create("Frame", {
-		Name = "EnrageMark",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, 2, 1, 6),
-		BackgroundColor3 = BOSS_ENRAGED_COLOR,
-		BorderSizePixel = 0,
-		ZIndex = 3,
-	}, bossTrack)
+	-- Barras de jefe: una a lo ancho o, con dos jefes a la vez (Ignis y Glacius), una al lado
+	-- de la otra en el mismo sitio. La primera se llama "BossBar" (WaveController la busca).
+	local function makeBossBar(name: string)
+		local bossBar, _ = UiKit.panel(top, name, Vector2.new(440, 54), Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0))
+		bossBar.Visible = false
+		local bossName = UiKit.text(bossBar, "Name", {
+			Position = UDim2.fromOffset(16, 6),
+			Size = UDim2.new(1, -32, 0, 20),
+			Font = FONTS.Display,
+			TextSize = 18,
+			TextScaled = true,
+		})
+		local bossTrack = UiKit.create("Frame", {
+			Name = "Track",
+			Position = UDim2.fromOffset(16, 30),
+			Size = UDim2.new(1, -32, 0, 14),
+			BackgroundColor3 = THEME.Inset,
+		}, bossBar)
+		UiKit.corner(bossTrack, 7)
+		-- Tramo claro que se vacía con retraso: deja ver cuánto daño acaba de recibir.
+		local bossTrail = UiKit.create("Frame", {
+			Name = "Trail",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.fromRGB(255, 236, 200),
+			BackgroundTransparency = 0.25,
+		}, bossTrack)
+		UiKit.corner(bossTrail, 7)
+		local bossFill = UiKit.create("Frame", {
+			Name = "Fill",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.fromRGB(230, 90, 100),
+			ZIndex = 2,
+		}, bossTrack)
+		UiKit.corner(bossFill, 7)
+		-- Marca de la furia (a la mitad de vida, como en EnemyConfig).
+		local enrageMark = UiKit.create("Frame", {
+			Name = "EnrageMark",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 2, 1, 6),
+			BackgroundColor3 = BOSS_ENRAGED_COLOR,
+			BorderSizePixel = 0,
+			ZIndex = 3,
+		}, bossTrack)
+		-- Marca de dónde se parte (el Coloso del Equilibrio: EnemyConfig.Types.*.Split)
+		local splitMark = UiKit.create("Frame", {
+			Name = "SplitMark",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 3, 1, 8),
+			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = 3,
+		}, bossTrack)
+		return { Bar = bossBar, Name = bossName, Fill = bossFill, Trail = bossTrail, EnrageMark = enrageMark, SplitMark = splitMark, TrailTarget = 1 }
+	end
+	local bossBars = { makeBossBar("BossBar"), makeBossBar("BossBar2") }
+	local bossBar = bossBars[1].Bar
 
 	-- Anuncio de jefe derrotado
 	local banner = UiKit.text(screenGui, "BossBanner", {
@@ -1047,10 +1126,7 @@ local function buildGui()
 		WeaponPill = weaponPill,
 		AttackLabel = atkLabel,
 		BossBar = bossBar,
-		BossName = bossName,
-		BossFill = bossFill,
-		BossTrail = bossTrail,
-		EnrageMark = enrageMark,
+		BossBars = bossBars,
 		Banner = banner,
 		ScreenFlash = screenFlash,
 	}
@@ -1865,7 +1941,8 @@ function CombatController.start()
 					local _, direction, reach = punchContact(from, target, hitModel)
 					local lungeSeconds = 0
 					if isOwner and root and root:IsA("BasePart") then
-						lungeSeconds = lunge(root, direction, reach - PUNCH_REACH)
+						keepSteady(root, 0.6)
+						lungeSeconds = lunge(root, direction, reach - PUNCH_REACH, hitModel)
 					end
 					-- El golpe llega cuando el brazo está estirado (y la embestida ha terminado)
 					task.delay(math.max(lungeSeconds, if big then 0.12 else 0.06), function()
@@ -2357,16 +2434,56 @@ function CombatController.start()
 		end,
 	})
 
-	-- Barra del jefe: se muestra al acercarse a una arena con su jefe vivo.
+	-- Barras de jefe: se muestran al acercarse a una arena con su jefe vivo. Con dos jefes a
+	-- la vez (las mitades del Coloso del Equilibrio), una al lado de la otra.
 	local enragedAnnounced: { [Model]: boolean } = setmetatable({}, { __mode = "k" }) :: any
-	local trailTarget = 1
+	local barOwner: { [number]: Model? } = {}
+	local bossBarShown = false
+	local function fillBar(bar, model: Model, health: number, maxHealth: number, compact: boolean)
+		local enraged = model:GetAttribute("Enraged") == true
+		-- La IA del jefe publica a quién persigue (TargetUserId)
+		local chasing = model:GetAttribute("TargetUserId") == player.UserId
+		local name = tostring(model:GetAttribute("DisplayName"))
+		local status = if compact then "" else (if chasing then "  ·  ¡Te persigue!" else "") .. (if enraged then "  ·  ¡Furioso!" else "")
+		bar.Name.Text = name .. status .. ("   %s / %s"):format(formatNumber(health), formatNumber(maxHealth))
+		bar.Name.TextColor3 = if enraged then BOSS_ENRAGED_COLOR elseif chasing then BOSS_CHASE_COLOR else THEME.Text
+		local def = EnemyConfig.Types[model:GetAttribute("EnemyType")]
+		local tint = def and def.Look and def.Look.Secondary
+		bar.Fill.BackgroundColor3 = if enraged then BOSS_ENRAGED_COLOR elseif compact and typeof(tint) == "Color3" then tint else BOSS_BAR_COLOR
+		local fraction = math.clamp(health / maxHealth, 0, 1)
+		bar.Fill.Size = UDim2.fromScale(fraction, 1)
+		-- El tramo claro alcanza a la vida real con un pequeño retraso.
+		if fraction < bar.TrailTarget then
+			TweenService:Create(bar.Trail, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 0.25), { Size = UDim2.fromScale(fraction, 1) }):Play()
+		else
+			bar.Trail.Size = UDim2.fromScale(fraction, 1)
+		end
+		bar.TrailTarget = fraction
+		local enrageAt = def and def.Enrage and def.Enrage.HealthFraction
+		bar.EnrageMark.Visible = enrageAt ~= nil and not enraged
+		if enrageAt then
+			bar.EnrageMark.Position = UDim2.fromScale(enrageAt, 0.5)
+		end
+		local splitAt = def and def.Split and def.Split.HealthFraction
+		bar.SplitMark.Visible = splitAt ~= nil
+		if splitAt then
+			bar.SplitMark.Position = UDim2.fromScale(splitAt, 0.5)
+		end
+		-- Anunciar la entrada en furia una vez por vida del jefe
+		if enraged and not enragedAnnounced[model] then
+			enragedAnnounced[model] = true
+			showBanner(("¡%s entra en furia!"):format(name), BOSS_ENRAGED_COLOR)
+		elseif not enraged then
+			enragedAnnounced[model] = nil
+		end
+	end
 	task.spawn(function()
 		while true do
 			task.wait(0.25)
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
 			local enemiesFolder = Workspace:FindFirstChild("Enemies")
-			local shown = false
+			local found = {}
 			if root and root:IsA("BasePart") and enemiesFolder then
 				for _, zoneFolder in enemiesFolder:GetChildren() do
 					for _, model in zoneFolder:GetChildren() do
@@ -2375,48 +2492,45 @@ function CombatController.start()
 							local radius = model:GetAttribute("ArenaRadius")
 							local health = model:GetAttribute("Health")
 							local maxHealth = model:GetAttribute("MaxHealth")
-							if typeof(center) == "Vector3" and typeof(radius) == "number" and typeof(health) == "number" and typeof(maxHealth) == "number" and health > 0 then
+							if typeof(center) == "Vector3" and typeof(radius) == "number" and typeof(health) == "number" and typeof(maxHealth) == "number" and health > 0 and maxHealth > 0 then
 								local offset = root.Position - center
 								if Vector2.new(offset.X, offset.Z).Magnitude <= radius + BOSS_BAR_RANGE then
-									shown = true
-									local enraged = model:GetAttribute("Enraged") == true
-									-- La IA del jefe publica a quién persigue (TargetUserId)
-									local chasing = model:GetAttribute("TargetUserId") == player.UserId
-									local name = tostring(model:GetAttribute("DisplayName"))
-									local status = (if chasing then "  ·  ¡Te persigue!" else "") .. (if enraged then "  ·  ¡Furioso!" else "")
-									ui.BossName.Text = name .. status .. ("   %s / %s"):format(formatNumber(health), formatNumber(maxHealth))
-									ui.BossName.TextColor3 = if enraged then BOSS_ENRAGED_COLOR elseif chasing then BOSS_CHASE_COLOR else THEME.Text
-									ui.BossFill.BackgroundColor3 = if enraged then BOSS_ENRAGED_COLOR else BOSS_BAR_COLOR
-									local fraction = math.clamp(health / maxHealth, 0, 1)
-									ui.BossFill.Size = UDim2.fromScale(fraction, 1)
-									-- El tramo claro alcanza a la vida real con un pequeño retraso.
-									if fraction < trailTarget then
-										TweenService:Create(ui.BossTrail, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, 0.25), { Size = UDim2.fromScale(fraction, 1) }):Play()
-									else
-										ui.BossTrail.Size = UDim2.fromScale(fraction, 1)
-									end
-									trailTarget = fraction
-									local def = EnemyConfig.Types[model:GetAttribute("EnemyType")]
-									local enrageAt = def and def.Enrage and def.Enrage.HealthFraction
-									ui.EnrageMark.Visible = enrageAt ~= nil and not enraged
-									if enrageAt then
-										ui.EnrageMark.Position = UDim2.fromScale(enrageAt, 0.5)
-									end
-									-- Anunciar la entrada en furia una vez por vida del jefe
-									if enraged and not enragedAnnounced[model] then
-										enragedAnnounced[model] = true
-										showBanner(("¡%s entra en furia!"):format(name), BOSS_ENRAGED_COLOR)
-									elseif not enraged then
-										enragedAnnounced[model] = nil
-									end
+									table.insert(found, { Model = model, Health = health, MaxHealth = maxHealth })
 								end
 							end
 						end
 					end
 				end
 			end
-			if ui.BossBar.Visible ~= shown then
-				ui.BossBar.Visible = shown
+			-- Siempre en el mismo orden (fuego a la izquierda: por tipo)
+			table.sort(found, function(a, b)
+				return tostring(a.Model:GetAttribute("EnemyType")) > tostring(b.Model:GetAttribute("EnemyType"))
+			end)
+			local count = math.min(#found, #ui.BossBars)
+			local compact = count > 1
+			for index, bar in ui.BossBars do
+				local entry = found[index]
+				local visible = entry ~= nil and index <= count
+				if visible then
+					if barOwner[index] ~= entry.Model then
+						barOwner[index] = entry.Model
+						bar.TrailTarget = 1
+					end
+					fillBar(bar, entry.Model, entry.Health, entry.MaxHealth, compact)
+					-- Dos a la vez: mitad de ancho cada una, una a cada lado del centro
+					bar.Bar.Size = UDim2.fromOffset(if compact then 216 else 440, 54)
+					bar.Bar.AnchorPoint = Vector2.new(if compact then (if index == 1 then 1 else 0) else 0.5, 0)
+					bar.Bar.Position = UDim2.new(0.5, if compact then (if index == 1 then -4 else 4) else 0, 0, 0)
+				else
+					barOwner[index] = nil
+				end
+				if bar.Bar.Visible ~= visible then
+					bar.Bar.Visible = visible
+				end
+			end
+			local shown = count > 0
+			if bossBarShown ~= shown then
+				bossBarShown = shown
 				HudDock.setBossBar(shown)
 			end
 		end

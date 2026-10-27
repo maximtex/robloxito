@@ -298,6 +298,10 @@ local NEW_PETS = {
 	{ "GalaxyFox", "Zorrito Galaxia", "Mythic", 15, "Quartz", RGB(60, 40, 120), RGB(255, 120, 230) },
 	{ "CosmicSprout", "Brote Cósmico", "Mythic", 18, "Sprout", RGB(110, 70, 200), RGB(110, 255, 220) },
 	{ "CosmicDragon", "Dragón Cósmico", "Mythic", 24, "Dragon", RGB(30, 26, 60), RGB(200, 110, 255) },
+	-- Huevo del Equilibrio (Mundo 2, Tierras Divididas): fuego, hielo y el dragón de los dos
+	{ "MagmaFox", "Zorro de Magma", "Mythic", 28, "Fox", RGB(150, 40, 24), RGB(255, 150, 40) },
+	{ "GlacierOwl", "Búho Glaciar", "Mythic", 33, "Owl", RGB(210, 236, 255), RGB(80, 190, 255) },
+	{ "EquilibriumDragon", "Dragón del Equilibrio", "Mythic", 42, "Dragon", RGB(255, 110, 30), RGB(120, 215, 255) },
 }
 local EVO_RARITY = { Epic = "Legendary", Legendary = "Mythic", Mythic = "Mythic" }
 for _, spec in NEW_PETS do

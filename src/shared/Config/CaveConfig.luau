@@ -5,6 +5,9 @@
 --   Valle:  Cueva de Amatista. La boca es un montículo de roca a la derecha de la llegada.
 --   Caldera: Forja de Magma. Igual, a la derecha de la llegada.
 --   Tundra: Gruta Glacial. Igual (con carámbanos que caen del techo).
+--   Mundo 2 · Tierras Divididas: Grieta Elemental. Montículo al norte del mapa (al este de la
+--           plazoleta del final de la avenida); sala de fuego, sala de hielo con su guardián y,
+--           en el altar, las Oleadas Gemelas (Ignis y Glacius a la vez).
 -- Al cruzar la boca, la pantalla se funde a negro y apareces dentro:
 --   1. Sala de los pequeños. Aquí llegas.
 --   2. Sala de los medianos (en el Valle y la Caldera, con un MINI-JEFE que guarda la puerta).
@@ -41,6 +44,9 @@ local FOREST = {
 	Icon = "🦇",
 	Zone = "Forest",
 	Subtitle = "Tres salas: los pequeños, los medianos y el altar del Guardián",
+	-- Lo que adorna su entrada monumental (ForestCave.gate): zarzas con espinas y setas que
+	-- brillan ("Thorns"), cristales ("Crystal"), roca volcánica con lava ("Magma") o hielo ("Ice")
+	Decor = "Thorns",
 
 	-- Boca de la cueva (en el mapa del Bosque): al entrar en Trigger (el fondo del túnel,
 	-- detrás de la bruma oscura) te lleva dentro; al salir de la cueva apareces en Exit,
@@ -178,19 +184,24 @@ local function shifted(value: any, dz: number, key: any?): any
 	return value
 end
 
--- Boca de las cuevas del Valle y la Caldera: un montículo de roca de 4 × 3 bloques con el
--- túnel en medio, a la derecha de la llegada desde el portal (Offset (44, -124) de su zona,
--- donde estaba el círculo de las oleadas). `centerZ`: Z del mundo del centro de la zona.
-local function mound(centerZ: number)
-	local z = centerZ - 124
+-- Boca de una mazmorra fuera del Bosque: un montículo de roca de 4 × 3 bloques con el túnel en
+-- medio, con el frente del túnel en (x, z) del mundo mirando al oeste (-X).
+local function moundAt(x: number, z: number)
 	return {
-		Trigger = { MinX = 52, MaxX = 60, MinZ = z - 8, MaxZ = z + 8, Height = 16 },
-		Exit = { Position = Vector3.new(32, 0, z), Facing = Vector3.new(-1, 0, 0) },
-		Guide = Vector3.new(40, 8, z),
-		-- Para CaveDungeon: frente del túnel (X = 44) mirando al oeste (-X), 2 bloques de ancho
-		-- y de alto, y el montículo 3 bloques de fondo y 4 de ancho.
-		Mound = { Front = Vector3.new(44, 0, z), Facing = Vector3.new(-1, 0, 0), Width = 16, Height = 16, Depth = 24, Span = 32 },
+		Trigger = { MinX = x + 8, MaxX = x + 16, MinZ = z - 8, MaxZ = z + 8, Height = 16 },
+		Exit = { Position = Vector3.new(x - 12, 0, z), Facing = Vector3.new(-1, 0, 0) },
+		Guide = Vector3.new(x - 4, 8, z),
+		-- Para CaveDungeon: frente del túnel mirando al oeste (-X), 2 bloques de ancho y de alto,
+		-- y el montículo 3 bloques de fondo y 4 de ancho.
+		Mound = { Front = Vector3.new(x, 0, z), Facing = Vector3.new(-1, 0, 0), Width = 16, Height = 16, Depth = 24, Span = 32 },
 	}
+end
+
+-- Boca de las cuevas del Valle, la Caldera y la Tundra: a la derecha de la llegada desde el
+-- portal (Offset (44, -124) de su zona, donde estaba el círculo de las oleadas). `centerZ`: Z
+-- del mundo del centro de la zona.
+local function mound(centerZ: number)
+	return moundAt(44, centerZ - 124)
 end
 
 -- Valle Morado: Cueva de Amatista -------------------------------------------------------------
@@ -200,6 +211,7 @@ VALLEY.Name = "Cueva de Amatista"
 VALLEY.Icon = "💎"
 VALLEY.Zone = "CrystalValley"
 VALLEY.Subtitle = "Pinchos de cristal, un Gólem Guardián y el trono del Coloso"
+VALLEY.Decor = "Crystal"
 VALLEY.Entrance = mound(295)
 VALLEY.Rooms[1].Name, VALLEY.Rooms[1].Label, VALLEY.Rooms[1].Text = "La Cantera", "SALA 1 · LA CANTERA", "Fragmentos · ¡cuidado con los pinchos!"
 VALLEY.Rooms[2].Name, VALLEY.Rooms[2].Label, VALLEY.Rooms[2].Text = "La Geoda", "SALA 2 · LA GEODA", "El Gólem Guardián"
@@ -240,6 +252,7 @@ CALDERA.Name = "Forja de Magma"
 CALDERA.Icon = "🔥"
 CALDERA.Zone = "EmberCaldera"
 CALDERA.Subtitle = "Chorros de lava, el Gólem del Horno y el corazón del Titán"
+CALDERA.Decor = "Magma"
 CALDERA.Entrance = mound(615)
 CALDERA.Rooms[1].Name, CALDERA.Rooms[1].Label, CALDERA.Rooms[1].Text = "La Fragua", "SALA 1 · LA FRAGUA", "Chispas · ¡cuidado con la lava!"
 CALDERA.Rooms[2].Name, CALDERA.Rooms[2].Label, CALDERA.Rooms[2].Text = "El Horno", "SALA 2 · EL HORNO", "El Gólem del Horno"
@@ -272,6 +285,7 @@ TUNDRA.Name = "Gruta Glacial"
 TUNDRA.Icon = "❄️"
 TUNDRA.Zone = "FrozenTundra"
 TUNDRA.Subtitle = "Carámbanos que caen, el Yeti Ancestral y el trono del Gólem de Hielo"
+TUNDRA.Decor = "Ice"
 TUNDRA.Entrance = mound(935)
 TUNDRA.Rooms[1].Name, TUNDRA.Rooms[1].Label, TUNDRA.Rooms[1].Text = "La Escarcha", "SALA 1 · LA ESCARCHA", "Lobos · ¡cuidado con los carámbanos!"
 TUNDRA.Rooms[2].Name, TUNDRA.Rooms[2].Label, TUNDRA.Rooms[2].Text = "El Glaciar", "SALA 2 · EL GLACIAR", "El Yeti Ancestral"
@@ -298,11 +312,61 @@ TUNDRA.Theme = {
 	Tint = { Brightness = 0, Contrast = 0.06, Saturation = -0.05, TintColor = RGB(232, 244, 255) },
 }
 
+-- Mundo 2 · Tierras Divididas: Grieta Elemental ---------------------------------------------
+-- La misma cueva movida en Z hasta (casi) la altura de su zona: 296 menos (en bordes de bloque;
+-- su centro está 295 por debajo del del Bosque). Así sus bichos y círculos tienen los Offset
+-- de la del Bosque con X - 2000 (su zona está en X = 2000) e Y - 1. La boca, al norte del mapa:
+-- el montículo al este de la plazoleta del final de la avenida, mirando a ella.
+
+local DIVIDED = shifted(FOREST, -296)
+DIVIDED.Name = "Grieta Elemental"
+DIVIDED.Icon = "⚖️"
+DIVIDED.Zone = "DividedLands"
+DIVIDED.Subtitle = "Una sala de fuego, una de hielo y las Oleadas Gemelas de Ignis y Glacius"
+DIVIDED.Decor = "Split" -- fuego a un lado de la entrada y hielo al otro
+DIVIDED.Entrance = moundAt(2036, -412)
+DIVIDED.Rooms[1].Name, DIVIDED.Rooms[1].Label, DIVIDED.Rooms[1].Text = "La Fragua Partida", "SALA 1 · LA FRAGUA PARTIDA", "Espíritus de brasa · ¡cuidado con la lava!"
+DIVIDED.Rooms[2].Name, DIVIDED.Rooms[2].Label, DIVIDED.Rooms[2].Text = "El Glaciar Roto", "SALA 2 · EL GLACIAR ROTO", "El Guardián de la Grieta · ¡cuidado con el hielo!"
+DIVIDED.Rooms[3].Name, DIVIDED.Rooms[3].Label, DIVIDED.Rooms[3].Text = "El Corazón Dividido", "SALA 3 · EL CORAZÓN DIVIDIDO", "Oleadas Gemelas: Ignis y Glacius"
+DIVIDED.Rooms[1].Crystal, DIVIDED.Rooms[1].Mushroom = { RGB(255, 120, 40), RGB(255, 200, 80) }, { RGB(255, 120, 40), RGB(255, 220, 110) }
+DIVIDED.Rooms[2].Crystal, DIVIDED.Rooms[2].Mushroom = { RGB(110, 200, 255), RGB(220, 245, 255) }, { RGB(120, 210, 255), RGB(230, 245, 255) }
+DIVIDED.Rooms[3].Crystal, DIVIDED.Rooms[3].Mushroom = { RGB(255, 130, 40), RGB(110, 210, 255) }, { RGB(255, 150, 60), RGB(130, 220, 255) }
+DIVIDED.Gates[1].Kills, DIVIDED.Gates[1].Opens, DIVIDED.Gates[1].Enemies = 30, "el Glaciar Roto", "Espíritus"
+DIVIDED.Gates[2].Kills, DIVIDED.Gates[2].Opens, DIVIDED.Gates[2].Enemies = 1, "el Corazón Dividido", "Guardián de la Grieta"
+DIVIDED.Gates[2].MiniBoss = true
+DIVIDED.Gates[2].Ask = "Derrota al Guardián de la Grieta"
+DIVIDED.Strength = { Health = 3.6, Damage = 2.8, Reward = 2.8 }
+DIVIDED.MiniBoss = { Type = "LavaBrute", Name = "👑 Guardián de la Grieta", Position = Vector3.new(-1084, 0, 12 - 296), Health = 1.6, Damage = 1.5, Reward = 6, Scale = 1.9 }
+DIVIDED.EliteChance = 0.45
+-- Trampas: chorros de lava en la sala de fuego y carámbanos en la de hielo (RoomKinds: lo que
+-- cambia en cada sala, por su número dentro de la cueva)
+DIVIDED.Traps = {
+	Kind = "Lava",
+	Name = "Lava y hielo",
+	Interval = { 4, 6 },
+	Warning = 1.0,
+	Radius = 7,
+	Spread = 4,
+	Damage = 0.26,
+	Color = RGB(255, 110, 30),
+	RoomKinds = { [2] = { Kind = "Ice", Color = RGB(150, 220, 255) } },
+}
+DIVIDED.Theme = {
+	Stone = { RGB(92, 76, 108), RGB(78, 64, 94) },
+	Rock = { RGB(110, 92, 128), RGB(94, 78, 112) },
+	Dark = { RGB(66, 54, 80), RGB(54, 44, 66) },
+	Shaft = RGB(240, 220, 255),
+	Portal = RGB(255, 170, 90),
+	Mist = RGB(200, 140, 255),
+	Tint = { Brightness = -0.01, Contrast = 0.08, Saturation = 0.04, TintColor = RGB(248, 238, 255) },
+}
+
 -- Todas -------------------------------------------------------------------------------------
 
 local CaveConfig = {
-	Order = { "Forest", "CrystalValley", "EmberCaldera", "FrozenTundra" },
-	Caves = { Forest = FOREST, CrystalValley = VALLEY, EmberCaldera = CALDERA, FrozenTundra = TUNDRA },
+	-- La del Mundo 2 va la última: el progreso de las puertas se guarda por su número
+	Order = { "Forest", "CrystalValley", "EmberCaldera", "FrozenTundra", "DividedLands" },
+	Caves = { Forest = FOREST, CrystalValley = VALLEY, EmberCaldera = CALDERA, FrozenTundra = TUNDRA, DividedLands = DIVIDED },
 	-- Distancia en Z entre las cuevas (la de los centros de las zonas)
 	Shift = 320,
 

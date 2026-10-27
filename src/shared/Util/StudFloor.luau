@@ -465,7 +465,9 @@ StudFloor.Zones = {
 	-- Mundo 2: el pueblo nuevo, lejos de todo (centro (2000, 0); World2Service). Plaza con los
 	-- cuatro puestos, el Jardín Celestial con 3 huevos al norte y la avenida al portal de vuelta
 	-- al Mundo 1 al sur (donde se llega). Cerrado por todos los lados con terrazas (CloseNorth y
-	-- CloseSouth). CenterX: el borde a medida (Outline) es simétrico respecto a esta X.
+	-- CloseSouth), salvo el paso del norte (la primera fila del borde, entre las terrazas) que
+	-- lleva a la puerta de las Tierras Divididas (Z = -160). CenterX: el borde a medida
+	-- (Outline) es simétrico respecto a esta X.
 	World2 = {
 		CenterX = 2000,
 		MinX = 1876,
@@ -488,6 +490,7 @@ StudFloor.Zones = {
 			Top = { StudFloor.Palette.GreenLight, StudFloor.Palette.GreenDark },
 		},
 		Outline = {
+			{ -164, -124, 28 }, -- paso del norte entre las terrazas, hasta la puerta
 			{ -124, -116, 60 },
 			{ -116, -108, 84 },
 			{ -108, -100, 100 },
@@ -515,8 +518,83 @@ StudFloor.Zones = {
 			{ 1964, 2036, -92, -28 }, -- Jardín Celestial (3 huevos)
 			{ 1988, 2012, 28, 76 }, -- avenida al portal de vuelta (aquí se llega)
 			{ 1972, 2028, 76, 116 }, -- plazoleta del portal de vuelta al Mundo 1
+			{ 1972, 2028, -164, -92 }, -- paso del norte: del Jardín a la puerta de las Tierras Divididas
 		},
 		DecorSeed = 7079,
+	},
+
+	-- Mundo 2, zona 1: Tierras Divididas (centro (2000, -320); DividedLandsService), al norte del
+	-- pueblo. La mitad oeste es un volcán (colores de la Caldera) y la mitad este un glaciar (los
+	-- de la Tundra): Split. Se entra por el paso del sur (la puerta está en Z = -160); en medio,
+	-- el Altar del Equilibrio (oleadas) y, al norte, la boca de la Grieta Elemental (mazmorra).
+	DividedLands = {
+		CenterX = 2000,
+		MinX = 1876,
+		MaxX = 2124,
+		MinZ = -444,
+		MaxZ = -204,
+		Colors = {
+			GroundA = RGB(214, 114, 68),
+			GroundB = RGB(188, 94, 52),
+			Path = RGB(186, 160, 142),
+			Border = RGB(106, 66, 50),
+		},
+		GrassTexture = "rbxassetid://102514480123144",
+		PathTexture = "rbxassetid://75893954638467",
+		Split = {
+			X = 2000,
+			Colors = {
+				GroundA = RGB(236, 242, 250),
+				GroundB = RGB(222, 232, 246),
+				Path = RGB(150, 204, 240),
+				Border = RGB(82, 128, 190),
+			},
+			GrassTexture = "rbxassetid://110463584344376",
+			GrassTile = 16,
+			GrassTint = RGB(245, 250, 255),
+			PathTexture = StudFloor.StudTexture,
+		},
+		Walls = {
+			North = false,
+			South = false,
+			Base = { RGB(132, 84, 64), RGB(106, 66, 50) },
+			Top = { RGB(214, 114, 68), RGB(188, 94, 52) },
+		},
+		Outline = {
+			{ -444, -436, 60 },
+			{ -436, -428, 84 },
+			{ -428, -420, 100 },
+			{ -420, -404, 108 },
+			{ -404, -244, 116 },
+			{ -244, -228, 108 },
+			{ -228, -220, 100 },
+			{ -220, -212, 84 },
+			{ -212, -204, 60 },
+			{ -204, -164, 28 }, -- paso del sur entre las terrazas, hasta la puerta del pueblo
+		},
+		-- Terrazas de roca volcánica al oeste y de hielo al este (East), cerradas por los dos lados
+		Hill = {
+			Extend = 32,
+			CloseNorth = true,
+			CloseSouth = true,
+			Terraces = {
+				{ Height = 12, Colors = { RGB(168, 104, 78), RGB(154, 92, 68) }, East = { RGB(238, 244, 250), RGB(226, 236, 246) } },
+				{ Height = 28, Colors = { RGB(132, 78, 58), RGB(118, 68, 50) }, East = { RGB(206, 224, 242), RGB(190, 212, 236) } },
+				{ Height = 48, Colors = { RGB(98, 58, 46), RGB(86, 50, 40) }, East = { RGB(160, 190, 226), RGB(146, 178, 218) } },
+				{ Height = 72, Colors = { RGB(70, 42, 36), RGB(60, 36, 30) }, East = { RGB(120, 150, 200), RGB(108, 138, 190) } },
+				{ Height = 104, Colors = { RGB(44, 28, 26), RGB(36, 22, 20) }, East = { RGB(86, 108, 160), RGB(76, 96, 146) } },
+			},
+		},
+		Paths = {
+			{ 1972, 2028, -244, -164 }, -- llegada: el paso del sur y la plaza de la entrada
+			{ 1940, 1972, -244, -212 }, -- plazoleta oeste: el Brasero Eterno
+			{ 2028, 2060, -244, -212 }, -- plazoleta este: el Huevo del Equilibrio
+			{ 1988, 2012, -284, -244 }, -- avenida al altar
+			{ 1964, 2036, -364, -284 }, -- plaza del Altar del Equilibrio (oleadas)
+			{ 1988, 2012, -396, -364 }, -- avenida norte
+			{ 1972, 2028, -428, -396 }, -- plazoleta de la Grieta Elemental (la boca, al este)
+		},
+		DecorSeed = 8080,
 	},
 }
 

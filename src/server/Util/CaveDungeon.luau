@@ -582,8 +582,8 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 				crystals(x, z, room.Crystal[index % #room.Crystal + 1], 0.9, 18)
 			end
 		end
-	elseif room.Id == "Nest" and cave.Id == "EmberCaldera" then
-		-- Charcos de lava con su borde de roca
+	elseif room.Id == "Nest" and (cave.Id == "EmberCaldera" or cave.Id == "DividedLands") then
+		-- Charcos de lava con su borde de roca (también la sala de fuego de la Grieta Elemental)
 		for _ = 1, 4 do
 			local x, z = spot(4.5, false, false)
 			if x and z then
@@ -601,7 +601,7 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 				smoke.Parent = pool
 			end
 		end
-	elseif room.Id == "Nest" and cave.Id == "FrozenTundra" then
+	elseif (room.Id == "Nest" and cave.Id == "FrozenTundra") or (room.Id == "Gallery" and cave.Id == "DividedLands") then
 		-- Montones de nieve con pinchos de hielo y carámbanos colgando del techo
 		for index = 1, 5 do
 			local x, z = spot(4, false, true)
@@ -675,8 +675,8 @@ local function decorate(folder: Instance, room, roomIndex: number, doors, roofY:
 			local stand = PartFactory.verticalCylinder(special, "Brasero", Vector3.new(x, floorTop + 1.6, z), 3.2, 2.6, DARK[1], Enum.Material.Slate, true)
 			stand.CastShadow = false
 			local bowl = PartFactory.verticalCylinder(special, "Cuenco", Vector3.new(x, floorTop + 3.5, z), 0.8, 4, RGB(54, 46, 44), Enum.Material.Metal, false)
-			-- En la Gruta Glacial, fuego azul
-			local icy = cave.Id == "FrozenTundra"
+			-- En la Gruta Glacial, fuego azul; en la Grieta Elemental, uno sí y otro no
+			local icy = cave.Id == "FrozenTundra" or (cave.Id == "DividedLands" and index % 2 == 0)
 			local flame = block(special, "Llama", Vector3.new(1.6, 1.6, 1.6), CFrame.new(x, floorTop + 4.4, z), if icy then RGB(110, 200, 255) else RGB(255, 160, 60), false)
 			glow(flame)
 			light(flame, if icy then RGB(140, 210, 255) else RGB(255, 170, 90), 24, 1.8)

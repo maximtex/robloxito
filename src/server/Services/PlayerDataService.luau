@@ -35,6 +35,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
 local WeaponLogic = require(Shared.WeaponLogic)
 local Constants = require(Shared.Constants)
@@ -562,7 +563,49 @@ local function onPlayerRemoving(player: Player)
 	end
 end
 
+-- Solo en Studio: herramienta para probar desde la barra de comandos (o el asistente):
+-- ServerStorage.DevTools:Invoke("Money", jugador, cantidad) le pone ese 💰 y
+-- ServerStorage.DevTools:Invoke("Zone", jugador, "DividedLands") le abre esa zona (sin pagar
+-- ni derrotar a su jefe, para ir directo a probarla). Es un
+-- BindableFunction (el cliente no puede llamarlo) y en una partida publicada no existe.
+-- En Studio sin acceso a la API el perfil no se guarda: dura lo que dura el Play.
+local MAX_DEV_MONEY = 1e15
+local function startDevTools()
+	pcall(function()
+		local ServerStorage = game:GetService("ServerStorage")
+		local tools = ServerStorage:FindFirstChild("DevTools")
+		if not (tools and tools:IsA("BindableFunction")) then
+			tools = Instance.new("BindableFunction")
+			tools.Name = "DevTools"
+		end
+		(tools :: BindableFunction).OnInvoke = function(action: any, player: any, value: any): any
+			local profile = if typeof(player) == "Instance" then profiles[player] else nil
+			if not profile then
+				return nil
+			end
+			if action == "Money" and type(value) == "number" and value == value and value >= 0 and value < MAX_DEV_MONEY then
+				profile.Money = math.floor(value)
+				PlayerDataService.replicate(player)
+				return profile.Money
+			end
+			if action == "Zone" and type(value) == "string" and ZoneConfig.Zones[value] ~= nil then
+				local unlocked = profile.PetData.UnlockedZones
+				if not table.find(unlocked, value) then
+					table.insert(unlocked, value)
+				end
+				PlayerDataService.replicate(player)
+				return true
+			end
+			return nil
+		end
+		tools.Parent = ServerStorage
+	end)
+end
+
 function PlayerDataService.start()
+	if RunService:IsStudio() then
+		startDevTools()
+	end
 	if DevConfig.TutorialSandbox == true then
 		if RunService:IsStudio() then
 			warn("[PlayerDataService] 🧪 MODO PRUEBA DEL TUTORIAL activo (DevConfig.TutorialSandbox): perfiles temporales, no se carga ni se guarda nada.")

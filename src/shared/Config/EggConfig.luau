@@ -212,6 +212,34 @@ local EggConfig = {
 				BaseColor = Color3.fromRGB(242, 48, 128),
 			},
 		},
+		-- Tierras Divididas (Mundo 2, zona 1): en la plazoleta del este de la llegada. Mascotas de
+		-- fuego y de hielo, y el dragón de los dos.
+		EquilibriumEgg = {
+			DisplayName = "Huevo del Equilibrio",
+			RarityTitle = "EQUILIBRIO",
+			TitleColor = Color3.fromRGB(255, 190, 120),
+			Enabled = true,
+			Order = 11,
+			Cost = 60000000,
+			RequiredLevel = 0,
+			Zone = "DividedLands",
+			RequiredZone = "DividedLands",
+			Chances = {
+				{ PetId = "MagmaFox", Chance = 50 },
+				{ PetId = "GlacierOwl", Chance = 38 },
+				{ PetId = "EquilibriumDragon", Chance = 12 },
+			},
+			StandOffset = Vector2.new(44, 92),
+			FaceToward = Vector2.new(0, 92),
+			Pedestal = "Arcoiris",
+			Look = {
+				Style = "Lightning",
+				Shell = Color3.fromRGB(255, 120, 40),
+				Spots = Color3.fromRGB(120, 210, 255),
+				Accent = Color3.fromRGB(255, 240, 220),
+				BaseColor = Color3.fromRGB(60, 40, 90),
+			},
+		},
 
 		ForestEgg = {
 			DisplayName = "COMÚN",

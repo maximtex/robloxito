@@ -13,6 +13,9 @@
 -- El Mundo 2 (World2) es un pueblo aparte, lejos (X = 2000): se llega por el portal gigante de
 -- la Fortaleza (WorldPortals), que solo se abre al derrotar al Rey Goblin (RequiredBoss sin
 -- precio: se desbloquea solo al matarlo, BossRewardService).
+-- Sus zonas van al NORTE del pueblo (en -Z), pegadas como las del Mundo 1:
+--   1. DividedLands (Tierras Divididas): Z = -480 .. -160 (centro Z = -320), mitad volcán y
+--      mitad glaciar; su puerta está en el paso del norte del Jardín Celestial.
 
 local ZoneConfig = {
 	DefaultZone = "Forest",
@@ -79,6 +82,19 @@ local ZoneConfig = {
 			ArrivalFacing = Vector3.new(0, 0, -1),
 			Radius = 160,
 		},
+		DividedLands = {
+			DisplayName = "Tierras Divididas",
+			World = 2,
+			-- Al norte del pueblo del Mundo 2 (Z = -480..-160, centro (2000, -320) del mundo):
+			-- volcán al oeste, glaciar al este, el Altar del Equilibrio en medio (el Coloso que se
+			-- parte en dos) y la Grieta Elemental (mazmorra) al norte.
+			Center = Vector2.new(2000, -295),
+			UnlockCost = 20000000, -- 💰
+			RequiredBoss = "GoblinKing",
+			Arrival = Vector3.new(0, 0, 100),
+			ArrivalFacing = Vector3.new(0, 0, -1),
+			Radius = 160,
+		},
 	},
 
 	-- Puertas de energía: situadas exactamente en el paso abierto del muro divisorio entre mapas.
@@ -106,6 +122,14 @@ local ZoneConfig = {
 			Offset = Vector2.new(0, 160), -- frontera Z = 1120 entre la Tundra y la Fortaleza
 			Target = "GoblinFortress",
 			Style = "Goblin",
+		},
+		-- Mundo 2: al NORTE del pueblo (la frontera Z = -160), al final del paso del Jardín
+		-- Celestial. Se llega andando hacia -Z: su cartel mira al pueblo (ZoneService).
+		DividedPortal = {
+			Zone = "World2",
+			Offset = Vector2.new(0, -160),
+			Target = "DividedLands",
+			Style = "Divided",
 		},
 	},
 

@@ -967,6 +967,50 @@ function WaveController.start()
 		Debris:AddItem(ball, 0.4)
 	end
 
+	-- El Coloso del Equilibrio se parte en dos: estalla en una bola mitad fuego mitad hielo,
+	-- dos ondas (naranja y azul), destello, temblor y el aviso con los nombres de las mitades
+	local SPLIT_FIRE = Color3.fromRGB(255, 130, 40)
+	local SPLIT_ICE = Color3.fromRGB(110, 210, 255)
+	local function splitFx(position: Vector3, names: any)
+		for index, color in { SPLIT_FIRE, SPLIT_ICE } do
+			local ball = Instance.new("Part")
+			ball.Shape = Enum.PartType.Ball
+			ball.Anchored = true
+			ball.CanCollide = false
+			ball.CanQuery = false
+			ball.CanTouch = false
+			ball.CastShadow = false
+			ball.Material = Enum.Material.Neon
+			ball.Color = color
+			ball.Transparency = 0.2
+			ball.Size = Vector3.one * 4
+			ball.CFrame = CFrame.new(position + Vector3.new((index - 1.5) * 6, 2, 0))
+			ball.Parent = fxFolder
+			TweenService:Create(ball, TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = Vector3.one * 34,
+				Transparency = 1,
+			}):Play()
+			Debris:AddItem(ball, 0.8)
+			WaveFx.ring(position, color, 6, 70, 1.2, 0.1)
+		end
+		WaveFx.sparkle(position + Vector3.new(0, 4, 0), SPLIT_FIRE, 30)
+		WaveFx.sparkle(position + Vector3.new(0, 4, 0), SPLIT_ICE, 30)
+		WaveFx.sound("BossGong")
+		WaveFx.sound("BossRoar", 0.8, 0.2)
+		WaveFx.flash(Color3.new(1, 1, 1), 0.8)
+		WaveFx.shake(0.8)
+		WaveFx.kick(9)
+		local text = '<font size="44">💥 ¡EL COLOSO SE PARTE EN DOS!</font>'
+		if type(names) == "table" and #names >= 2 then
+			-- Solo el nombre corto ("Ignis, el Coloso de Fuego" -> "Ignis")
+			local first = string.match(tostring(names[1]), "^[^,]+") or ""
+			local second = string.match(tostring(names[2]), "^[^,]+") or ""
+			text ..= ('\n<font size="34">🔥 %s  ·  ❄️ %s</font>'):format(first, second)
+		end
+		ui.Announce.RichText = true
+		announce(text, THEME.Gold, 2.6)
+	end
+
 	-- Eventos del servidor --------------------------------------------------------------
 	local function onState(state: any)
 		if type(state) ~= "table" or type(state.Run) ~= "number" then
@@ -1047,6 +1091,8 @@ function WaveController.start()
 		elseif kind == "Fx" then
 			if type(data) == "table" and data.Kind == "Explode" and typeof(data.Position) == "Vector3" then
 				explosion(data.Position, tonumber(data.Radius) or 6)
+			elseif type(data) == "table" and data.Kind == "Split" and typeof(data.Position) == "Vector3" then
+				splitFx(data.Position, data.Names)
 			end
 		elseif kind == "Chest" then
 			WaveChest.show(data) -- cofre de victoria de las mazmorras

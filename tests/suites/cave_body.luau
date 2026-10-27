@@ -26,8 +26,8 @@ end
 local base = GeneratorConfig.Position
 local rooms, corridors, gates = CaveConfig.Rooms, CaveConfig.Corridors, CaveConfig.Gates
 
-print("-- Las cuatro mazmorras")
-local orderOK = #CaveConfig.Order == 4 and CaveConfig.Order[1] == "Forest" and CaveConfig.Order[4] == "FrozenTundra"
+print("-- Las cinco mazmorras")
+local orderOK = #CaveConfig.Order == 5 and CaveConfig.Order[1] == "Forest" and CaveConfig.Order[4] == "FrozenTundra" and CaveConfig.Order[5] == "DividedLands"
 local zonesSeen = {}
 for _, caveId in CaveConfig.Order do
 	local cave = CaveConfig.Caves[caveId]
@@ -35,9 +35,9 @@ for _, caveId in CaveConfig.Order do
 		and type(cave.Name) == "string" and type(cave.Icon) == "string" and type(cave.Subtitle) == "string" and cave.Theme ~= nil and cave.Theme.Tint ~= nil
 	zonesSeen[cave.Zone] = true
 end
-check("una mazmorra por zona (Bosque, Valle, Caldera y Tundra), con nombre, icono y colores", orderOK)
+check("una mazmorra por zona (Bosque, Valle, Caldera, Tundra y Tierras Divididas), con nombre, icono y colores", orderOK)
 check("listas planas: 3 salas, 2 pasillos, 2 puertas y 2 salidas por cueva; las del Bosque primero",
-	#rooms == 12 and #corridors == 8 and #gates == 8 and #CaveConfig.Exits == 8 and rooms[1].Cave == "Forest" and rooms[4].Cave == "CrystalValley" and gates[3].Cave == "CrystalValley" and gates[5].Cave == "EmberCaldera" and gates[7].Cave == "FrozenTundra" and rooms[10].Cave == "FrozenTundra")
+	#rooms == 15 and #corridors == 10 and #gates == 10 and #CaveConfig.Exits == 10 and rooms[1].Cave == "Forest" and rooms[4].Cave == "CrystalValley" and gates[3].Cave == "CrystalValley" and gates[5].Cave == "EmberCaldera" and gates[7].Cave == "FrozenTundra" and rooms[10].Cave == "FrozenTundra" and gates[9].Cave == "DividedLands" and rooms[13].Cave == "DividedLands")
 local apartOK = true
 for i = 1, #rooms do
 	for j = i + 1, #rooms do
@@ -134,9 +134,10 @@ for _, caveId in CaveConfig.Order do
 	local foundId, found = CaveLogic.caveAt((midRoom.MinX + midRoom.MaxX) / 2, (midRoom.MinZ + midRoom.MaxZ) / 2)
 	check("fuera de los cuadrados de las zonas y lejos de todo; caveAt la reconoce", farOK and foundId == caveId and found == cave)
 	-- Misma forma que la del Bosque, movida en Z lo que se separan los centros de las zonas
+	-- (redondeado a bordes de bloque: el Mundo 2 no cae en múltiplos de 8)
 	local forest = CaveConfig.Caves.Forest
 	local forestZone = ZoneConfig.Zones[forest.Zone]
-	local dz = zone.Center.Y - forestZone.Center.Y
+	local dz = B * math.floor((zone.Center.Y - forestZone.Center.Y) / B + 0.5)
 	local sameOK = true
 	for index, room in localRooms do
 		local f = forest.Rooms[index].Rect
@@ -240,7 +241,7 @@ for _, caveId in CaveConfig.Order do
 	-- Oleadas del altar de su zona, dentro de la sala 3
 	local placeOK, place = false, nil
 	for _, settings in WaveConfig.Places do
-		if settings.Zone == cave.Zone and not settings.Practice then
+		if settings.Zone == cave.Zone and settings.Cave and not settings.Practice then
 			place = settings
 		end
 	end
@@ -307,12 +308,12 @@ check("los élite son más grandes, tienen más vida y dan más botín", elite.S
 print("-- Puertas (lógica)")
 check("15 pequeños abren la Galería y 6 brutos el Altar", gates[1].Kills == 15 and gates[1].Room == 1 and gates[2].Kills == 6 and gates[2].Room == 2)
 local progress = CaveLogic.sanitizeProgress(nil)
-check("sin datos: todas cerradas y con un número por puerta (las de las cuatro cuevas)", #progress == #gates and #progress == 8 and progress[1] == 0 and not CaveLogic.isOpen(progress, 1) and not CaveLogic.isOpen(progress, 4))
+check("sin datos: todas cerradas y con un número por puerta (las de las cinco cuevas)", #progress == #gates and #progress == 10 and progress[1] == 0 and not CaveLogic.isOpen(progress, 1) and not CaveLogic.isOpen(progress, 4))
 check("datos raros: se limpian y no pasan del tope", CaveLogic.sanitizeProgress({ 999, -3 })[1] == 15 and CaveLogic.sanitizeProgress({ 999, -3 })[2] == 0
 	and CaveLogic.sanitizeProgress("x")[1] == 0 and CaveLogic.sanitizeProgress({ 0 / 0, 2.7 })[2] == 2 and CaveLogic.sanitizeProgress({ ["1"] = 4 })[1] == 4)
 local old = CaveLogic.sanitizeProgress({ 15, 6 })
-check("una partida de antes (solo la cueva del Bosque) conserva sus puertas y las nuevas empiezan cerradas", old[1] == 15 and old[2] == 6 and old[3] == 0 and old[8] == 0 and #old == 8)
-check("atributo de ida y vuelta", CaveLogic.formatProgress({ 15, 3 }) == "15,3,0,0,0,0,0,0" and CaveLogic.parseProgress("15,3")[2] == 3 and CaveLogic.parseProgress(nil)[1] == 0 and CaveLogic.parseProgress("a,b")[1] == 0)
+check("una partida de antes (solo la cueva del Bosque) conserva sus puertas y las nuevas empiezan cerradas", old[1] == 15 and old[2] == 6 and old[3] == 0 and old[10] == 0 and #old == 10)
+check("atributo de ida y vuelta", CaveLogic.formatProgress({ 15, 3 }) == "15,3,0,0,0,0,0,0,0,0" and CaveLogic.parseProgress("15,3")[2] == 3 and CaveLogic.parseProgress(nil)[1] == 0 and CaveLogic.parseProgress("a,b")[1] == 0)
 local function center(r)
 	return (r.MinX + r.MaxX) / 2, (r.MinZ + r.MaxZ) / 2
 end

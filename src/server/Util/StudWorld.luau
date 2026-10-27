@@ -100,9 +100,16 @@ end
 -- Suelo: damero de losetas de 4x4 (layout.GrassTexture) en todo el mapa y, sobre los
 -- caminos, su color con un borde de 1 stud donde tocan el damero, como la muestra. Los
 -- caminos sobresalen StudFloor.PathRaise y el borde enseña su color en el escalón.
+-- layout.Split (mapas de dos mitades, p. ej. fuego y hielo): de Split.X hacia el este, el
+-- suelo y los caminos llevan los colores y texturas de Split (Colors, GrassTexture, GrassTile,
+-- GrassTint, PathTexture, PathTint).
 function StudWorld.buildFloor(parent: Instance, layout)
 	local folder = PartFactory.folder(parent, StudFloor.FolderName)
 	local colors = layout.Colors
+	local split = layout.Split
+	local function east(x: number): boolean
+		return split ~= nil and x >= split.X
+	end
 	local B = StudFloor.BlockSize
 	local S = StudFloor.BorderWidth
 	local thickness = StudFloor.BaseThickness
@@ -169,15 +176,16 @@ function StudWorld.buildFloor(parent: Instance, layout)
 			local cz = minZ + (j - 0.5) * B
 			local inside = cx > layout.MinX and cx < layout.MaxX and cz > layout.MinZ and cz < layout.MaxZ
 			if inside and not onPath(cx, cz) then
-				cells[i][j] = 1
+				cells[i][j] = if east(cx) then 3 else 1
 			end
 		end
 	end
 	local groundCount = 0
-	mergeRects(cells, cellCols, cellRows, function(i, j, w, h)
+	mergeRects(cells, cellCols, cellRows, function(i, j, w, h, v)
 		groundCount += 1
 		local x0, z0 = minX + (i - 1) * B, minZ + (j - 1) * B
-		makePart(("Suelo_%d"):format(groundCount), x0, x0 + w * B, z0, z0 + h * B, colors.GroundA, layout.GrassTexture, layout.GrassTile or StudFloor.GrassTile, 0, layout.GrassTint)
+		local look = if v == 3 then split else layout
+		makePart(("Suelo_%d"):format(groundCount), x0, x0 + w * B, z0, z0 + h * B, look.Colors.GroundA, look.GrassTexture, look.GrassTile or StudFloor.GrassTile, 0, look.GrassTint)
 	end)
 
 	-- 2. Caminos en una rejilla de S x S studs (1 = camino, 2 = borde). Una casilla del anillo
@@ -202,7 +210,7 @@ function StudWorld.buildFloor(parent: Instance, layout)
 						local edge = (dx ~= 0 and not onPath(cx + dx * B, cz))
 							or (dz ~= 0 and not onPath(cx, cz + dz * B))
 							or (dx ~= 0 and dz ~= 0 and not onPath(cx + dx * B, cz + dz * B))
-						grid[i0 + a + 1][j0 + b + 1] = if edge then 2 else 1
+						grid[i0 + a + 1][j0 + b + 1] = (if edge then 2 else 1) + (if east(cx) then 2 else 0)
 					end
 				end
 			end
@@ -213,18 +221,20 @@ function StudWorld.buildFloor(parent: Instance, layout)
 	mergeRects(grid, cols, rows, function(i, j, w, h, v)
 		count += 1
 		local x0, z0 = minX + (i - 1) * S, minZ + (j - 1) * S
-		local isBorder = v == 2
+		local isBorder = v == 2 or v == 4
+		local look = if v >= 3 then split else layout
+		local palette = if v >= 3 then split.Colors else colors
 		makePart(
 			(if isBorder then "Borde_%d" else "Camino_%d"):format(count),
 			x0,
 			x0 + w * S,
 			z0,
 			z0 + h * S,
-			if isBorder then colors.Border else colors.Path,
-			if isBorder then StudFloor.StudTexture else layout.PathTexture,
+			if isBorder then palette.Border else palette.Path,
+			if isBorder then StudFloor.StudTexture else look.PathTexture,
 			StudFloor.PathTile,
 			StudFloor.PathRaise,
-			if isBorder then nil else layout.PathTint
+			if isBorder then nil else look.PathTint
 		)
 	end)
 end
@@ -534,10 +544,12 @@ local function buildTerraces(folder: Instance, layout): { { Position: Vector3, R
 			if h and h > 0 then
 				local r = math.min(if inChannel(j) then #terraces else ring[key(i, j)], #terraces)
 				local spec = terraces[r]
+				-- Mapas de dos mitades (layout.Split): del lado este, los colores East del escalón
+				local tones = if layout.Split and i * B >= layout.Split.X and spec.East then spec.East else spec.Colors
 				local part = PartFactory.part(hill, "terraza_" .. key(i, j), {
 					Size = Vector3.new(B, h, B),
 					CFrame = CFrame.new(i * B, GROUND + h / 2, j * B),
-					Color = spec.Colors[(i + j) % 2 + 1],
+					Color = tones[(i + j) % 2 + 1],
 					Material = Enum.Material.Plastic,
 					Solid = true,
 				})

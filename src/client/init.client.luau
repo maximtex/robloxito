@@ -36,6 +36,7 @@ local WorldPromptController = require(script.Controllers.WorldPromptController)
 local DayNightController = require(script.Controllers.DayNightController)
 local AmbientController = require(script.Controllers.AmbientController)
 local CaveController = require(script.Controllers.CaveController)
+local DungeonGates = require(script.Controllers.DungeonGates)
 local ChestController = require(script.Controllers.ChestController)
 local LeaderboardController = require(script.Controllers.LeaderboardController)
 
@@ -72,6 +73,7 @@ WorldPromptController.start() -- avisos del pueblo que abren Tienda, Premios y M
 DayNightController.start() -- ciclo de día y noche (misma hora para todos)
 AmbientController.start() -- pájaros, mariposas, luciérnagas y sonido del bosque
 task.spawn(CaveController.start) -- Cueva de los Espinillos: fundido al entrar y salir, cartel de cada sala y eco
+DungeonGates.start() -- la gema y el aro de luz de las entradas de las mazmorras giran
 task.spawn(ChestController.start) -- cofres escondidos: abiertos o cerrados para este jugador
 LeaderboardController.start() -- tu fila en las tablas de clasificación
 -- Solo en Studio: lista (sin tocar) objetos de Workspace que el juego no crea.

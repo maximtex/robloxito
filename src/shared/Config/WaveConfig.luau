@@ -105,6 +105,26 @@ local WaveConfig = {
 			LeashRadius = 72,
 			InsideRadius = 64,
 		},
+		-- Mundo 2 · Tierras Divididas: el Altar del Equilibrio, al aire libre en el centro del
+		-- mapa (donde se juntan el volcán y el glaciar). Al final, el Coloso del Equilibrio, que
+		-- se parte en dos (EnemyConfig.Types.EquilibriumColossus.Split).
+		DividedLands = {
+			Zone = "DividedLands",
+			Offset = Vector2.new(0, -4),
+			Arena = "DividedLands",
+		},
+		-- Y la sala 3 de su mazmorra, la Grieta Elemental (CaveConfig.Caves.DividedLands; la cueva
+		-- del Bosque movida a esta zona: X - 2000, Y - 1): las Oleadas Gemelas.
+		DividedLandsCave = {
+			Zone = "DividedLands",
+			Offset = Vector2.new(-3220, 4),
+			Arena = "DividedLandsCave",
+			Cave = true,
+			SpawnPoints = CAVE_SPAWN_POINTS,
+			SpawnJitter = 2.5,
+			LeashRadius = 72,
+			InsideRadius = 64,
+		},
 	},
 
 	-- Modos de partida. Cada altar juega el de su círculo (Places.*.Arena); el de la práctica
@@ -234,6 +254,68 @@ local WaveConfig = {
 			EliteChance = 0.15,
 			EliteMax = 10,
 			Chest = { Money = 70000, PotionChance = 0.6 },
+		},
+		-- Mundo 2: bichos de fuego y de hielo a la vez y, en la última, el Coloso del Equilibrio
+		-- (mitad fuego, mitad hielo): a la mitad de su vida se parte en Ignis y Glacius; se gana
+		-- al derrotar a los dos.
+		DividedLands = {
+			Place = "DividedLands",
+			Zone = "DividedLands",
+			DisplayName = "Oleadas del Equilibrio",
+			Boss = "EquilibriumColossus",
+			BossOnlyInWaves = true,
+			Pool = { EmberWisp = 60, FrostWisp = 60, LavaBrute = 18, FrostBrute = 18, EquilibriumColossus = 6, IgnisColossus = 6, GlaciusColossus = 6 },
+			-- Oleadas 1..11 y la 12, el Coloso
+			Waves = {
+				{ EmberWisp = 5, FrostWisp = 5 },
+				{ EmberWisp = 6, FrostWisp = 6 },
+				{ EmberWisp = 6, FrostWisp = 6, LavaBrute = 1 },
+				{ EmberWisp = 7, FrostWisp = 7, FrostBrute = 1 },
+				{ EmberWisp = 7, FrostWisp = 7, LavaBrute = 1, FrostBrute = 1 },
+				{ EmberWisp = 8, FrostWisp = 8, LavaBrute = 2, FrostBrute = 1 },
+				{ EmberWisp = 8, FrostWisp = 8, LavaBrute = 1, FrostBrute = 2 },
+				{ EmberWisp = 9, FrostWisp = 9, LavaBrute = 2, FrostBrute = 2 },
+				{ EmberWisp = 10, FrostWisp = 10, LavaBrute = 3, FrostBrute = 2 },
+				{ EmberWisp = 10, FrostWisp = 10, LavaBrute = 2, FrostBrute = 3 },
+				{ EmberWisp = 11, FrostWisp = 11, LavaBrute = 3, FrostBrute = 3 },
+			},
+			BossEscort = { EmberWisp = 4, FrostWisp = 4 },
+			RewardScale = 40,
+			EliteChance = 0.15,
+			EliteMax = 10,
+			Chest = { Money = 300000, PotionChance = 0.7 },
+		},
+		-- La Grieta Elemental (sala 3 de su mazmorra): más oleadas, más élites y, al final, Ignis
+		-- y Glacius juntos desde el principio (SplitAtStart: el Coloso ya llega partido).
+		DividedLandsCave = {
+			Place = "DividedLandsCave",
+			Zone = "DividedLands",
+			DisplayName = "Oleadas Gemelas",
+			Boss = "EquilibriumColossus",
+			SplitAtStart = true,
+			Pool = { EmberWisp = 70, FrostWisp = 70, LavaBrute = 24, FrostBrute = 24, EquilibriumColossus = 6, IgnisColossus = 6, GlaciusColossus = 6 },
+			-- Oleadas 1..14 y la 15, los gemelos
+			Waves = {
+				{ EmberWisp = 8 },
+				{ FrostWisp = 8 },
+				{ EmberWisp = 6, FrostWisp = 6, LavaBrute = 1 },
+				{ EmberWisp = 6, FrostWisp = 6, FrostBrute = 1 },
+				{ EmberWisp = 8, FrostWisp = 8, LavaBrute = 1, FrostBrute = 1 },
+				{ EmberWisp = 12, LavaBrute = 3 },
+				{ FrostWisp = 12, FrostBrute = 3 },
+				{ EmberWisp = 9, FrostWisp = 9, LavaBrute = 2, FrostBrute = 2 },
+				{ EmberWisp = 10, FrostWisp = 10, LavaBrute = 3, FrostBrute = 2 },
+				{ EmberWisp = 10, FrostWisp = 10, LavaBrute = 2, FrostBrute = 3 },
+				{ EmberWisp = 11, FrostWisp = 11, LavaBrute = 3, FrostBrute = 3 },
+				{ EmberWisp = 12, FrostWisp = 12, LavaBrute = 4, FrostBrute = 3 },
+				{ EmberWisp = 12, FrostWisp = 12, LavaBrute = 3, FrostBrute = 4 },
+				{ EmberWisp = 14, FrostWisp = 14, LavaBrute = 4, FrostBrute = 4 },
+			},
+			BossEscort = { EmberWisp = 5, FrostWisp = 5, LavaBrute = 1, FrostBrute = 1 },
+			RewardScale = 60,
+			EliteChance = 0.25,
+			EliteMax = 14,
+			Chest = { Money = 600000, PotionChance = 0.8 },
 		},
 		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla, en el altar de
 		-- la pradera (Places.Practice).

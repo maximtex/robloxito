@@ -137,7 +137,7 @@ local function setFade(shown: boolean, seconds: number)
 	end
 end
 
-local ZONE_ICONS = { Forest = "🌲", CrystalValley = "💎", EmberCaldera = "🌋", FrozenTundra = "❄️", GoblinFortress = "🏰", World2 = "🌍" }
+local ZONE_ICONS = { Forest = "🌲", CrystalValley = "💎", EmberCaldera = "🌋", FrozenTundra = "❄️", GoblinFortress = "🏰", World2 = "🌍", DividedLands = "⚖️" }
 
 local function onFade(data)
 	fadeToken += 1

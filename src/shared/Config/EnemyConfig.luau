@@ -325,6 +325,151 @@ local EnemyConfig = {
 			Scale = 1.45, -- enorme: casi 30 studs de alto (EnemyService lo agranda al crearlo)
 			Look = { Style = "GoblinKing", Primary = Color3.fromRGB(104, 172, 64), Secondary = Color3.fromRGB(150, 40, 60), Eyes = Color3.fromRGB(255, 70, 50) },
 		},
+		-- Tierras Divididas (Mundo 2) -----------------------------------------------------------
+		-- Cada bicho tiene su gemelo del otro elemento: la misma forma con los colores opuestos.
+		-- Los de fuego viven en la mitad del volcán (oeste) y los de hielo en la del glaciar (este).
+		EmberWisp = {
+			DisplayName = "Espíritu de Brasa",
+			Kind = "Normal",
+			MaxHealth = 15000,
+			Damage = 18,
+			AttackRange = 4.5,
+			AttackCooldown = 1.2,
+			AttackWindup = 0.5,
+			WalkSpeed = 17,
+			DetectRange = 15,
+			LeashRange = 22,
+			Reward = 8000,
+			RespawnSeconds = 4,
+			Look = { Style = "Shard", Primary = Color3.fromRGB(255, 112, 36), Secondary = Color3.fromRGB(255, 220, 90), Eyes = Color3.fromRGB(120, 20, 10) },
+		},
+		FrostWisp = {
+			DisplayName = "Espíritu de Escarcha",
+			Kind = "Normal",
+			MaxHealth = 15000,
+			Damage = 18,
+			AttackRange = 4.5,
+			AttackCooldown = 1.2,
+			AttackWindup = 0.5,
+			WalkSpeed = 17,
+			DetectRange = 15,
+			LeashRange = 22,
+			Reward = 8000,
+			RespawnSeconds = 4,
+			Look = { Style = "Shard", Primary = Color3.fromRGB(110, 200, 255), Secondary = Color3.fromRGB(235, 250, 255), Eyes = Color3.fromRGB(20, 60, 140) },
+		},
+		LavaBrute = {
+			DisplayName = "Bruto de Lava",
+			Kind = "Strong",
+			MaxHealth = 60000,
+			Damage = 38,
+			AttackRange = 8,
+			AttackCooldown = 2.4,
+			AttackWindup = 0.9,
+			WalkSpeed = 13,
+			DetectRange = 15,
+			LeashRange = 22,
+			Reward = 26000,
+			RespawnSeconds = 6,
+			Look = { Style = "Golem", Material = "Basalt", Primary = Color3.fromRGB(78, 52, 46), Secondary = Color3.fromRGB(255, 120, 30), Eyes = Color3.fromRGB(255, 214, 90) },
+		},
+		FrostBrute = {
+			DisplayName = "Bruto de Escarcha",
+			Kind = "Strong",
+			MaxHealth = 60000,
+			Damage = 38,
+			AttackRange = 8,
+			AttackCooldown = 2.4,
+			AttackWindup = 0.9,
+			WalkSpeed = 13,
+			DetectRange = 15,
+			LeashRange = 22,
+			Reward = 26000,
+			RespawnSeconds = 6,
+			Look = { Style = "Golem", Material = "Glacier", Primary = Color3.fromRGB(176, 214, 242), Secondary = Color3.fromRGB(90, 200, 255), Eyes = Color3.fromRGB(230, 250, 255) },
+		},
+		-- Coloso del Equilibrio (jefe de las Tierras Divididas): gigante mitad fuego y mitad hielo
+		-- (Look.Split: su lado derecho lleva los colores del hielo). Sale en la última oleada del
+		-- Altar del Equilibrio (WaveConfig) y, al bajarle la mitad de la vida (Split), explota y
+		-- se parte en Ignis (fuego) y Glacius (hielo): hay que derrotar a los dos. Él no da
+		-- botín (se retira al partirse); lo dan los dos gemelos.
+		EquilibriumColossus = {
+			DisplayName = "Coloso del Equilibrio",
+			Kind = "Boss",
+			MaxHealth = 400000,
+			Damage = 40,
+			AttackRange = 12,
+			AttackCooldown = 2,
+			AttackWindup = 0.8,
+			WalkSpeed = 13,
+			DetectRange = 0, -- usa su arena (Zones.*.Boss.Arena)
+			LeashRange = 20,
+			Reward = 100000,
+			RespawnSeconds = 30,
+			Brain = { DetectRange = 40, Territory = 56, LockSeconds = 4, RecoverSeconds = 0.6 },
+			-- Embiste, lanza bolas mitad fuego mitad hielo y golpea el suelo
+			Charge = { Interval = 7, Telegraph = 0.9, Distance = 34, Width = 9, Damage = 44, Speed = 60, MinRange = 10, MaxRange = 36 },
+			Volley = { Interval = 6, Count = 6, Damage = 18, Speed = 55, Telegraph = 0.6, Range = 46, Radius = 3.4 },
+			Slam = { Interval = 7, Telegraph = 1.2, Radius = 17, Damage = 50 },
+			Enrage = { HealthFraction = 0.75, SpeedMultiplier = 1.2, SlamIntervalMultiplier = 0.8 },
+			-- Al llegar a esta parte de la vida se parte en estos dos, a Spread studs a cada lado
+			Split = { HealthFraction = 0.5, Into = { "IgnisColossus", "GlaciusColossus" }, Spread = 10 },
+			Scale = 1.7, -- enorme: más de 30 studs de alto
+			Look = {
+				Style = "Colossus",
+				Material = "CrackedLava",
+				Primary = Color3.fromRGB(150, 46, 26),
+				Secondary = Color3.fromRGB(255, 140, 40),
+				Eyes = Color3.fromRGB(255, 236, 160),
+				Split = { Material = "Ice", Primary = Color3.fromRGB(196, 228, 255), Secondary = Color3.fromRGB(90, 200, 255), Eyes = Color3.fromRGB(225, 250, 255) },
+			},
+		},
+		-- Las dos mitades del Coloso del Equilibrio. Ignis salta sobre ti y lanza fuego; Glacius
+		-- embiste sobre el hielo y lanza carámbanos. Cada uno da su botín y sus 💎.
+		IgnisColossus = {
+			DisplayName = "Ignis, el Coloso de Fuego",
+			Kind = "Boss",
+			MaxHealth = 220000,
+			Damage = 38,
+			AttackRange = 10,
+			AttackCooldown = 1.8,
+			AttackWindup = 0.75,
+			WalkSpeed = 15,
+			DetectRange = 0,
+			LeashRange = 20,
+			Reward = 150000,
+			EnergyReward = 4000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			RespawnSeconds = 30,
+			Brain = { DetectRange = 40, Territory = 56, LockSeconds = 3, RecoverSeconds = 0.5 },
+			Leap = { Interval = 7, Telegraph = 0.9, Radius = 11, Damage = 44, MinRange = 10, MaxRange = 36 },
+			Volley = { Interval = 5, Count = 5, Damage = 18, Speed = 55, Telegraph = 0.5, Range = 44, Radius = 3 },
+			Slam = { Interval = 7, Telegraph = 1.1, Radius = 14, Damage = 46 },
+			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
+			Scale = 1.2,
+			Look = { Style = "Colossus", Material = "CrackedLava", Primary = Color3.fromRGB(150, 46, 26), Secondary = Color3.fromRGB(255, 140, 40), Eyes = Color3.fromRGB(255, 236, 160) },
+		},
+		GlaciusColossus = {
+			DisplayName = "Glacius, el Coloso de Hielo",
+			Kind = "Boss",
+			MaxHealth = 220000,
+			Damage = 38,
+			AttackRange = 10,
+			AttackCooldown = 1.8,
+			AttackWindup = 0.75,
+			WalkSpeed = 15,
+			DetectRange = 0,
+			LeashRange = 20,
+			Reward = 150000,
+			EnergyReward = 4000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			RespawnSeconds = 30,
+			Brain = { DetectRange = 40, Territory = 56, LockSeconds = 3, RecoverSeconds = 0.5 },
+			Charge = { Interval = 6, Telegraph = 0.85, Distance = 32, Width = 8, Damage = 44, Speed = 62, MinRange = 8, MaxRange = 34 },
+			Volley = { Interval = 5, Count = 5, Damage = 18, Speed = 58, Telegraph = 0.5, Range = 44, Radius = 3 },
+			Slam = { Interval = 7, Telegraph = 1.1, Radius = 14, Damage = 46 },
+			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
+			Scale = 1.2,
+			Look = { Style = "Colossus", Material = "Ice", Primary = Color3.fromRGB(196, 228, 255), Secondary = Color3.fromRGB(90, 200, 255), Eyes = Color3.fromRGB(225, 250, 255) },
+		},
 	},
 
 	Zones = {
@@ -611,6 +756,70 @@ local EnemyConfig = {
 			Boss = {
 				Type = "GoblinKing",
 				Arena = { Name = "Sala del Trono", Center = Vector2.new(0, 44), Radius = 30 },
+			},
+		},
+
+		-- Tierras Divididas (Mundo 2, zona 1; centro (2000, -320)). Bichos de fuego en la mitad
+		-- oeste (volcán) y de hielo en la este (glaciar), lejos de la llegada, del huevo, del Altar
+		-- del Equilibrio (oleadas) y de la boca de la Grieta Elemental. El Coloso del Equilibrio
+		-- solo sale en las oleadas (BossOnlyInWaves): su arena del mundo está vacía.
+		DividedLands = {
+			RewardMultiplier = 1,
+			SafeZones = {
+				{ Center = Vector2.new(0, 100), Radius = 22 }, -- llegada desde el pueblo del Mundo 2
+				{ Center = Vector2.new(0, 144), Radius = 16 }, -- el paso y la puerta (ZoneConfig.Portals.DividedPortal)
+				{ Center = Vector2.new(44, 92), Radius = 14 }, -- Huevo del Equilibrio (EggConfig)
+				-- Altar del Equilibrio (WaveConfig.Places.DividedLands, radio AreaRadius + 8)
+				{ Center = Vector2.new(0, -4), Radius = 26 },
+				-- Boca de la Grieta Elemental (CaveConfig.Caves.DividedLands.Entrance): al salir
+				{ Center = Vector2.new(24, -92), Radius = 22 },
+				-- Grieta Elemental por dentro (la cueva del Bosque movida; relativo al centro de esta
+				-- zona): donde llegas y el círculo de las Oleadas Gemelas en la sala 3
+				{ Center = Vector2.new(-2928, 28), Radius = 12 },
+				{ Center = Vector2.new(-3220, 4), Radius = 22 },
+			},
+			Spawns = {
+				-- Volcán (oeste): espíritus de brasa y brutos de lava
+				{ Type = "EmberWisp", Offset = Vector2.new(-48, 72) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-80, 60) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-100, 30) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-56, 34) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-92, -6) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-48, -52) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-60, -108) },
+				{ Type = "LavaBrute", Offset = Vector2.new(-76, 92) },
+				{ Type = "LavaBrute", Offset = Vector2.new(-72, -30) },
+				-- Glaciar (este): espíritus de escarcha y brutos de escarcha
+				{ Type = "FrostWisp", Offset = Vector2.new(64, 60) },
+				{ Type = "FrostWisp", Offset = Vector2.new(100, 30) },
+				{ Type = "FrostWisp", Offset = Vector2.new(56, 34) },
+				{ Type = "FrostWisp", Offset = Vector2.new(92, -6) },
+				{ Type = "FrostWisp", Offset = Vector2.new(48, -52) },
+				{ Type = "FrostWisp", Offset = Vector2.new(96, -60) },
+				{ Type = "FrostWisp", Offset = Vector2.new(100, 64) },
+				{ Type = "FrostBrute", Offset = Vector2.new(76, 92) },
+				{ Type = "FrostBrute", Offset = Vector2.new(72, -30) },
+
+				-- Grieta Elemental por dentro (CaveConfig; la cueva del Bosque movida aquí: los mismos
+				-- sitios con X - 2000 e Y - 1). Sala 1, la Fragua Partida: espíritus de brasa.
+				{ Type = "EmberWisp", Offset = Vector2.new(-2950, 4) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-2948, 50) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-2966, 30) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-2976, 2) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-2986, 52) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-2990, 28) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-2994, 6) },
+				{ Type = "EmberWisp", Offset = Vector2.new(-2968, 56) },
+				-- Sala 2, el Glaciar Roto: brutos de escarcha (y el mini-jefe, que crea EnemyService).
+				{ Type = "FrostBrute", Offset = Vector2.new(-3066, 28) },
+				{ Type = "FrostBrute", Offset = Vector2.new(-3090, 62) },
+				{ Type = "FrostBrute", Offset = Vector2.new(-3104, 30) },
+				{ Type = "FrostBrute", Offset = Vector2.new(-3112, 4) },
+				{ Type = "FrostBrute", Offset = Vector2.new(-3076, 2) },
+			},
+			Boss = {
+				Type = "EquilibriumColossus",
+				Arena = { Name = "Cráter del Equilibrio", Center = Vector2.new(-84, -70), Radius = 20 },
 			},
 		},
 	},

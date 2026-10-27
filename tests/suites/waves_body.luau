@@ -38,18 +38,20 @@ end
 for placeId, spot in WaveConfig.Places do
 	local zone = ZoneConfig.Zones[spot.Zone]
 	local mode = WaveConfig.Arenas[spot.Arena]
-	-- El de la práctica del tutorial juega su modo; los demás, el de su zona (uno por zona)
+	-- El de la práctica del tutorial juega su modo; los demás, el de su zona (como mucho uno en
+	-- su mazmorra y otro al aire libre: las Tierras Divididas tienen los dos)
 	local modeOK = zone and mode and mode.Zone == spot.Zone and mode.Place == placeId
 	if spot.Practice then
 		modeOK = modeOK and mode.Tutorial == true
 	else
 		modeOK = modeOK and not mode.Tutorial
 		placeCount += 1
-		if placeOfZone[spot.Zone] then
+		local key = spot.Zone .. (if spot.Cave then "/Cueva" else "")
+		if placeOfZone[key] then
 			placesOK = false
-			print("  dos círculos en la zona " .. spot.Zone)
+			print("  dos círculos en la zona " .. key)
 		end
-		placeOfZone[spot.Zone] = placeId
+		placeOfZone[key] = placeId
 	end
 	if not modeOK then
 		placesOK = false
@@ -100,7 +102,8 @@ for placeId, spot in WaveConfig.Places do
 	end
 end
 -- (La Fortaleza Goblin no tiene: su jefe, el Rey Goblin, está en su Sala del Trono)
-check("un círculo de oleadas en cada zona con mazmorra (Bosque, Valle, Caldera y Tundra)", placeCount == 4 and placeOfZone.Forest ~= nil and placeOfZone.CrystalValley ~= nil and placeOfZone.EmberCaldera ~= nil and placeOfZone.FrozenTundra ~= nil and placeOfZone.GoblinFortress == nil)
+check("un círculo de oleadas en cada mazmorra (Bosque, Valle, Caldera, Tundra y Grieta) y el Altar del Equilibrio", placeCount == 6 and placeOfZone["Forest/Cueva"] ~= nil and placeOfZone["CrystalValley/Cueva"] ~= nil and placeOfZone["EmberCaldera/Cueva"] ~= nil and placeOfZone["FrozenTundra/Cueva"] ~= nil
+	and placeOfZone["DividedLands/Cueva"] ~= nil and placeOfZone.DividedLands ~= nil and placeOfZone.GoblinFortress == nil)
 check("cada círculo juega el modo de su zona", placesOK)
 check("los círculos caben en su zona", insideOK)
 check("la llegada a cada zona queda fuera del círculo", arrivalClear)

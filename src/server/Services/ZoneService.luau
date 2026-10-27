@@ -146,6 +146,8 @@ local GATE_STYLES = {
 	Ember = { Glass = Color3.fromRGB(255, 176, 128), Title = Color3.fromRGB(255, 196, 120) },
 	Frost = { Glass = Color3.fromRGB(200, 236, 255), Title = Color3.fromRGB(170, 230, 255) },
 	Goblin = { Glass = Color3.fromRGB(170, 230, 120), Title = Color3.fromRGB(190, 255, 120) },
+	-- Tierras Divididas: cristal entre el fuego y el hielo
+	Divided = { Glass = Color3.fromRGB(226, 196, 255), Title = Color3.fromRGB(255, 214, 150) },
 }
 local GATE_TRANSPARENCY = 0.6
 local SIGN_PIXELS_PER_STUD = 20
@@ -198,10 +200,11 @@ local function buildPortal(parent: Instance, portalId: string)
 	barrier.Transparency = GATE_TRANSPARENCY
 	barrier:SetAttribute("LockedTransparency", GATE_TRANSPARENCY)
 
-	-- Nombre de la zona y precio escritos en la cara por la que se llega (Front, hacia -Z)
+	-- Nombre de la zona y precio escritos en la cara por la que se llega: Front (hacia -Z) en
+	-- las puertas del sur; Back en las del norte (Mundo 2: se llega andando hacia -Z)
 	local sign = Instance.new("SurfaceGui")
 	sign.Name = "GateSign"
-	sign.Face = Enum.NormalId.Front
+	sign.Face = if portal.Offset.Y < 0 then Enum.NormalId.Back else Enum.NormalId.Front
 	sign.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	sign.PixelsPerStud = SIGN_PIXELS_PER_STUD
 	sign.LightInfluence = 0

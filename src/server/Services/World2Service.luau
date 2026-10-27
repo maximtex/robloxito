@@ -8,7 +8,8 @@
 -- - Avenida al sur, donde se llega (el círculo de aparición), y el portal de vuelta al Mundo 1
 --   (ZoneService: ZoneConfig.WorldPortals.ReturnPortal).
 -- - Árboles de colores, farolas doradas, setos con flores y terrazas de colores alrededor.
--- Las zonas del Mundo 2 vendrán más adelante (un cartel lo avisa). Solo decorativo.
+-- - Al norte del Jardín, el paso a la puerta de las Tierras Divididas (zona 1 del Mundo 2:
+--   DividedLandsService), con un arco y un cartel en la plaza que lo indica. Solo decorativo.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -270,7 +271,8 @@ local function buildTown(parent: Instance)
 	end
 	arch(folder, world(0, TOP, 31), 28, "🌍 MUNDO 2 · PUEBLO CELESTIAL")
 	arch(folder, world(0, TOP + StudFloor.PathRaise, -30), 34, "🌟 JARDÍN CELESTIAL")
-	sign(folder, world(-50, 9, 0), "🚧 Nuevas zonas del Mundo 2:\n<font size=\"18\">¡muy pronto!</font>", RGB(255, 210, 120), 16, 4, 120)
+	sign(folder, world(-50, 9, 0), "🔥❄️ Tierras Divididas\n<font size=\"18\">al norte, pasando el Jardín ⬆</font>", RGB(255, 210, 120), 16, 4, 120)
+	arch(folder, world(0, TOP + StudFloor.PathRaise, -112), 30, "🔥 TIERRAS DIVIDIDAS ❄️")
 end
 
 -- Jardín Celestial: setos con flores alrededor de los huevos
@@ -280,7 +282,9 @@ local function buildGarden(parent: Instance, rng: Random)
 	for _, side in { -1, 1 } do
 		hedge(folder, world(side * 34, y, -88), world(side * 34, y, -40), rng)
 	end
-	hedge(folder, world(-30, y, -90), world(30, y, -90), rng)
+	-- El seto del fondo deja en medio el paso a las Tierras Divididas
+	hedge(folder, world(-30, y, -90), world(-14, y, -90), rng)
+	hedge(folder, world(14, y, -90), world(30, y, -90), rng)
 	-- Macetas con flores entre los huevos
 	for _, x in { -11, 11 } do
 		local pos = world(x, y, -70)

@@ -102,6 +102,8 @@ local Constants = {
 		Rebirth = "Rebirth",
 		-- Cliente -> servidor: (itemId: string) comprar el siguiente nivel de una ventaja.
 		RebirthShop = "RebirthShop",
+		-- Oleada más alta superada en cada modo desde el último renacimiento ("Forest=10").
+		RebirthCycle = "RebirthCycle",
 		-- Servidor -> cliente: (success, code, action: "Rebirth" | "Shop", detail?)
 		-- detail: Rebirth -> { Count, Tokens, Level }; Shop -> { ItemId, Level, Cost }.
 		RebirthResult = "RebirthResult",
@@ -227,6 +229,8 @@ local Constants = {
 		Rebirths = "Rebirths",
 		RebirthTokens = "RebirthTokens",
 		RebirthShop = "RebirthShop",
+		-- Oleada más alta superada en cada modo desde el último renacimiento ("Forest=10").
+		RebirthCycle = "RebirthCycle",
 		MaxEquipped = "MaxEquipped",
 		-- Tienda: pases que tiene ("DoubleEnergy,TripleHatch"), espacio de inventario y si la
 		-- mejora automática está funcionando (tiene el pase y el interruptor encendido).
@@ -316,7 +320,8 @@ local Constants = {
 		Cooldown = "Cooldown", -- aún recargando
 		NoTarget = "NoTarget", -- habilidad con objetivo sin ningún enemigo delante (no se gasta)
 		-- Renacimiento
-		ComingSoon = "ComingSoon", -- aún no disponible (renacer, hasta su requisito nuevo)
+		ComingSoon = "ComingSoon", -- aún no disponible (renacer con RebirthConfig.Enabled = false)
+		WavesNotDone = "WavesNotDone", -- para renacer faltan las oleadas del ciclo
 		InsufficientTokens = "InsufficientTokens", -- faltan fichas para la ventaja
 		-- Aventuras
 		AlreadyAccepted = "AlreadyAccepted", -- esa misión ya está en curso

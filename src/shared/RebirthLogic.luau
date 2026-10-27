@@ -8,6 +8,8 @@
 --     Tokens = 1,                      -- fichas sin gastar
 --     Shop = { Loot = 1, Strike = 2 }, -- nivel de cada ventaja de la tienda
 --     LastAt = 1760000000,             -- os.time() del último renacimiento (0 = nunca)
+--     Cycle = { Forest = 10 },         -- oleada más alta superada en cada modo DESDE el
+--                                      -- último renacimiento (se vacía al renacer)
 --   }
 -- - Cualquier dato ausente o no válido (partidas antiguas, NaN, negativos, texto) se
 --   normaliza a un valor seguro. Las ventajas de la tienda que ya no existan se conservan
@@ -16,14 +18,19 @@
 --   el dinero y las armas en el mismo paso, sin pausas.
 
 local RebirthConfig = require(script.Parent.Config.RebirthConfig)
+local WaveConfig = require(script.Parent.Config.WaveConfig)
 
 local RebirthLogic = {}
 
-export type RebirthData = { Count: number, Tokens: number, Shop: { [string]: number }, LastAt: number }
+export type RebirthData = { Count: number, Tokens: number, Shop: { [string]: number }, LastAt: number, Cycle: { [string]: number } }
+export type Requirement = { ArenaId: string, Wave: number, Money: number }
+export type Progress = { ArenaId: string, Wave: number, BestWave: number, WavesDone: boolean, Money: number, Have: number, MoneyDone: boolean }
 
 local MAX_TOKENS = 1e9
 local MAX_TIME = 1e10
 local MAX_SHOP_ENTRIES = 50
+local MAX_CYCLE_ENTRIES = 20
+local MAX_WAVE = 1e6
 
 local function isFiniteNumber(value: any): boolean
 	return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
@@ -37,7 +44,7 @@ local function cleanInteger(value: any, maxValue: number): number
 end
 
 function RebirthLogic.empty(): RebirthData
-	return { Count = 0, Tokens = 0, Shop = {}, LastAt = 0 }
+	return { Count = 0, Tokens = 0, Shop = {}, LastAt = 0, Cycle = {} }
 end
 
 -- Copia válida de unos datos guardados (o vacía si no hay o no son una tabla).
@@ -49,6 +56,18 @@ function RebirthLogic.sanitize(raw: any): RebirthData
 	data.Count = cleanInteger(raw.Count, RebirthConfig.MaxRebirths)
 	data.Tokens = cleanInteger(raw.Tokens, MAX_TOKENS)
 	data.LastAt = cleanInteger(raw.LastAt, MAX_TIME)
+	if type(raw.Cycle) == "table" then
+		local entries = 0
+		for arenaId, wave in raw.Cycle do
+			if type(arenaId) == "string" and #arenaId <= 64 and entries < MAX_CYCLE_ENTRIES then
+				local clean = cleanInteger(wave, MAX_WAVE)
+				if clean > 0 then
+					data.Cycle[arenaId] = clean
+					entries += 1
+				end
+			end
+		end
+	end
 	if type(raw.Shop) == "table" then
 		local entries = 0
 		for itemId, level in raw.Shop do
@@ -91,6 +110,94 @@ end
 
 -- Requisito y premio ------------------------------------------------------------------------
 
+-- Oleadas de un modo (las de hordas y la del jefe), como WaveLogic.waveCount.
+local function waveCount(arenaId: string): number
+	local arena = WaveConfig.Arenas[arenaId]
+	if not arena then
+		return 0
+	end
+	return #arena.Waves + (if arena.Boss then 1 else 0)
+end
+
+-- Lo que pide el renacimiento que viene tras `count` renacimientos: { ArenaId, Wave, Money }.
+function RebirthLogic.requirement(count: any): Requirement
+	local done = cleanInteger(count, RebirthConfig.MaxRebirths)
+	local settings = RebirthConfig.Requirement
+	local list = settings.Waves
+	local index = done + 1
+	local arenaId = list[math.min(index, #list)]
+	local wave = waveCount(arenaId)
+	if index > #list then
+		wave += settings.EndlessExtraWaves * (index - #list)
+	end
+	local money = math.floor(settings.MoneyBase * settings.MoneyGrowth ^ done)
+	return { ArenaId = arenaId, Wave = wave, Money = money }
+end
+
+-- Oleada más alta superada en un modo desde el último renacimiento.
+function RebirthLogic.cycleWave(data: any, arenaId: string): number
+	local cycle = if type(data) == "table" and type(data.Cycle) == "table" then data.Cycle else nil
+	return if cycle then cleanInteger(cycle[arenaId], MAX_WAVE) else 0
+end
+
+-- Anota una oleada superada en `arenaId` (WaveService). true si sube el máximo del ciclo.
+function RebirthLogic.recordWave(data: any, arenaId: any, wave: any): boolean
+	if type(data) ~= "table" or type(arenaId) ~= "string" or not WaveConfig.Arenas[arenaId] then
+		return false
+	end
+	local clean = cleanInteger(wave, MAX_WAVE)
+	if clean <= RebirthLogic.cycleWave(data, arenaId) then
+		return false
+	end
+	if type(data.Cycle) ~= "table" then
+		data.Cycle = {}
+	end
+	data.Cycle[arenaId] = clean
+	return true
+end
+
+-- Cómo va el requisito con `money` 💰.
+function RebirthLogic.progress(data: any, money: any): Progress
+	local need = RebirthLogic.requirement(RebirthLogic.count(data))
+	local best = RebirthLogic.cycleWave(data, need.ArenaId)
+	local have = if isFiniteNumber(money) and money > 0 then money else 0
+	return {
+		ArenaId = need.ArenaId,
+		Wave = need.Wave,
+		BestWave = best,
+		WavesDone = best >= need.Wave,
+		Money = need.Money,
+		Have = have,
+		MoneyDone = have >= need.Money,
+	}
+end
+
+-- Texto para replicar el ciclo al cliente ("Forest=10,CrystalValley=3") y su lectura.
+function RebirthLogic.cycleText(data: any): string
+	local parts = {}
+	local cycle = if type(data) == "table" and type(data.Cycle) == "table" then data.Cycle else {}
+	for arenaId, wave in cycle do
+		if type(arenaId) == "string" and WaveConfig.Arenas[arenaId] then
+			table.insert(parts, arenaId .. "=" .. cleanInteger(wave, MAX_WAVE))
+		end
+	end
+	table.sort(parts)
+	return table.concat(parts, ",")
+end
+
+function RebirthLogic.parseCycle(text: any): { [string]: number }
+	local cycle = {}
+	if type(text) ~= "string" then
+		return cycle
+	end
+	for arenaId, wave in text:gmatch("(%w+)=(%d+)") do
+		if WaveConfig.Arenas[arenaId] then
+			cycle[arenaId] = math.min(tonumber(wave) or 0, MAX_WAVE)
+		end
+	end
+	return cycle
+end
+
 -- Fichas que da el renacimiento que viene después de `count` renacimientos.
 function RebirthLogic.tokensFor(count: any): number
 	local done = cleanInteger(count, RebirthConfig.MaxRebirths)
@@ -132,10 +239,14 @@ function RebirthLogic.maxEquippedCap(base: number): number
 	return base + (if slot then slot.PerLevel * #slot.Costs else 0)
 end
 
--- ¿Se puede renacer? Mientras RebirthConfig.Enabled sea false (fase 1 del rediseño: el
--- requisito nuevo aún no existe), nunca.
-function RebirthLogic.canRebirth(data: any): boolean
-	return RebirthConfig.Enabled == true and RebirthLogic.count(data) < RebirthConfig.MaxRebirths
+-- ¿Se puede renacer con `money` 💰? Hacen falta las oleadas del ciclo y el 💰 (y que no
+-- esté bloqueado: RebirthConfig.Enabled).
+function RebirthLogic.canRebirth(data: any, money: any): boolean
+	if RebirthConfig.Enabled ~= true or RebirthLogic.count(data) >= RebirthConfig.MaxRebirths then
+		return false
+	end
+	local progress = RebirthLogic.progress(data, money)
+	return progress.WavesDone and progress.MoneyDone
 end
 
 -- Tienda ------------------------------------------------------------------------------------
@@ -164,11 +275,13 @@ end
 
 -- Acciones (modifican los datos) ---------------------------------------------------------------
 
--- Renacer. Devuelve (código, resultado). Códigos: Success, InvalidRequest (datos no
--- válidos), ComingSoon (RebirthConfig.Enabled = false), MaxLevel (tope de renacimientos).
--- Con Success, el resultado es { Count, Tokens (ganadas) } y quien llama debe reiniciar el
--- dinero y las armas en el mismo paso.
-function RebirthLogic.rebirth(data: any, now: any): (string, any)
+-- Renacer con `money` 💰. Devuelve (código, resultado). Códigos: Success, InvalidRequest
+-- (datos no válidos), ComingSoon (RebirthConfig.Enabled = false), MaxLevel (tope de
+-- renacimientos), WavesNotDone (faltan las oleadas del ciclo; resultado = el progreso) e
+-- InsufficientMoney (falta 💰; resultado = el progreso). Con Success, el resultado es
+-- { Count, Tokens (ganadas), Paid (💰 del requisito) }, el ciclo queda vacío y quien llama
+-- debe reiniciar el dinero y las armas en el mismo paso.
+function RebirthLogic.rebirth(data: any, money: any, now: any): (string, any)
 	if type(data) ~= "table" then
 		return "InvalidRequest", nil
 	end
@@ -179,14 +292,22 @@ function RebirthLogic.rebirth(data: any, now: any): (string, any)
 	if count >= RebirthConfig.MaxRebirths then
 		return "MaxLevel", nil
 	end
+	local progress = RebirthLogic.progress(data, money)
+	if not progress.WavesDone then
+		return "WavesNotDone", progress
+	end
+	if not progress.MoneyDone then
+		return "InsufficientMoney", progress
+	end
 	local tokens = RebirthLogic.tokensFor(count)
 	data.Count = count + 1
+	data.Cycle = {}
 	data.Tokens = math.min(MAX_TOKENS, cleanInteger(data.Tokens, MAX_TOKENS) + tokens)
 	data.LastAt = cleanInteger(now, MAX_TIME)
 	if type(data.Shop) ~= "table" then
 		data.Shop = {}
 	end
-	return "Success", { Count = data.Count, Tokens = tokens }
+	return "Success", { Count = data.Count, Tokens = tokens, Paid = progress.Money }
 end
 
 -- Comprar el siguiente nivel de una ventaja. Devuelve (código, coste). Códigos: Success,
@@ -274,6 +395,23 @@ function RebirthLogic.validateConfig(): (boolean, { string })
 	local problems = {}
 	if not (isFiniteNumber(RebirthConfig.LootBonus) and RebirthConfig.LootBonus > 0) then
 		table.insert(problems, "LootBonus debe ser > 0")
+	end
+	local requirement = RebirthConfig.Requirement
+	if type(requirement) ~= "table" or type(requirement.Waves) ~= "table" or #requirement.Waves == 0 then
+		table.insert(problems, "Requirement.Waves debe ser una lista de modos")
+	else
+		for index, arenaId in requirement.Waves do
+			local arena = WaveConfig.Arenas[arenaId]
+			if not arena or not arena.Boss or arena.Tutorial then
+				table.insert(problems, ("Requirement.Waves[%d]: %s no es un modo con jefe"):format(index, tostring(arenaId)))
+			end
+		end
+		if not (isFiniteNumber(requirement.EndlessExtraWaves) and requirement.EndlessExtraWaves >= 1) then
+			table.insert(problems, "Requirement.EndlessExtraWaves debe ser >= 1")
+		end
+		if not (isFiniteNumber(requirement.MoneyBase) and requirement.MoneyBase >= 0 and isFiniteNumber(requirement.MoneyGrowth) and requirement.MoneyGrowth >= 1) then
+			table.insert(problems, "Requirement: MoneyBase >= 0 y MoneyGrowth >= 1")
+		end
 	end
 	local orders = {}
 	for id, item in RebirthConfig.Shop do

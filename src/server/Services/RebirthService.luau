@@ -1,13 +1,14 @@
 -- Renacimiento (Rebirth). Todo se decide aquí; el cliente solo pide.
--- - Renacer (remote Rebirth): datos listos y RebirthLogic.canRebirth (mientras
---   RebirthConfig.Enabled sea false responde ComingSoon: el requisito nuevo llega en la fase
---   2 del rediseño). En el mismo paso: +1 renacimiento, fichas, dinero al inicial (los 💎 se
---   quedan) y las armas a nivel 0. Las armas (y la equipada), mascotas, núcleos, zonas, jefes
+-- - Renacer (remote Rebirth): datos listos y el requisito (RebirthLogic.progress): ganar
+--   las oleadas del modo que toca desde el último renacimiento y tener el 💰 que pide. En el
+--   mismo paso: +1 renacimiento, fichas, ciclo vacío, dinero al inicial (el 💰 del
+--   requisito se paga así; los 💎 se quedan) y las armas a nivel 0. Las armas (y la equipada), mascotas, núcleos, zonas, jefes
 --   derrotados, mejoras de la Armería y misiones se quedan.
 --   Se guarda en seguida (no se pierde un renacimiento por un cierre).
 -- - Tienda (remote RebirthShop): sube una ventaja pagando fichas (RebirthLogic.buy).
 -- - Estado al cliente por atributos (PlayerDataService.replicate): Rebirths,
---   RebirthTokens, RebirthShop y MaxEquipped.
+--   RebirthTokens, RebirthShop, RebirthCycle y MaxEquipped.
+-- - Las oleadas del ciclo llegan de WaveService (GameEvents "WaveCleared" -> recordWave).
 -- - Social: columna "Renacimientos" en la lista de jugadores (leaderstats), etiqueta
 --   "🔄 II" sobre la cabeza y aviso a todos cuando alguien renace (RebirthEvent).
 -- Los multiplicadores (botín, daño, mascotas) los aplican EnemyService, CombatService,
@@ -25,6 +26,7 @@ local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local PetService = require(script.Parent.PetService)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 
 local Codes = Constants.PurchaseCodes
 local Attributes = Constants.Attributes
@@ -59,9 +61,9 @@ function RebirthService.rebirth(player: Player): (string, any)
 		return Codes.NotReady, nil
 	end
 	local data = profile.PetData.Rebirth
-	local code, result = RebirthLogic.rebirth(data, os.time())
+	local code, result = RebirthLogic.rebirth(data, profile.Money, os.time())
 	if code ~= "Success" then
-		return Codes[code] or Codes.InvalidRequest, nil
+		return Codes[code] or Codes.InvalidRequest, (if type(result) == "table" then result else nil)
 	end
 	-- Reinicio en el mismo paso (sin pausas: nadie gana ni gasta entre medias): dinero y el
 	-- nivel de cada arma. Se conservan los 💎 (y las habilidades compradas), las armas (y la
@@ -81,6 +83,15 @@ function RebirthService.rebirth(player: Player): (string, any)
 	end
 	RemoteService.get(Constants.Remotes.RebirthEvent):FireAllClients(player.UserId, player.DisplayName, result.Count)
 	return Codes.Success, result
+end
+
+-- Oleada `wave` superada en el modo `arenaId` (WaveService): cuenta para el requisito.
+function RebirthService.recordWave(player: Player, arenaId: string, wave: number)
+	local profile = readyProfile(player)
+	if profile and RebirthLogic.recordWave(profile.PetData.Rebirth, arenaId, wave) then
+		PlayerDataService.markDirty(player)
+		PlayerDataService.replicate(player)
+	end
 end
 
 function RebirthService.buy(player: Player, itemId: any): (string, any)
@@ -221,6 +232,8 @@ function RebirthService.start()
 		local code, detail = RebirthService.buy(player, itemId)
 		resultRemote:FireClient(player, code == Codes.Success, code, "Shop", detail)
 	end)
+
+	GameEvents.on("WaveCleared", RebirthService.recordWave)
 
 	Players.PlayerAdded:Connect(watchPlayer)
 	for _, player in Players:GetPlayers() do

@@ -1,8 +1,8 @@
 -- Renacimiento: RebirthLogic (pura) y el RebirthService REAL con PlayerDataService y
--- SaveService reales sobre un DataStore en memoria. Bloqueo "Próximamente" (sin la
--- Resonancia del Cristal no hay requisito hasta la fase 2), reinicio en el mismo paso,
--- fichas, tienda, multiplicadores (botín y daño), espacios de mascota, guardado y lo
--- social (leaderstats y aviso).
+-- SaveService reales sobre un DataStore en memoria. Requisito (ganar las oleadas del modo
+-- que toca desde el último renacimiento + 💰), bloqueo con Enabled = false, reinicio en el
+-- mismo paso, fichas, tienda, multiplicadores (botín y daño), espacios de mascota, guardado
+-- y lo social (leaderstats y aviso).
 QuestLogic.init(QuestConfig, EnemyConfig)
 PlayerDataService.start()
 UpgradeService.start()
@@ -27,7 +27,14 @@ end
 print("-- 1. Configuración y fórmulas")
 local okConfig, problems = RebirthLogic.validateConfig()
 check("RebirthConfig válida" .. (if okConfig then "" else ": " .. table.concat(problems, "; ")), okConfig)
-check("renacer está bloqueado (Próximamente) hasta su requisito nuevo", RebirthConfig.Enabled == false and RebirthConfig.UpgradeId == nil and RebirthConfig.Requirement == nil)
+check("renacer está habilitado y ya no pide la Resonancia", RebirthConfig.Enabled == true and RebirthConfig.UpgradeId == nil)
+local list = RebirthConfig.Requirement.Waves
+local r1, r2, r5, r6, r8 = RebirthLogic.requirement(0), RebirthLogic.requirement(1), RebirthLogic.requirement(4), RebirthLogic.requirement(5), RebirthLogic.requirement(7)
+check("requisito 1: ganar las oleadas del Bosque (10) y 💰 25 000", r1.ArenaId == "Forest" and r1.Wave == WaveLogic.waveCount("Forest") and r1.Wave == 10 and r1.Money == 25000)
+check("requisito 2: las del Valle y 💰 75 000 (×3 cada vez)", r2.ArenaId == "CrystalValley" and r2.Wave == WaveLogic.waveCount("CrystalValley") and r2.Money == 75000)
+check("requisito 5: el último modo de la lista", r5.ArenaId == list[#list] and r5.Wave == WaveLogic.waveCount(list[#list]))
+check("después, el último modo en el infinito: +3 oleadas por renacimiento", r6.ArenaId == list[#list] and r6.Wave == WaveLogic.waveCount(list[#list]) + 3 and r8.Wave == WaveLogic.waveCount(list[#list]) + 9)
+check("valores raros cuentan como 0 renacimientos", RebirthLogic.requirement(0 / 0).ArenaId == "Forest" and RebirthLogic.requirement(-4).Money == 25000)
 check("fichas: el renacimiento k da k (1, 2, 5)", RebirthLogic.tokensFor(0) == 1 and RebirthLogic.tokensFor(1) == 2 and RebirthLogic.tokensFor(4) == 5)
 check("botín: +50 % de 💰 por renacimiento (×1, ×1.5, ×3)",
 	RebirthLogic.lootBonusAt(0) == 1 and near(RebirthLogic.lootBonusAt(1), 1.5) and near(RebirthLogic.lootBonusAt(4), 3))
@@ -55,14 +62,34 @@ check("valores no válidos -> seguros; niveles acotados; ventajas futuras conser
 check("tope de renacimientos", RebirthLogic.sanitize({ Count = 1e12 }).Count == RebirthConfig.MaxRebirths)
 check("sanitize devuelve una copia (no comparte la tienda)", RebirthLogic.sanitize(shopData).Shop ~= shopData.Shop)
 
-print("-- 3. Acciones puras: renacer y comprar")
+print("-- 3. Acciones puras: ciclo, renacer y comprar")
 local d = RebirthLogic.empty()
-local code, result = RebirthLogic.rebirth(d, 100)
-check("bloqueado: ComingSoon y nada cambia", code == "ComingSoon" and result == nil and d.Count == 0 and d.Tokens == 0 and not RebirthLogic.canRebirth(d))
-check("renacer con datos no válidos: InvalidRequest", RebirthLogic.rebirth(nil, 1) == "InvalidRequest")
-RebirthConfig.Enabled = true -- (fase 2: el requisito nuevo) se prueba el resto del camino
-code, result = RebirthLogic.rebirth(d, 100)
-check("habilitado: renace (1 ficha)", code == "Success" and result.Count == 1 and result.Tokens == 1 and d.Count == 1 and d.Tokens == 1 and d.LastAt == 100 and RebirthLogic.canRebirth(d))
+check("ciclo vacío al empezar: nada superado", RebirthLogic.cycleWave(d, "Forest") == 0 and not RebirthLogic.canRebirth(d, 1e9))
+check("anotar oleadas: solo sube el máximo y solo en modos que existen", RebirthLogic.recordWave(d, "Forest", 4) and not RebirthLogic.recordWave(d, "Forest", 3)
+	and not RebirthLogic.recordWave(d, "Nada", 50) and not RebirthLogic.recordWave(d, "Forest", 0 / 0) and RebirthLogic.cycleWave(d, "Forest") == 4)
+local code, result = RebirthLogic.rebirth(d, 1e9, 100)
+check("oleada 4 de 10: WavesNotDone con el progreso, nada cambia", code == "WavesNotDone" and result.BestWave == 4 and result.Wave == 10 and d.Count == 0)
+RebirthLogic.recordWave(d, "CrystalValley", 12)
+check("ganar otro modo no cuenta para el Bosque", RebirthLogic.rebirth(d, 1e9, 100) == "WavesNotDone")
+RebirthLogic.recordWave(d, "Forest", 10)
+code, result = RebirthLogic.rebirth(d, 24999, 100)
+check("oleadas ganadas pero 💰 24 999: InsufficientMoney, nada cambia", code == "InsufficientMoney" and result.Money == 25000 and result.Have == 24999 and d.Count == 0 and d.Cycle.Forest == 10)
+check("canRebirth: con las dos cosas sí, con 💰 de menos no", RebirthLogic.canRebirth(d, 25000) and not RebirthLogic.canRebirth(d, 100))
+code, result = RebirthLogic.rebirth(d, 25000, 100)
+check("renace: 1 ficha, paga 💰 25 000 y el ciclo queda vacío", code == "Success" and result.Count == 1 and result.Tokens == 1 and result.Paid == 25000 and d.Count == 1 and d.Tokens == 1 and d.LastAt == 100 and next(d.Cycle) == nil)
+check("el segundo pide el Valle: las oleadas del Valle de antes del renacimiento ya no cuentan", RebirthLogic.rebirth(d, 1e9, 200) == "WavesNotDone" and RebirthLogic.progress(d, 0).ArenaId == "CrystalValley")
+check("el ciclo viaja en texto (atributo RebirthCycle) y de vuelta", (function()
+	local c = RebirthLogic.empty()
+	RebirthLogic.recordWave(c, "Forest", 10)
+	RebirthLogic.recordWave(c, "EmberCaldera", 3)
+	local text = RebirthLogic.cycleText(c)
+	local back = RebirthLogic.parseCycle(text)
+	return text == "EmberCaldera=3,Forest=10" and back.Forest == 10 and back.EmberCaldera == 3 and RebirthLogic.parseCycle("Hack=5,Forest=x").Hack == nil
+end)())
+check("ciclo guardado roto: se sanea (sin NaN, negativos ni claves raras)", (function()
+	local clean = RebirthLogic.sanitize({ Count = 1, Cycle = { Forest = 9.7, Bad = -2, [3] = 4, Valley = "x" } })
+	return clean.Cycle.Forest == 9 and clean.Cycle.Bad == nil and clean.Cycle[3] == nil and clean.Cycle.Valley == nil
+end)())
 code, result = RebirthLogic.buy(d, "PetSlot")
 check("Espacio de mascota cuesta 3: con 1 ficha no llega y no cambia nada", code == "InsufficientTokens" and result == 3 and d.Tokens == 1 and d.Shop.PetSlot == nil)
 code, result = RebirthLogic.buy(d, "Loot")
@@ -73,13 +100,15 @@ for _ = 1, 2 do
 	RebirthLogic.buy(d, "PetSlot")
 end
 check("al máximo: MaxLevel sin cobrar", RebirthLogic.buy(d, "PetSlot") == "MaxLevel" and d.Shop.PetSlot == 2 and d.Tokens == 100 - 3 - 10)
-code, result = RebirthLogic.rebirth(d, 300)
-check("el segundo da 2 fichas", code == "Success" and result.Tokens == 2 and d.Count == 2)
-local maxed = { Count = RebirthConfig.MaxRebirths, Tokens = 0, Shop = {}, LastAt = 0 }
-check("tope de renacimientos: MaxLevel", RebirthLogic.rebirth(maxed, 1) == "MaxLevel" and maxed.Count == RebirthConfig.MaxRebirths)
+check("renacer con datos no válidos: InvalidRequest", RebirthLogic.rebirth(nil, 1e9, 1) == "InvalidRequest")
+local maxed = { Count = RebirthConfig.MaxRebirths, Tokens = 0, Shop = {}, LastAt = 0, Cycle = {} }
+check("tope de renacimientos: MaxLevel", RebirthLogic.rebirth(maxed, 1e15, 1) == "MaxLevel" and maxed.Count == RebirthConfig.MaxRebirths)
 RebirthConfig.Enabled = false
+local blocked = { Count = 0, Tokens = 0, Shop = {}, LastAt = 0, Cycle = { Forest = 10 } }
+check("con Enabled = false: ComingSoon aunque cumpla el requisito", RebirthLogic.rebirth(blocked, 1e9, 1) == "ComingSoon" and blocked.Count == 0 and not RebirthLogic.canRebirth(blocked, 1e9))
+RebirthConfig.Enabled = true
 
-print("-- 4. RebirthService real: bloqueado")
+print("-- 4. RebirthService real: requisito")
 local p1 = PetService.newPlayer("Ana", 1)
 join(p1)
 advance(0)
@@ -88,15 +117,26 @@ check("datos cargados: 0 renacimientos replicados y columna en la lista de jugad
 	profile.DataState == "Loaded" and p1:GetAttribute("Rebirths") == 0 and p1:GetAttribute("MaxEquipped") == 3
 		and p1:FindFirstChild("leaderstats") ~= nil and p1:FindFirstChild("leaderstats"):FindFirstChild("Renacimientos").Value == 0)
 profile.Diamonds = 5000
-profile.Money = 777
+profile.Money = 30000
 fireServer("Rebirth", p1)
 advance(0)
 local args = lastResult("RebirthResult", p1)
-check("pedir renacer: ComingSoon", args[1] == false and args[2] == Codes.ComingSoon and args[3] == "Rebirth")
-check("y no se toca nada", profile.Diamonds == 5000 and profile.Money == 777 and profile.PetData.Rebirth.Count == 0)
+check("sin las oleadas: WavesNotDone con el progreso (Bosque, 0 de 10)", args[1] == false and args[2] == Codes.WavesNotDone and args[3] == "Rebirth" and args[4].ArenaId == "Forest" and args[4].BestWave == 0)
+check("y no se toca nada", profile.Diamonds == 5000 and profile.Money == 30000 and profile.PetData.Rebirth.Count == 0)
+-- Lo que hace WaveService al superar oleadas (GameEvents "WaveCleared")
+GameEvents.fire("WaveCleared", p1, "Forest", 9)
+GameEvents.fire("WaveCleared", p1, "Forest", 10)
+advance(0)
+check("las oleadas superadas cuentan para el ciclo y se replican (RebirthCycle)", profile.PetData.Rebirth.Cycle.Forest == 10 and p1:GetAttribute("RebirthCycle") == "Forest=10")
+profile.Money = 1000
+advance(RebirthConfig.RebirthCooldown + 0.1)
+fireServer("Rebirth", p1)
+advance(0)
+args = lastResult("RebirthResult", p1)
+check("con las oleadas pero sin 💰: InsufficientMoney con lo que pide", args[1] == false and args[2] == Codes.InsufficientMoney and args[4].Money == 25000 and profile.PetData.Rebirth.Count == 0 and profile.Money == 1000)
 
-print("-- 5. RebirthService real: renacer (con Enabled, como en la fase 2)")
-RebirthConfig.Enabled = true
+print("-- 5. RebirthService real: renacer")
+profile.Money = 30000
 profile.PetData.Weapons.Levels[WeaponConfig.StarterWeapon] = 6
 profile.PetMultiplier = 1.5
 local pushedBefore = PetService.Pushed
@@ -105,8 +145,8 @@ advance(RebirthConfig.RebirthCooldown + 0.1)
 fireServer("Rebirth", p1)
 advance(0)
 args = lastResult("RebirthResult", p1)
-check("renace", args[1] == true and args[2] == Codes.Success and args[4].Count == 1 and args[4].Tokens == 1)
-check("en el mismo paso: 💰 al inicial y armas a nivel 0; los 💎 se quedan", profile.Money == EconomyConfig.StartingMoney and profile.Diamonds == diamondsBefore and profile.PetData.Weapons.Levels[WeaponConfig.StarterWeapon] == 0)
+check("renace", args[1] == true and args[2] == Codes.Success and args[4].Count == 1 and args[4].Tokens == 1 and args[4].Paid == 25000)
+check("en el mismo paso: 💰 al inicial, armas a nivel 0 y ciclo vacío; los 💎 se quedan", profile.Money == EconomyConfig.StartingMoney and profile.Diamonds == diamondsBefore and profile.PetData.Weapons.Levels[WeaponConfig.StarterWeapon] == 0 and next(profile.PetData.Rebirth.Cycle) == nil and p1:GetAttribute("RebirthCycle") == "")
 check("1 renacimiento y 1 ficha (atributos para el cliente, sin los de la Resonancia)",
 	p1:GetAttribute("Rebirths") == 1 and p1:GetAttribute("RebirthTokens") == 1 and p1:GetAttribute("RebirthBestLevel") == nil and p1:GetAttribute("UpgradeLevel_GeneratorPower") == nil)
 check("la columna de la lista de jugadores marca 1", p1:FindFirstChild("leaderstats"):FindFirstChild("Renacimientos").Value == 1)
@@ -115,13 +155,26 @@ check("aviso a todos: quién y cuántos", broadcast and broadcast.Name == "Rebir
 check("inventario de mascotas reenviado (espacios al día)", PetService.Pushed == pushedBefore + 1)
 advance(0)
 local saved = record(1)
-check("guardado en seguida: Version 17 y Rebirth en el registro", saved and saved.Version == 17 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1)
+check("guardado en seguida: Version 17 y Rebirth (con su ciclo vacío) en el registro", saved and saved.Version == 17 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1 and next(saved.Rebirth.Cycle or {}) == nil)
 
 fireServer("Rebirth", p1)
 advance(0)
 args = lastResult("RebirthResult", p1)
 check("otra petición en seguida: TooFast (protección)", args[1] == false and args[2] == Codes.TooFast)
-RebirthConfig.Enabled = false
+GameEvents.fire("WaveCleared", p1, "CrystalValley", 5)
+advance(0)
+exit = function(player)
+	leave(player)
+	advance(0)
+end
+leave(p1)
+advance(0)
+check("el ciclo se guarda (oleada 5 del Valle)", record(1).Rebirth.Cycle.CrystalValley == 5)
+p1 = PetService.newPlayer("Ana", 1)
+join(p1)
+advance(0)
+profile = PlayerDataService.get(p1)
+check("y se carga al volver", profile.PetData.Rebirth.Cycle.CrystalValley == 5 and p1:GetAttribute("RebirthCycle") == "CrystalValley=5")
 
 print("-- 6. Tienda")
 advance(1)
@@ -138,7 +191,7 @@ advance(1)
 fireServer("RebirthShop", p1, "Strike")
 advance(0)
 args = lastResult("RebirthResult", p1)
-check("la tienda funciona aunque renacer esté bloqueado: Golpe renacido nivel 1", args[1] == true and args[4].ItemId == "Strike" and args[4].Level == 1 and args[4].Cost == 1 and p1:GetAttribute("RebirthTokens") == 0 and p1:GetAttribute("RebirthShop") == "Strike=1")
+check("tienda de fichas: Golpe renacido nivel 1", args[1] == true and args[4].ItemId == "Strike" and args[4].Level == 1 and args[4].Cost == 1 and p1:GetAttribute("RebirthTokens") == 0 and p1:GetAttribute("RebirthShop") == "Strike=1")
 profile.PetData.Rebirth.Tokens = 3
 pushedBefore = PetService.Pushed
 advance(1)
@@ -148,10 +201,6 @@ check("Espacio de mascota: 4 equipadas y el inventario se reenvía", p1:GetAttri
 check("daño del jugador: ×1.1 por el renacimiento y ×1.15 por Golpe renacido", near(RebirthLogic.damageMultiplier(profile.PetData.Rebirth), 1.1 * 1.15))
 
 print("-- 7. Recarga: espacios y sin offline")
-exit = function(player)
-	leave(player)
-	advance(0)
-end
 exit(p1)
 storeData.player_2 = {
 	Version = 4,

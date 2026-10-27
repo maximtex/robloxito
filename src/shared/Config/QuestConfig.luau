@@ -122,7 +122,7 @@ local QuestConfig = {
 		{
 			Id = "UnlockCaldera",
 			Title = "Corazón de fuego",
-			Description = "Desbloquea la Caldera de Brasas (pide 3 renacimientos).",
+			Description = "Desbloquea la Caldera de Brasas.",
 			Goal = { Source = "State", Key = "ZonesUnlocked" },
 			Target = 2,
 			Reward = { Min = 600, Max = 5000 },

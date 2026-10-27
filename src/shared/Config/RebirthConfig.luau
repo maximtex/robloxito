@@ -5,12 +5,24 @@
 -- - Fichas de renacimiento para la tienda de ventajas permanentes (Shop).
 -- La lógica pura está en RebirthLogic; el servidor (RebirthService) decide todo.
 --
--- Antes pedía un nivel de la Resonancia del Cristal, que ya no existe. Hasta que llegue el
--- requisito nuevo (fase 2 del rediseño), Enabled = false: no se puede renacer y el panel
--- dice "Próximamente". Se conserva lo ya conseguido (renacimientos, fichas y tienda).
+-- Requisito (Requirement) del renacimiento n + 1 (n = renacimientos hechos), las dos cosas:
+-- - Ganar las oleadas del modo Waves[n + 1] (derrotar a su jefe en la última oleada) DESDE
+--   EL ÚLTIMO RENACIMIENTO (cuenta lo de PetData.Rebirth.Cycle, que se vacía al renacer).
+--   Pasada la lista, el último modo en el modo infinito: EndlessExtraWaves oleadas más por
+--   cada renacimiento de más.
+-- - Tener 💰 MoneyBase · MoneyGrowth^n (se paga al renacer; el resto del 💰 se reinicia).
+-- Enabled = false lo bloquea ("Próximamente").
 
 local RebirthConfig = {
-	Enabled = false,
+	Enabled = true,
+
+	Requirement = {
+		-- Modo de oleadas (WaveConfig.Arenas) que pide cada renacimiento, en orden.
+		Waves = { "Forest", "CrystalValley", "EmberCaldera", "FrozenTundra", "DividedLands" },
+		EndlessExtraWaves = 3,
+		MoneyBase = 25000,
+		MoneyGrowth = 3,
+	},
 
 	-- Premio permanente por renacimiento (se suman: 3 renacimientos = ×2.5 de botín).
 	LootBonus = 0.5, -- +50 % de 💰 de los enemigos por renacimiento

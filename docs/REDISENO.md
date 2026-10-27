@@ -144,11 +144,10 @@ Las mascotas multiplican el daño (50 % de su bonificación) y el dinero (50 %).
 - Los jefes derrotados se guardan (`Bosses`); quien ya tenía una zona la conserva.
 
 ### Renacimiento
-- (Fase 1 del rediseño de pelea) Ya no hay Resonancia: renacer queda bloqueado
-  («Próximamente», `RebirthConfig.Enabled = false`) hasta que la fase 2 elija el requisito
-  nuevo. Se reinicia: dinero y niveles de las armas. Se conserva: 💎, armas compradas y la
-  equipada, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos, misiones y la
-  tienda de fichas.
+- (Fase 2 del rediseño de pelea) Requisito: ganar las oleadas del modo que toca desde el
+  último renacimiento (ver sección 6) y tener 💰 25 000 · 3ⁿ. Se reinicia: dinero y niveles
+  de las armas. Se conserva: 💎, armas compradas y la equipada, mascotas, zonas, jefes
+  derrotados, mejoras de la Armería, núcleos, misiones y la tienda de fichas.
 
 ### Guardado
 - Esquema v8: `Weapons` (`WeaponLogic.serialize`) y `Bosses`. Los registros antiguos cargan
@@ -271,3 +270,26 @@ núcleos, clases, habilidades, misiones, inventario y 💎 se quedan igual.
 su `Energy` (y los nombres viejos de las misiones, la poción y la semana); al guardar se borra
 `Energy`. No cambian: el id del pase `DoubleEnergy`, el DataStore `RC_Global_Diamonds_v1` ni
 las piezas "Energy" de los portales (son geometría del mapa).
+
+## 6. Rediseño de pelea, fase 2: renacimiento nuevo
+
+Elegido: **oleadas + 💰** y reiniciar solo 💰 y el nivel de las armas.
+
+| Renacimiento | Oleadas (desde el último renacimiento) | 💰 |
+|---|---|---|
+| 1 | Ganar las Oleadas del Guardián (Bosque, 10) | 25 000 |
+| 2 | Oleadas del Coloso (Valle) | 75 000 |
+| 3 | Oleadas del Titán (Caldera) | 225 000 |
+| 4 | Oleadas del Gólem de Hielo (Tundra) | 675 000 |
+| 5 | Oleadas del Equilibrio (Tierras Divididas) | 2 025 000 |
+| 6, 7… | Tierras Divididas en el modo infinito: 3 oleadas más cada vez | ×3 cada vez |
+
+- `RebirthConfig.Requirement` (Waves, EndlessExtraWaves, MoneyBase, MoneyGrowth).
+- `RebirthLogic.requirement / progress / recordWave / canRebirth / rebirth(data, money, now)`;
+  códigos `WavesNotDone` e `InsufficientMoney` (con el progreso para el cliente).
+- `Rebirth.Cycle` (oleada más alta de cada modo desde el último renacimiento): lo anota
+  `RebirthService.recordWave` con el evento `WaveCleared` de `WaveService`, se replica en el
+  atributo `RebirthCycle` y se vacía al renacer. Los registros antiguos empiezan con el ciclo
+  vacío (las victorias de antes no cuentan para el próximo renacimiento).
+- Panel (`RebirthController`): requisito con ✅, barra (mitad oleadas, mitad 💰) y botón que
+  dice qué falta.

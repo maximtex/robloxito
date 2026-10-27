@@ -296,6 +296,7 @@ function PlayerDataService.replicate(player: Player)
 	setIfChanged(player, attributes.Rebirths, RebirthLogic.count(rebirth))
 	setIfChanged(player, attributes.RebirthTokens, if type(rebirth) == "table" then rebirth.Tokens or 0 else 0)
 	setIfChanged(player, attributes.RebirthShop, RebirthLogic.shopText(rebirth))
+	setIfChanged(player, attributes.RebirthCycle, RebirthLogic.cycleText(rebirth))
 	setIfChanged(player, attributes.MaxEquipped, MonetizationLogic.maxEquipped(rebirth, profile.Passes, PetConfig.MaxEquipped))
 	-- Energía generada en total (clasificaciones; la cuenta QuestService).
 	local quests = profile.PetData.Quests

@@ -669,6 +669,7 @@ function recordCleared(run: Run, wave: number)
 			records = WaveLogic.emptyRecords()
 			profile.PetData.Waves = records
 		end
+		GameEvents.fire("WaveCleared", player, run.ArenaId, wave) -- requisito de renacer (RebirthService)
 		if WaveLogic.recordWave(records, run.ArenaId, wave) then
 			participant.NewBest = true
 			if participant.StartBest > 0 and not participant.RecordShown and player.Parent then

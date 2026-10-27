@@ -3,12 +3,12 @@
 --   se puede renacer.
 -- - Panel (PanelManager): bonificación actual, requisito, lo que se gana y lo que se
 --   reinicia, botón de renacer con confirmación (dos pulsaciones) y tienda de fichas.
---   Mientras RebirthConfig.Enabled sea false (el requisito nuevo llega en la fase 2 del
---   rediseño), el botón dice "🔒 Próximamente" y no se puede renacer.
+--   Requisito (RebirthLogic.progress): ganar las oleadas del modo que toca desde el último
+--   renacimiento y tener el 💰 que pide; la barra va por la mitad con cada uno.
 -- - Al renacer: destello, sacudida, título "RENACIMIENTO II" y sonido; aviso breve cuando
 --   renace otro jugador.
--- El estado sale de atributos del Player (Rebirths, RebirthTokens, RebirthShop) y los
--- números de RebirthLogic, igual que en el servidor.
+-- El estado sale de atributos del Player (Rebirths, RebirthTokens, RebirthShop,
+-- RebirthCycle y Money) y los números de RebirthLogic, igual que en el servidor.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,7 +19,10 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local RebirthConfig = require(Shared.Config.RebirthConfig)
+local WaveConfig = require(Shared.Config.WaveConfig)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
 local RebirthLogic = require(Shared.RebirthLogic)
+local formatNumber = require(Shared.Util.FormatNumber)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
@@ -39,7 +42,9 @@ local CONFIRM_SECONDS = 4
 local GOLD = RebirthConfig.Colors.Glow
 
 local MESSAGES = {
-	[Codes.ComingSoon] = "El renacimiento vuelve pronto con un requisito nuevo.",
+	[Codes.ComingSoon] = "El renacimiento no está disponible ahora mismo.",
+	[Codes.WavesNotDone] = "Aún te faltan las oleadas que pide el renacimiento.",
+	[Codes.InsufficientMoney] = "Te falta 💰 para renacer.",
 	[Codes.InsufficientTokens] = "Te faltan fichas.",
 	[Codes.MaxLevel] = "Esa ventaja ya está al máximo.",
 	[Codes.NotReady] = "Tus datos aún se están cargando.",
@@ -65,7 +70,24 @@ local function currentData(): any
 		Tokens = attributeNumber(Attributes.RebirthTokens),
 		Shop = RebirthLogic.parseShop(player:GetAttribute(Attributes.RebirthShop)),
 		LastAt = 0,
+		Cycle = RebirthLogic.parseCycle(player:GetAttribute(Attributes.RebirthCycle)),
 	}
+end
+
+local function money(): number
+	return attributeNumber(Attributes.Money)
+end
+
+-- "las Oleadas del Guardián (Bosque Inicial)"; con modo infinito, "la oleada 13 de ...".
+local function wavesText(progress: any): string
+	local arena = WaveConfig.Arenas[progress.ArenaId]
+	local zone = arena and ZoneConfig.Zones[arena.Zone]
+	local name = (if arena then arena.DisplayName else progress.ArenaId) .. (if zone then " (" .. zone.DisplayName .. ")" else "")
+	local count = if arena then #arena.Waves + (if arena.Boss then 1 else 0) else progress.Wave
+	if progress.Wave > count then
+		return ("supera la oleada %d de las %s"):format(progress.Wave, name)
+	end
+	return "gana las " .. name
 end
 
 local function dataReady(): boolean
@@ -471,8 +493,13 @@ function RebirthController.start()
 	local function render()
 		local data = currentData()
 		local count = data.Count
-		local ready = RebirthLogic.canRebirth(data) and dataReady()
-		local progress = if ready then 1 else 0
+		local have = money()
+		local ready = RebirthLogic.canRebirth(data, have) and dataReady()
+		local status = RebirthLogic.progress(data, have)
+		-- Media barra por las oleadas y media por el 💰.
+		local waveShare = math.clamp(status.BestWave / math.max(1, status.Wave), 0, 1)
+		local moneyShare = math.clamp(have / math.max(1, status.Money), 0, 1)
+		local progress = if RebirthConfig.Enabled then (waveShare + moneyShare) / 2 else 0
 
 		-- Azulejo del menú
 		menuEntry.setProgress(progress)
@@ -489,15 +516,20 @@ function RebirthController.start()
 			multiplierText(RebirthLogic.lootBonusAt(count)),
 			multiplierText(RebirthLogic.damageMultiplierAt(count, strike))
 		)
-		ui.Requirement.Text = if RebirthConfig.Enabled then "Para renacer: ¡ya puedes!" else "Para renacer: llega pronto un requisito nuevo"
+		ui.Requirement.Text = if RebirthConfig.Enabled
+			then ("Para renacer: %s %s  ·  %s 💰 %s"):format(if status.WavesDone then "✅" else "⚔", wavesText(status), if status.MoneyDone then "✅" else "·", formatNumber(status.Money))
+			else "Renacer no está disponible ahora mismo"
 		ui.Fill.Size = UDim2.fromScale(progress, 1)
-		ui.TrackText.Text = if ready then "¡Listo para renacer!" else "Próximamente"
+		ui.TrackText.Text = if ready
+			then "¡Listo para renacer!"
+			elseif not RebirthConfig.Enabled then "Próximamente"
+			else ("Oleada %d / %d  ·  💰 %s / %s"):format(math.min(status.BestWave, status.Wave), status.Wave, formatNumber(math.min(have, status.Money)), formatNumber(status.Money))
 		ui.Gain.Text = ("Al renacer:  💰 %s botín  ·  ⚔ %s daño  ·  🪙 +%s"):format(
 			multiplierText(RebirthLogic.lootBonusAt(count + 1)),
 			multiplierText(RebirthLogic.damageMultiplierAt(count + 1, strike)),
 			tokensText(RebirthLogic.tokensFor(count))
 		)
-		ui.Resets.Text = "Se reinician tu 💰 y el nivel de tus armas. Te quedas tus 💎, habilidades, armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos y misiones."
+		ui.Resets.Text = "Se reinician tu 💰 (pagas el requisito y el resto vuelve a 0) y el nivel de tus armas. Te quedas tus 💎, habilidades, armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos y misiones."
 
 		local confirming = ready and os.clock() < confirmUntil
 		if pending then
@@ -506,8 +538,12 @@ function RebirthController.start()
 			ui.RebirthButton.Text = "⚠ Pulsa otra vez para renacer"
 		elseif ready then
 			ui.RebirthButton.Text = "🔄 Renacer ahora"
-		else
+		elseif not RebirthConfig.Enabled then
 			ui.RebirthButton.Text = "🔒 Próximamente"
+		elseif not status.WavesDone then
+			ui.RebirthButton.Text = "🔒 Te faltan las oleadas"
+		else
+			ui.RebirthButton.Text = ("🔒 Te faltan 💰 %s"):format(formatNumber(status.Money - have))
 		end
 		ui.RebirthButton.BackgroundColor3 = if confirming then Color3.fromRGB(176, 110, 30) elseif ready then Color3.fromRGB(150, 112, 34) else THEME.Disabled
 		ui.RebirthButton.TextColor3 = if ready then THEME.Text else THEME.Muted
@@ -519,7 +555,7 @@ function RebirthController.start()
 	-- El azulejo del menú late en dorado cuando se puede renacer.
 	local function updateButtonGlow()
 		local data = currentData()
-		local ready = RebirthLogic.canRebirth(data) and dataReady()
+		local ready = RebirthLogic.canRebirth(data, money()) and dataReady()
 		menuEntry.setAttention(ready, GOLD)
 	end
 
@@ -557,8 +593,15 @@ function RebirthController.start()
 		if ui.RebirthButton:GetAttribute("Disabled") == true then
 			if not dataReady() then
 				setFeedback(MESSAGES[Codes.NotReady], THEME.Error)
-			else
+			elseif not RebirthConfig.Enabled then
 				setFeedback(MESSAGES[Codes.ComingSoon], THEME.Error)
+			else
+				local status = RebirthLogic.progress(currentData(), money())
+				if not status.WavesDone then
+					setFeedback(("Para renacer: %s (oleada %d de %d). Las del ciclo cuentan desde tu último renacimiento."):format(wavesText(status), status.BestWave, status.Wave), THEME.Error)
+				else
+					setFeedback(("Te faltan 💰 %s para renacer."):format(formatNumber(status.Money - money())), THEME.Error)
+				end
 			end
 			return
 		end
@@ -627,7 +670,13 @@ function RebirthController.start()
 				PanelManager.close(PANEL_NAME)
 				playCinematic(tonumber(detail.Count) or attributeNumber(Attributes.Rebirths), tonumber(detail.Tokens) or 0)
 			else
-				setFeedback(MESSAGES[code] or tostring(code), THEME.Error)
+				local message = MESSAGES[code] or tostring(code)
+				if code == Codes.WavesNotDone and typeof(detail) == "table" and detail.ArenaId then
+					message = ("Para renacer: %s."):format(wavesText(detail))
+				elseif code == Codes.InsufficientMoney and typeof(detail) == "table" and tonumber(detail.Money) then
+					message = ("Necesitas 💰 %s para renacer."):format(formatNumber(tonumber(detail.Money) or 0))
+				end
+				setFeedback(message, THEME.Error)
 			end
 			render()
 		elseif action == "Shop" then
@@ -659,7 +708,7 @@ function RebirthController.start()
 		render()
 		updateButtonGlow()
 	end
-	for _, name in { Attributes.Rebirths, Attributes.RebirthTokens, Attributes.RebirthShop, Attributes.DataStatus } do
+	for _, name in { Attributes.Rebirths, Attributes.RebirthTokens, Attributes.RebirthShop, Attributes.RebirthCycle, Attributes.Money, Attributes.DataStatus } do
 		player:GetAttributeChangedSignal(name):Connect(onStateChanged)
 	end
 	onStateChanged()

@@ -1,4 +1,4 @@
--- 💎 de los jugadores (en el código siguen llamándose Energy).
+-- 💎 de los jugadores (profile.Diamonds, atributo Diamonds).
 -- - grant(player, amount): 💎 ganados peleando (enemigos y oleadas). Se suman al momento
 --   (el contador sube con cada orbe) y cuentan como "conseguidos" en el siguiente aviso.
 -- - Cada TickInterval segundos avisa a los oyentes (misiones, tutorial, clasificaciones)
@@ -10,7 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EconomyConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.EconomyConfig)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 
-local EnergyService = {}
+local DiamondService = {}
 
 -- Avisos de 💎 conseguidos (los usa QuestService). Se llaman una vez por ciclo, con la
 -- cantidad conseguida desde el anterior.
@@ -18,12 +18,12 @@ local producedListeners: { (Player, number) -> () } = {}
 -- 💎 ganados peleando desde el último aviso (por jugador).
 local pending: { [Player]: number } = {}
 
-function EnergyService.onProduced(listener: (Player, number) -> ())
+function DiamondService.onProduced(listener: (Player, number) -> ())
 	table.insert(producedListeners, listener)
 end
 
 -- 💎 ganados al derrotar enemigos (EnemyService) o en las oleadas. Devuelve lo sumado.
-function EnergyService.grant(player: Player, amount: number): number
+function DiamondService.grant(player: Player, amount: number): number
 	local profile = PlayerDataService.get(player)
 	if not profile or type(amount) ~= "number" or amount ~= amount or amount <= 0 or amount == math.huge then
 		return 0
@@ -32,7 +32,7 @@ function EnergyService.grant(player: Player, amount: number): number
 	if value <= 0 then
 		return 0
 	end
-	profile.Energy += value
+	profile.Diamonds += value
 	pending[player] = (pending[player] or 0) + value
 	PlayerDataService.replicate(player)
 	return value
@@ -54,7 +54,7 @@ local function notifyEarned()
 	end
 end
 
-function EnergyService.start()
+function DiamondService.start()
 	task.spawn(function()
 		while true do
 			task.wait(EconomyConfig.TickInterval)
@@ -63,4 +63,4 @@ function EnergyService.start()
 	end)
 end
 
-return EnergyService
+return DiamondService

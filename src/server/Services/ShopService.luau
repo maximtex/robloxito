@@ -140,8 +140,8 @@ function ShopService.processReceipt(receipt: any): Enum.ProductPurchaseDecision
 		end
 		MonetizationLogic.addReceipt(shop, purchaseId)
 	else
-		local amount = MonetizationLogic.productEnergy(def)
-		profile.Energy += amount
+		local amount = MonetizationLogic.productDiamonds(def)
+		profile.Diamonds += amount
 		MonetizationLogic.addReceipt(shop, purchaseId)
 		PlayerDataService.replicate(player)
 		notify(player, "Product", productKey, amount)

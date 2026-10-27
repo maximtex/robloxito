@@ -46,7 +46,7 @@ local StudFloor = require(Shared.Util.StudFloor)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
-local EnergyService = require(script.Parent.EnergyService)
+local DiamondService = require(script.Parent.DiamondService)
 local PetCombatService = require(script.Parent.PetCombatService)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
@@ -81,7 +81,7 @@ type Participant = {
 	Mods: WaveLogic.Mods,
 	Choices: { string }?, -- mejoras para elegir ahora (nil si no toca)
 	Kills: number,
-	Energy: number,
+	Diamonds: number,
 	Money: number,
 	Golden: number,
 	BestStreak: number,
@@ -89,7 +89,7 @@ type Participant = {
 	NewBest: boolean, -- ha superado su récord en esta partida
 	RecordShown: boolean, -- ya se le avisó del récord nuevo
 	Continue: boolean?, -- modo infinito: true sigue, false se va, nil aún no ha elegido
-	VictoryEnergy: number, -- premio de victoria ya cobrado
+	VictoryDiamonds: number, -- premio de victoria ya cobrado
 	VictoryMoney: number,
 }
 
@@ -185,7 +185,7 @@ local function newParticipant(player: Player): Participant
 		Mods = WaveLogic.modifiers({}),
 		Choices = nil,
 		Kills = 0,
-		Energy = 0,
+		Diamonds = 0,
 		Money = 0,
 		Golden = 0,
 		BestStreak = 0,
@@ -193,7 +193,7 @@ local function newParticipant(player: Player): Participant
 		NewBest = false,
 		RecordShown = false,
 		Continue = nil,
-		VictoryEnergy = 0,
+		VictoryDiamonds = 0,
 		VictoryMoney = 0,
 	}
 end
@@ -354,20 +354,20 @@ end
 
 -- Premios -------------------------------------------------------------------------------
 
-local function pay(participant: Participant, energy: number, money: number): (number, number)
+local function pay(participant: Participant, diamonds: number, money: number): (number, number)
 	local profile = PlayerDataService.get(participant.Player)
 	if not profile then
 		return 0, 0
 	end
 	-- Pase Diamantes ×2, Poción de Diamantes y aventuras: también multiplican los 💎 de los
 	-- premios de las oleadas.
-	local given = EnergyService.grant(participant.Player, energy * PlayerDataService.diamondMultiplier(profile))
+	local given = DiamondService.grant(participant.Player, diamonds * PlayerDataService.diamondMultiplier(profile))
 	local coins = math.max(0, math.floor(money))
 	if coins > 0 then
 		profile.Money += coins
 		PlayerDataService.replicate(participant.Player)
 	end
-	participant.Energy += given
+	participant.Diamonds += given
 	participant.Money += coins
 	return given, coins
 end
@@ -687,8 +687,8 @@ local function waveCleared(run: Run)
 	for _, participant in run.Participants do
 		local profile = PlayerDataService.get(participant.Player)
 		if profile then
-			local energy, money = WaveLogic.clearReward(wave, run.ArenaId)
-			local given, coins = pay(participant, energy, money)
+			local diamonds, money = WaveLogic.clearReward(wave, run.ArenaId)
+			local given, coins = pay(participant, diamonds, money)
 			-- Respiro: recupera parte de la vida (solo quien sigue en pie)
 			local healed = false
 			local _, humanoid = rootOf(participant.Player)
@@ -697,7 +697,7 @@ local function waveCleared(run: Run)
 				humanoid.Health = math.min(humanoid.MaxHealth, before + humanoid.MaxHealth * WaveConfig.ClearHeal)
 				healed = humanoid.Health > before
 			end
-			eventRemote:FireClient(participant.Player, "Cleared", { Wave = wave, Energy = given, Money = coins, Healed = healed })
+			eventRemote:FireClient(participant.Player, "Cleared", { Wave = wave, Diamonds = given, Money = coins, Healed = healed })
 		end
 	end
 	if not run.Endless and wave >= run.Waves then
@@ -748,7 +748,7 @@ local function payVictory(run: Run)
 	for player, participant in run.Participants do
 		local profile = PlayerDataService.get(player)
 		if profile then
-			participant.VictoryEnergy, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(run.ArenaId))
+			participant.VictoryDiamonds, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(run.ArenaId))
 			local ok, err = pcall(giveChest, run, participant)
 			if not ok then
 				warn("[WaveService] Cofre: " .. tostring(err))
@@ -771,11 +771,11 @@ local function sendResult(run: Run, player: Player, participant: Participant, vi
 			Wave = run.Wave,
 			Waves = run.Waves,
 			Kills = participant.Kills,
-			Energy = participant.Energy,
+			Diamonds = participant.Diamonds,
 			Money = participant.Money,
 			Golden = participant.Golden,
 			BestStreak = participant.BestStreak,
-			VictoryEnergy = participant.VictoryEnergy,
+			VictoryDiamonds = participant.VictoryDiamonds,
 			VictoryMoney = participant.VictoryMoney,
 			Best = best[run.ArenaId] or 0,
 			PersonalBest = if profile then WaveLogic.bestWave(profile.PetData.Waves, run.ArenaId) else 0,
@@ -823,7 +823,7 @@ function enterChoice(run: Run)
 			eventRemote:FireClient(player, "Choice", {
 				EndsAt = serverTime(run.EndsAt),
 				Wave = run.Wave,
-				VictoryEnergy = participant.VictoryEnergy,
+				VictoryDiamonds = participant.VictoryDiamonds,
 				VictoryMoney = participant.VictoryMoney,
 			})
 		end
@@ -1280,7 +1280,7 @@ function WaveService.start()
 		if participant then
 			participant.Kills += 1
 			participant.Money += if type(info.Reward) == "number" then info.Reward else 0
-			participant.Energy += if type(info.Energy) == "number" then info.Energy else 0
+			participant.Diamonds += if type(info.Diamonds) == "number" then info.Diamonds else 0
 			if info.Golden then
 				participant.Golden += 1
 			end

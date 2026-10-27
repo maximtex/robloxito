@@ -388,8 +388,8 @@ end
 
 -- Devuelve (código, coste). Códigos: Success, InvalidRequest (elemento, tiempo o
 -- estructura de datos no válidos), AlreadyUnlocked, Locked (falta un núcleo anterior),
--- InsufficientEnergy. Cualquier rechazo deja los datos sin tocar.
-function CoreLogic.unlock(data: CoreData, elementId: any, energy: number, now: number): (string, number)
+-- InsufficientDiamonds. Cualquier rechazo deja los datos sin tocar.
+function CoreLogic.unlock(data: CoreData, elementId: any, diamonds: number, now: number): (string, number)
 	local index = CoreLogic.indexOf(elementId)
 	if not index or not validNow(now) or not validStructure(data) then
 		return "InvalidRequest", 0
@@ -413,8 +413,8 @@ function CoreLogic.unlock(data: CoreData, elementId: any, energy: number, now: n
 		end
 	end
 	local cost = CoreLogic.unlockCost(elementId) :: number
-	if not isFiniteNumber(energy) or energy < cost then
-		return "InsufficientEnergy", cost
+	if not isFiniteNumber(diamonds) or diamonds < cost then
+		return "InsufficientDiamonds", cost
 	end
 	entry.Unlocked = true
 	entry.UnlockedAt = math.floor(now)
@@ -424,8 +424,8 @@ end
 -- Devuelve (código, coste). Sube un nivel un núcleo distinto de Naturaleza (que no tiene
 -- nivel). Códigos: Success,
 -- InvalidRequest (elemento desconocido, Naturaleza o datos sin estructura), Locked
--- (bloqueado), MaxLevel, InsufficientEnergy. Cualquier rechazo deja los datos sin tocar.
-function CoreLogic.upgrade(data: CoreData, elementId: any, energy: number): (string, number)
+-- (bloqueado), MaxLevel, InsufficientDiamonds. Cualquier rechazo deja los datos sin tocar.
+function CoreLogic.upgrade(data: CoreData, elementId: any, diamonds: number): (string, number)
 	local index = CoreLogic.indexOf(elementId)
 	if not index or index == 1 or not validStructure(data) then
 		return "InvalidRequest", 0
@@ -439,8 +439,8 @@ function CoreLogic.upgrade(data: CoreData, elementId: any, energy: number): (str
 	if not cost then
 		return "MaxLevel", 0
 	end
-	if not isFiniteNumber(energy) or energy < cost then
-		return "InsufficientEnergy", cost
+	if not isFiniteNumber(diamonds) or diamonds < cost then
+		return "InsufficientDiamonds", cost
 	end
 	entry.Level = level + 1
 	return "Success", cost
@@ -453,8 +453,8 @@ end
 
 -- Devuelve (código, coste). Códigos: Success, InvalidRequest (elemento, tiempo o
 -- estructura de datos no válidos), Locked, AlreadySelected, TooFast (enfriamiento),
--- InsufficientEnergy. Cualquier rechazo deja los datos sin tocar.
-function CoreLogic.selectElement(data: CoreData, elementId: any, energy: number, now: number): (string, number)
+-- InsufficientDiamonds. Cualquier rechazo deja los datos sin tocar.
+function CoreLogic.selectElement(data: CoreData, elementId: any, diamonds: number, now: number): (string, number)
 	if not CoreLogic.indexOf(elementId) or not validNow(now) or not validStructure(data) then
 		return "InvalidRequest", 0
 	end
@@ -470,8 +470,8 @@ function CoreLogic.selectElement(data: CoreData, elementId: any, energy: number,
 		return "TooFast", 0
 	end
 	local cost = CoreLogic.switchCost()
-	if not isFiniteNumber(energy) or energy < cost then
-		return "InsufficientEnergy", cost
+	if not isFiniteNumber(diamonds) or diamonds < cost then
+		return "InsufficientDiamonds", cost
 	end
 	-- Si era el secundario, se intercambian (el principal anterior pasa a la R).
 	if data.Secondary == elementId then
@@ -486,8 +486,8 @@ end
 -- (comparten LastSwitchAt). Elegir el principal actual como secundario los intercambia
 -- (solo si ya había secundario; si no, el principal se quedaría vacío: AlreadySelected).
 -- Devuelve (código, coste). Códigos: Success, InvalidRequest, Locked, AlreadySelected,
--- TooFast, InsufficientEnergy. Cualquier rechazo deja los datos sin tocar.
-function CoreLogic.selectSecondary(data: CoreData, elementId: any, energy: number, now: number): (string, number)
+-- TooFast, InsufficientDiamonds. Cualquier rechazo deja los datos sin tocar.
+function CoreLogic.selectSecondary(data: CoreData, elementId: any, diamonds: number, now: number): (string, number)
 	if not CoreLogic.indexOf(elementId) or not validNow(now) or not validStructure(data) then
 		return "InvalidRequest", 0
 	end
@@ -504,8 +504,8 @@ function CoreLogic.selectSecondary(data: CoreData, elementId: any, energy: numbe
 		return "TooFast", 0
 	end
 	local cost = CoreLogic.switchCost()
-	if not isFiniteNumber(energy) or energy < cost then
-		return "InsufficientEnergy", cost
+	if not isFiniteNumber(diamonds) or diamonds < cost then
+		return "InsufficientDiamonds", cost
 	end
 	if data.Selected == elementId then
 		data.Selected = current :: string -- intercambio

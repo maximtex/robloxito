@@ -55,7 +55,7 @@ export type Context = {
 }
 
 -- WaveWins: partidas de oleadas ganadas (también la de práctica del tutorial).
-local STAT_KEYS = { "Kills", "StrongKills", "BossKills", "EnergyEarned", "PetAbilities", "WaveWins" }
+local STAT_KEYS = { "Kills", "StrongKills", "BossKills", "DiamondsEarned", "PetAbilities", "WaveWins" }
 local MAX_NUMBER = 1e15
 local MAX_SET = 500
 local MAX_MAP = 64
@@ -125,6 +125,25 @@ local function cleanMap(raw: any): { [string]: number }
 end
 
 -- Datos guardados (o ausentes en partidas antiguas) -> estructura válida.
+-- Nombres de antes del guardado v17 (la ⚡ / los 💎 se llamaban Energy): se leen con el nuevo.
+local LEGACY_STATS = { DiamondsEarned = "EnergyEarned" }
+local LEGACY_IDS = { EarnEnergy = "EarnDiamonds", DailyEnergy = "DailyDiamonds" }
+
+local function renameIds(value: any): any
+	if type(value) ~= "table" then
+		return value
+	end
+	local out = {}
+	for key, item in value do
+		local newKey = if type(key) == "string" then LEGACY_IDS[key] or key else key
+		local newItem = if type(item) == "string" then LEGACY_IDS[item] or item else item
+		if out[newKey] == nil then
+			out[newKey] = newItem
+		end
+	end
+	return out
+end
+
 function QuestLogic.sanitize(raw: any): QuestData
 	local data = QuestLogic.empty()
 	if type(raw) ~= "table" then
@@ -132,28 +151,32 @@ function QuestLogic.sanitize(raw: any): QuestData
 	end
 	if type(raw.Stats) == "table" then
 		for _, key in STAT_KEYS do
-			data.Stats[key] = cleanNumber(raw.Stats[key])
+			local value = raw.Stats[key]
+			if value == nil and LEGACY_STATS[key] then
+				value = raw.Stats[LEGACY_STATS[key]]
+			end
+			data.Stats[key] = cleanNumber(value)
 		end
 		data.Stats.TypeKills = cleanMap(raw.Stats.TypeKills)
 		data.Stats.ZoneKills = cleanMap(raw.Stats.ZoneKills)
 	end
-	data.Done = cleanSet(raw.Done)
-	data.Claimed = cleanSet(raw.Claimed)
+	data.Done = cleanSet(renameIds(raw.Done))
+	data.Claimed = cleanSet(renameIds(raw.Claimed))
 	data.Achievements = cleanSet(raw.Achievements)
 	if type(raw.Daily) == "table" then
 		local day = raw.Daily.Day
 		data.Daily.Day = if type(day) == "number" and day == day and day >= 0 and day < 1e7 then math.floor(day) else 0
 		if type(raw.Daily.Ids) == "table" then
 			for _, id in raw.Daily.Ids do
-				local clean = cleanId(id)
+				local clean = cleanId(if type(id) == "string" then LEGACY_IDS[id] or id else id)
 				if clean and not table.find(data.Daily.Ids, clean) and #data.Daily.Ids < 10 then
 					table.insert(data.Daily.Ids, clean)
 				end
 			end
 		end
-		data.Daily.Progress = cleanMap(raw.Daily.Progress)
-		data.Daily.Claimed = cleanSet(raw.Daily.Claimed)
-		data.Daily.Notified = cleanSet(raw.Daily.Notified)
+		data.Daily.Progress = cleanMap(renameIds(raw.Daily.Progress))
+		data.Daily.Claimed = cleanSet(renameIds(raw.Daily.Claimed))
+		data.Daily.Notified = cleanSet(renameIds(raw.Daily.Notified))
 	end
 	return data
 end
@@ -295,7 +318,7 @@ end
 
 -- Eventos del servidor ----------------------------------------------------------------------
 
--- event = { Type = "Kill", TypeId, ZoneId } | { Type = "Energy", Amount } | { Type = "PetAbility" }
+-- event = { Type = "Kill", TypeId, ZoneId } | { Type = "Diamonds", Amount } | { Type = "PetAbility" }
 --   | { Type = "Upgrade" } (mejora de arma, guante o bastón comprada) | { Type = "Egg" } (huevo abierto)
 --   | { Type = "WaveWin" } (partida de oleadas ganada)
 -- Devuelve true si el evento era válido y se registró.
@@ -320,12 +343,12 @@ function QuestLogic.record(data: QuestData, event: any): boolean
 		end
 		stats.TypeKills[event.TypeId] = (stats.TypeKills[event.TypeId] or 0) + 1
 		stats.ZoneKills[zoneId] = (stats.ZoneKills[zoneId] or 0) + 1
-	elseif event.Type == "Energy" then
+	elseif event.Type == "Diamonds" then
 		amount = event.Amount
 		if type(amount) ~= "number" or amount ~= amount or amount <= 0 or amount > 1e9 then
 			return false
 		end
-		stats.EnergyEarned = math.min(stats.EnergyEarned + amount, MAX_NUMBER)
+		stats.DiamondsEarned = math.min(stats.DiamondsEarned + amount, MAX_NUMBER)
 	elseif event.Type == "PetAbility" then
 		stats.PetAbilities += 1
 	elseif event.Type == "WaveWin" then

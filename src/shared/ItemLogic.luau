@@ -63,10 +63,22 @@ function ItemLogic.sanitize(raw: any, now: number): ItemData
 	end
 	-- Se conservan también las pociones y huevos que ya no existan en la configuración (no se
 	-- ven ni se pueden usar, pero vuelven si se recuperan).
-	data.Potions = cleanCounts(raw.Potions)
+	-- Hasta el guardado v17 la Poción de Diamantes se llamaba "Energy".
+	local function renamed(map: any): any
+		if type(map) ~= "table" or map.Energy == nil then
+			return map
+		end
+		local out = table.clone(map)
+		if out.Diamonds == nil then
+			out.Diamonds = out.Energy
+		end
+		out.Energy = nil
+		return out
+	end
+	data.Potions = cleanCounts(renamed(raw.Potions))
 	data.Eggs = cleanCounts(raw.Eggs)
 	if type(raw.Boosts) == "table" then
-		for id, seconds in raw.Boosts do
+		for id, seconds in renamed(raw.Boosts) do
 			if type(id) == "string" and ItemConfig.Potions[id] and isFiniteNumber(seconds) and seconds > 0 then
 				data.Boosts[id] = now + math.min(math.floor(seconds), ItemConfig.MaxBoostSeconds)
 			end
@@ -243,7 +255,7 @@ export type Stats = {
 	Rebirths: number,
 	Pets: number,
 	PotionsUsed: number,
-	EnergyEarned: number,
+	DiamondsEarned: number,
 	Bosses: { [string]: number },
 }
 

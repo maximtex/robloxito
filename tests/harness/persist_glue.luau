@@ -21,5 +21,5 @@ local function lastResult(name, player)
 	return nil
 end
 local EnemyService = { onDefeated = function() end }
-local EnergyService = { onProduced = function() end }
+local DiamondService = { onProduced = function() end }
 local PetCombatService = { onAbilityHit = function() end }

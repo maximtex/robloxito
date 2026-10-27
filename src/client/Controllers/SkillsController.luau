@@ -8,7 +8,7 @@
 -- - Abajo, la Velocidad de Correr: su nivel, lo que suma y el botón para subirla.
 -- - Se abre en el puesto ⚡ Mejoras del pueblo (pisando su círculo), con el botón ⚡ MEJORAS de
 --   la tienda de tu estilo, la insignia ⚡ del botón de la X o la tecla B.
--- Datos de los atributos del jugador: Skills ("Burst:1,Pierce:2"), SkillSlots y Energy (💎).
+-- Datos de los atributos del jugador: Skills ("Burst:1,Pierce:2"), SkillSlots y Diamonds (💎).
 -- Cada mundo tiene las suyas: en el Mundo 2 (CurrentZone del Mundo 2) se ven sus 4 habilidades
 -- nuevas de cada estilo (StyleConfig: World = 2) y en el Mundo 1, las de siempre. Las puestas
 -- en la Z y la X se quedan aunque cambies de mundo.
@@ -41,7 +41,7 @@ local CARD_SIZE = Vector2.new(186, 404)
 local Codes = Constants.PurchaseCodes
 
 local MESSAGES = {
-	[Codes.InsufficientEnergy] = "Te faltan 💎: derrota enemigos, gana oleadas y haz misiones",
+	[Codes.InsufficientDiamonds] = "Te faltan 💎: derrota enemigos, gana oleadas y haz misiones",
 	[Codes.AlreadyOwned] = "Ya la tienes",
 	[Codes.NotOwned] = "Primero cómprala",
 	[Codes.MaxLevel] = "Ya está al nivel máximo",
@@ -56,7 +56,7 @@ local SkillsController = {}
 local player = Players.LocalPlayer
 
 local function diamonds(): number
-	local value = player:GetAttribute(Constants.Attributes.Energy)
+	local value = player:GetAttribute(Constants.Attributes.Diamonds)
 	return if typeof(value) == "number" then value else 0
 end
 
@@ -511,7 +511,7 @@ function SkillsController.start()
 		end
 	end)
 
-	for _, attribute in { Constants.Attributes.Energy, Constants.Attributes.Skills, Constants.Attributes.SkillSlots, Constants.Attributes.CombatStyle, Constants.Attributes.CurrentZone, Constants.Attributes.UpgradeLevelPrefix .. SPEED_ID } do
+	for _, attribute in { Constants.Attributes.Diamonds, Constants.Attributes.Skills, Constants.Attributes.SkillSlots, Constants.Attributes.CombatStyle, Constants.Attributes.CurrentZone, Constants.Attributes.UpgradeLevelPrefix .. SPEED_ID } do
 		player:GetAttributeChangedSignal(attribute):Connect(function()
 			if PanelManager.isOpen(PANEL_NAME) then
 				render()

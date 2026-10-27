@@ -1,6 +1,6 @@
 -- Lógica pura de las clases de cada estilo (ClassConfig): cuáles tienes y a qué nivel, cuál
 -- llevas activa en cada estilo, comprarlas, subirlas y elegirlas con 💎 diamantes (en el
--- código, Energy) y sus pasivas ya juntas (mods) para los servicios. Sin servicios: la usan
+-- código, Diamonds) y sus pasivas ya juntas (mods) para los servicios. Sin servicios: la usan
 -- StyleService (valida y cobra), SaveService (guardar), PlayerDataService (atributos, vida y
 -- velocidad), PetCombatService (golpes), EnemyService (jefes) y el cliente (solo mostrar).
 --
@@ -300,7 +300,7 @@ end
 -- Acciones (devuelven el código y los 💎 cobrados; quien llama los resta) ---------------------
 
 -- Comprar: "Success" (queda a nivel 1 y activa en su estilo), "InvalidRequest",
--- "AlreadyOwned" o "InsufficientEnergy" (faltan 💎), y el precio.
+-- "AlreadyOwned" o "InsufficientDiamonds" (faltan 💎), y el precio.
 function ClassLogic.buy(data: ClassData, classId: any, diamonds: any): (string, number)
 	local def = ClassLogic.definition(classId)
 	if not def then
@@ -311,14 +311,14 @@ function ClassLogic.buy(data: ClassData, classId: any, diamonds: any): (string, 
 	end
 	local price = def.Price or 0
 	if not (finite(diamonds) and diamonds >= price) then
-		return "InsufficientEnergy", price
+		return "InsufficientDiamonds", price
 	end
 	data.Owned[classId] = 1
 	data.Active[def.Style] = classId
 	return "Success", price
 end
 
--- Subir un nivel: "Success", "InvalidRequest", "NotOwned", "MaxLevel" o "InsufficientEnergy".
+-- Subir un nivel: "Success", "InvalidRequest", "NotOwned", "MaxLevel" o "InsufficientDiamonds".
 function ClassLogic.upgrade(data: ClassData, classId: any, diamonds: any): (string, number)
 	if not ClassLogic.definition(classId) then
 		return "InvalidRequest", 0
@@ -332,7 +332,7 @@ function ClassLogic.upgrade(data: ClassData, classId: any, diamonds: any): (stri
 		return "MaxLevel", 0
 	end
 	if not (finite(diamonds) and diamonds >= cost) then
-		return "InsufficientEnergy", cost
+		return "InsufficientDiamonds", cost
 	end
 	data.Owned[classId] = level + 1
 	return "Success", cost

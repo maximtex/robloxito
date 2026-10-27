@@ -2,7 +2,7 @@
 -- (EnemyService.onDefeated: una vez por muerte y jugador):
 -- - Cuenta la derrota en PetData.Bosses (abre la zona siguiente, ZoneLogic). Las zonas sin
 --   precio que pide (el Mundo 2, del Rey Goblin) quedan abiertas al momento.
--- - Energía extra (EnergyReward del jefe), que se suma directa: no cuenta como generada.
+-- - Energía extra (DiamondReward del jefe), que se suma directa: no cuenta como generada.
 -- - Su arma, sus guantes o su bastón (WeaponConfig.BossDrop): el de TU estilo de pelea
 --   (StyleConfig) la primera vez que lo derrotas con él. Cada estilo tiene el suyo.
 
@@ -46,9 +46,9 @@ local function onDefeated(player: Player, info: { TypeId: string, Kind: string }
 		PlayerDataService.saveNow(player)
 	end
 	local def = EnemyConfig.Types[info.TypeId]
-	local energy = def and def.EnergyReward or 0
-	if energy > 0 then
-		profile.Energy += energy
+	local diamonds = def and def.DiamondReward or 0
+	if diamonds > 0 then
+		profile.Diamonds += diamonds
 	end
 	PlayerDataService.markDirty(player)
 	PlayerDataService.replicate(player)

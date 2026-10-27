@@ -13,7 +13,6 @@ Icons.Ids = {
 	rebirth = "rbxassetid://78262713671639",
 	rewards = "rbxassetid://104895230690253",
 	shop = "rbxassetid://99317821262735",
-	energy = "rbxassetid://131589487045622", -- rayo (la moneda de antes)
 	-- diamond: sin dibujo propio aún: se ve el emoji 💎 (los diamantes)
 	tokens = "rbxassetid://111158193070510",
 	money = "rbxassetid://120673758892369", -- fajo de billetes 3D (icono_dinero_3d.png)
@@ -43,7 +42,6 @@ Icons.Emoji = {
 	rebirth = "🔄",
 	rewards = "🎁",
 	shop = "💎",
-	energy = "⚡",
 	diamond = "💎",
 	tokens = "🪙",
 	money = "💵",

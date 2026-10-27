@@ -28,7 +28,7 @@
 --   habilidad (cambiar de estilo o de hueco no la reinicia; la acorta su nivel) y se replica
 --   en StyleReadyAt (Z) y StyleReadyAt2 (X).
 -- - StyleAction("BuySkill" | "UpgradeSkill", skillId) y ("EquipSkill", skillId, slot):
---   comprar y subir con 💎 (profile.Energy) y ponerla en la Z o la X (SkillLogic valida).
+--   comprar y subir con 💎 (profile.Diamonds) y ponerla en la Z o la X (SkillLogic valida).
 -- - StyleAction("Dash"): el dash de Puños (StyleConfig.Styles.Fists.Dash): un salto corto
 --   hacia donde te mueves, sin cruzar paredes ni puertas cerradas; DashReadyAt.
 -- - StyleAction("Blink", aimPoint): el teletransporte de Magia (StyleConfig.Styles.Magic.Blink)
@@ -956,14 +956,14 @@ function StyleService.skillAction(player: Player, action: string, skillId: any, 
 	local skills = skillsOf(profile)
 	local code, cost = "InvalidRequest", 0
 	if action == "BuySkill" then
-		code, cost = SkillLogic.buy(skills, skillId, profile.Energy, profile.PetData.UnlockedZones)
+		code, cost = SkillLogic.buy(skills, skillId, profile.Diamonds, profile.PetData.UnlockedZones)
 	elseif action == "UpgradeSkill" then
-		code, cost = SkillLogic.upgrade(skills, skillId, profile.Energy)
+		code, cost = SkillLogic.upgrade(skills, skillId, profile.Diamonds)
 	elseif action == "EquipSkill" then
 		code = SkillLogic.equip(skills, skillId, slot)
 	end
 	if code == "Success" then
-		profile.Energy -= cost
+		profile.Diamonds -= cost
 		PlayerDataService.markDirty(player)
 		PlayerDataService.replicate(player)
 		local style = StyleLogic.sanitize(profile.PetData.Style)
@@ -991,14 +991,14 @@ function StyleService.classAction(player: Player, action: string, classId: any):
 	local classes = classesOf(profile)
 	local code, cost = "InvalidRequest", 0
 	if action == "BuyClass" then
-		code, cost = ClassLogic.buy(classes, classId, profile.Energy)
+		code, cost = ClassLogic.buy(classes, classId, profile.Diamonds)
 	elseif action == "UpgradeClass" then
-		code, cost = ClassLogic.upgrade(classes, classId, profile.Energy)
+		code, cost = ClassLogic.upgrade(classes, classId, profile.Diamonds)
 	elseif action == "SelectClass" then
 		code = ClassLogic.select(classes, classId)
 	end
 	if code == "Success" then
-		profile.Energy -= cost
+		profile.Diamonds -= cost
 		PlayerDataService.markDirty(player)
 		PlayerDataService.replicate(player) -- también la vida y la velocidad de la clase
 		if action ~= "SelectClass" then

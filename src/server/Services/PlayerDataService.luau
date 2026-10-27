@@ -1,4 +1,4 @@
--- Estado de cada jugador. 💎 (en el código, Energy), dinero, mejoras, mascotas, zonas,
+-- Estado de cada jugador. 💎 (Diamonds en el código), dinero, mejoras, mascotas, zonas,
 -- misiones y núcleos se cargan y guardan con SaveService (un único DataStore).
 -- Nada se gana sin jugar: no hay producción por segundo ni recompensa offline.
 -- refreshStats recalcula el multiplicador de mascotas (daño y 💰); diamondMultiplier da el
@@ -49,7 +49,7 @@ local AUTOSAVE_INTERVAL = 90
 export type DataState = "Loading" | "Loaded" | "Unavailable" | "Failed"
 
 export type Profile = {
-	Energy: number,
+	Diamonds: number,
 	Money: number, -- lo sueltan los enemigos (EnemyService); paga la Tienda de Láser
 	UpgradeLevels: { [string]: number },
 	PetMultiplier: number,
@@ -75,7 +75,7 @@ local function createProfile(): Profile
 	end
 
 	return {
-		Energy = EconomyConfig.StartingEnergy,
+		Diamonds = EconomyConfig.StartingDiamonds,
 		Money = EconomyConfig.StartingMoney,
 		UpgradeLevels = upgradeLevels,
 		PetMultiplier = 1,
@@ -133,8 +133,8 @@ end
 -- Abundancia). EnemyService y WaveService lo aplican sobre la cantidad base.
 function PlayerDataService.diamondMultiplier(profile: Profile): number
 	local now = os.time()
-	return MonetizationLogic.energyMultiplier(profile.Passes)
-		* ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", now)
+	return MonetizationLogic.diamondMultiplier(profile.Passes)
+		* ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Diamonds", now)
 		* AdventureLogic.diamondMultiplier(profile.PetData.Adventure, now)
 end
 
@@ -213,7 +213,7 @@ function PlayerDataService.replicate(player: Player)
 	end
 
 	local attributes = Constants.Attributes
-	player:SetAttribute(attributes.Energy, math.floor(profile.Energy))
+	player:SetAttribute(attributes.Diamonds, math.floor(profile.Diamonds))
 	setIfChanged(player, attributes.Money, math.floor(profile.Money))
 	for upgradeId, level in profile.UpgradeLevels do
 		setIfChanged(player, attributes.UpgradeLevelPrefix .. upgradeId, level)
@@ -299,8 +299,8 @@ function PlayerDataService.replicate(player: Player)
 	setIfChanged(player, attributes.MaxEquipped, MonetizationLogic.maxEquipped(rebirth, profile.Passes, PetConfig.MaxEquipped))
 	-- Energía generada en total (clasificaciones; la cuenta QuestService).
 	local quests = profile.PetData.Quests
-	local earned = if type(quests) == "table" and type(quests.Stats) == "table" then quests.Stats.EnergyEarned else 0
-	setIfChanged(player, attributes.TotalEnergy, math.floor(if type(earned) == "number" and earned == earned then earned else 0))
+	local earned = if type(quests) == "table" and type(quests.Stats) == "table" then quests.Stats.DiamondsEarned else 0
+	setIfChanged(player, attributes.TotalDiamonds, math.floor(if type(earned) == "number" and earned == earned then earned else 0))
 	-- Oleadas superadas en total (clasificación de oleadas; las cuenta WaveService).
 	local waves = profile.PetData.Waves
 	setIfChanged(player, attributes.WavesCleared, if type(waves) == "table" and type(waves.Cleared) == "number" then waves.Cleared else 0)
@@ -313,7 +313,7 @@ end
 
 -- Firma de la economía (para saber si hay algo nuevo que guardar).
 local function economySignature(profile: Profile): string
-	local parts = { ("%.4f"):format(profile.Energy), ("money=%.4f"):format(profile.Money) }
+	local parts = { ("%.4f"):format(profile.Diamonds), ("money=%.4f"):format(profile.Money) }
 	for upgradeId, level in profile.UpgradeLevels do
 		table.insert(parts, upgradeId .. "=" .. level)
 	end
@@ -385,8 +385,8 @@ local function loadPetData(player: Player, profile: Profile)
 	if status == "Loaded" and data then
 		-- Lo ganado mientras cargaba (enemigos) se suma a lo guardado. Durante la
 		-- carga no se puede gastar, así que la diferencia nunca es negativa.
-		local gainedWhileLoading = math.max(0, profile.Energy - EconomyConfig.StartingEnergy)
-		profile.Energy = data.Energy + gainedWhileLoading
+		local gainedWhileLoading = math.max(0, profile.Diamonds - EconomyConfig.StartingDiamonds)
+		profile.Diamonds = data.Diamonds + gainedWhileLoading
 		profile.Money = data.Money + math.max(0, profile.Money - EconomyConfig.StartingMoney)
 		local levels = {}
 		for upgradeId in EconomyConfig.Upgrades do
@@ -438,7 +438,7 @@ local function saveProfile(player: Player, profile: Profile, release: boolean): 
 	profile.Dirty = false
 	-- La economía se copia ahora; lo que cambie durante la espera se guardará la próxima vez.
 	local signature = economySignature(profile)
-	profile.PetData.Energy = profile.Energy
+	profile.PetData.Diamonds = profile.Diamonds
 	profile.PetData.Money = profile.Money
 	profile.PetData.UpgradeLevels = table.clone(profile.UpgradeLevels)
 	local ok, saved = pcall(SaveService.save, player.UserId, profile.PetData, release)

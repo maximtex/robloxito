@@ -300,7 +300,7 @@ function ShopController.start()
 		end
 		for key, card in ui.ProductCards do
 			local def = MonetizationConfig.Products[key]
-			card.Amount.Text = "+" .. formatNumber(MonetizationLogic.productEnergy(def)) .. " 💎"
+			card.Amount.Text = "+" .. formatNumber(MonetizationLogic.productDiamonds(def)) .. " 💎"
 			local available = typeof(def.Id) == "number" and def.Id > 0
 			if available then
 				local price = priceOf("Product", def.Id)

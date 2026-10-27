@@ -36,7 +36,7 @@ local CODE_MAP = {
 	InvalidRequest = Codes.InvalidRequest,
 	AlreadyUnlocked = Codes.AlreadyUnlocked,
 	Locked = Codes.Locked,
-	InsufficientEnergy = Codes.InsufficientEnergy,
+	InsufficientDiamonds = Codes.InsufficientDiamonds,
 	AlreadySelected = Codes.AlreadySelected,
 	TooFast = Codes.TooFast,
 	MaxLevel = Codes.MaxLevel,
@@ -117,18 +117,18 @@ function CoreService.perform(player: Player, action: any, elementId: any): (stri
 	local data = profile.PetData.Cores
 	local code, cost
 	if action == "Unlock" then
-		code, cost = CoreLogic.unlock(data, elementId, profile.Energy, os.time())
+		code, cost = CoreLogic.unlock(data, elementId, profile.Diamonds, os.time())
 	elseif action == "Upgrade" then
-		code, cost = CoreLogic.upgrade(data, elementId, profile.Energy)
+		code, cost = CoreLogic.upgrade(data, elementId, profile.Diamonds)
 	elseif action == "Secondary" then
-		code, cost = CoreLogic.selectSecondary(data, elementId, profile.Energy, os.time())
+		code, cost = CoreLogic.selectSecondary(data, elementId, profile.Diamonds, os.time())
 	else
-		code, cost = CoreLogic.selectElement(data, elementId, profile.Energy, os.time())
+		code, cost = CoreLogic.selectElement(data, elementId, profile.Diamonds, os.time())
 	end
 
 	if code == "Success" then
 		-- Mismo paso que la modificación de los datos: sin pausas entre medias.
-		profile.Energy -= cost
+		profile.Diamonds -= cost
 		PlayerDataService.replicate(player)
 		PlayerDataService.markDirty(player)
 		if action ~= "Upgrade" then

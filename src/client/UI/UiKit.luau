@@ -436,7 +436,7 @@ function UiKit.computeModalLayout(screenSize: Vector2, baseSize: Vector2, hudSca
 	local availableWidth = screenSize.X - 2 * sideReserve
 
 	-- La tarjeta de energía tiene un margen fijo arriba y su altura escala con UIScale.
-	local top = LAYOUT.Margin + LAYOUT.EnergyCardSize.Y * hudScale + LAYOUT.Gap
+	local top = LAYOUT.Margin + LAYOUT.DiamondCardSize.Y * hudScale + LAYOUT.Gap
 	local fit = math.min(hudScale, (screenSize.Y - top - LAYOUT.Margin) / baseSize.Y, availableWidth / baseSize.X)
 	if fit < MIN_READABLE_SCALE then
 		top = LAYOUT.Margin

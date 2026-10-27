@@ -34,7 +34,7 @@ local PANEL_SIZE = Vector2.new(660, 520)
 local ROW_HEIGHT = 110 -- nombre, detalle, habilidad del elemento y sus combos
 
 local MESSAGES = {
-	[Codes.InsufficientEnergy] = "Te faltan 💎.",
+	[Codes.InsufficientDiamonds] = "Te faltan 💎.",
 	[Codes.Locked] = "Despierta antes los núcleos anteriores.",
 	[Codes.AlreadyUnlocked] = "Ese núcleo ya está despierto.",
 	[Codes.AlreadySelected] = "Ese elemento ya está en ese hueco.",
@@ -69,8 +69,8 @@ local function elementColor(elementId: string): Color3
 	return ELEMENT_COLORS[elementId] or THEME.Accent
 end
 
-local function energy(): number
-	local value = player:GetAttribute(Constants.Attributes.Energy)
+local function diamonds(): number
+	local value = player:GetAttribute(Constants.Attributes.Diamonds)
 	return if typeof(value) == "number" then value else 0
 end
 
@@ -193,7 +193,7 @@ function CoreController.start()
 	-- Botones según los 💎 actuales (sin reconstruir las filas cada segundo).
 	local function refreshAffordability()
 		for _, entry in rowButtons do
-			local affordable = entry.Enabled and (entry.Cost == nil or energy() >= entry.Cost)
+			local affordable = entry.Enabled and (entry.Cost == nil or diamonds() >= entry.Cost)
 			entry.Button.BackgroundColor3 = if affordable then THEME.Buy else THEME.Disabled
 			entry.Button.TextColor3 = if affordable then THEME.Text else THEME.Muted
 			UiKit.setDisabled(entry.Button, not affordable)
@@ -212,7 +212,7 @@ function CoreController.start()
 		table.insert(rowButtons, entry)
 		button.Activated:Connect(function()
 			if button:GetAttribute("Disabled") == true then
-				if entry.Enabled and entry.Cost and energy() < entry.Cost then
+				if entry.Enabled and entry.Cost and diamonds() < entry.Cost then
 					setFeedback(("Te faltan 💎: necesitas %s."):format(formatNumber(entry.Cost)), THEME.Error)
 				end
 				return
@@ -523,7 +523,7 @@ function CoreController.start()
 			end
 		else
 			local message = MESSAGES[code] or tostring(code)
-			if code == Codes.InsufficientEnergy and typeof(cost) == "number" and cost > 0 then
+			if code == Codes.InsufficientDiamonds and typeof(cost) == "number" and cost > 0 then
 				message = ("Te faltan 💎: necesitas %s."):format(formatNumber(cost))
 			end
 			setFeedback(message, THEME.Error)
@@ -537,7 +537,7 @@ function CoreController.start()
 		end
 	end
 	player:GetAttributeChangedSignal(Constants.Attributes.DataStatus):Connect(refreshIfOpen)
-	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(function()
+	player:GetAttributeChangedSignal(Constants.Attributes.Diamonds):Connect(function()
 		if PanelManager.isOpen(PANEL_NAME) then
 			refreshAffordability()
 		end

@@ -30,7 +30,7 @@ local Constants = {
 
 		-- Cliente -> servidor: (zoneId: string) desbloquear una zona en su portal
 		UnlockZone = "UnlockZone",
-		-- Servidor -> cliente: (success, code, zoneId?, missingEnergy?)
+		-- Servidor -> cliente: (success, code, zoneId?, missingDiamonds?)
 		ZoneResult = "ZoneResult",
 		-- Cliente -> servidor: (zoneId: string) viajar a una zona desde un portal
 		TravelToZone = "TravelToZone",
@@ -51,7 +51,7 @@ local Constants = {
 		-- (solo con el pase "Disparo automático"; sin él se ignora).
 		SetAutoFire = "SetAutoFire",
 		-- Servidor -> cliente: (amount, enemyName, isBoss, position, isKill, extra?) dinero
-		-- ganado; al derrotarlo extra = { Energy, Golden, Streak } (⚡, orbe dorado y racha).
+		-- ganado; al derrotarlo extra = { Diamonds, Golden, Streak } (⚡, orbe dorado y racha).
 		CombatReward = "CombatReward",
 		-- Oleadas (WaveService). Cliente -> servidor: ("Start") empieza o se une a una partida
 		-- (también con el ProximityPrompt del altar) o ("Pick", cardId) elige mejora.
@@ -131,7 +131,7 @@ local Constants = {
 		-- Cliente -> servidor: (action: "Claim") o ("Redeem", texto del código).
 		RewardAction = "RewardAction",
 		-- Servidor -> cliente: (success, code, action, detail?) detail = premio concedido
-		-- { Energy?, Blessings?, PetId? } o lo que falta (renacimientos del código).
+		-- { Diamonds?, Blessings?, PetId? } o lo que falta (renacimientos del código).
 		RewardResult = "RewardResult",
 
 		-- Tienda (ShopService). Las compras las abre el cliente con MarketplaceService; el
@@ -148,7 +148,7 @@ local Constants = {
 		RequestChests = "RequestChests",
 		-- Servidor -> cliente: (state: { [chestId] = readyAt }, serverNow) cofres cerrados.
 		ChestState = "ChestState",
-		-- Servidor -> cliente: (success, code, chestId, detail?) detail = { Energy?,
+		-- Servidor -> cliente: (success, code, chestId, detail?) detail = { Diamonds?,
 		-- Blessings?, ReadyAt, Opened (cofres abiertos ahora), Total }.
 		ChestResult = "ChestResult",
 
@@ -179,7 +179,7 @@ local Constants = {
 
 	-- Atributos que el servidor escribe en el Player (solo lectura para el cliente).
 	Attributes = {
-		Energy = "Energy",
+		Diamonds = "Diamonds",
 		-- Dinero que sueltan los enemigos; paga las armas y las mejoras de la Armería.
 		Money = "Money",
 		-- Armas: la equipada y las que tiene con su nivel ("Laser:3,PlasmaBlaster:0").
@@ -236,7 +236,7 @@ local Constants = {
 		-- Premio diario: true si hoy hay premio sin reclamar (para la insignia del menú).
 		DailyReady = "DailyReady",
 		-- Energía generada en total (no baja al gastar ni al renacer): clasificaciones.
-		TotalEnergy = "TotalEnergy",
+		TotalDiamonds = "TotalDiamonds",
 		-- Oleadas superadas en total (clasificación "Oleadas superadas"; WaveLogic.Records).
 		WavesCleared = "WavesCleared",
 		-- Racha de enemigos derrotados sin parar (EnemyService): cuántos, hora del servidor a
@@ -290,7 +290,7 @@ local Constants = {
 		InvalidRequest = "InvalidRequest",
 		NotReady = "NotReady",
 		MaxLevel = "MaxLevel",
-		InsufficientEnergy = "InsufficientEnergy",
+		InsufficientDiamonds = "InsufficientDiamonds",
 		InsufficientMoney = "InsufficientMoney", -- armas y mejoras de la Armería
 		AlreadyOwned = "AlreadyOwned", -- ya tiene esa arma
 		NotForSale = "NotForSale", -- arma que solo suelta un jefe

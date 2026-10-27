@@ -3,7 +3,7 @@
 --   por nombre para que el orden sea estable) y devuelve las primeras `rows`.
 --   Entradas: { Name, Value, Tie? }; se ignoran valores no numéricos o NaN.
 -- - Semana: número de semana (empiezan el lunes a las 00:00 UTC) y la energía generada en
---   la semana, que se guarda en el campo Weekly del registro { Week, Energy } y se publica
+--   la semana, que se guarda en el campo Weekly del registro { Week, Diamonds } y se publica
 --   en la clasificación semanal global.
 
 local LeaderboardLogic = {}
@@ -49,23 +49,25 @@ function LeaderboardLogic.weekEndsAt(week: number): number
 	return (week + 1) * WEEK - MONDAY_OFFSET
 end
 
-export type Weekly = { Week: number, Energy: number }
+export type Weekly = { Week: number, Diamonds: number }
 
 function LeaderboardLogic.emptyWeekly(): Weekly
-	return { Week = 0, Energy = 0 }
+	return { Week = 0, Diamonds = 0 }
 end
 
 function LeaderboardLogic.sanitizeWeekly(raw: any): Weekly
 	local data = LeaderboardLogic.emptyWeekly()
-	if type(raw) == "table" and valid(raw.Week) and valid(raw.Energy) and raw.Week >= 0 and raw.Energy >= 0 then
+	-- Hasta el guardado v17 el campo se llamaba Energy.
+	local diamonds = if type(raw) == "table" then (if raw.Diamonds ~= nil then raw.Diamonds else raw.Energy) else nil
+	if type(raw) == "table" and valid(raw.Week) and valid(diamonds) and raw.Week >= 0 and diamonds >= 0 then
 		data.Week = math.floor(raw.Week)
-		data.Energy = math.min(raw.Energy, 1e15)
+		data.Diamonds = math.min(diamonds, 1e15)
 	end
 	return data
 end
 
 function LeaderboardLogic.serializeWeekly(data: Weekly): any
-	return { Week = data.Week, Energy = data.Energy }
+	return { Week = data.Week, Diamonds = data.Diamonds }
 end
 
 -- Suma energía generada en la semana `week`. Una semana nueva empieza de cero; si el reloj
@@ -76,14 +78,14 @@ function LeaderboardLogic.addWeekly(data: Weekly, week: number, amount: number)
 	end
 	if week > data.Week then
 		data.Week = week
-		data.Energy = 0
+		data.Diamonds = 0
 	end
-	data.Energy = math.min(data.Energy + amount, 1e15)
+	data.Diamonds = math.min(data.Diamonds + amount, 1e15)
 end
 
 function LeaderboardLogic.weeklyValue(data: Weekly?, week: number): number
-	if type(data) == "table" and data.Week == week and valid(data.Energy) then
-		return data.Energy
+	if type(data) == "table" and data.Week == week and valid(data.Diamonds) then
+		return data.Diamonds
 	end
 	return 0
 end

@@ -65,7 +65,7 @@ function ItemService.statsOf(profile: any): ItemLogic.Stats
 	local items = ItemLogic.ofProfile(profile)
 	return {
 		Kills = if type(stats.Kills) == "number" then stats.Kills else 0,
-		EnergyEarned = if type(stats.EnergyEarned) == "number" then stats.EnergyEarned else 0,
+		DiamondsEarned = if type(stats.DiamondsEarned) == "number" then stats.DiamondsEarned else 0,
 		Rebirths = RebirthLogic.count(data.Rebirth),
 		Pets = #data.Pets,
 		PotionsUsed = if items then items.PotionsUsed else 0,

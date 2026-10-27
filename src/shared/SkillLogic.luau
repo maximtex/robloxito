@@ -1,6 +1,6 @@
 -- Lógica pura de las habilidades de cada estilo (StyleConfig.Styles[estilo].Skills): cuáles
 -- tienes, su nivel, cuáles llevas puestas en la Z y la X, comprarlas y subirlas con 💎
--- diamantes (en el código, Energy) y sus números a cada nivel. Sin servicios: la usan
+-- diamantes (Diamonds en el código) y sus números a cada nivel. Sin servicios: la usan
 -- StyleService (valida y cobra), SaveService (guardar), PlayerDataService (atributos) y el
 -- cliente (SkillsController y StyleController, solo para mostrar).
 --
@@ -205,7 +205,7 @@ end
 -- Acciones (devuelven el código y los 💎 cobrados; quien llama los resta) ---------------------
 
 -- Comprar: "Success" (queda a nivel 1), "InvalidRequest", "AlreadyOwned", "ZoneLocked" (las
--- del Mundo 2 piden haber llegado: Requires, en `unlockedZones`) o "InsufficientEnergy" (faltan
+-- del Mundo 2 piden haber llegado: Requires, en `unlockedZones`) o "InsufficientDiamonds" (faltan
 -- 💎), y el precio.
 function SkillLogic.buy(data: SkillData, skillId: any, diamonds: any, unlockedZones: { string }?): (string, number)
 	local def = SkillLogic.definition(skillId)
@@ -220,13 +220,13 @@ function SkillLogic.buy(data: SkillData, skillId: any, diamonds: any, unlockedZo
 		return "ZoneLocked", price
 	end
 	if not (finite(diamonds) and diamonds >= price) then
-		return "InsufficientEnergy", price
+		return "InsufficientDiamonds", price
 	end
 	data.Owned[skillId] = 1
 	return "Success", price
 end
 
--- Subir un nivel: "Success", "InvalidRequest", "NotOwned", "MaxLevel" o "InsufficientEnergy".
+-- Subir un nivel: "Success", "InvalidRequest", "NotOwned", "MaxLevel" o "InsufficientDiamonds".
 function SkillLogic.upgrade(data: SkillData, skillId: any, diamonds: any): (string, number)
 	if not SkillLogic.definition(skillId) then
 		return "InvalidRequest", 0
@@ -240,7 +240,7 @@ function SkillLogic.upgrade(data: SkillData, skillId: any, diamonds: any): (stri
 		return "MaxLevel", 0
 	end
 	if not (finite(diamonds) and diamonds >= cost) then
-		return "InsufficientEnergy", cost
+		return "InsufficientDiamonds", cost
 	end
 	data.Owned[skillId] = level + 1
 	return "Success", cost

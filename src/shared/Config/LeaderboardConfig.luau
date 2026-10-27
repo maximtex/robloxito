@@ -21,7 +21,7 @@ local LeaderboardConfig = {
 	-- Clasificaciones globales (OrderedDataStore). Cambiar el sufijo _v1 las empieza de cero.
 	Global = {
 		Stores = {
-			Energy = "RC_Global_Diamonds_v1", -- 💎 conseguidos en total (no baja al renacer; antes, energía)
+			Diamonds = "RC_Global_Diamonds_v1", -- 💎 conseguidos en total (no baja al renacer; antes, energía)
 			Rebirths = "RC_Global_Rebirths_v1",
 			Waves = "RC_Global_Waves_v1", -- oleadas superadas en total (WaveLogic.Records)
 			Weekly = "RC_Weekly_Diamonds_v1_", -- + número de semana
@@ -32,11 +32,11 @@ local LeaderboardConfig = {
 
 	Boards = {
 		{
-			Id = "Energy",
+			Id = "Diamonds",
 			Title = "💎 Diamantes conseguidos",
-			Attribute = "TotalEnergy", -- 💎 conseguidos en total (no baja al gastar ni al renacer)
+			Attribute = "TotalDiamonds", -- 💎 conseguidos en total (no baja al gastar ni al renacer)
 			Pages = { "Server", "Global", "Weekly" },
-			Global = "Energy",
+			Global = "Diamonds",
 			Position = Vector2.new(-23, -3),
 			Accent = Color3.fromRGB(110, 236, 220),
 		},
@@ -44,7 +44,7 @@ local LeaderboardConfig = {
 			Id = "Rebirths",
 			Title = "🔄 Más renacimientos",
 			Attribute = "Rebirths",
-			Tiebreak = "TotalEnergy", -- a igualdad de renacimientos, más 💎 conseguidos
+			Tiebreak = "TotalDiamonds", -- a igualdad de renacimientos, más 💎 conseguidos
 			Pages = { "Server", "Global" },
 			Global = "Rebirths",
 			Position = Vector2.new(23, -3),
@@ -54,7 +54,7 @@ local LeaderboardConfig = {
 			Id = "Waves",
 			Title = "🌊 Oleadas superadas",
 			Attribute = "WavesCleared", -- en total, en todos los modos (sin la práctica)
-			Tiebreak = "TotalEnergy",
+			Tiebreak = "TotalDiamonds",
 			Pages = { "Server", "Global" },
 			Global = "Waves",
 			Position = Vector2.new(0, -8),

@@ -56,7 +56,7 @@ end
 -- Piezas fijas que nunca deben tocarse.
 local function pieces(layout)
 	local list = {
-		Energy = layout.Energy,
+		Diamonds = layout.Diamonds,
 		Upgrade = layout.Upgrade,
 		Menu = layout.Menu,
 		Status = layout.Status,
@@ -150,7 +150,7 @@ do
 			table.insert(rowsBad, name)
 		end
 		local tracker = { X = layout.Left.X, Y = trackerTop, W = S.TrackerWidth * s, H = rows * (S.TrackerRow + S.TrackerGap) * s }
-		if overlaps(tracker, layout.Upgrade) or overlaps(tracker, layout.Energy) or overlaps(tracker, toastRect(layout.Toasts)) then
+		if overlaps(tracker, layout.Upgrade) or overlaps(tracker, layout.Diamonds) or overlaps(tracker, toastRect(layout.Toasts)) then
 			table.insert(leftBad, name .. " " .. fmt(tracker))
 		end
 	end)
@@ -190,7 +190,7 @@ do
 				table.insert(spotBad, name .. " panel arriba: " .. low.Mode)
 			end
 			-- Un panel alto centrado (apertura de huevos): al lado o escondidos, nunca encima.
-			local tall = { X = W / 2 - 170 * s, Y = layout.Energy.Y + layout.Energy.H + 8 * s, W = 340 * s, H = H * 0.7 }
+			local tall = { X = W / 2 - 170 * s, Y = layout.Diamonds.Y + layout.Diamonds.H + 8 * s, W = 340 * s, H = H * 0.7 }
 			for _, panel in { short, tall } do
 				local spot = HudLayout.toastSpot(layout, panel)
 				modes[spot.Mode] += 1

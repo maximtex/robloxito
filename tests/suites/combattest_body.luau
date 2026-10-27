@@ -27,7 +27,7 @@ for _, upgradeId in { "PetPower", "LaserSpeed" } do
 end
 check("las mejoras de la Armería cuestan dinero", shopMoney)
 local speed = EconomyConfig.Upgrades.WalkSpeed
-check("la Velocidad de Correr (puesto ⚡ Mejoras) se paga con 💎", speed.Currency == "Energy" and speed.SpeedPerLevel > 0)
+check("la Velocidad de Correr (puesto ⚡ Mejoras) se paga con 💎", speed.Currency == "Diamonds" and speed.SpeedPerLevel > 0)
 check("ya no existe la Resonancia del Cristal (ni la producción de energía)", EconomyConfig.Upgrades.GeneratorPower == nil and EconomyConfig.BaseProductionPerSecond == nil and EconomyConfig.PassiveEnergy == nil)
 local allHit = true
 for _, def in EnemyConfig.Types do

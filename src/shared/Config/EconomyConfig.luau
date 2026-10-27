@@ -9,9 +9,9 @@
 --   misiones, los logros y la tienda. Solo pagan lo del puesto ⚡ Mejoras (habilidades de
 --   cada estilo, StyleConfig Skills, y la Velocidad de Correr) y los núcleos de las
 --   habilidades elementales (CoreConfig).
---   En el código (y en el guardado) los diamantes siguen llamándose Energy (profile.Energy,
---   atributo Energy, EnergyService.grant): era la moneda que soltaban los enemigos. La
---   energía guardada de antes se convierte en dinero una vez (SaveService).
+--   En el código y en el guardado se llaman Diamonds (profile.Diamonds, atributo Diamonds,
+--   DiamondService.grant; hasta el guardado v17, Energy). La ⚡ guardada de la economía 1 se
+--   convierte en dinero una vez (SaveService).
 -- - 🔄 Fichas de renacer: las da el renacimiento (RebirthConfig).
 -- Ya no hay ⚡ energía ni Cristal del Renacimiento (Resonancia): nada se gana sin jugar.
 -- El daño de cada arma se mejora en la propia arma (WeaponLogic.upgrade).
@@ -23,25 +23,25 @@ local EconomyConfig = {
 	Version = 2,
 	ConvertRate = 5,
 
-	StartingEnergy = 0,
+	StartingDiamonds = 0,
 	StartingMoney = 0,
 
-	-- Cada cuántos segundos se avisa a las misiones de los 💎 conseguidos (EnergyService).
+	-- Cada cuántos segundos se avisa a las misiones de los 💎 conseguidos (DiamondService).
 	TickInterval = 1,
 
 	-- Los 💎 salen SOLO de pelear: cada enemigo derrotado da 💎 = Reward del enemigo ·
-	-- KillEnergyShare · multiplicador de 💎 (pase Diamantes ×2, Poción de Diamantes,
+	-- KillDiamondShare · multiplicador de 💎 (pase Diamantes ×2, Poción de Diamantes,
 	-- amuletos y Bendición de Abundancia: PlayerDataService.diamondMultiplier). Lo que no
 	-- llega a un diamante entero es una probabilidad: con 0.03 un Espinillo (35) da 1 💎
 	-- casi siempre; un Bruto (140), unos 4.
-	KillEnergyShare = 0.03,
+	KillDiamondShare = 0.03,
 
 	-- Coste del nivel N = floor(BaseCost * CostMultiplier ^ N), en 💰 o en 💎 (Currency).
 	Upgrades = {
 		WalkSpeed = {
 			DisplayName = "Velocidad de Correr",
 			Description = "Corres más rápido: +2.5 de velocidad por nivel.",
-			Currency = "Energy", -- 💎 (en el puesto ⚡ Mejoras, SkillsController)
+			Currency = "Diamonds", -- 💎 (en el puesto ⚡ Mejoras, SkillsController)
 			BaseCost = 15,
 			CostMultiplier = 1.3,
 			SpeedPerLevel = 2.5, -- PlayerDataService: 28 + nivel · esto (antes de amuleto y estilo)

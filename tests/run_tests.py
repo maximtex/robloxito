@@ -107,7 +107,7 @@ CORE = [
 ]
 CORE_INIT = "CoreLogic.init(CoreConfig)\n"
 SERVICES_AFTER_GLUE = [
-    ("EnergyService", "src/server/Services/EnergyService.luau"),
+    ("DiamondService", "src/server/Services/DiamondService.luau"),
     ("UpgradeService", "src/server/Services/UpgradeService.luau"),
     ("QuestService", "src/server/Services/QuestService.luau"),
     ("TutorialService", "src/server/Services/TutorialService.luau"),
@@ -283,9 +283,9 @@ def build_tutorial():
     return services_suite([harness("persist_stubs.luau")], True, suite("tutorial_body.luau"))
 
 
-def build_energy():
-    # Energía solo de matar: sin producción pasiva ni offline, EnergyService.grant.
-    return services_suite([harness("persist_stubs.luau")], True, suite("energy_body.luau"))
+def build_diamonds():
+    # Energía solo de matar: sin producción pasiva ni offline, DiamondService.grant.
+    return services_suite([harness("persist_stubs.luau")], True, suite("diamonds_body.luau"))
 
 
 def build_sandbox():
@@ -675,7 +675,7 @@ SUITES = [
     ("shop", "Premio diario, códigos, pases, compras sueltas y mejora automática", build_shop),
     ("hudlayout", "Interfaz: menú, avisos y columnas sin solaparse en muchas pantallas", build_hudlayout),
     ("world", "Mundo vivo: día y noche, cofres escondidos y río", build_world),
-    ("energy", "💎 solo de matar: sin producción pasiva ni offline", build_energy),
+    ("diamonds", "💎 solo de matar: sin producción pasiva ni offline", build_diamonds),
     ("waves", "Oleadas: arenas, aparición, dificultad, mejoras, racha y botín de cada enemigo", build_waves),
     ("styles", "Estilos de pelea: armas, guerrero, puños y magia (ataque, pasivas, maná, combo y habilidades)", build_styles),
     ("classes", "Clases de cada estilo: comprar, subir, elegir y sus pasivas", build_classes),

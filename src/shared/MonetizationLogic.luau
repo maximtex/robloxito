@@ -72,8 +72,8 @@ end
 
 -- Efectos -------------------------------------------------------------------------------------
 
-function MonetizationLogic.energyMultiplier(passes: Passes?): number
-	return if owns(passes, "DoubleEnergy") then MonetizationConfig.EnergyMultiplier else 1
+function MonetizationLogic.diamondMultiplier(passes: Passes?): number
+	return if owns(passes, "DoubleEnergy") then MonetizationConfig.DiamondMultiplier else 1
 end
 
 function MonetizationLogic.petSlotBonus(passes: Passes?): number
@@ -164,7 +164,7 @@ function MonetizationLogic.weaponProductById(productId: any): (string?, any)
 end
 
 -- 💎 de una compra suelta (su Min).
-function MonetizationLogic.productEnergy(def: any): number
+function MonetizationLogic.productDiamonds(def: any): number
 	local amount = def and def.Min
 	return if type(amount) == "number" and amount == amount and amount > 0 and amount < math.huge then math.floor(amount) else 0
 end

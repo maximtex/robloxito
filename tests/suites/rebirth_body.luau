@@ -87,26 +87,26 @@ local profile = PlayerDataService.get(p1)
 check("datos cargados: 0 renacimientos replicados y columna en la lista de jugadores",
 	profile.DataState == "Loaded" and p1:GetAttribute("Rebirths") == 0 and p1:GetAttribute("MaxEquipped") == 3
 		and p1:FindFirstChild("leaderstats") ~= nil and p1:FindFirstChild("leaderstats"):FindFirstChild("Renacimientos").Value == 0)
-profile.Energy = 5000
+profile.Diamonds = 5000
 profile.Money = 777
 fireServer("Rebirth", p1)
 advance(0)
 local args = lastResult("RebirthResult", p1)
 check("pedir renacer: ComingSoon", args[1] == false and args[2] == Codes.ComingSoon and args[3] == "Rebirth")
-check("y no se toca nada", profile.Energy == 5000 and profile.Money == 777 and profile.PetData.Rebirth.Count == 0)
+check("y no se toca nada", profile.Diamonds == 5000 and profile.Money == 777 and profile.PetData.Rebirth.Count == 0)
 
 print("-- 5. RebirthService real: renacer (con Enabled, como en la fase 2)")
 RebirthConfig.Enabled = true
 profile.PetData.Weapons.Levels[WeaponConfig.StarterWeapon] = 6
 profile.PetMultiplier = 1.5
 local pushedBefore = PetService.Pushed
-local diamondsBefore = profile.Energy
+local diamondsBefore = profile.Diamonds
 advance(RebirthConfig.RebirthCooldown + 0.1)
 fireServer("Rebirth", p1)
 advance(0)
 args = lastResult("RebirthResult", p1)
 check("renace", args[1] == true and args[2] == Codes.Success and args[4].Count == 1 and args[4].Tokens == 1)
-check("en el mismo paso: 💰 al inicial y armas a nivel 0; los 💎 se quedan", profile.Money == EconomyConfig.StartingMoney and profile.Energy == diamondsBefore and profile.PetData.Weapons.Levels[WeaponConfig.StarterWeapon] == 0)
+check("en el mismo paso: 💰 al inicial y armas a nivel 0; los 💎 se quedan", profile.Money == EconomyConfig.StartingMoney and profile.Diamonds == diamondsBefore and profile.PetData.Weapons.Levels[WeaponConfig.StarterWeapon] == 0)
 check("1 renacimiento y 1 ficha (atributos para el cliente, sin los de la Resonancia)",
 	p1:GetAttribute("Rebirths") == 1 and p1:GetAttribute("RebirthTokens") == 1 and p1:GetAttribute("RebirthBestLevel") == nil and p1:GetAttribute("UpgradeLevel_GeneratorPower") == nil)
 check("la columna de la lista de jugadores marca 1", p1:FindFirstChild("leaderstats"):FindFirstChild("Renacimientos").Value == 1)
@@ -115,7 +115,7 @@ check("aviso a todos: quién y cuántos", broadcast and broadcast.Name == "Rebir
 check("inventario de mascotas reenviado (espacios al día)", PetService.Pushed == pushedBefore + 1)
 advance(0)
 local saved = record(1)
-check("guardado en seguida: Version 16 y Rebirth en el registro", saved and saved.Version == 16 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1)
+check("guardado en seguida: Version 17 y Rebirth en el registro", saved and saved.Version == 17 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1)
 
 fireServer("Rebirth", p1)
 advance(0)
@@ -155,7 +155,7 @@ end
 exit(p1)
 storeData.player_2 = {
 	Version = 4,
-	Energy = 0,
+	Diamonds = 0,
 	Pets = { { Uid = "1", PetId = "Sproutling" }, { Uid = "2", PetId = "Sproutling" }, { Uid = "3", PetId = "MossFox" }, { Uid = "4", PetId = "MossFox" }, { Uid = "5", PetId = "MoonOwl" } },
 	Equipped = { "1", "2", "3", "4", "5" },
 	NextPetUid = 6,
@@ -176,7 +176,7 @@ advance(0)
 -- mascotas» aún no se conocen) y ShopService quita las de más si no lo tiene (prueba shop).
 check("sin espacios extra: puede equipar 3 (al cargar se conservan hasta 5 hasta saber sus pases)", #PlayerDataService.get(p3).PetData.Equipped == 5 and p3:GetAttribute("MaxEquipped") == 3)
 check("un registro v3 sin Rebirth carga sin renacimientos", PlayerDataService.get(p3).PetData.Rebirth.Count == 0)
-storeData.player_4 = { Version = 4, Energy = 10, Rebirth = { Count = 1, Tokens = 0, Shop = { Loot = 1, FutureThing = 2 }, LastAt = 5 } }
+storeData.player_4 = { Version = 4, Diamonds = 10, Rebirth = { Count = 1, Tokens = 0, Shop = { Loot = 1, FutureThing = 2 }, LastAt = 5 } }
 local p4 = PetService.newPlayer("Dani", 4)
 join(p4)
 advance(0)

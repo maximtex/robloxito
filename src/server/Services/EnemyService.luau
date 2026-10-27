@@ -25,8 +25,8 @@
 --   o volver a casa. Publica <Estado>Until (hora del servidor) para los efectos del cliente.
 -- - Marca elemental de los combos (Aura / AuraUntil) y retroceso breve al recibir una
 --   habilidad fuerte (nunca los jefes).
--- - Rediseño "solo disparar": cada enemigo derrotado da también ⚡ (EnergyService.grant:
---   su recompensa · EconomyConfig.KillEnergyShare · poder de energía del jugador), sube la
+-- - Rediseño "solo disparar": cada enemigo derrotado da también ⚡ (DiamondService.grant:
+--   su recompensa · EconomyConfig.KillDiamondShare · poder de energía del jugador), sube la
 --   RACHA del jugador (WaveLogic: multiplica el botín mientras mate sin parar; atributos
 --   Streak y StreakUntil) y a veces suelta un ORBE DORADO (botín ×10, nunca un jefe).
 --   setKillModifier deja que WaveService añada lo de las mejoras de la partida.
@@ -65,7 +65,7 @@ local EconomyConfig = require(Shared.Config.EconomyConfig)
 local WaveLogic = require(Shared.WaveLogic)
 local WaveConfig = require(Shared.Config.WaveConfig)
 local PlayerDataService = require(script.Parent.PlayerDataService)
-local EnergyService = require(script.Parent.EnergyService)
+local DiamondService = require(script.Parent.DiamondService)
 local RemoteService = require(script.Parent.RemoteService)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local EnemyLogic = require(script.Parent.Parent.Util.EnemyLogic)
@@ -1023,16 +1023,16 @@ local function onDeath(enemy: Enemy)
 			local bonus = WaveLogic.streakMultiplier(count) * WaveLogic.goldenMultiplier(golden) * lootBonus
 			local earned = math.floor(amount * lootMultiplier(profile) * bonus * enemy.MoneyMultiplier)
 			profile.Money += earned
-			-- 💎 (en el código, Energy): pocos, por el pase Diamantes ×2, la Poción de Diamantes y
+			-- 💎 (Diamonds en el código): pocos, por el pase Diamantes ×2, la Poción de Diamantes y
 			-- las aventuras (PlayerDataService.diamondMultiplier); lo que no llega a uno entero es
 			-- su probabilidad
-			local diamonds = WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare) * bonus * PlayerDataService.diamondMultiplier(profile)
-			local energy = EnergyService.grant(player, WaveLogic.roundDiamonds(diamonds, math.random()))
-			if energy <= 0 then
+			local diamonds = WaveLogic.killDiamonds(amount, EconomyConfig.KillDiamondShare) * bonus * PlayerDataService.diamondMultiplier(profile)
+			local diamonds = DiamondService.grant(player, WaveLogic.roundDiamonds(diamonds, math.random()))
+			if diamonds <= 0 then
 				PlayerDataService.replicate(player) -- grant ya replica si ha sumado energía
 			end
 			publishStreak(player, streak, nowClock)
-			rewardRemote:FireClient(player, earned, enemy.Def.DisplayName, isBoss, position, true, { Energy = energy, Golden = golden, Streak = count })
+			rewardRemote:FireClient(player, earned, enemy.Def.DisplayName, isBoss, position, true, { Diamonds = diamonds, Golden = golden, Streak = count })
 			-- Cuenta como derrota para quien recibe parte de la recompensa (daño real). Home: dónde
 			-- vive (la cueva cuenta los de cada sala); Wave: era de una oleada.
 			local info = {
@@ -1040,7 +1040,7 @@ local function onDeath(enemy: Enemy)
 				Kind = enemy.Kind,
 				ZoneId = enemy.ZoneId,
 				Reward = earned,
-				Energy = energy,
+				Diamonds = diamonds,
 				Golden = golden,
 				Streak = count,
 				Home = enemy.Home,

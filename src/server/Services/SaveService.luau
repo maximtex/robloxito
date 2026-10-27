@@ -3,7 +3,7 @@
 -- Quests), con un único DataStore.
 --
 -- Campos del registro (los nombres coinciden con los del perfil en PlayerDataService):
---   Energy: number                      energía actual (>= 0)
+--   Diamonds: number                      energía actual (>= 0)
 --   Money: number                       dinero actual (>= 0; lo sueltan los enemigos)
 --   UpgradeLevels: { [id]: number }     niveles de mejora (enteros en [0, MaxLevel])
 --   Tutorial: { Status, Step }          estado del tutorial inicial
@@ -23,7 +23,7 @@
 --                                       (RewardLogic; RewardService).
 --   Shop: { Receipts, AutoUpgrade }     compras sueltas ya concedidas y el interruptor de la
 --                                       mejora automática (MonetizationLogic; ShopService).
---   Weekly: { Week, Energy }            energía generada esta semana (LeaderboardLogic;
+--   Weekly: { Week, Diamonds }            energía generada esta semana (LeaderboardLogic;
 --                                       clasificación semanal).
 --   Weapons: { Owned, Levels, Equipped }  armas compradas o regaladas, su nivel y la
 --                                       equipada (WeaponLogic; WeaponService).
@@ -37,7 +37,7 @@
 --   Style: string                       estilo de pelea elegido (StyleLogic; StyleService).
 --   Cave: { number }                    bichos derrotados para cada puerta de la Cueva de los
 --                                       Espinillos (CaveLogic; CaveService).
--- Los registros antiguos sin Energy/UpgradeLevels cargan con los valores iniciales, los
+-- Los registros antiguos sin Diamonds/UpgradeLevels cargan con los valores iniciales, los
 -- que no tienen Cores (v2) empiezan con Naturaleza desbloqueada y seleccionada, y los que
 -- no tienen Rebirth (v3) empiezan sin renacimientos, los que no tienen Adventure (v4)
 -- empiezan sin historias, amuletos ni bendiciones y los que no tienen Rewards/Shop/Weekly
@@ -79,7 +79,7 @@ local SkillLogic = require(ReplicatedStorage:WaitForChild("Shared").SkillLogic)
 local ClassLogic = require(ReplicatedStorage:WaitForChild("Shared").ClassLogic)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
--- 2: añade Energy y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
+-- 2: añade Diamonds y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
 -- 5: añade Adventure. 6: añade Rewards, Shop y Weekly. 7: añade Money. 8: añade Weapons y
 -- Bosses. Los registros v1 a v7 siguen cargando (sin Money empiezan con el dinero inicial;
 -- sin Weapons, con el láser al nivel de la antigua mejora "LaserPower"; sin Bosses, sin jefes).
@@ -95,7 +95,11 @@ local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 16: sin ⚡ ni cristal. Se devuelve el 100 % del 💰 de la Resonancia del Cristal (la mejora
 --     GeneratorPower ya no existe) y las fichas de las ventajas de renacer quitadas (Inicio
 --     rápido y Sueño profundo); ver refundRetired. Lo demás se queda tal cual.
-local SCHEMA_VERSION = 16
+-- 17: los 💎 se guardan en Diamonds (antes en Energy, que se lee si falta Diamonds y se borra
+--     al guardar). También cambian de nombre la estadística de misiones (DiamondsEarned), las
+--     misiones EarnDiamonds y DailyDiamonds, la poción Diamonds y Weekly.Diamonds: cada lógica
+--     lee el nombre antiguo al sanear (QuestLogic, ItemLogic, LeaderboardLogic).
+local SCHEMA_VERSION = 17
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -121,8 +125,8 @@ export type PetData = {
 	UnlockedZones: { string }, -- zonas compradas (se conservan aunque dejen de existir)
 	Quests: QuestLogic.QuestData, -- misiones, diarias y logros (vacío en partidas antiguas)
 	-- Copia de la economía del perfil para guardar (PlayerDataService la rellena justo antes
-	-- de guardar; durante la sesión manda profile.Energy / profile.UpgradeLevels).
-	Energy: number,
+	-- de guardar; durante la sesión manda profile.Diamonds / profile.UpgradeLevels).
+	Diamonds: number,
 	Money: number,
 	UpgradeLevels: { [string]: number },
 	ArchivedUpgrades: { [string]: number }, -- mejoras que ya no existen: se conservan tal cual
@@ -148,7 +152,7 @@ export type PetData = {
 	Classes: ClassLogic.ClassData, -- clases de cada estilo, niveles y la activa (StyleService)
 	World: number, -- mundo en el que estabas (1 o 2; ZoneService: apareces allí)
 	-- Solo en memoria (no se guarda): lo convertido al cargar, para avisar al jugador.
-	EconomyConverted: { Energy: number, Money: number }?,
+	EconomyConverted: { Energy: number, Money: number }?, -- ⚡ de la economía 1 convertida en 💰
 	-- Devolución de la Resonancia y de las ventajas de renacer quitadas (guardado v16), una vez.
 	RetiredRefund: { Level: number, Money: number, Tokens: number }?,
 }
@@ -211,7 +215,7 @@ function SaveService.emptyData(): PetData
 		NextPetUid = 2,
 		UnlockedZones = {},
 		Quests = QuestLogic.empty(),
-		Energy = EconomyConfig.StartingEnergy,
+		Diamonds = EconomyConfig.StartingDiamonds,
 		Money = EconomyConfig.StartingMoney,
 		UpgradeLevels = startingUpgrades(),
 		ArchivedUpgrades = {},
@@ -241,17 +245,21 @@ local function isFiniteNumber(value: any): boolean
 	return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
 end
 
--- Energía y mejoras guardadas -> valores válidos. Lo ausente (partidas antiguas) toma el
+-- 💎, 💰 y mejoras guardadas -> valores válidos. Lo ausente (partidas antiguas) toma el
 -- valor inicial; lo corrupto también, avisándolo en la consola.
 local function sanitizeEconomy(raw: { [string]: any }, result: PetData)
-	local energy = raw.Energy
-	if energy == nil then
-		result.Energy = EconomyConfig.StartingEnergy
-	elseif isFiniteNumber(energy) and energy >= 0 then
-		result.Energy = math.min(energy, MAX_ENERGY)
+	-- Hasta el guardado v16 el campo se llamaba Energy (en la economía 1, la ⚡; desde la 2,
+	-- los 💎). Un registro de antes de la v17 manda su Energy (también si una versión antigua
+	-- del juego lo volvió a guardar encima de uno nuevo).
+	local legacy = not (isFiniteNumber(raw.Version) and raw.Version >= 17) and raw.Energy ~= nil
+	local diamonds = if legacy then raw.Energy else raw.Diamonds
+	if diamonds == nil then
+		result.Diamonds = EconomyConfig.StartingDiamonds
+	elseif isFiniteNumber(diamonds) and diamonds >= 0 then
+		result.Diamonds = math.min(diamonds, MAX_ENERGY)
 	else
-		warn("[SaveService] Energía guardada no válida (" .. tostring(energy) .. "); se usa el valor inicial.")
-		result.Energy = EconomyConfig.StartingEnergy
+		warn("[SaveService] Diamantes guardados no válidos (" .. tostring(diamonds) .. "); se usa el valor inicial.")
+		result.Diamonds = EconomyConfig.StartingDiamonds
 	end
 
 	local money = raw.Money
@@ -325,7 +333,7 @@ end
 
 -- Economía 2: lo guardado con una versión anterior se convierte una vez. La ⚡ de antes
 -- (la moneda de los huevos, portales y mejoras) pasa a 💰; los 💎 (que siguen en el campo
--- Energy) empiezan en 0, y las cuentas de energía conseguida (misión, diaria, título y
+-- Diamonds) empiezan en 0, y las cuentas de energía conseguida (misión, diaria, título y
 -- clasificaciones) vuelven a 0 para contar 💎.
 local function migrateEconomy(raw: { [string]: any }, result: PetData)
 	-- Sin el campo: la economía 1 (la de la ⚡).
@@ -334,13 +342,14 @@ local function migrateEconomy(raw: { [string]: any }, result: PetData)
 	if version >= EconomyConfig.Version then
 		return
 	end
-	local energy = result.Energy
+	-- En la economía 1 el campo guardado era la ⚡ (no 💎).
+	local energy = result.Diamonds
 	local rate = if isFiniteNumber(EconomyConfig.ConvertRate) and EconomyConfig.ConvertRate > 0 then EconomyConfig.ConvertRate else 1
 	local money = math.floor(math.max(0, energy) * rate)
 	result.Money = math.min(result.Money + money, MAX_ENERGY)
-	result.Energy = EconomyConfig.StartingEnergy
-	result.Quests.Stats.EnergyEarned = 0
-	result.Quests.Daily.Progress.DailyEnergy = nil
+	result.Diamonds = EconomyConfig.StartingDiamonds
+	result.Quests.Stats.DiamondsEarned = 0
+	result.Quests.Daily.Progress.DailyDiamonds = nil
 	result.Weekly = LeaderboardLogic.emptyWeekly()
 	if energy > 0 then
 		result.EconomyConverted = { Energy = math.floor(energy), Money = money }
@@ -576,7 +585,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local tutorial = TutorialLogic.serialize(data.Tutorial)
 	-- Copias tomadas ANTES de esperar al DataStore: lo que cambie mientras tanto queda en el
 	-- perfil y se guarda la próxima vez.
-	local energy = if isFiniteNumber(data.Energy) and data.Energy >= 0 then math.min(data.Energy, MAX_ENERGY) else nil
+	local diamonds = if isFiniteNumber(data.Diamonds) and data.Diamonds >= 0 then math.min(data.Diamonds, MAX_ENERGY) else nil
 	local money = if isFiniteNumber(data.Money) and data.Money >= 0 then math.min(data.Money, MAX_ENERGY) else nil
 	local upgradeLevels = table.clone(data.ArchivedUpgrades)
 	for upgradeId, level in data.UpgradeLevels do
@@ -619,8 +628,9 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.UnlockedZones = unlockedZones
 				stored.Quests = quests
 				stored.Tutorial = tutorial
-				if energy ~= nil then
-					stored.Energy = energy -- nunca se escribe un valor no válido
+				if diamonds ~= nil then
+					stored.Diamonds = diamonds -- nunca se escribe un valor no válido
+					stored.Energy = nil -- (v16 o anteriores) ya está en Diamonds
 				end
 				if money ~= nil then
 					stored.Money = money

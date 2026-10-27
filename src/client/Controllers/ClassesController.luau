@@ -6,7 +6,7 @@
 --   máximo) y Elegir (la activa de ese estilo; cambiarla es gratis).
 -- - Se abre en el puesto 🎭 Clases de la plaza (pisando su círculo), con el botón 🎭 CLASES de
 --   la tienda de tu estilo o la tecla H.
--- Datos de los atributos del jugador: Classes ("Soldier:2,Sniper:1"), ClassActive y Energy (💎).
+-- Datos de los atributos del jugador: Classes ("Soldier:2,Sniper:1"), ClassActive y Diamonds (💎).
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
@@ -37,7 +37,7 @@ local HINT = "Una activa por estilo (cambiarla es gratis). Solo cuenta mientras 
 local Codes = Constants.PurchaseCodes
 
 local MESSAGES = {
-	[Codes.InsufficientEnergy] = "Te faltan 💎: derrota enemigos, gana oleadas y haz misiones",
+	[Codes.InsufficientDiamonds] = "Te faltan 💎: derrota enemigos, gana oleadas y haz misiones",
 	[Codes.AlreadyOwned] = "Ya la tienes",
 	[Codes.NotOwned] = "Primero cómprala",
 	[Codes.MaxLevel] = "Ya está al nivel máximo",
@@ -51,7 +51,7 @@ local ClassesController = {}
 local player = Players.LocalPlayer
 
 local function diamonds(): number
-	local value = player:GetAttribute(Constants.Attributes.Energy)
+	local value = player:GetAttribute(Constants.Attributes.Diamonds)
 	return if typeof(value) == "number" then value else 0
 end
 
@@ -440,7 +440,7 @@ function ClassesController.start()
 		end
 	end)
 
-	for _, attribute in { Constants.Attributes.Energy, Constants.Attributes.Classes, Constants.Attributes.ClassActive, Constants.Attributes.CombatStyle } do
+	for _, attribute in { Constants.Attributes.Diamonds, Constants.Attributes.Classes, Constants.Attributes.ClassActive, Constants.Attributes.CombatStyle } do
 		player:GetAttributeChangedSignal(attribute):Connect(function()
 			if PanelManager.isOpen(PANEL_NAME) then
 				render()

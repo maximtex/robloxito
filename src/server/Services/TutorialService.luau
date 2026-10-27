@@ -16,7 +16,7 @@ local Constants = require(Shared.Constants)
 local TutorialConfig = require(Shared.Config.TutorialConfig)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
-local EnergyService = require(script.Parent.EnergyService)
+local DiamondService = require(script.Parent.DiamondService)
 local QuestService = require(script.Parent.QuestService)
 local TutorialLogic = require(script.Parent.Parent.Util.TutorialLogic)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
@@ -60,8 +60,8 @@ function TutorialService.start()
 	local skipRemote = RemoteService.get(Constants.Remotes.SkipTutorial)
 
 	PlayerDataService.onPetDataReady(update)
-	-- Cada segundo (aviso de EnergyService): pasos cumplidos desde el último ciclo.
-	EnergyService.onProduced(function(player)
+	-- Cada segundo (aviso de DiamondService): pasos cumplidos desde el último ciclo.
+	DiamondService.onProduced(function(player)
 		update(player)
 	end)
 

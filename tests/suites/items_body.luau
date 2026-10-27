@@ -17,7 +17,7 @@ end
 
 local Codes = { Success = "Success", InvalidRequest = "InvalidRequest", NotOwned = "NotOwned", Full = "Full" }
 local NOW = 1700000000
-local SECONDS = ItemConfig.Potions.Energy.Seconds
+local SECONDS = ItemConfig.Potions.Diamonds.Seconds
 
 print("-- 1. Configuración")
 local potionsOk = true
@@ -52,48 +52,48 @@ for id, def in ItemConfig.Titles do
 	end
 end
 check("los títulos piden jefes que existen o una meta", titlesOk)
-check("orden de las pociones y los títulos", ItemLogic.potionOrder()[1] == "Energy" and #ItemLogic.potionOrder() == 4 and ItemLogic.titleOrder()[1] == "Novato")
+check("orden de las pociones y los títulos", ItemLogic.potionOrder()[1] == "Diamonds" and #ItemLogic.potionOrder() == 4 and ItemLogic.titleOrder()[1] == "Novato")
 
 print("-- 2. Datos guardados")
 local fresh = ItemLogic.sanitize(nil, NOW)
 check("sin datos (guardado v8 o anterior): inventario vacío", next(fresh.Potions) == nil and next(fresh.Eggs) == nil and next(fresh.Boosts) == nil and fresh.Title == "" and fresh.TitleSet == false and fresh.PotionsUsed == 0)
 local dirty = ItemLogic.sanitize({
-	Potions = { Energy = 3.7, Damage = -1, Money = 0 / 0, Luck = 5000, [5] = 2 },
+	Potions = { Diamonds = 3.7, Damage = -1, Money = 0 / 0, Luck = 5000, [5] = 2 },
 	Eggs = { AncientEgg = 2, [""] = 4 },
-	Boosts = { Energy = 300, Damage = -5, Nope = 100, Money = 99999999 },
+	Boosts = { Diamonds = 300, Damage = -5, Nope = 100, Money = 99999999 },
 	Titles = { Novato = true, Cazador = "sí" },
 	Title = "Cazador",
 	TitleSet = 1,
 	PotionsUsed = 0 / 0,
 }, NOW)
-check("cantidades: enteras, positivas y con tope", dirty.Potions.Energy == 3 and dirty.Potions.Damage == nil and dirty.Potions.Money == nil and dirty.Potions.Luck == ItemConfig.MaxStack and dirty.Potions[5] == nil)
+check("cantidades: enteras, positivas y con tope", dirty.Potions.Diamonds == 3 and dirty.Potions.Damage == nil and dirty.Potions.Money == nil and dirty.Potions.Luck == ItemConfig.MaxStack and dirty.Potions[5] == nil)
 check("huevos sin id vacío", dirty.Eggs.AncientEgg == 2 and dirty.Eggs[""] == nil)
-check("pociones activas: el tiempo que quedaba cuenta desde ahora (con tope)", dirty.Boosts.Energy == NOW + 300 and dirty.Boosts.Damage == nil and dirty.Boosts.Nope == nil and dirty.Boosts.Money == NOW + ItemConfig.MaxBoostSeconds)
+check("pociones activas: el tiempo que quedaba cuenta desde ahora (con tope)", dirty.Boosts.Diamonds == NOW + 300 and dirty.Boosts.Damage == nil and dirty.Boosts.Nope == nil and dirty.Boosts.Money == NOW + ItemConfig.MaxBoostSeconds)
 check("títulos: solo los de verdad; el equipado tiene que ser suyo", dirty.Titles.Novato == true and dirty.Titles.Cazador == nil and dirty.Title == "" and dirty.TitleSet == false and dirty.PotionsUsed == 0)
 local saved = ItemLogic.serialize(dirty, NOW + 100)
-check("al guardar, las activas como segundos que quedan", saved.Boosts.Energy == 200 and saved.Potions.Energy == 3 and saved ~= dirty)
+check("al guardar, las activas como segundos que quedan", saved.Boosts.Diamonds == 200 and saved.Potions.Diamonds == 3 and saved ~= dirty)
 local later = ItemLogic.sanitize(saved, NOW + 86400)
-check("sin jugar el tiempo no corre: al volver un día después le quedan 200 s", ItemLogic.remaining(later, "Energy", NOW + 86400) == 200)
-check("las que ya se acabaron no se guardan", ItemLogic.serialize(dirty, NOW + 400).Boosts.Energy == nil)
+check("sin jugar el tiempo no corre: al volver un día después le quedan 200 s", ItemLogic.remaining(later, "Diamonds", NOW + 86400) == 200)
+check("las que ya se acabaron no se guardan", ItemLogic.serialize(dirty, NOW + 400).Boosts.Diamonds == nil)
 
 print("-- 3. Pociones")
 local data = ItemLogic.empty()
-check("sin la poción: NotOwned", ItemLogic.usePotion(data, "Energy", NOW, Codes) == Codes.NotOwned)
+check("sin la poción: NotOwned", ItemLogic.usePotion(data, "Diamonds", NOW, Codes) == Codes.NotOwned)
 check("poción inventada: InvalidRequest", ItemLogic.usePotion(data, "Nope", NOW, Codes) == Codes.InvalidRequest)
 check("el botín no añade pociones inventadas", ItemLogic.addPotion(data, "Nope", 1) == 0 and data.Potions.Nope == nil)
-check("suma pociones", ItemLogic.addPotion(data, "Energy", 2) == 2 and data.Potions.Energy == 2)
-check("inactiva: multiplica por 1", ItemLogic.multiplier(data, "Energy", NOW) == 1 and ItemLogic.multiplier(nil, "Energy", NOW) == 1)
-local code, total = ItemLogic.usePotion(data, "Energy", NOW, Codes)
-check("tomarla: Success con su tiempo", code == Codes.Success and total == SECONDS and data.Potions.Energy == 1)
-check("activa: ×2 Energía", ItemLogic.isActive(data, "Energy", NOW + 1) and ItemLogic.multiplier(data, "Energy", NOW + 1) == 2)
+check("suma pociones", ItemLogic.addPotion(data, "Diamonds", 2) == 2 and data.Potions.Diamonds == 2)
+check("inactiva: multiplica por 1", ItemLogic.multiplier(data, "Diamonds", NOW) == 1 and ItemLogic.multiplier(nil, "Diamonds", NOW) == 1)
+local code, total = ItemLogic.usePotion(data, "Diamonds", NOW, Codes)
+check("tomarla: Success con su tiempo", code == Codes.Success and total == SECONDS and data.Potions.Diamonds == 1)
+check("activa: ×2 Energía", ItemLogic.isActive(data, "Diamonds", NOW + 1) and ItemLogic.multiplier(data, "Diamonds", NOW + 1) == 2)
 check("no toca las demás", ItemLogic.multiplier(data, "Damage", NOW + 1) == 1)
-code, total = ItemLogic.usePotion(data, "Energy", NOW + 60, Codes)
-check("otra igual suma su tiempo al que queda", code == Codes.Success and total == 2 * SECONDS - 60 and data.Potions.Energy == nil and data.PotionsUsed == 2)
-data.Potions.Energy = 1
-data.Boosts.Energy = NOW + ItemConfig.MaxBoostSeconds - 60
-check("con el máximo acumulado: Full y no se gasta", ItemLogic.usePotion(data, "Energy", NOW, Codes) == Codes.Full and data.Potions.Energy == 1)
+code, total = ItemLogic.usePotion(data, "Diamonds", NOW + 60, Codes)
+check("otra igual suma su tiempo al que queda", code == Codes.Success and total == 2 * SECONDS - 60 and data.Potions.Diamonds == nil and data.PotionsUsed == 2)
+data.Potions.Diamonds = 1
+data.Boosts.Diamonds = NOW + ItemConfig.MaxBoostSeconds - 60
+check("con el máximo acumulado: Full y no se gasta", ItemLogic.usePotion(data, "Diamonds", NOW, Codes) == Codes.Full and data.Potions.Diamonds == 1)
 local ended = ItemLogic.expire(data, NOW + ItemConfig.MaxBoostSeconds)
-check("al acabarse se quita y avisa", #ended == 1 and ended[1] == "Energy" and data.Boosts.Energy == nil and ItemLogic.multiplier(data, "Energy", NOW + ItemConfig.MaxBoostSeconds) == 1)
+check("al acabarse se quita y avisa", #ended == 1 and ended[1] == "Diamonds" and data.Boosts.Diamonds == nil and ItemLogic.multiplier(data, "Diamonds", NOW + ItemConfig.MaxBoostSeconds) == 1)
 check("pociones con tope", ItemLogic.addPotion(data, "Luck", ItemConfig.MaxStack + 5) == ItemConfig.MaxStack and data.Potions.Luck == ItemConfig.MaxStack)
 
 print("-- 4. Huevos guardados")
@@ -129,7 +129,7 @@ check("los jefes no usan esta regla (tienen la suya) y lo raro no suelta nada", 
 print("-- 6. Títulos")
 local titles = ItemLogic.empty()
 local function stats(over)
-	local s = { Kills = 0, Rebirths = 0, Pets = 0, PotionsUsed = 0, EnergyEarned = 0, Bosses = {} }
+	local s = { Kills = 0, Rebirths = 0, Pets = 0, PotionsUsed = 0, DiamondsEarned = 0, Bosses = {} }
 	for k, v in over or {} do
 		s[k] = v
 	end

@@ -10,7 +10,7 @@
 -- Publicación: cada PublishSeconds (y al salir) se escribe lo de cada jugador con datos
 -- cargados, solo si cambió. Los perfiles de prueba o sin cargar nunca se publican.
 -- Los 💎 de la semana se suman aquí (los de enemigos y oleadas, con el aviso de
--- EnergyService) y se guardan en el campo Weekly del registro.
+-- DiamondService) y se guardan en el campo Weekly del registro.
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -31,7 +31,7 @@ local LeaderboardBoardData = require(script.Parent.Parent.Util.LeaderboardBoardD
 local ChristmasDecor = require(script.Parent.Parent.Util.ChristmasDecor)
 local LeaderboardLogic = require(script.Parent.Parent.Util.LeaderboardLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
-local EnergyService = require(script.Parent.EnergyService)
+local DiamondService = require(script.Parent.DiamondService)
 
 local LeaderboardService = {}
 
@@ -282,7 +282,7 @@ local function render(board: Board)
 		local entry = entries[index]
 		row.Name.Text = if entry then entry.Name else "—"
 		row.Name.TextColor3 = if entry then TEXT else MUTED
-		row.Value.Text = if entry then valueText(if stat == "Rebirths" then "Rebirths" else "Energy", entry.Value) else ""
+		row.Value.Text = if entry then valueText(if stat == "Rebirths" then "Rebirths" else "Diamonds", entry.Value) else ""
 	end
 end
 
@@ -298,7 +298,7 @@ local function publishedValues(profile: PlayerDataService.Profile): { [string]: 
 	local data = profile.PetData
 	local quests = data.Quests
 	return {
-		Energy = LeaderboardLogic.storeValue(type(quests) == "table" and type(quests.Stats) == "table" and quests.Stats.EnergyEarned or 0),
+		Diamonds = LeaderboardLogic.storeValue(type(quests) == "table" and type(quests.Stats) == "table" and quests.Stats.DiamondsEarned or 0),
 		Rebirths = LeaderboardLogic.storeValue(RebirthLogic.count(data.Rebirth)),
 		Weekly = LeaderboardLogic.storeValue(LeaderboardLogic.weeklyValue(data.Weekly, currentWeek())),
 		Waves = LeaderboardLogic.storeValue(type(data.Waves) == "table" and data.Waves.Cleared or 0),
@@ -406,7 +406,7 @@ end
 -- Arranque ------------------------------------------------------------------------------------
 
 -- Clasificaciones globales que se leen (las de LeaderboardConfig.Global.Stores).
-local GLOBAL_STATS = { "Energy", "Rebirths", "Weekly", "Waves" }
+local GLOBAL_STATS = { "Diamonds", "Rebirths", "Weekly", "Waves" }
 
 function LeaderboardService.start()
 	PartFactory.removeExisting(Workspace, LeaderboardConfig.ModelName)
@@ -421,8 +421,8 @@ function LeaderboardService.start()
 	end
 	refresh()
 
-	-- 💎 de la semana: los que se consiguen peleando (EnergyService, una vez por ciclo).
-	EnergyService.onProduced(function(player, amount)
+	-- 💎 de la semana: los que se consiguen peleando (DiamondService, una vez por ciclo).
+	DiamondService.onProduced(function(player, amount)
 		local profile = PlayerDataService.get(player)
 		if profile and PlayerDataService.isPetDataReady(profile) then
 			LeaderboardLogic.addWeekly(profile.PetData.Weekly, currentWeek(), amount)

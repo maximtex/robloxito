@@ -1,6 +1,6 @@
 -- Misiones, misiones diarias y logros (lógica en QuestLogic, definiciones en QuestConfig).
 -- - El progreso sale SOLO de avisos de servicios del servidor: derrotas con recompensa
---   (EnemyService), energía producida (EnergyService), habilidades de mascota con daño
+--   (EnemyService), energía producida (DiamondService), habilidades de mascota con daño
 --   real (PetCombatService) y el estado del perfil (mejora, mascotas, zonas).
 -- - Sin bucle propio: se actualiza con el aviso de 💎 de cada segundo (cambio de
 --   día, misiones de estado) y envía el estado solo si ha cambiado, como mucho cada
@@ -24,7 +24,7 @@ local RebirthLogic = require(Shared.RebirthLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
-local EnergyService = require(script.Parent.EnergyService)
+local DiamondService = require(script.Parent.DiamondService)
 local PetCombatService = require(script.Parent.PetCombatService)
 local QuestLogic = require(script.Parent.Parent.Util.QuestLogic)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
@@ -112,7 +112,7 @@ end
 -- 💎 de misiones y logros: se suman directamente y NO cuentan como progreso.
 local function grant(player: Player, profile: PlayerDataService.Profile, amount: number)
 	if amount > 0 then
-		profile.Energy += amount
+		profile.Diamonds += amount
 		PlayerDataService.replicate(player)
 	end
 end
@@ -223,10 +223,10 @@ function QuestService.start()
 		record(player, { Type = "WaveWin" })
 		update(player, false)
 	end)
-	-- Cada segundo (aviso de EnergyService): 💎 conseguidos, cambio de día y misiones de estado.
-	EnergyService.onProduced(function(player, amount)
+	-- Cada segundo (aviso de DiamondService): 💎 conseguidos, cambio de día y misiones de estado.
+	DiamondService.onProduced(function(player, amount)
 		if amount > 0 then
-			record(player, { Type = "Energy", Amount = amount })
+			record(player, { Type = "Diamonds", Amount = amount })
 		end
 		update(player, false)
 	end)

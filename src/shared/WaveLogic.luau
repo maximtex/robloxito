@@ -174,7 +174,7 @@ end
 function WaveLogic.clearReward(wave: number, arenaId: string?): (number, number)
 	local w = math.max(1, math.floor(positive(wave)))
 	local scale = rewardScale(arenaId)
-	return math.floor(WaveConfig.ClearEnergy * w * scale), math.floor(WaveConfig.ClearMoney * w * scale)
+	return math.floor(WaveConfig.ClearDiamonds * w * scale), math.floor(WaveConfig.ClearMoney * w * scale)
 end
 
 -- Premio de victoria (💎, 💰); cada modo puede escalarlo (RewardScale y VictoryScale: la
@@ -182,7 +182,7 @@ end
 function WaveLogic.victoryReward(arenaId: string?): (number, number)
 	local arena = arenaId and WaveConfig.Arenas[arenaId]
 	local scale = (if arena and arena.VictoryScale ~= nil then positive(arena.VictoryScale) else 1) * rewardScale(arenaId)
-	return math.floor(WaveConfig.VictoryEnergy * scale), math.floor(WaveConfig.VictoryMoney * scale)
+	return math.floor(WaveConfig.VictoryDiamonds * scale), math.floor(WaveConfig.VictoryMoney * scale)
 end
 
 -- Cofre de victoria de las mazmorras (Arenas.*.Chest): (💰, poción o nil). `rollPotion` y
@@ -365,7 +365,7 @@ end
 
 -- 💎 de un enemigo para quien recibe `share` de su recompensa (la parte del dinero que le
 -- toca, antes de multiplicadores).
-function WaveLogic.killEnergy(share: number, killShare: number): number
+function WaveLogic.killDiamonds(share: number, killShare: number): number
 	return positive(share) * positive(killShare)
 end
 

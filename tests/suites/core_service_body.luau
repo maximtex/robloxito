@@ -1,5 +1,5 @@
 -- Con la economía 1: la ⚡ de los registros antiguos de esta batería no se convierte en 💰
--- (su Energy cuenta directamente como 💎).
+-- (su Diamonds cuenta directamente como 💎).
 EconomyConfig.Version = 1
 local UNLOCK = CoreConfig.Unlock.BaseCost -- despertar Agua
 -- Núcleos: CoreLogic (mejora) y el CoreService REAL con el PlayerDataService y el
@@ -45,7 +45,7 @@ local code3 = CoreLogic.upgrade({} :: any, "Water", 1e9)
 check("Naturaleza (no tiene nivel), desconocido o sin estructura -> InvalidRequest", code == "InvalidRequest" and code2 == "InvalidRequest" and code3 == "InvalidRequest")
 u.Elements.Water.Unlocked = true
 code, cost = CoreLogic.upgrade(u, "Water", 5)
-check("sin 💎 -> InsufficientEnergy con el coste, sin cambios", code == "InsufficientEnergy" and cost == CoreLogic.upgradeCost("Water", 0) and u.Elements.Water.Level == 0)
+check("sin 💎 -> InsufficientDiamonds con el coste, sin cambios", code == "InsufficientDiamonds" and cost == CoreLogic.upgradeCost("Water", 0) and u.Elements.Water.Level == 0)
 code, cost = CoreLogic.upgrade(u, "Water", 1e9)
 check("con 💎 -> Success, nivel 1 y devuelve el coste del nivel 0", code == "Success" and cost == CoreLogic.upgradeCost("Water", 0) and u.Elements.Water.Level == 1)
 u.Elements.Water.Level = CoreConfig.Upgrade.MaxLevel
@@ -53,30 +53,30 @@ code, cost = CoreLogic.upgrade(u, "Water", 1e15)
 check("al máximo -> MaxLevel", code == "MaxLevel" and cost == 0 and u.Elements.Water.Level == CoreConfig.Upgrade.MaxLevel)
 
 print("-- 2. Despertar núcleos")
-storeData.player_31 = { Version = 3, Energy = 100000, UpgradeLevels = { GeneratorPower = 10 }, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2 }
+storeData.player_31 = { Version = 3, Diamonds = 100000, UpgradeLevels = { GeneratorPower = 10 }, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2 }
 local ana, p = enter("Ana", 31)
 advance(1)
-p.Energy = 100000 -- los logros ya cumplidos pueden haber sumado 💎 al entrar
+p.Diamonds = 100000 -- los logros ya cumplidos pueden haber sumado 💎 al entrar
 check("entra con solo Naturaleza y los atributos de los núcleos (sin producción)", p.ProductionPerSecond == nil and ana:GetAttribute("ProductionPerSecond") == nil and ana:GetAttribute("UnlockedCores") == "Nature" and ana:GetAttribute("SelectedCore") == "Nature")
 local r = act(ana, "Unlock", "Fire")
-check("Fuego antes que Agua -> Locked (desbloqueo secuencial), sin cobrar", r[1] == false and r[2] == "Locked" and p.Energy == 100000)
-p.Energy = UNLOCK - 1
+check("Fuego antes que Agua -> Locked (desbloqueo secuencial), sin cobrar", r[1] == false and r[2] == "Locked" and p.Diamonds == 100000)
+p.Diamonds = UNLOCK - 1
 r = act(ana, "Unlock", "Water")
-check(("sin 💎 suficientes -> InsufficientEnergy con el coste (%d), sin cambios"):format(UNLOCK), r[1] == false and r[2] == "InsufficientEnergy" and r[5] == UNLOCK and p.Energy == UNLOCK - 1 and not CoreLogic.isUnlocked(p.PetData.Cores, "Water"))
-p.Energy = 100000
+check(("sin 💎 suficientes -> InsufficientDiamonds con el coste (%d), sin cambios"):format(UNLOCK), r[1] == false and r[2] == "InsufficientDiamonds" and r[5] == UNLOCK and p.Diamonds == UNLOCK - 1 and not CoreLogic.isUnlocked(p.PetData.Cores, "Water"))
+p.Diamonds = 100000
 local writes = storeWrites
 r = act(ana, "Unlock", "Water")
-check(("despertar Agua -> Success, cuesta %d"):format(UNLOCK), r[1] == true and r[2] == "Success" and r[3] == "Unlock" and r[4] == "Water" and r[5] == UNLOCK and p.Energy == 100000 - UNLOCK)
+check(("despertar Agua -> Success, cuesta %d"):format(UNLOCK), r[1] == true and r[2] == "Success" and r[3] == "Unlock" and r[4] == "Water" and r[5] == UNLOCK and p.Diamonds == 100000 - UNLOCK)
 check("atributo UnlockedCores = Nature,Water", ana:GetAttribute("UnlockedCores") == "Nature,Water")
 check("se guarda al momento (UnlockedAt registrado)", storeWrites > writes and record(31).Cores.Elements.Water.Unlocked == true and record(31).Cores.Elements.Water.UnlockedAt == os.time())
 r = act(ana, "Unlock", "Water")
-check("despertarlo otra vez -> AlreadyUnlocked, sin cobrar", r[2] == "AlreadyUnlocked" and p.Energy == 100000 - UNLOCK)
+check("despertarlo otra vez -> AlreadyUnlocked, sin cobrar", r[2] == "AlreadyUnlocked" and p.Diamonds == 100000 - UNLOCK)
 
 print("-- 3. Mejorar")
 local upgradeCost = CoreLogic.upgradeCost("Water", 0)
 advance(1)
 r = act(ana, "Upgrade", "Water")
-check(("mejorar Agua -> nivel 1, cuesta %d"):format(upgradeCost), r[1] == true and r[3] == "Upgrade" and r[5] == upgradeCost and p.PetData.Cores.Elements.Water.Level == 1 and p.Energy == 100000 - UNLOCK - upgradeCost)
+check(("mejorar Agua -> nivel 1, cuesta %d"):format(upgradeCost), r[1] == true and r[3] == "Upgrade" and r[5] == upgradeCost and p.PetData.Cores.Elements.Water.Level == 1 and p.Diamonds == 100000 - UNLOCK - upgradeCost)
 advance(1)
 r = act(ana, "Upgrade", "Nature")
 check("Naturaleza por CoreAction -> InvalidRequest (no tiene nivel)", r[2] == "InvalidRequest")
@@ -84,9 +84,9 @@ check("Naturaleza por CoreAction -> InvalidRequest (no tiene nivel)", r[2] == "I
 print("-- 4. Elegir el elemento activo")
 advance(1)
 local switchCost = CoreLogic.switchCost()
-local energyBefore = p.Energy
+local energyBefore = p.Diamonds
 r = act(ana, "Select", "Water")
-check(("elegir Agua -> cuesta Switch.MinCost (%d)"):format(switchCost), r[1] == true and r[3] == "Select" and r[5] == switchCost and p.Energy == energyBefore - switchCost and ana:GetAttribute("SelectedCore") == "Water")
+check(("elegir Agua -> cuesta Switch.MinCost (%d)"):format(switchCost), r[1] == true and r[3] == "Select" and r[5] == switchCost and p.Diamonds == energyBefore - switchCost and ana:GetAttribute("SelectedCore") == "Water")
 r = act(ana, "Select", "Water")
 check("elegir el que ya está activo -> AlreadySelected", r[2] == "AlreadySelected")
 advance(2)
@@ -97,13 +97,13 @@ r = act(ana, "Select", "Nature")
 check("pasado el enfriamiento se puede volver a Naturaleza", r[1] == true and ana:GetAttribute("SelectedCore") == "Nature")
 check("sin secundario: atributo vacío", ana:GetAttribute("SecondaryCore") == "")
 advance(CoreConfig.Switch.CooldownSeconds)
-energyBefore = p.Energy
+energyBefore = p.Diamonds
 r = act(ana, "Secondary", "Water")
-check("elegir Agua como secundario (R): cobra lo mismo que cambiar y se replica", r[1] == true and r[3] == "Secondary" and p.Energy == energyBefore - switchCost and ana:GetAttribute("SecondaryCore") == "Water")
+check("elegir Agua como secundario (R): cobra lo mismo que cambiar y se replica", r[1] == true and r[3] == "Secondary" and p.Diamonds == energyBefore - switchCost and ana:GetAttribute("SecondaryCore") == "Water")
 
 print("-- 5. Peticiones no válidas y estado al cliente")
 advance(1)
-energyBefore = p.Energy
+energyBefore = p.Diamonds
 local bad = {
 	act(ana, 42, "Water"),
 	act(ana, "Steal", "Water"),
@@ -115,7 +115,7 @@ local allInvalid = true
 for _, result in bad do
 	if result[1] ~= false then allInvalid = false end
 end
-check("acción o elemento no válidos -> rechazados, sin cobrar", allInvalid and p.Energy == energyBefore)
+check("acción o elemento no válidos -> rechazados, sin cobrar", allInvalid and p.Diamonds == energyBefore)
 check("la respuesta no devuelve textos enormes del cliente", bad[4][4] == nil and bad[1][3] == nil)
 fireServer("RequestCores", ana)
 advance(0)
@@ -138,10 +138,10 @@ local firedAfter = 0
 for _, item in fired do if item.Name == "CoreResult" and item.Player == ana then firedAfter += 1 end end
 check(("20 peticiones seguidas: como mucho %d respuestas y una sola mejora"):format(EconomyConfig.PurchaseRateLimit.MaxRequestsPerWindow), firedAfter - firedBefore <= EconomyConfig.PurchaseRateLimit.MaxRequestsPerWindow and p.PetData.Cores.Elements.Water.Level == 2)
 exit(ana)
-check("al salir se guardan núcleos y 💎", record(31).Cores.Elements.Water.Level == 2 and record(31).Cores.Selected == "Nature" and record(31).Cores.Secondary == "Water" and record(31).Energy == p.Energy)
+check("al salir se guardan núcleos y 💎", record(31).Cores.Elements.Water.Level == 2 and record(31).Cores.Selected == "Nature" and record(31).Cores.Secondary == "Water" and record(31).Diamonds == p.Diamonds)
 
 print("-- 7. Datos cargando: no se gasta")
-storeData.player_32 = { Version = 3, Energy = 50000, UpgradeLevels = { GeneratorPower = 1 } }
+storeData.player_32 = { Version = 3, Diamonds = 50000, UpgradeLevels = { GeneratorPower = 1 } }
 storeLatency = 3
 local ben = newPlayer("Ben", 32)
 join(ben)
@@ -152,7 +152,7 @@ r = lastResult("CoreResult", ben)
 check("mientras carga -> NotReady", r[1] == false and r[2] == "NotReady")
 advance(4)
 storeLatency = 0
-check("al terminar la carga, nada se cobró", PlayerDataService.get(ben).Energy == 50000 and not CoreLogic.isUnlocked(PlayerDataService.get(ben).PetData.Cores, "Water"))
+check("al terminar la carga, nada se cobró", PlayerDataService.get(ben).Diamonds == 50000 and not CoreLogic.isUnlocked(PlayerDataService.get(ben).PetData.Cores, "Water"))
 exit(ben)
 
 print("-- 8. Nada mientras no juegas")
@@ -160,11 +160,11 @@ local now = os.time()
 local cores = CoreLogic.empty()
 cores.Elements.Water.Unlocked = true
 cores.Elements.Water.Level = 2
-storeData.player_33 = { Version = 3, Energy = 10, UpgradeLevels = { GeneratorPower = 4 }, Cores = cores, LastSeen = now - 7200,
+storeData.player_33 = { Version = 3, Diamonds = 10, UpgradeLevels = { GeneratorPower = 4 }, Cores = cores, LastSeen = now - 7200,
 	Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2 }
 local cid, cp = enter("Cid", 33)
 advance(2)
-check("2 h fuera con núcleos despiertos: ni un 💎 offline ni aviso", cp.Energy == 10 and cid:GetAttribute("OfflineReward") == nil)
+check("2 h fuera con núcleos despiertos: ni un 💎 offline ni aviso", cp.Diamonds == 10 and cid:GetAttribute("OfflineReward") == nil)
 check("y sus núcleos siguen como estaban", CoreLogic.isUnlocked(cp.PetData.Cores, "Water") and CoreLogic.level(cp.PetData.Cores, "Water") == 2)
 exit(cid)
 

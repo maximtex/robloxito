@@ -194,7 +194,7 @@ check("más oleadas en las mazmorras de arriba: Bosque 10, Valle 12 y Caldera 15
 
 print("-- Mazmorras: élites y cofre")
 check("élites solo en el Valle y la Caldera", not WaveLogic.isElite("Forest", 0) and WaveLogic.isElite("CrystalValley", 0.01) and not WaveLogic.isElite("CrystalValley", 0.5) and WaveLogic.isElite("EmberCaldera", 0.1) and not WaveLogic.isElite("Tutorial", 0))
-local potions = { "Energy", "Damage", "Money", "Luck" }
+local potions = { "Diamonds", "Damage", "Money", "Luck" }
 local fm, fp = WaveLogic.chestReward("Forest", 0.99, 0, potions)
 local vm, vp = WaveLogic.chestReward("CrystalValley", 0, 0.99, potions)
 local cm = WaveLogic.chestReward("EmberCaldera", 0.99, 0, potions)
@@ -231,7 +231,7 @@ end
 check("la práctica explica cada momento (consejos)", hintsOK and easier)
 check("el modo normal no tiene consejos y lo raro no falla", WaveLogic.hint("Forest", 1) == nil and WaveLogic.hint("Nada", "Countdown") == nil)
 local practiceE, practiceM = WaveLogic.victoryReward("Tutorial")
-check("la práctica da un premio de victoria más pequeño", practiceE == math.floor(WaveConfig.VictoryEnergy * practice.VictoryScale) and practiceM == math.floor(WaveConfig.VictoryMoney * practice.VictoryScale) and practiceE < WaveLogic.victoryReward("Forest"))
+check("la práctica da un premio de victoria más pequeño", practiceE == math.floor(WaveConfig.VictoryDiamonds * practice.VictoryScale) and practiceM == math.floor(WaveConfig.VictoryMoney * practice.VictoryScale) and practiceE < WaveLogic.victoryReward("Forest"))
 check("una arena que no existe no tiene oleadas", WaveLogic.waveCount("Nada") == 0)
 local growing = true
 local previous = 0
@@ -352,9 +352,9 @@ check("valores raros cuentan como 1", near(WaveLogic.healthMultiplier(0 / 0, -5)
 check("el jefe tiene más vida con más jugadores", WaveLogic.bossHealthMultiplier(1) == 1 and WaveLogic.bossHealthMultiplier(2) > 1)
 check("botín normal en la oleada 1 y más después", near(WaveLogic.rewardMultiplier(1), 1) and WaveLogic.rewardMultiplier(9) > 1)
 local clearE, clearM = WaveLogic.clearReward(3)
-check("premio por oleada: crece con la oleada (los 💎 los multiplica después el servicio)", clearE == WaveConfig.ClearEnergy * 3 and clearM > 0 and WaveLogic.clearReward(6) > clearE)
+check("premio por oleada: crece con la oleada (los 💎 los multiplica después el servicio)", clearE == WaveConfig.ClearDiamonds * 3 and clearM > 0 and WaveLogic.clearReward(6) > clearE)
 local winE, winM = WaveLogic.victoryReward()
-check("premio de victoria fijo", winE == WaveConfig.VictoryEnergy and winM == WaveConfig.VictoryMoney)
+check("premio de victoria fijo", winE == WaveConfig.VictoryDiamonds and winM == WaveConfig.VictoryMoney)
 check("mejoras tras la 3, la 6 y la 9 (no tras la 10)", WaveLogic.isCardWave("Forest", 3) and WaveLogic.isCardWave("Forest", 6) and WaveLogic.isCardWave("Forest", 9) and not WaveLogic.isCardWave("Forest", 10) and not WaveLogic.isCardWave("Forest", 1))
 
 print("-- Mejoras")
@@ -430,8 +430,8 @@ print("-- Botín de cada enemigo")
 check("orbe dorado cuando toca", WaveLogic.rollGolden(sequence({ 0 }), false) and not WaveLogic.rollGolden(sequence({ 0.99 }), false))
 check("los jefes nunca sueltan orbe dorado", not WaveLogic.rollGolden(sequence({ 0 }), true))
 check("el orbe dorado multiplica el botín", WaveLogic.goldenMultiplier(true) == WaveConfig.GoldenOrb.Multiplier and WaveLogic.goldenMultiplier(false) == 1)
-check("💎 de un Espinillo: 35 · 0.15", near(WaveLogic.killEnergy(35, 0.15), 5.25))
-check("valores raros dan 0", WaveLogic.killEnergy(0 / 0, 0.15) == 0 and WaveLogic.killEnergy(35, -1) == 0)
+check("💎 de un Espinillo: 35 · 0.15", near(WaveLogic.killDiamonds(35, 0.15), 5.25))
+check("valores raros dan 0", WaveLogic.killDiamonds(0 / 0, 0.15) == 0 and WaveLogic.killDiamonds(35, -1) == 0)
 
 print("-- Sonidos de la partida")
 local soundsOK, soundCount = true, 0

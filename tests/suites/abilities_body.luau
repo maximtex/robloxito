@@ -350,7 +350,7 @@ d.Elements.Water.Unlocked = true
 d.Elements.Fire.Unlocked = true
 local switchCost = CoreLogic.switchCost()
 local scode, scost = CoreLogic.selectSecondary(d, "Water", switchCost - 1, T0)
-check("secundario: cuesta lo mismo que cambiar el principal", scode == "InsufficientEnergy" and scost == switchCost and d.Secondary == nil)
+check("secundario: cuesta lo mismo que cambiar el principal", scode == "InsufficientDiamonds" and scost == switchCost and d.Secondary == nil)
 scode, scost = CoreLogic.selectSecondary(d, "Water", 1e9, T0)
 check("secundario: se elige", scode == "Success" and scost == switchCost and d.Secondary == "Water" and d.Selected == "Nature" and CoreLogic.secondaryOf(d) == "Water")
 check("secundario: mismo enfriamiento que cambiar", (CoreLogic.selectSecondary(d, "Fire", 1e9, T0 + 5)) == "TooFast")

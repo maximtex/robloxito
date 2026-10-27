@@ -1,5 +1,5 @@
 PlayerDataService.start()
-EnergyService.start()
+DiamondService.start()
 UpgradeService.start()
 QuestService.start()
 TutorialService.start()
@@ -54,12 +54,12 @@ check("con una mascota además de la inicial: paso 3 hecho", step(alice) == 3)
 defeat(alice, "ForestWarden", "Boss")
 advance(1)
 check("al derrotar al Guardián del Bosque: paso 4 hecho", step(alice) == 4)
-local energyBefore = profile.Energy
+local energyBefore = profile.Diamonds
 table.insert(profile.PetData.UnlockedZones, "CrystalValley")
 advance(1)
 check("al desbloquear el Valle: tutorial completado", status(alice) == "Completed" and step(alice) == 5)
 -- Sin producción pasiva: ese segundo no da nada.
-check(("no concede 💎 (+%s)"):format(tostring(profile.Energy - energyBefore)), profile.Energy == energyBefore)
+check(("no concede 💎 (+%s)"):format(tostring(profile.Diamonds - energyBefore)), profile.Diamonds == energyBefore)
 leave(alice)
 advance(0)
 check("se guarda como completado", record(1).Tutorial.Status == "Completed" and record(1).Tutorial.Step == 5)
@@ -70,7 +70,7 @@ advance(3)
 check("al volver: completado y nunca se muestra como activo", status(alice) == "Completed" and not table.find(aliceHistory, "Active"))
 
 print("-- 2. Veterano con mascotas y el Valle (registro sin campo Tutorial)")
-storeData.player_2 = { Version = 2, Energy = 9000, UpgradeLevels = { GeneratorPower = 12 }, Pets = { { Uid = "1", PetId = "MossFox" }, { Uid = "2", PetId = "QuartzFox" } }, Equipped = { "1" }, NextPetUid = 3, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 300, EnergyEarned = 50000 } } }
+storeData.player_2 = { Version = 2, Diamonds = 9000, UpgradeLevels = { GeneratorPower = 12 }, Pets = { { Uid = "1", PetId = "MossFox" }, { Uid = "2", PetId = "QuartzFox" } }, Equipped = { "1" }, NextPetUid = 3, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 300, DiamondsEarned = 50000 } } }
 local bob = newPlayer("Bob", 2)
 local bobHistory = track(bob)
 join(bob)
@@ -86,10 +86,10 @@ for _, f in fired do
 	end
 end
 print(("  (logros concedidos al cargar: +%d 💎)"):format(achievementEnergy))
-check("el tutorial no cambia su dinero (su ⚡ 9000 pasó a 💰 45000, más la devolución de su Resonancia 12) ni sus 💎 (solo los logros) ni sus mascotas", PlayerDataService.get(bob).Money == 45000 + resonanceRefund(12) and PlayerDataService.get(bob).Energy == achievementEnergy and #PlayerDataService.get(bob).PetData.Pets == 2)
+check("el tutorial no cambia su dinero (su ⚡ 9000 pasó a 💰 45000, más la devolución de su Resonancia 12) ni sus 💎 (solo los logros) ni sus mascotas", PlayerDataService.get(bob).Money == 45000 + resonanceRefund(12) and PlayerDataService.get(bob).Diamonds == achievementEnergy and #PlayerDataService.get(bob).PetData.Pets == 2)
 
 print("-- 3. Veterano a medias: tiene mascota pero no la equipó")
-storeData.player_3 = { Version = 2, Energy = 40, UpgradeLevels = { GeneratorPower = 0 }, Pets = { { Uid = "1", PetId = "Sproutling" }, { Uid = "2", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 3, Quests = { Stats = { Kills = 12 } } }
+storeData.player_3 = { Version = 2, Diamonds = 40, UpgradeLevels = { GeneratorPower = 0 }, Pets = { { Uid = "1", PetId = "Sproutling" }, { Uid = "2", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 3, Quests = { Stats = { Kills = 12 } } }
 local cara = newPlayer("Cara", 3)
 join(cara)
 advance(0)
@@ -139,7 +139,7 @@ advance(0)
 check("paso negativo -> 0", status(fay) == "Active" and step(fay) == 0)
 
 print("-- 7. Carga fallida")
-storeData.player_7 = { Version = 2, Energy = 777, Tutorial = { Status = "Active", Step = 2 } }
+storeData.player_7 = { Version = 2, Diamonds = 777, Tutorial = { Status = "Active", Step = 2 } }
 local snapshot7 = deep(storeData.player_7)
 storeFail = 5
 local gus = newPlayer("Gus", 7)
@@ -149,7 +149,7 @@ check("sin datos no hay tutorial (sin atributos) y el estado es Failed", status(
 fireServer("SkipTutorial", gus)
 leave(gus)
 advance(0)
-local same = record(7).Tutorial.Step == snapshot7.Tutorial.Step and record(7).Tutorial.Status == "Active" and record(7).Energy == 777
+local same = record(7).Tutorial.Step == snapshot7.Tutorial.Step and record(7).Tutorial.Status == "Active" and record(7).Diamonds == 777
 check("omitir sin datos no hace nada y el registro no cambia", same)
 
 print("-- 8. Dos jugadores a la vez")

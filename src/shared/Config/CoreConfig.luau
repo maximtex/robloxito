@@ -7,7 +7,7 @@
 -- - Ocho elementos, en este orden: Naturaleza, Agua, Fuego, Viento, Rayo, Hielo, Sombra
 --   y Celestial.
 -- - Naturaleza está desbloqueada desde el principio y no tiene nivel; los otros siete se
---   desbloquean pagando 💎 diamantes (en el código, Energy), con costes crecientes. Sus
+--   desbloquean pagando 💎 diamantes (Diamonds en el código), con costes crecientes. Sus
 --   mejoras también se pagan con 💎; cambiar de elemento es gratis (solo tiene
 --   enfriamiento).
 -- - Los parámetros marcados [PROVISIONAL] son puntos de partida, no un balance definitivo.

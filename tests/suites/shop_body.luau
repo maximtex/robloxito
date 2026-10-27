@@ -90,7 +90,7 @@ check("CodesConfig y la racha: nombres válidos y bendiciones que existen", real
 print("-- 3. Tienda (pura)")
 local passes = MonetizationLogic.parsePasses("DoubleEnergy,Inventado,PetSpace")
 check("pases desde el atributo (ignora los que no existen) y de vuelta en orden", passes.DoubleEnergy and passes.PetSpace and not passes.Inventado and MonetizationLogic.passesText(passes) == "DoubleEnergy,PetSpace")
-check("Energía ×2", MonetizationLogic.energyMultiplier(passes) == 2 and MonetizationLogic.energyMultiplier({}) == 1 and MonetizationLogic.energyMultiplier(nil) == 1)
+check("Energía ×2", MonetizationLogic.diamondMultiplier(passes) == 2 and MonetizationLogic.diamondMultiplier({}) == 1 and MonetizationLogic.diamondMultiplier(nil) == 1)
 check("Más mascotas: +2 equipadas (con las del renacimiento) y +60 de inventario",
 	MonetizationLogic.maxEquipped(nil, passes, 3) == 5 and MonetizationLogic.maxEquipped({ Shop = { PetSlot = 2 } }, passes, 3) == 7 and MonetizationLogic.maxInventory(passes, 60) == 120 and MonetizationLogic.maxInventory({}, 60) == 60)
 check("tope de equipadas para dibujar: 3 + 2 del renacimiento + 2 del pase", MonetizationLogic.maxEquippedCap(3) == 7)
@@ -102,7 +102,7 @@ for index = 1, MonetizationConfig.MaxReceipts + 5 do
 	MonetizationLogic.addReceipt(shopData, "r" .. index)
 end
 check("recibos: se recuerdan los últimos " .. MonetizationConfig.MaxReceipts, #shopData.Receipts == MonetizationConfig.MaxReceipts and MonetizationLogic.hasReceipt(shopData, "r" .. (MonetizationConfig.MaxReceipts + 5)) and not MonetizationLogic.hasReceipt(shopData, "a"))
-check("💎 de una bolsa: su Min (y 0 si no es válido)", MonetizationLogic.productEnergy(MonetizationConfig.Products.EnergySmall) == MonetizationConfig.Products.EnergySmall.Min and MonetizationLogic.productEnergy({ Min = 0 / 0 }) == 0)
+check("💎 de una bolsa: su Min (y 0 si no es válido)", MonetizationLogic.productDiamonds(MonetizationConfig.Products.DiamondsSmall) == MonetizationConfig.Products.DiamondsSmall.Min and MonetizationLogic.productDiamonds({ Min = 0 / 0 }) == 0)
 local petProductsOk = true
 for petId in MonetizationConfig.PetProducts do
 	local pet = PetConfig.Pets[petId]
@@ -120,12 +120,12 @@ check("producto de mascota: da su PetId y no se confunde con la energía", Monet
 MonetizationConfig.PetProducts.Haxigator.Id = haxigatorId
 
 print("-- 4. Huevos: varios a la vez, regalo y mejor huevo (puros)")
-local function eggProfile(energy, level, zones, pets)
+local function eggProfile(diamonds, level, zones, pets)
 	local list = {}
 	for index = 1, pets or 0 do
 		table.insert(list, { Uid = tostring(index), PetId = "Sproutling" })
 	end
-	return { Money = energy, Energy = 0, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1, UnlockedZones = zones or {} } }
+	return { Money = diamonds, Diamonds = 0, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1, UnlockedZones = zones or {} } }
 end
 local limits = { MaxInventory = 60, MaxEquipped = 3 }
 local forest = EggConfig.Eggs.ForestEgg
@@ -165,13 +165,13 @@ LeaderboardLogic.addWeekly(weekly, week, 100)
 LeaderboardLogic.addWeekly(weekly, week, 50)
 LeaderboardLogic.addWeekly(weekly, week, -5)
 LeaderboardLogic.addWeekly(weekly, week, 0 / 0)
-check("suma la energía de la semana (ignora valores raros)", weekly.Week == week and weekly.Energy == 150 and LeaderboardLogic.weeklyValue(weekly, week) == 150)
+check("suma la energía de la semana (ignora valores raros)", weekly.Week == week and weekly.Diamonds == 150 and LeaderboardLogic.weeklyValue(weekly, week) == 150)
 LeaderboardLogic.addWeekly(weekly, week - 1, 30)
-check("reloj atrasado: se suma a la semana guardada", weekly.Week == week and weekly.Energy == 180)
+check("reloj atrasado: se suma a la semana guardada", weekly.Week == week and weekly.Diamonds == 180)
 LeaderboardLogic.addWeekly(weekly, week + 1, 10)
-check("semana nueva: empieza de cero", weekly.Week == week + 1 and weekly.Energy == 10 and LeaderboardLogic.weeklyValue(weekly, week) == 0)
+check("semana nueva: empieza de cero", weekly.Week == week + 1 and weekly.Diamonds == 10 and LeaderboardLogic.weeklyValue(weekly, week) == 0)
 check("valor para la clasificación global: entero >= 0", LeaderboardLogic.storeValue(12.7) == 12 and LeaderboardLogic.storeValue(-1) == nil and LeaderboardLogic.storeValue(0 / 0) == nil and LeaderboardLogic.storeValue(1e20) == 1e15)
-check("saneado de la semana", LeaderboardLogic.sanitizeWeekly({ Week = "x" }).Week == 0 and LeaderboardLogic.sanitizeWeekly({ Week = 3, Energy = 5 }).Energy == 5)
+check("saneado de la semana", LeaderboardLogic.sanitizeWeekly({ Week = "x" }).Week == 0 and LeaderboardLogic.sanitizeWeekly({ Week = 3, Diamonds = 5 }).Diamonds == 5)
 
 -- Servicios reales ---------------------------------------------------------------------------
 local Market = PetService.Market
@@ -179,7 +179,7 @@ MonetizationConfig.GamePasses.DoubleEnergy.Id = 101
 MonetizationConfig.GamePasses.AutoUpgrade.Id = 102
 MonetizationConfig.GamePasses.TripleHatch.Id = 103
 MonetizationConfig.GamePasses.PetSpace.Id = 104
-MonetizationConfig.Products.EnergySmall.Id = 201
+MonetizationConfig.Products.DiamondsSmall.Id = 201
 
 QuestLogic.init(QuestConfig, EnemyConfig, Economy)
 ShopService.start()
@@ -287,12 +287,12 @@ advance(0.1)
 check("ventana cerrada sin comprar: nada cambia", not PlayerDataService.get(p3).Passes.PetSpace)
 
 print("-- 9. Compras sueltas (recibos)")
-local energyBefore = PlayerDataService.get(p3).Energy
+local energyBefore = PlayerDataService.get(p3).Diamonds
 local receipt = { PlayerId = 3, ProductId = 201, PurchaseId = "compra-1" }
 local decision = Market.ProcessReceipt(receipt)
-local gained = PlayerDataService.get(p3).Energy - energyBefore
-check("se concede la energía y se confirma con la compra guardada", decision == "PurchaseGranted" and gained == MonetizationConfig.Products.EnergySmall.Min and table.find(record(3).Shop.Receipts, "compra-1") ~= nil)
-check("el mismo recibo otra vez: confirmado sin dar más", Market.ProcessReceipt(receipt) == "PurchaseGranted" and PlayerDataService.get(p3).Energy - energyBefore == gained)
+local gained = PlayerDataService.get(p3).Diamonds - energyBefore
+check("se concede la energía y se confirma con la compra guardada", decision == "PurchaseGranted" and gained == MonetizationConfig.Products.DiamondsSmall.Min and table.find(record(3).Shop.Receipts, "compra-1") ~= nil)
+check("el mismo recibo otra vez: confirmado sin dar más", Market.ProcessReceipt(receipt) == "PurchaseGranted" and PlayerDataService.get(p3).Diamonds - energyBefore == gained)
 check("jugador que no está: NotProcessedYet (Roblox reintenta)", Market.ProcessReceipt({ PlayerId = 99, ProductId = 201, PurchaseId = "x" }) == "NotProcessedYet")
 check("producto que no existe: NotProcessedYet", Market.ProcessReceipt({ PlayerId = 3, ProductId = 999, PurchaseId = "y" }) == "NotProcessedYet")
 -- Con fallos el guardado espera entre intentos: la compra se procesa en su propia tarea.
@@ -305,12 +305,12 @@ local function receiptAsync(data)
 	return out.Decision
 end
 storeFail = 3
-energyBefore = PlayerDataService.get(p3).Energy
+energyBefore = PlayerDataService.get(p3).Diamonds
 local failed = receiptAsync({ PlayerId = 3, ProductId = 201, PurchaseId = "compra-2" })
 check("si no se puede guardar: NotProcessedYet", failed == "NotProcessedYet")
 storeFail = 0
 local retried = receiptAsync({ PlayerId = 3, ProductId = 201, PurchaseId = "compra-2" })
-check("al reintentar: confirmada sin conceder dos veces", retried == "PurchaseGranted" and PlayerDataService.get(p3).Energy - energyBefore == MonetizationConfig.Products.EnergySmall.Min)
+check("al reintentar: confirmada sin conceder dos veces", retried == "PurchaseGranted" and PlayerDataService.get(p3).Diamonds - energyBefore == MonetizationConfig.Products.DiamondsSmall.Min)
 
 -- Armas con Robux (botón morado de su tarjeta en la Armería)
 WeaponService.start()
@@ -362,12 +362,12 @@ check("sin el pase: nunca sube sola", WeaponLogic.level(profile1.PetData.Weapons
 
 print("-- 11. Diamantes ×2 no da nada sin jugar")
 Market.Owned[6] = { [101] = true }
-storeData.player_6 = { Version = 5, LastSeen = os.time() - 2 * 3600, Energy = 0 }
+storeData.player_6 = { Version = 5, LastSeen = os.time() - 2 * 3600, Diamonds = 0 }
 local p6 = newPlayer("Fede", 6)
 join(p6)
 advance(10)
 local profile6 = PlayerDataService.get(p6)
-check("con el pase y 2 h fuera: ni 💎 offline ni aviso (el pase solo dobla lo que ganas peleando)", profile6.Passes.DoubleEnergy == true and profile6.Energy == 0 and p6:GetAttribute("OfflineReward") == nil)
+check("con el pase y 2 h fuera: ni 💎 offline ni aviso (el pase solo dobla lo que ganas peleando)", profile6.Passes.DoubleEnergy == true and profile6.Diamonds == 0 and p6:GetAttribute("OfflineReward") == nil)
 
 print("-- Cofres escondidos (ChestService real)")
 ChestService.startRemotes()

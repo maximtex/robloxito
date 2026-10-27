@@ -44,7 +44,7 @@ end
 
 print("-- 1. Migración: perfil v2 sin Cores")
 local V2 = {
-	Version = 2, Energy = 1234, UpgradeLevels = { GeneratorPower = 7 },
+	Version = 2, Diamonds = 1234, UpgradeLevels = { GeneratorPower = 7 },
 	Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2,
 	UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 3 } },
 	Tutorial = { Status = "Completed", Step = 5 }, FutureField = { Keep = true },
@@ -54,16 +54,16 @@ local ana, p = enter("Ana", 11)
 check("carga Loaded con los núcleos por defecto (Naturaleza desbloqueada y seleccionada, el resto bloqueado)", p.DataState == "Loaded" and same(p.PetData.Cores, CoreLogic.empty()))
 check("Naturaleza sin Level propio; la Resonancia (7) se devuelve en 💰 y desaparece", p.PetData.Cores.Elements.Nature.Level == nil and p.UpgradeLevels.GeneratorPower == nil and p.PetData.ArchivedUpgrades.GeneratorPower == nil and p.Money == resonanceRefund(7))
 check("una partida antigua no es una corrección: nada archivado ni avisado", #p.PetData.CoresArchive == 0)
-check("sin efecto económico: 💎 1234 y sin producción", p.Energy == 1234 and p.ProductionPerSecond == nil)
+check("sin efecto económico: 💎 1234 y sin producción", p.Diamonds == 1234 and p.ProductionPerSecond == nil)
 check("la carga solo toma el bloqueo: todavía no escribe Cores", record(11).Cores == nil and record(11).Version == 2 and record(11).Session ~= nil)
 
 print("-- 2. Guardado en v3")
 local savedAt = os.time()
 exit(ana)
 local r = record(11)
-check("versión actual (16), Cores guardado y LastSeen = hora del guardado", r.Version == 16 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == savedAt)
+check("versión actual (17), Cores guardado y LastSeen = hora del guardado", r.Version == 17 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == savedAt)
 check("sin CoresArchive vacío en el registro", r.CoresArchive == nil)
-check("energía, nivel, mascotas, zonas, misiones y tutorial intactos", r.Energy == 1234 and r.UpgradeLevels.GeneratorPower == nil and same(r.Pets, V2.Pets) and same(r.Equipped, V2.Equipped) and same(r.UnlockedZones, V2.UnlockedZones) and r.Quests.Stats.Kills == 3 and r.Tutorial.Status == "Completed")
+check("energía, nivel, mascotas, zonas, misiones y tutorial intactos", r.Diamonds == 1234 and r.UpgradeLevels.GeneratorPower == nil and same(r.Pets, V2.Pets) and same(r.Equipped, V2.Equipped) and same(r.UnlockedZones, V2.UnlockedZones) and r.Quests.Stats.Kills == 3 and r.Tutorial.Status == "Completed")
 check("campo desconocido del nivel superior conservado y bloqueo liberado", same(r.FutureField, V2.FutureField) and r.Session == nil)
 
 print("-- 3. Recarga y guardado automático")
@@ -83,14 +83,14 @@ cores.LastSwitchAt = 1700000200
 cores.Elements.Nature.Level = 3 -- campo desconocido en Naturaleza: se conserva, no se usa
 cores.Elements.Plasma = { Unlocked = true, Level = 9 } -- elemento de una versión futura
 cores.Extra = { Notes = { "a", "b" } }
-local V3 = { Version = 3, Energy = 50, UpgradeLevels = { GeneratorPower = 2 }, Cores = deep(cores), CoresArchive = { { At = 1, Changes = { Selected = "Ice" } } }, LastSeen = 1700000300 }
+local V3 = { Version = 3, Diamonds = 50, UpgradeLevels = { GeneratorPower = 2 }, Cores = deep(cores), CoresArchive = { { At = 1, Changes = { Selected = "Ice" } } }, LastSeen = 1700000300 }
 storeData.player_12 = deep(V3)
 local ben
 ben, p = enter("Ben", 12)
 check("se carga tal cual, sin correcciones", same(p.PetData.Cores, V3.Cores) and same(p.PetData.CoresArchive, V3.CoresArchive))
 -- Agua (nivel 4) y Fuego (seleccionado) despiertos, y LastSeen de hace mucho: ya no hay
 -- producción ni recompensa offline al cargar.
-check("los núcleos despiertos no producen ni dan 💎 offline al cargar", p.ProductionPerSecond == nil and p.Energy == 50 and ben:GetAttribute("OfflineReward") == nil)
+check("los núcleos despiertos no producen ni dan 💎 offline al cargar", p.ProductionPerSecond == nil and p.Diamonds == 50 and ben:GetAttribute("OfflineReward") == nil)
 exit(ben)
 check("al guardar: Cores y CoresArchive idénticos y LastSeen actualizado", same(record(12).Cores, V3.Cores) and same(record(12).CoresArchive, V3.CoresArchive) and record(12).LastSeen == os.time())
 
@@ -108,7 +108,7 @@ local BAD = {
 	Note = "campo desconocido",
 }
 local OLD_ENTRY = { At = 1, Changes = { Selected = "Ice" } }
-storeData.player_13 = { Version = 3, Energy = 10, Cores = deep(BAD), CoresArchive = { deep(OLD_ENTRY) } }
+storeData.player_13 = { Version = 3, Diamonds = 10, Cores = deep(BAD), CoresArchive = { deep(OLD_ENTRY) } }
 local warningsBefore = #warnings
 local cid
 cid, p = enter("Cid", 13)
@@ -161,19 +161,20 @@ check("y los núcleos quedan normalizados igualmente", data.Cores.Selected == "N
 print("-- 8. Vuelta atrás a v2 y de nuevo a v3")
 local snap = deep(record(12))
 status, data = SaveServiceV2.load(12)
-check("el SaveService v2 carga un registro v3 sin errores (ignora Cores)", status == "Loaded" and data.Cores == nil and data.Energy == snap.Energy)
+-- El v2 congelado aún llama Energy a los 💎: un registro v17 (Diamonds) le llega sin ellos.
+check("el SaveService v2 carga un registro actual sin errores (ignora Cores y Diamonds)", status == "Loaded" and data.Cores == nil and (data.Energy or 0) == 0 and snap.Diamonds ~= nil)
 data.Energy = 77
 check("y guarda", SaveServiceV2.save(12, data, true))
 r = record(12)
 check("v2 conserva Cores, CoresArchive y LastSeen exactamente", same(r.Cores, snap.Cores) and same(r.CoresArchive, snap.CoresArchive) and r.LastSeen == snap.LastSeen)
-check("v2 escribe Version = 2 y su energía (marca de que pasó por v2)", r.Version == 2 and r.Energy == 77)
+check("v2 escribe Version = 2 y su Energy (marca de que pasó por v2)", r.Version == 2 and r.Energy == 77)
 ben, p = enter("Ben", 12)
-check("v3 vuelve a leer los mismos núcleos, sin correcciones, con la energía de v2", same(p.PetData.Cores, snap.Cores) and same(p.PetData.CoresArchive, snap.CoresArchive) and p.Energy == 77)
+check("v3 vuelve a leer los mismos núcleos, sin correcciones, con la energía de v2", same(p.PetData.Cores, snap.Cores) and same(p.PetData.CoresArchive, snap.CoresArchive) and p.Diamonds == 77)
 exit(ben)
-check("y al guardar vuelve a la versión actual (16) sin perder nada", record(12).Version == 16 and same(record(12).Cores, snap.Cores) and same(record(12).CoresArchive, snap.CoresArchive))
+check("y al guardar vuelve a la versión actual (17) sin perder nada (Energy pasa a Diamonds)", record(12).Version == 17 and record(12).Diamonds == 77 and record(12).Energy == nil and same(record(12).Cores, snap.Cores) and same(record(12).CoresArchive, snap.CoresArchive))
 
 print("-- 9. Carga fallida y salida durante la carga")
-storeData.player_17 ={ Version = 2, Energy = 900, UpgradeLevels = { GeneratorPower = 4 } }
+storeData.player_17 ={ Version = 2, Diamonds = 900, UpgradeLevels = { GeneratorPower = 4 } }
 local snapshot17 = deep(storeData.player_17)
 storeFail = 5
 local eli = newPlayer("Eli", 17)
@@ -183,7 +184,7 @@ check("carga fallida: estado Failed", PlayerDataService.get(eli).DataState == "F
 advance(200)
 exit(eli)
 check("el registro no cambia: ni Cores, ni LastSeen, ni Version", same(storeData.player_17, snapshot17))
-storeData.player_18 = { Version = 2, Energy = 300, UpgradeLevels = { GeneratorPower = 1 } }
+storeData.player_18 = { Version = 2, Diamonds = 300, UpgradeLevels = { GeneratorPower = 1 } }
 storeLatency = 2
 local fin = newPlayer("Fin", 18)
 join(fin)
@@ -191,7 +192,7 @@ leave(fin)
 advance(5)
 storeLatency = 0
 r = record(18)
-check("salir durante la carga: energía intacta, núcleos por defecto y bloqueo liberado", r.Energy == 300 and r.UpgradeLevels.GeneratorPower == nil and r.Money == resonanceRefund(1) and same(r.Cores, CoreLogic.empty()) and r.Version == 16 and r.Session == nil)
+check("salir durante la carga: energía intacta, núcleos por defecto y bloqueo liberado", r.Diamonds == 300 and r.UpgradeLevels.GeneratorPower == nil and r.Money == resonanceRefund(1) and same(r.Cores, CoreLogic.empty()) and r.Version == 17 and r.Session == nil)
 
 print("-- 9b. Un dato conservado no se archiva una y otra vez")
 storeData.player_20 = { Version = 3, Cores = { Elements = { Nature = { Unlocked = true, Level = { Old = 3 } } } } }
@@ -203,7 +204,7 @@ end
 check("tras 3 cargas y guardados: Level de Naturaleza conservado y CoresArchive sin entradas", same(record(20).Cores.Elements.Nature.Level, { Old = 3 }) and record(20).CoresArchive == nil)
 
 print("-- 10. Instantánea coherente: lo que cambia mientras se espera al DataStore")
-storeData.player_19 = { Version = 3, Energy = 1000, UpgradeLevels = { GeneratorPower = 1 } }
+storeData.player_19 = { Version = 3, Diamonds = 1000, UpgradeLevels = { GeneratorPower = 1 } }
 local gus
 gus, p = enter("Gus", 19)
 storeLatency = 2
@@ -211,13 +212,13 @@ PlayerDataService.saveNow(gus)
 advance(0.5) -- el guardado está esperando al DataStore
 -- Cambio durante la espera (como lo haría una compra futura): núcleos y energía a la vez.
 p.PetData.Cores.Elements.Water.Unlocked = true
-p.Energy -= 100
+p.Diamonds -= 100
 advance(3)
 storeLatency = 0
 r = record(19)
-check("se guarda la instantánea tomada ANTES de esperar: núcleos y energía coherentes entre sí", r.Cores.Elements.Water.Unlocked == false and r.Energy == 1000)
+check("se guarda la instantánea tomada ANTES de esperar: núcleos y energía coherentes entre sí", r.Cores.Elements.Water.Unlocked == false and r.Diamonds == 1000)
 exit(gus)
-check("y el cambio se guarda en el siguiente guardado", record(19).Cores.Elements.Water.Unlocked == true and record(19).Energy == 900)
+check("y el cambio se guarda en el siguiente guardado", record(19).Cores.Elements.Water.Unlocked == true and record(19).Diamonds == 900)
 
 -- `sub` está contenido en `sup`: todo lo que había sigue ahí con el mismo valor (las
 -- misiones pueden AÑADIR progreso durante la sesión, pero nunca quitar).
@@ -228,29 +229,29 @@ local function contains(sup, sub)
 	return true
 end
 
-print("-- 11. Migración v1 -> v3 (sin Energy, UpgradeLevels ni Cores)")
+print("-- 11. Migración v1 -> v3 (sin Diamonds, UpgradeLevels ni Cores)")
 local V1 = { Version = 1, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 7 } } }
 storeData.player_21 = deep(V1)
 local ivy
 ivy, p = enter("Ivy", 21)
-check("v1 carga: energía y mejora iniciales, núcleos por defecto, nada archivado", p.DataState == "Loaded" and p.Energy == EconomyConfig.StartingEnergy and p.UpgradeLevels.LaserSpeed == 0 and same(p.PetData.Cores, CoreLogic.empty()) and #p.PetData.CoresArchive == 0)
-local energy21 = p.Energy
+check("v1 carga: energía y mejora iniciales, núcleos por defecto, nada archivado", p.DataState == "Loaded" and p.Diamonds == EconomyConfig.StartingDiamonds and p.UpgradeLevels.LaserSpeed == 0 and same(p.PetData.Cores, CoreLogic.empty()) and #p.PetData.CoresArchive == 0)
+local energy21 = p.Diamonds
 exit(ivy)
 r = record(21)
-check("v1 guardado en la versión actual: Cores, LastSeen y Version 16", r.Version == 16 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time() and r.Session == nil)
-check("v1: mascotas, equipadas, NextPetUid, zonas y estadísticas intactas", same(r.Pets, V1.Pets) and same(r.Equipped, V1.Equipped) and r.NextPetUid == 2 and same(r.UnlockedZones, V1.UnlockedZones) and r.Quests.Stats.Kills == 7 and r.Energy == energy21 and r.UpgradeLevels.LaserSpeed == 0 and r.UpgradeLevels.GeneratorPower == nil)
+check("v1 guardado en la versión actual: Cores, LastSeen y Version 17", r.Version == 17 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time() and r.Session == nil)
+check("v1: mascotas, equipadas, NextPetUid, zonas y estadísticas intactas", same(r.Pets, V1.Pets) and same(r.Equipped, V1.Equipped) and r.NextPetUid == 2 and same(r.UnlockedZones, V1.UnlockedZones) and r.Quests.Stats.Kills == 7 and r.Diamonds == energy21 and r.UpgradeLevels.LaserSpeed == 0 and r.UpgradeLevels.GeneratorPower == nil)
 
 print("-- 12. Migración v2 completa: NextPetUid, Tutorial.Step, Quests y mejoras archivadas")
 local today = QuestLogic.dayOf(os.time())
 local V2FULL = {
-	Version = 2, Energy = 4321, UpgradeLevels = { GeneratorPower = 9, OldBoost = 3 },
+	Version = 2, Diamonds = 4321, UpgradeLevels = { GeneratorPower = 9, OldBoost = 3 },
 	Pets = { { Uid = "1", PetId = "MossFox" }, { Uid = "4", PetId = "Sproutling" }, { Uid = "6", PetId = "ExtinctPet" } },
 	Equipped = { "4" }, NextPetUid = 9, UnlockedZones = { "CrystalValley" },
 	Tutorial = { Status = "Active", Step = 2 },
 	Quests = {
-		Stats = { Kills = 40, StrongKills = 6, BossKills = 1, EnergyEarned = 98765, PetAbilities = 12, TypeKills = { Slime = 30 }, ZoneKills = { CrystalValley = 10 } },
+		Stats = { Kills = 40, StrongKills = 6, BossKills = 1, DiamondsEarned = 98765, PetAbilities = 12, TypeKills = { Slime = 30 }, ZoneKills = { CrystalValley = 10 } },
 		Done = { DefeatFive = true }, Claimed = { DefeatFive = true, BuyUpgrade = true }, Achievements = { Resonance10 = true },
-		Daily = { Day = today, Ids = { "DailyEnergy" }, Progress = { DailyEnergy = 40 }, Claimed = {}, Notified = {} },
+		Daily = { Day = today, Ids = { "DailyDiamonds" }, Progress = { DailyDiamonds = 40 }, Claimed = {}, Notified = {} },
 	},
 }
 storeData.player_22 = deep(V2FULL)
@@ -261,26 +262,26 @@ check("NextPetUid 9 y Tutorial en el paso 2 (activo) se cargan tal cual", p.PetD
 check("la mejora desconocida (OldBoost) se conserva archivada; la Resonancia se devuelve y no", p.UpgradeLevels.OldBoost == nil and p.PetData.ArchivedUpgrades.OldBoost == 3 and p.UpgradeLevels.GeneratorPower == nil and p.PetData.ArchivedUpgrades.GeneratorPower == nil)
 check("misiones: todo lo guardado está en el perfil (estadísticas, hechas, reclamadas, logros y diaria)", contains(p.PetData.Quests, V2FULL.Quests))
 local sessionQuests = QuestLogic.serialize(p.PetData.Quests)
-local energy22 = p.Energy
+local energy22 = p.Diamonds
 exit(jo)
 r = record(22)
-check("guardado en la versión actual con núcleos por defecto y LastSeen", r.Version == 16 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time())
-check("energía, nivel, NextPetUid y tutorial (paso 2) guardados sin pérdidas", r.Energy == energy22 and energy22 >= V2FULL.Energy and r.UpgradeLevels.GeneratorPower == nil and r.NextPetUid == 9 and r.Tutorial.Status == "Active" and r.Tutorial.Step == 2)
+check("guardado en la versión actual con núcleos por defecto y LastSeen", r.Version == 17 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time())
+check("energía, nivel, NextPetUid y tutorial (paso 2) guardados sin pérdidas", r.Diamonds == energy22 and energy22 >= V2FULL.Diamonds and r.UpgradeLevels.GeneratorPower == nil and r.NextPetUid == 9 and r.Tutorial.Status == "Active" and r.Tutorial.Step == 2)
 check("las tres mascotas (también la archivada) y la equipada guardadas", #r.Pets == 3 and contains(r.Pets, V2FULL.Pets) and same(r.Equipped, { "4" }))
 check("mejora archivada OldBoost = 3 guardada junto a GeneratorPower", r.UpgradeLevels.OldBoost == 3)
 check("misiones completas: lo guardado es la sesión, y contiene todo lo anterior", same(r.Quests, sessionQuests) and contains(r.Quests, V2FULL.Quests))
 
 print("-- 13. Guardado sin poseer el bloqueo válido: no se pisa a la otra sesión")
-storeData.player_23 = { Version = 3, Energy = 100, UpgradeLevels = { GeneratorPower = 1 } }
+storeData.player_23 = { Version = 3, Diamonds = 100, UpgradeLevels = { GeneratorPower = 1 } }
 local kai
 kai, p = enter("Kai", 23)
 -- Otro servidor tomó el control (bloqueo vigente) y guardó sus propios datos.
 local otherCores = CoreLogic.empty()
 otherCores.Elements.Water.Unlocked = true
-storeData.player_23 = { Version = 3, Energy = 555, UpgradeLevels = { GeneratorPower = 4 }, Cores = deep(otherCores), LastSeen = 1700000999, Session = { JobId = "otro-servidor", Time = os.time() } }
+storeData.player_23 = { Version = 3, Diamonds = 555, UpgradeLevels = { GeneratorPower = 4 }, Cores = deep(otherCores), LastSeen = 1700000999, Session = { JobId = "otro-servidor", Time = os.time() } }
 local other = deep(storeData.player_23)
 p.PetData.Cores.Elements.Fire.Unlocked = true -- cambio local de esta sesión
-p.Energy = 9999
+p.Diamonds = 9999
 warningsBefore = #warnings
 PlayerDataService.saveNow(kai)
 advance(0)
@@ -289,7 +290,7 @@ check("la sesión lo sabe (SaveError) y el cambio queda pendiente", kai:GetAttri
 exit(kai)
 check("al salir tampoco se sobrescribe ni se libera el bloqueo ajeno", same(record(23), other))
 -- Bloqueo ajeno CADUCADO (servidor caído hace más de 30 min): sí se guarda.
-storeData.player_24 = { Version = 3, Energy = 100, UpgradeLevels = { GeneratorPower = 1 } }
+storeData.player_24 = { Version = 3, Diamonds = 100, UpgradeLevels = { GeneratorPower = 1 } }
 local lee
 lee, p = enter("Lee", 24)
 storeData.player_24.Session = { JobId = "otro-servidor", Time = os.time() - 31 * 60 }
@@ -298,8 +299,8 @@ exit(lee)
 check("con el bloqueo ajeno caducado se guarda: Cores y LastSeen de esta sesión, bloqueo liberado", record(24).Cores.Elements.Water.Unlocked == true and record(24).LastSeen == os.time() and record(24).Session == nil)
 
 print("-- 14. Cierre del servidor (BindToClose)")
-storeData.player_25 = { Version = 3, Energy = 100, UpgradeLevels = { GeneratorPower = 1 }, LastSeen = 1700000000 }
-storeData.player_26 = { Version = 2, Energy = 200, UpgradeLevels = { GeneratorPower = 2 } }
+storeData.player_25 = { Version = 3, Diamonds = 100, UpgradeLevels = { GeneratorPower = 1 }, LastSeen = 1700000000 }
+storeData.player_26 = { Version = 2, Diamonds = 200, UpgradeLevels = { GeneratorPower = 2 } }
 local mia, mp = enter("Mia", 25)
 local ned, np = enter("Ned", 26)
 mp.PetData.Cores.Elements.Water.Unlocked = true
@@ -308,7 +309,7 @@ local closedAt = os.time()
 task.spawn(closeCallbacks[1])
 advance(1)
 check("BindToClose guarda los núcleos de la sesión y LastSeen, y libera el bloqueo", record(25).Cores.Elements.Water.Unlocked == true and record(25).Cores.Elements.Water.UnlockedAt == 1700000500 and record(25).LastSeen == closedAt and record(25).Session == nil)
-check("BindToClose migra también un perfil v2 conectado (Version 16, núcleos por defecto, energía intacta)", record(26).Version == 16 and same(record(26).Cores, CoreLogic.empty()) and record(26).Energy == np.Energy and record(26).LastSeen == closedAt)
+check("BindToClose migra también un perfil v2 conectado (Version 17, núcleos por defecto, energía intacta)", record(26).Version == 17 and same(record(26).Cores, CoreLogic.empty()) and record(26).Diamonds == np.Diamonds and record(26).LastSeen == closedAt)
 check("BindToClose no toca el registro con bloqueo ajeno (sección 13)", same(record(23), other))
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

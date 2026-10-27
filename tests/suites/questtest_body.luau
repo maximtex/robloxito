@@ -165,8 +165,8 @@ print("-- 7. Perfiles antiguos")
 local old = SaveServiceSanitize({ Pets = { { Uid = "1", PetId = "Sproutling" } }, Equipped = { "1" }, NextPetUid = 2, UnlockedZones = { "CrystalValley" } })
 check("partida sin Quests: mascotas y zonas intactas", #old.Pets == 1 and old.UnlockedZones[1] == "CrystalValley")
 check("partida sin Quests: misiones vacías y válidas", old.Quests.Stats.Kills == 0 and next(old.Quests.Claimed) == nil and old.Quests.Daily.Day == 0)
-local broken = QuestLogic.sanitize({ Stats = { Kills = -5, EnergyEarned = 0 / 0, BossKills = "x", TypeKills = { ForestWarden = 2, [5] = 9 } }, Claimed = { "DefeatFive", 42, ("x"):rep(100) }, Done = "nope", Daily = { Day = -3, Ids = { "DailyHunt", "DailyHunt", {} }, Progress = { DailyHunt = 1e30 } } })
-check("datos corruptos se sanean (negativos, NaN, tipos raros, ids largos, duplicados)", broken.Stats.Kills == 0 and broken.Stats.EnergyEarned == 0 and broken.Stats.BossKills == 0 and broken.Stats.TypeKills.ForestWarden == 2 and broken.Claimed.DefeatFive and not broken.Claimed[("x"):rep(100)] and next(broken.Done) == nil and broken.Daily.Day == 0 and #broken.Daily.Ids == 1 and broken.Daily.Progress.DailyHunt <= 1e15)
+local broken = QuestLogic.sanitize({ Stats = { Kills = -5, DiamondsEarned = 0 / 0, BossKills = "x", TypeKills = { ForestWarden = 2, [5] = 9 } }, Claimed = { "DefeatFive", 42, ("x"):rep(100) }, Done = "nope", Daily = { Day = -3, Ids = { "DailyHunt", "DailyHunt", {} }, Progress = { DailyHunt = 1e30 } } })
+check("datos corruptos se sanean (negativos, NaN, tipos raros, ids largos, duplicados)", broken.Stats.Kills == 0 and broken.Stats.DiamondsEarned == 0 and broken.Stats.BossKills == 0 and broken.Stats.TypeKills.ForestWarden == 2 and broken.Claimed.DefeatFive and not broken.Claimed[("x"):rep(100)] and next(broken.Done) == nil and broken.Daily.Day == 0 and #broken.Daily.Ids == 1 and broken.Daily.Progress.DailyHunt <= 1e15)
 local unknownKept = QuestLogic.sanitize({ Claimed = { RetiredMission = true } })
 check("ids de misiones retiradas se conservan (no se pierde nada)", unknownKept.Claimed.RetiredMission == true)
 
@@ -175,7 +175,7 @@ local vdata = QuestLogic.empty()
 QuestLogic.ensureDay(vdata, DAY, 3, ctx)
 check("enemigo inexistente rechazado", kill(vdata, "FakeDragon") == false and vdata.Stats.Kills == 0)
 check("zona inexistente rechazada", kill(vdata, "Thornling", "Moon") == false)
-check("energía negativa, NaN, enorme o texto rechazada", not QuestLogic.record(vdata, { Type = "Energy", Amount = -50 }) and not QuestLogic.record(vdata, { Type = "Energy", Amount = 0 / 0 }) and not QuestLogic.record(vdata, { Type = "Energy", Amount = 1e12 }) and not QuestLogic.record(vdata, { Type = "Energy", Amount = "999" }) and vdata.Stats.EnergyEarned == 0)
+check("energía negativa, NaN, enorme o texto rechazada", not QuestLogic.record(vdata, { Type = "Diamonds", Amount = -50 }) and not QuestLogic.record(vdata, { Type = "Diamonds", Amount = 0 / 0 }) and not QuestLogic.record(vdata, { Type = "Diamonds", Amount = 1e12 }) and not QuestLogic.record(vdata, { Type = "Diamonds", Amount = "999" }) and vdata.Stats.DiamondsEarned == 0)
 check("tipo de evento desconocido rechazado", QuestLogic.record(vdata, { Type = "Claim" }) == false and QuestLogic.record(vdata, nil) == false)
 check("partida de oleadas ganada: WaveWins (tutorial)", QuestLogic.record(vdata, { Type = "WaveWin" }) and vdata.Stats.WaveWins == 1 and QuestLogic.empty().Stats.WaveWins == 0)
 local bad = { {}, 42, "", ("A"):rep(200), "NoExiste", "FirstBlood" }
@@ -194,16 +194,16 @@ check(("diaria que no es de hoy (%s) -> InvalidRequest"):format(tostring(notToda
 print("-- 9. Sin recompensas duplicadas ni ciclos")
 local edata = QuestLogic.empty()
 QuestLogic.ensureDay(edata, DAY, 4, ctx)
-local earnTarget = QuestLogic.Missions.EarnEnergy.Target
-QuestLogic.record(edata, { Type = "Energy", Amount = earnTarget - 1 })
-code, amount = QuestLogic.claim(edata, "EarnEnergy", ctx)
-check(("EarnEnergy a %d/%d no se puede reclamar"):format(earnTarget - 1, earnTarget), code == "NotComplete")
--- Reclamar otra misión (energía de recompensa) NO suma a EnergyEarned
+local earnTarget = QuestLogic.Missions.EarnDiamonds.Target
+QuestLogic.record(edata, { Type = "Diamonds", Amount = earnTarget - 1 })
+code, amount = QuestLogic.claim(edata, "EarnDiamonds", ctx)
+check(("EarnDiamonds a %d/%d no se puede reclamar"):format(earnTarget - 1, earnTarget), code == "NotComplete")
+-- Reclamar otra misión (energía de recompensa) NO suma a DiamondsEarned
 kill(edata, "Thornling")
 QuestLogic.evaluate(edata, ctx)
-local before = edata.Stats.EnergyEarned
+local before = edata.Stats.DiamondsEarned
 QuestLogic.claim(edata, "BuyUpgrade", ctxWith({ WeaponLevel = 1 }))
-check("la energía de una recompensa no cuenta como progreso", edata.Stats.EnergyEarned == before)
+check("la energía de una recompensa no cuenta como progreso", edata.Stats.DiamondsEarned == before)
 -- Una derrota de jefe: misión FirstBoss (energía) + logro FirstBoss (insignia sin energía)
 kill(edata, "ForestWarden")
 local notices = QuestLogic.evaluate(edata, ctx)
@@ -218,57 +218,57 @@ check("misión cumplida queda marcada aunque luego se desequipe", QuestLogic.cla
 -- QuestService real ---------------------------------------------------------------------
 print("-- 4. Servicio: solicitudes simultáneas, eventos y guardado")
 local alice = { Name = "Alice", UserId = 11 }
-local profile = { Energy = 0, UpgradeLevels = { GeneratorPower = 0 }, PetData = SaveServiceSanitize(nil), DataState = "Loaded", Dirty = false }
+local profile = { Diamonds = 0, UpgradeLevels = { GeneratorPower = 0 }, PetData = SaveServiceSanitize(nil), DataState = "Loaded", Dirty = false }
 profiles[alice] = profile
 QuestService.start()
 readyListener(alice)
 check("al estar listo envía el estado", lastState(alice) ~= nil and lastState(alice).Ready == true and #lastState(alice).Daily == 3)
 for _ = 1, 5 do defeatListener(alice, { TypeId = "Thornling", Kind = "Normal", ZoneId = "Forest", Reward = 25 }) end
-check("5 derrotas reales -> 5 en el perfil; su recompensa es dinero: no cuenta como energía", profile.PetData.Quests.Stats.Kills == 5 and profile.PetData.Quests.Stats.EnergyEarned == 0)
+check("5 derrotas reales -> 5 en el perfil; su recompensa es dinero: no cuenta como energía", profile.PetData.Quests.Stats.Kills == 5 and profile.PetData.Quests.Stats.DiamondsEarned == 0)
 check("marca el perfil para guardar (no guarda él mismo)", profile.Dirty == true and saveCalls == 0)
 -- Dos reclamaciones en el mismo instante (sin tiempo entre ellas)
-local energyBefore = profile.Energy
+local energyBefore = profile.Diamonds
 clock += 1
 fireServer("ClaimQuest", alice, "DefeatFive")
 fireServer("ClaimQuest", alice, "DefeatFive")
 local successes = 0
 for _, r in results(alice) do if r[1] == true then successes += 1 end end
-check(("dos solicitudes simultáneas: 1 éxito, energía +%d una sola vez"):format(profile.Energy - energyBefore), successes == 1 and profile.Energy - energyBefore == DEFEAT_REWARD)
+check(("dos solicitudes simultáneas: 1 éxito, energía +%d una sola vez"):format(profile.Diamonds - energyBefore), successes == 1 and profile.Diamonds - energyBefore == DEFEAT_REWARD)
 clock += 1
 fireServer("ClaimQuest", alice, "DefeatFive")
 local last = results(alice)[#results(alice)]
-check("una tercera más tarde -> AlreadyClaimed", last[1] == false and last[2] == "AlreadyClaimed" and profile.Energy - energyBefore == DEFEAT_REWARD)
+check("una tercera más tarde -> AlreadyClaimed", last[1] == false and last[2] == "AlreadyClaimed" and profile.Diamonds - energyBefore == DEFEAT_REWARD)
 clock += 1
 fireServer("ClaimQuest", alice, { Id = "DefeatFive", Amount = 999999 })
 last = results(alice)[#results(alice)]
-check("el cliente no puede enviar cantidades (tabla -> InvalidRequest)", last[2] == "InvalidRequest" and profile.Energy - energyBefore == DEFEAT_REWARD)
+check("el cliente no puede enviar cantidades (tabla -> InvalidRequest)", last[2] == "InvalidRequest" and profile.Diamonds - energyBefore == DEFEAT_REWARD)
 -- Ráfaga de solicitudes: límite de frecuencia
 local countBefore = #results(alice)
 for _ = 1, 20 do fireServer("ClaimQuest", alice, "DefeatFive") end
 local tooFast, answered = 0, #results(alice) - countBefore
 for i = countBefore + 1, #results(alice) do if results(alice)[i][2] == "TooFast" then tooFast += 1 end end
-check(("ráfaga de 20: %d respuestas TooFast y el resto ignorado (inundación)"):format(tooFast), answered <= 8 and tooFast >= 1 and profile.Energy - energyBefore == DEFEAT_REWARD)
+check(("ráfaga de 20: %d respuestas TooFast y el resto ignorado (inundación)"):format(tooFast), answered <= 8 and tooFast >= 1 and profile.Diamonds - energyBefore == DEFEAT_REWARD)
 -- Datos sin cargar: nada se registra ni se concede
 local bob = { Name = "Bob", UserId = 12 }
-profiles[bob] = { Energy = 0, UpgradeLevels = { GeneratorPower = 0 }, PetData = SaveServiceSanitize(nil), DataState = "Loading", Dirty = false }
+profiles[bob] = { Diamonds = 0, UpgradeLevels = { GeneratorPower = 0 }, PetData = SaveServiceSanitize(nil), DataState = "Loading", Dirty = false }
 defeatListener(bob, { TypeId = "Thornling", Kind = "Normal", ZoneId = "Forest", Reward = 25 })
 clock += 1
 fireServer("ClaimQuest", bob, "DefeatFive")
-check("datos cargando: no registra progreso ni concede nada (NotReady)", profiles[bob].PetData.Quests.Stats.Kills == 0 and results(bob)[1][2] == "NotReady" and profiles[bob].Energy == 0)
+check("datos cargando: no registra progreso ni concede nada (NotReady)", profiles[bob].PetData.Quests.Stats.Kills == 0 and results(bob)[1][2] == "NotReady" and profiles[bob].Diamonds == 0)
 -- Energía producida cuenta, y cambio de día durante la sesión
 producedListener(alice, 10)
-check("energía producida cuenta para EnergyEarned", profile.PetData.Quests.Stats.EnergyEarned == 10)
+check("energía producida cuenta para DiamondsEarned", profile.PetData.Quests.Stats.DiamondsEarned == 10)
 local dayBefore = profile.PetData.Quests.Daily.Day
 serverTime += 86400
 clock += 3
 producedListener(alice, 1)
 check("medianoche durante la sesión: diarias del día nuevo y estado enviado", profile.PetData.Quests.Daily.Day == dayBefore + 1 and lastState(alice).Day == dayBefore + 1)
 -- Logro con recompensa: se concede una vez aunque haya muchos ciclos
-local e0 = profile.Energy
+local e0 = profile.Diamonds
 for _ = 1, 95 do defeatListener(alice, { TypeId = "Thornling", Kind = "Normal", ZoneId = "Forest", Reward = 0 }) end
-local e1 = profile.Energy
+local e1 = profile.Diamonds
 for _ = 1, 5 do clock += 1 producedListener(alice, 1) end
-local e2 = profile.Energy
+local e2 = profile.Diamonds
 check(("Hunter100 concedido una vez (+%d) aunque se evalúe muchas veces"):format(e1 - e0), profile.PetData.Quests.Achievements.Hunter100 == true and e1 - e0 == HUNTER_REWARD and e2 == e1)
 -- Guardado real (SaveService) con los misiones, y carga posterior
 local saved = SaveService.save(alice.UserId, profile.PetData, true)

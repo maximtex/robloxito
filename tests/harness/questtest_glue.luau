@@ -22,7 +22,7 @@ local RemoteService = {
 	end,
 }
 local EnemyService = { onDefeated = function(fn) defeatListener = fn end }
-local EnergyService = { onProduced = function(fn) producedListener = fn end }
+local DiamondService = { onProduced = function(fn) producedListener = fn end }
 local PetCombatService = { onAbilityHit = function(fn) abilityListener = fn end }
 local function lastState(p)
 	for i = #fired, 1, -1 do

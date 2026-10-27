@@ -84,10 +84,10 @@ local function tryPurchase(player: Player, upgradeId: any): string
 		end
 		profile.Money -= cost
 	else
-		if not cost or profile.Energy < cost then
-			return Codes.InsufficientEnergy
+		if not cost or profile.Diamonds < cost then
+			return Codes.InsufficientDiamonds
 		end
-		profile.Energy -= cost
+		profile.Diamonds -= cost
 	end
 	profile.UpgradeLevels[upgradeId] = level + 1
 	PlayerDataService.refreshStats(player)

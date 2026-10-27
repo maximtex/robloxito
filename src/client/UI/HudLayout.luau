@@ -28,7 +28,7 @@ local SIZES = {
 	Margin = 12, -- separación con el borde superior
 	Edge = 16, -- separación con los bordes laterales
 	Gap = 12, -- separación entre piezas
-	Energy = Vector2.new(330, 112), -- barras de energía y producción (estilo simulador)
+	Diamonds = Vector2.new(330, 112), -- barras de energía y producción (estilo simulador)
 	Upgrade = Vector2.new(420, 212),
 	UpgradeBottom = 24,
 	-- Menú: azulejos cuadrados con icono dibujado en una cuadrícula de 2 columnas; el
@@ -155,8 +155,8 @@ function HudLayout.compute(screen: Vector2, touch: boolean, options: Options?): 
 	local layout: any = { Scale = s, Touch = touch, Screen = screen }
 
 	-- Centro: energía arriba y mejora abajo.
-	local energy = rect(W / 2 - SIZES.Energy.X * s / 2, SIZES.Margin, SIZES.Energy.X * s, SIZES.Energy.Y * s)
-	layout.Energy = energy
+	local diamonds = rect(W / 2 - SIZES.Diamonds.X * s / 2, SIZES.Margin, SIZES.Diamonds.X * s, SIZES.Diamonds.Y * s)
+	layout.Diamonds = diamonds
 	local upgradeH = SIZES.Upgrade.Y * s
 	layout.Upgrade = rect(W / 2 - SIZES.Upgrade.X * s / 2, H - SIZES.UpgradeBottom - upgradeH, SIZES.Upgrade.X * s, upgradeH)
 
@@ -240,7 +240,7 @@ function HudLayout.compute(screen: Vector2, touch: boolean, options: Options?): 
 		local shiftedX = math.min(rightX, sideX - SIZES.Gap * s - rightW)
 		-- Solo si la columna derecha corrida aún no pisa la tarjeta de energía; si no (ventanas
 		-- estrechas), sin columna de botones: MenuBar los pone todos en la fila de abajo.
-		if shiftedX >= energy.X + energy.W then
+		if shiftedX >= diamonds.X + diamonds.W then
 			layout.SideMenu = { X = sideX, Y = top, W = sideW, H = sideH, Scale = sideScale }
 			rightX = shiftedX
 		end
@@ -255,7 +255,7 @@ function HudLayout.compute(screen: Vector2, touch: boolean, options: Options?): 
 
 	-- Pila de avisos (centrada bajo la energía y la barra del jefe).
 	-- Ancho: el de la tarjeta, sin pisar las columnas laterales en ventanas estrechas.
-	local toastTop = energy.Y + energy.H + SIZES.Gap + (if opts.BossBar then SIZES.BossReserve * s else 0)
+	local toastTop = diamonds.Y + diamonds.H + SIZES.Gap + (if opts.BossBar then SIZES.BossReserve * s else 0)
 	local toastLimit = layout.Upgrade.Y - SIZES.Gap
 	local sideLimit = math.min(layout.Right.X - SIZES.Gap - W / 2, W / 2 - (layout.Status.X + layout.Status.W) - SIZES.Gap)
 	local toastW = math.min(SIZES.ToastWidth * s, 2 * sideLimit)

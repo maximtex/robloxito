@@ -1,6 +1,6 @@
 -- HUD de Monedas estilo `HUD Rediseño (standalone).html`:
 -- - A la izquierda: pila vertical limpia con:
---     1. Gema + cantidad de 💎 Diamantes (atributo Energy) en crema con borde oscuro + botón
+--     1. Gema + cantidad de 💎 Diamantes (atributo Diamonds) en crema con borde oscuro + botón
 --        cuadrado verde `+` (abre la 💎 Tienda).
 --     2. Pastilla naranja `×1.1` + texto `"Multiplicador"`.
 --     3. Icono 3D de Cristal / Tokens de Renacimiento + cantidad en lavanda con borde oscuro,
@@ -70,13 +70,13 @@ local function addStroke(parent: Instance, thickness: number, mode: Enum.ApplySt
 end
 
 local function buildGui(playerGui: PlayerGui)
-	local existing = playerGui:FindFirstChild("EnergyHud")
+	local existing = playerGui:FindFirstChild("DiamondHud")
 	if existing then
 		existing:Destroy()
 	end
 
 	local screenGui = create("ScreenGui", {
-		Name = "EnergyHud",
+		Name = "DiamondHud",
 		ResetOnSpawn = false,
 		DisplayOrder = 4,
 		IgnoreGuiInset = false,
@@ -84,39 +84,39 @@ local function buildGui(playerGui: PlayerGui)
 	}, nil)
 
 	-- Pila izquierda de monedas (Energía + Multiplicador + Tokens de Renacimiento y Dinero)
-	local energyCard = create("Frame", {
-		Name = "EnergyCard",
+	local diamondCard = create("Frame", {
+		Name = "DiamondCard",
 		AnchorPoint = Vector2.new(0, 0),
 		Position = UDim2.new(0, 18, 0.30, 0),
 		Size = UDim2.fromOffset(290, 154),
 		BackgroundTransparency = 1,
 	}, screenGui)
-	local energyScale = create("UIScale", {}, energyCard)
+	local diamondScale = create("UIScale", {}, diamondCard)
 
 	-- Fila 1: Icono de Rayo + Número de Energía + Botón `+` verde
-	local energyRow = create("Frame", {
-		Name = "EnergyRow",
+	local diamondRow = create("Frame", {
+		Name = "DiamondRow",
 		Position = UDim2.fromOffset(0, 0),
 		Size = UDim2.fromOffset(290, 62),
 		BackgroundTransparency = 1,
-	}, energyCard)
+	}, diamondCard)
 	create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Padding = UDim.new(0, 6),
-	}, energyRow)
+	}, diamondRow)
 
-	-- 💎 Diamantes (en el código, Energy)
-	local boltHolder = Icons.make(energyRow, "diamond", {
-		Name = "EnergyIcon",
+	-- 💎 Diamantes (Diamonds en el código)
+	local boltHolder = Icons.make(diamondRow, "diamond", {
+		Name = "DiamondIcon",
 		Size = UDim2.fromOffset(60, 60),
 		Rotation = -8,
 		ZIndex = 3,
 	})
 	boltHolder.LayoutOrder = 1
 
-	local energyValue = createText(energyRow, "Value", {
+	local diamondValue = createText(diamondRow, "Value", {
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, 56),
 		TextSize = 44,
@@ -125,8 +125,8 @@ local function buildGui(playerGui: PlayerGui)
 		LayoutOrder = 2,
 		ZIndex = 3,
 	})
-	addStroke(energyValue, 4, Enum.ApplyStrokeMode.Contextual)
-	local energyPop = create("UIScale", { Name = "Pop" }, energyValue)
+	addStroke(diamondValue, 4, Enum.ApplyStrokeMode.Contextual)
+	local diamondPop = create("UIScale", { Name = "Pop" }, diamondValue)
 
 	local plus = create("TextButton", {
 		Name = "PlusButton",
@@ -139,7 +139,7 @@ local function buildGui(playerGui: PlayerGui)
 		Text = "+",
 		LayoutOrder = 3,
 		ZIndex = 4,
-	}, energyRow)
+	}, diamondRow)
 	addCorner(plus, 11)
 	create("UIGradient", {
 		Rotation = 90,
@@ -166,7 +166,7 @@ local function buildGui(playerGui: PlayerGui)
 		Position = UDim2.fromOffset(10, 64),
 		Size = UDim2.fromOffset(250, 30),
 		BackgroundTransparency = 1,
-	}, energyCard)
+	}, diamondCard)
 	create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
@@ -221,7 +221,7 @@ local function buildGui(playerGui: PlayerGui)
 		Position = UDim2.fromOffset(4, 100),
 		Size = UDim2.fromOffset(290, 52),
 		BackgroundTransparency = 1,
-	}, energyCard)
+	}, diamondCard)
 	create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
@@ -281,10 +281,10 @@ local function buildGui(playerGui: PlayerGui)
 
 	return {
 		ScreenGui = screenGui,
-		Scales = { energyScale },
-		EnergyCard = energyCard,
-		EnergyValue = energyValue,
-		EnergyPop = energyPop,
+		Scales = { diamondScale },
+		DiamondCard = diamondCard,
+		DiamondValue = diamondValue,
+		DiamondPop = diamondPop,
 		MultValue = multValue,
 		TokensValue = tokensValue,
 		MoneyValue = moneyValue,
@@ -312,14 +312,14 @@ function HudController.start()
 	ui.ScreenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
 	applyScale()
 
-	local lastEnergy: number? = nil
+	local lastDiamonds: number? = nil
 	-- Los 💎 saltan un poco cada vez que suben (enemigos, oleadas, misiones)
-	local function popEnergy(energy: number)
-		local previous = lastEnergy
-		lastEnergy = energy
-		if previous and energy > previous then
-			ui.EnergyPop.Scale = 1.12
-			TweenService:Create(ui.EnergyPop, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	local function popDiamonds(diamonds: number)
+		local previous = lastDiamonds
+		lastDiamonds = diamonds
+		if previous and diamonds > previous then
+			ui.DiamondPop.Scale = 1.12
+			TweenService:Create(ui.DiamondPop, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 		end
 	end
 
@@ -335,7 +335,7 @@ function HudController.start()
 	end
 
 	local function refresh()
-		local energy = player:GetAttribute(Constants.Attributes.Energy)
+		local diamonds = player:GetAttribute(Constants.Attributes.Diamonds)
 		local tokens = player:GetAttribute(Constants.Attributes.RebirthTokens)
 		local tokenCount = if typeof(tokens) == "number" and tokens > 0 then tokens else 0
 		ui.TokensValue.Text = formatNumber(tokenCount)
@@ -344,19 +344,19 @@ function HudController.start()
 		ui.MoneyValue.Text = "$" .. formatNumber(money)
 		popMoney(money)
 
-		if typeof(energy) ~= "number" then
-			ui.EnergyValue.Text = "0"
+		if typeof(diamonds) ~= "number" then
+			ui.DiamondValue.Text = "0"
 			return
 		end
 
-		ui.EnergyValue.Text = formatNumber(energy)
+		ui.DiamondValue.Text = formatNumber(diamonds)
 		local petMult = player:GetAttribute(Constants.Attributes.PetMultiplier)
 		local multVal = if typeof(petMult) == "number" and petMult > 0 then petMult else 1
 		ui.MultValue.Text = ("×%s"):format(formatNumber(multVal, 1))
-		popEnergy(energy)
+		popDiamonds(diamonds)
 	end
 
-	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(refresh)
+	player:GetAttributeChangedSignal(Constants.Attributes.Diamonds):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.RebirthTokens):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.PetMultiplier):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.Money):Connect(refresh)

@@ -3,7 +3,7 @@ isStudio = true
 local me = newPlayer("Yo", 1)
 table.insert(playersList, me)
 PlayerDataService.start()
-EnergyService.start()
+DiamondService.start()
 UpgradeService.start()
 QuestService.start()
 TutorialService.start()

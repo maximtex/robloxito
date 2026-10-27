@@ -134,14 +134,14 @@ local switchCost = CoreLogic.switchCost()
 check(("coste de cambio = Switch.MinCost (%d)"):format(switchCost), switchCost == CoreConfig.Switch.MinCost)
 check("tiempo no válido (NaN, 0, negativo) -> InvalidRequest", CoreLogic.selectElement(sd, "Water", 1e9, NAN) == "InvalidRequest" and CoreLogic.selectElement(sd, "Water", 1e9, 0) == "InvalidRequest" and CoreLogic.selectElement(sd, "Water", 1e9, -5) == "InvalidRequest")
 code, cost = CoreLogic.selectElement(sd, "Water", switchCost - 1, NOW)
-check("sin energía suficiente -> InsufficientEnergy, sin cambiar", code == "InsufficientEnergy" and sd.Selected == "Nature")
-check("energía infinita o NaN no cuenta como suficiente", CoreLogic.selectElement(sd, "Water", INF, NOW) == "InsufficientEnergy" and CoreLogic.selectElement(sd, "Water", NAN, NOW) == "InsufficientEnergy")
+check("sin energía suficiente -> InsufficientDiamonds, sin cambiar", code == "InsufficientDiamonds" and sd.Selected == "Nature")
+check("energía infinita o NaN no cuenta como suficiente", CoreLogic.selectElement(sd, "Water", INF, NOW) == "InsufficientDiamonds" and CoreLogic.selectElement(sd, "Water", NAN, NOW) == "InsufficientDiamonds")
 code, cost = CoreLogic.selectElement(sd, "Water", 1e9, NOW)
 check("cambiar a un núcleo desbloqueado -> Success y devuelve el coste", code == "Success" and cost == switchCost and sd.Selected == "Water" and sd.LastSwitchAt == NOW)
 check("otra vez antes del enfriamiento -> TooFast", CoreLogic.selectElement(sd, "Nature", 1e9, NOW + CoreConfig.Switch.CooldownSeconds - 1) == "TooFast" and sd.Selected == "Water")
 check("tras el enfriamiento se puede cambiar", CoreLogic.selectElement(sd, "Nature", 1e9, NOW + CoreConfig.Switch.CooldownSeconds) == "Success")
 local ud = CoreLogic.empty()
-check("desbloquear con tiempo o energía no válidos -> rechazado sin cambios", CoreLogic.unlock(ud, "Water", 1e9, NAN) == "InvalidRequest" and CoreLogic.unlock(ud, "Water", INF, NOW) == "InsufficientEnergy" and CoreLogic.unlock(ud, "Water", -1, NOW) == "InsufficientEnergy" and CoreLogic.unlock(ud, "Water", "999999", NOW) == "InsufficientEnergy" and not CoreLogic.isUnlocked(ud, "Water"))
+check("desbloquear con tiempo o energía no válidos -> rechazado sin cambios", CoreLogic.unlock(ud, "Water", 1e9, NAN) == "InvalidRequest" and CoreLogic.unlock(ud, "Water", INF, NOW) == "InsufficientDiamonds" and CoreLogic.unlock(ud, "Water", -1, NOW) == "InsufficientDiamonds" and CoreLogic.unlock(ud, "Water", "999999", NOW) == "InsufficientDiamonds" and not CoreLogic.isUnlocked(ud, "Water"))
 
 print("-- 8. sanitize: valores malformados, campos desconocidos y entrada intacta")
 check("sin datos (partida antigua: nil) -> estructura por defecto", same(CoreLogic.sanitize(nil), CoreLogic.empty()))
@@ -248,8 +248,8 @@ check("unlock con la entrada del núcleo ausente -> InvalidRequest, sin error ni
 local function rejects(fn, d, expectedCode)
 	local before = deep(d)
 	local ok, code, cost = pcall(fn, d)
-	-- InsufficientEnergy informa del coste; los demás rechazos devuelven coste 0.
-	local costOK = if expectedCode == "InsufficientEnergy" then type(cost) == "number" else cost == 0
+	-- InsufficientDiamonds informa del coste; los demás rechazos devuelven coste 0.
+	local costOK = if expectedCode == "InsufficientDiamonds" then type(cost) == "number" else cost == 0
 	return ok and code == expectedCode and costOK and same(d, before), (if ok then tostring(code) else "ERROR: " .. tostring(code))
 end
 local STRUCTURES = {
@@ -302,12 +302,12 @@ local function expectReject(label, fn, expectedCode, source)
 	local d = deep(source or base)
 	if not rejects(fn, d, expectedCode) then noPartial = false partialFail ..= " " .. label end
 end
-for i, energy in BAD_ENERGY do
-	expectReject("unlock-energía" .. i, function(d) return CoreLogic.unlock(d, "Fire", energy, NOW) end, "InsufficientEnergy")
-	expectReject("select-energía" .. i, function(d) return CoreLogic.selectElement(d, "Water", energy, NOW) end, "InsufficientEnergy")
+for i, diamonds in BAD_ENERGY do
+	expectReject("unlock-energía" .. i, function(d) return CoreLogic.unlock(d, "Fire", diamonds, NOW) end, "InsufficientDiamonds")
+	expectReject("select-energía" .. i, function(d) return CoreLogic.selectElement(d, "Water", diamonds, NOW) end, "InsufficientDiamonds")
 end
-expectReject("unlock-energía-nil", function(d) return CoreLogic.unlock(d, "Fire", nil, NOW) end, "InsufficientEnergy")
-expectReject("select-energía-nil", function(d) return CoreLogic.selectElement(d, "Water", nil, NOW) end, "InsufficientEnergy")
+expectReject("unlock-energía-nil", function(d) return CoreLogic.unlock(d, "Fire", nil, NOW) end, "InsufficientDiamonds")
+expectReject("select-energía-nil", function(d) return CoreLogic.selectElement(d, "Water", nil, NOW) end, "InsufficientDiamonds")
 for i, time in BAD_TIME do
 	expectReject("unlock-tiempo" .. i, function(d) return CoreLogic.unlock(d, "Fire", 1e15, time) end, "InvalidRequest")
 	expectReject("select-tiempo" .. i, function(d) return CoreLogic.selectElement(d, "Water", 1e15, time) end, "InvalidRequest")

@@ -239,7 +239,7 @@ monedas son 💰, 💎 y 🔄 fichas. Se quitó:
 - La **producción** por segundo y la **recompensa offline** (`ProductionPerSecond`,
   `CoreLogic` producción/afinidad/offline, `EconomyConfig.PassiveEnergy`). Los núcleos se
   despiertan y suben con 💎 y solo dan sus habilidades (Q/R); Naturaleza no tiene nivel.
-  `EnergyService` solo suma 💎 (`grant`) y avisa una vez por segundo a misiones y tutorial.
+  `DiamondService` (antes `EnergyService`) solo suma 💎 (`grant`) y avisa una vez por segundo a misiones y tutorial.
 - Del renacimiento: el requisito de Resonancia (queda «Próximamente» hasta la fase 2) y las
   ventajas «Inicio rápido» y «Sueño profundo».
 
@@ -263,3 +263,11 @@ costó la Resonancia (Σ floor(60 · 1,45ⁿ) por nivel; nivel 15 ≈ 💰 35 00
 «Inicio rápido» y «Sueño profundo»; las tres se borran del registro, así que no se cobran dos
 veces, y el jugador ve un aviso (atributo `RetiredRefund`). Mascotas, armas, zonas, jefes,
 núcleos, clases, habilidades, misiones, inventario y 💎 se quedan igual.
+
+**Guardado v17** (renombrado): en el código, los atributos y el guardado los 💎 se llaman
+`Diamonds` (antes `Energy`): `profile.Diamonds`, atributo `Diamonds`, `TotalDiamonds`,
+`DiamondService`, `DiamondsEarned`, misiones `EarnDiamonds`/`DailyDiamonds`, poción `Diamonds`,
+`Weekly.Diamonds`, código `InsufficientDiamonds`. Al cargar, un registro anterior a la v17 usa
+su `Energy` (y los nombres viejos de las misiones, la poción y la semana); al guardar se borra
+`Energy`. No cambian: el id del pase `DoubleEnergy`, el DataStore `RC_Global_Diamonds_v1` ni
+las piezas "Energy" de los portales (son geometría del mapa).

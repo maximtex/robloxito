@@ -76,7 +76,7 @@ local Theme = {
 	Layout = {
 		Margin = 12, -- separación con los bordes de pantalla
 		Gap = 12, -- separación entre elementos del HUD
-		EnergyCardSize = Vector2.new(330, 112), -- igual que HudLayout.Sizes.Energy
+		DiamondCardSize = Vector2.new(330, 112), -- igual que HudLayout.Sizes.Diamonds
 		SideButtonWidth = 148, -- ancho de la barra del menú (HudLayout.menuSize)
 		TransitionSeconds = 0.16,
 	},

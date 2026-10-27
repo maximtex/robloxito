@@ -365,7 +365,7 @@ args = act(p1, "TurnIn", "Herbalist")
 check("amuleto: llega puesto y la producción sube ×1.25",
 	args[1] == true and args[4].Amulet == "Sap" and args[4].Finished == true and profile.PetData.Adventure.Equipped[1] == "Sap" and near(PlayerDataService.diamondMultiplier(profile), baseDiamonds * 1.25))
 advance(0)
-check("guardado en seguida: Version 16 y Adventure en el registro", record(1) and record(1).Version == 16 and record(1).Adventure.Amulets.Sap == true and record(1).Adventure.Npcs.Herbalist.Step == 4)
+check("guardado en seguida: Version 17 y Adventure en el registro", record(1) and record(1).Version == 17 and record(1).Adventure.Amulets.Sap == true and record(1).Adventure.Npcs.Herbalist.Step == 4)
 args = act(p1, "Unequip", 1)
 check("quitarlo: 💎 normales", args[1] == true and near(PlayerDataService.diamondMultiplier(profile), baseDiamonds))
 args = act(p1, "Equip", "Sap", 2)
@@ -404,20 +404,20 @@ local again = PlayerDataService.get(p1b)
 check("al volver: todo igual y la pasiva aplicada", again.PetData.Adventure.Amulets.Sap and again.PetData.Adventure.Equipped[1] == "Sap" and lastState(p1b).Npcs.Herbalist.Status == "Done")
 
 -- Partidas antiguas
-storeData.player_2 = { Version = 4, Energy = 50, UpgradeLevels = { GeneratorPower = 3 } }
+storeData.player_2 = { Version = 4, Diamonds = 50, UpgradeLevels = { GeneratorPower = 3 } }
 local p2 = makePlayer("Bea", 2)
 join(p2)
 advance(0)
 check("registro v4 sin Adventure: empieza vacío", next(PlayerDataService.get(p2).PetData.Adventure.Npcs) == nil and PlayerDataService.get(p2).PetData.Adventure.Equipped[1] == "")
-storeData.player_3 = { Version = 5, Energy = 0, UpgradeLevels = { GeneratorPower = 4 }, LastSeen = os.time() - 2 * 3600 }
-storeData.player_4 = { Version = 5, Energy = 0, UpgradeLevels = { GeneratorPower = 4 }, LastSeen = os.time() - 2 * 3600,
+storeData.player_3 = { Version = 5, Diamonds = 0, UpgradeLevels = { GeneratorPower = 4 }, LastSeen = os.time() - 2 * 3600 }
+storeData.player_4 = { Version = 5, Diamonds = 0, UpgradeLevels = { GeneratorPower = 4 }, LastSeen = os.time() - 2 * 3600,
 	Adventure = { Amulets = { Sap = true }, Equipped = { "Sap" }, Active = { Abundance = os.time() + 300 } } }
 local p3 = makePlayer("Caro", 3)
 local p4 = makePlayer("Dani", 4)
 join(p3)
 join(p4)
 advance(0)
-check("2 h fuera, con o sin amuleto: ya no hay 💎 offline", PlayerDataService.get(p3).Energy == 0 and PlayerDataService.get(p4).Energy == 0 and p3:GetAttribute("OfflineReward") == nil and p4:GetAttribute("OfflineReward") == nil)
+check("2 h fuera, con o sin amuleto: ya no hay 💎 offline", PlayerDataService.get(p3).Diamonds == 0 and PlayerDataService.get(p4).Diamonds == 0 and p3:GetAttribute("OfflineReward") == nil and p4:GetAttribute("OfflineReward") == nil)
 check("al entrar con la bendición aún activa: 💎 ×2.5", near(PlayerDataService.diamondMultiplier(PlayerDataService.get(p4)), PlayerDataService.diamondMultiplier(PlayerDataService.get(p3)) * 2.5))
 
 -- Sin datos cargados no se hace nada

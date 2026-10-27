@@ -1113,7 +1113,7 @@ local function buildGui()
 	-- La zona superior sigue el borde inferior de la tarjeta de energía.
 	local function placeTop()
 		local scale = UiKit.computeScale(screenGui.AbsoluteSize)
-		top.Position = UDim2.new(0.5, 0, 0, LAYOUT.Margin + LAYOUT.EnergyCardSize.Y * scale + 8)
+		top.Position = UDim2.new(0.5, 0, 0, LAYOUT.Margin + LAYOUT.DiamondCardSize.Y * scale + 8)
 	end
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeTop)
 	placeTop()
@@ -2385,18 +2385,18 @@ function CombatController.start()
 		if typeof(amount) ~= "number" then
 			return
 		end
-		local energy = if type(extra) == "table" and typeof(extra.Energy) == "number" then extra.Energy else 0
+		local diamonds = if type(extra) == "table" and typeof(extra.Diamonds) == "number" then extra.Diamonds else 0
 		local golden = type(extra) == "table" and extra.Golden == true
 		if typeof(at) == "Vector3" then
 			dropCoins(at, if isBoss then COINS_BOSS elseif isKill then COINS_KILL else 1)
-			if isKill and (energy > 0 or golden) then
-				dropOrbs(at, math.clamp(energy, 1, if isBoss then ORBS_BOSS else ORBS_KILL), golden)
+			if isKill and (diamonds > 0 or golden) then
+				dropOrbs(at, math.clamp(diamonds, 1, if isBoss then ORBS_BOSS else ORBS_KILL), golden)
 			end
 		end
 		if not (isKill or isBoss) then
 			return -- golpe suelto: solo la moneda y el salto del contador
 		end
-		local loot = ("+%s 💰"):format(formatNumber(amount)) .. (if energy > 0 then ("  +%s 💎"):format(formatNumber(energy)) else "")
+		local loot = ("+%s 💰"):format(formatNumber(amount)) .. (if diamonds > 0 then ("  +%s 💎"):format(formatNumber(diamonds)) else "")
 		if golden then
 			Toasts.show(("🌟 ¡BOTÍN DORADO!  ×10  ·  %s"):format(loot), { Color = GOLDEN_COLOR, Key = "GoldenOrb" })
 			playVaried(killSound, 1.6, 0.05)

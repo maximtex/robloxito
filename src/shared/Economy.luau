@@ -9,10 +9,10 @@ function Economy.getUpgradeDefinition(upgradeId: string)
 	return EconomyConfig.Upgrades[upgradeId]
 end
 
--- Moneda con la que se paga una mejora: "Money" (💰) o "Energy" (💎)
+-- Moneda con la que se paga una mejora: "Money" (💰) o "Diamonds" (💎)
 function Economy.getUpgradeCurrency(upgradeId: string): string
 	local definition = EconomyConfig.Upgrades[upgradeId]
-	return if definition and definition.Currency == "Money" then "Money" else "Energy"
+	return if definition and definition.Currency == "Money" then "Money" else "Diamonds"
 end
 
 function Economy.getUpgradeCost(upgradeId: string, currentLevel: number): number?

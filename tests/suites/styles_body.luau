@@ -181,7 +181,7 @@ local skills = SkillLogic.empty()
 check("al empezar: las dos iniciales de cada estilo, a nivel 1 y puestas en Z y X", skills.Owned.Burst == 1 and skills.Owned.Quake == 1 and skills.Owned.Nova == 1 and skills.Owned.Cleave == 1 and skills.Owned.Leap == 1 and skills.Owned.Pierce == nil
 	and SkillLogic.equipped(skills, "Weapons", 1) == "Burst" and SkillLogic.equipped(skills, "Magic", 2) == "Nova" and skills.Picked == false)
 local code, cost = SkillLogic.buy(skills, "ChainLightning", 149)
-check("comprar sin 💎 suficientes: InsufficientEnergy con su precio", code == "InsufficientEnergy" and cost == 150 and skills.Owned.ChainLightning == nil)
+check("comprar sin 💎 suficientes: InsufficientDiamonds con su precio", code == "InsufficientDiamonds" and cost == 150 and skills.Owned.ChainLightning == nil)
 code, cost = SkillLogic.buy(skills, "ChainLightning", 150)
 check("con 150 💎: comprada a nivel 1", code == "Success" and cost == 150 and skills.Owned.ChainLightning == 1)
 check("no se compra dos veces ni una que no existe", (SkillLogic.buy(skills, "ChainLightning", 1e9)) == "AlreadyOwned" and (SkillLogic.buy(skills, "Nope", 1e9)) == "InvalidRequest")

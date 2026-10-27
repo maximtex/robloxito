@@ -3,20 +3,20 @@
 --
 -- Goal: de dónde sale el progreso (siempre de datos del servidor):
 --   { Source = "Stat", Key = ... }   estadística permanente registrada por el servidor:
---       Kills, StrongKills, BossKills, EnergyEarned (💎 de enemigos y oleadas; NUNCA
+--       Kills, StrongKills, BossKills, DiamondsEarned (💎 de enemigos y oleadas; NUNCA
 --       incluye recompensas de misiones), PetAbilities.
 --   { Source = "ZoneKills", Zone = ... }   enemigos derrotados en una zona.
 --   { Source = "BossTypes" }   jefes distintos derrotados al menos una vez.
 --   { Source = "State", Key = ... }   estado actual del perfil: WeaponLevel (nivel del arma,
 --       guante o bastón más mejorado), PetsOwned, PetsEquipped, CombatPetsOwned,
 --       ZonesUnlocked (zonas compradas), Rebirths.
---   { Source = "Daily", Event = "Kill" | "Energy" | "PetAbility" | "Upgrade" | "Egg", Kind?, Zone? }
+--   { Source = "Daily", Event = "Kill" | "Diamonds" | "PetAbility" | "Upgrade" | "Egg", Kind?, Zone? }
 --       contador del día (solo para misiones diarias). Upgrade: mejoras de armas, guantes o
 --       bastones compradas (GameEvents "WeaponUpgraded"); Egg: huevos abiertos.
 -- RequiresZone: no se muestra como alcanzable (ni se ofrece como diaria) sin esa zona.
 -- RequiresCombatPet: solo se ofrece como diaria si el jugador tiene una mascota de combate.
 --
--- Recompensa (💎 diamantes, en el código Energy; la calcula el servidor al reclamar):
+-- Recompensa (💎 diamantes, en el código Diamonds; la calcula el servidor al reclamar):
 --   min(Min · ZoneFactor de tu mejor zona abierta, Max)
 -- Así acompaña a la etapa actual sin dispararse (Max). Referencia: un enemigo pequeño da
 -- ~1 💎, un Bruto ~4, una partida de oleadas ganada ~60 y los jefes 60 / 150 / 400; las
@@ -87,10 +87,10 @@ local QuestConfig = {
 			Reward = { Min = 20, Max = 160 },
 		},
 		{
-			Id = "EarnEnergy",
+			Id = "EarnDiamonds",
 			Title = "Buscador de diamantes",
 			Description = "Consigue 40 💎 derrotando enemigos.",
-			Goal = { Source = "Stat", Key = "EnergyEarned" },
+			Goal = { Source = "Stat", Key = "DiamondsEarned" },
 			Target = 40,
 			Reward = { Min = 30, Max = 200 },
 		},
@@ -157,10 +157,10 @@ local QuestConfig = {
 			Reward = { Min = 30, Max = 300 },
 		},
 		{
-			Id = "DailyEnergy",
+			Id = "DailyDiamonds",
 			Title = "Cosecha de diamantes",
 			Description = "Consigue 60 💎 derrotando enemigos.",
-			Goal = { Source = "Daily", Event = "Energy" },
+			Goal = { Source = "Daily", Event = "Diamonds" },
 			Target = 60,
 			Reward = { Min = 24, Max = 240 },
 		},

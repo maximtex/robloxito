@@ -1,6 +1,6 @@
 -- El servidor arranca con el interruptor en true pero FUERA de Studio (partida publicada).
 PlayerDataService.start()
-EnergyService.start()
+DiamondService.start()
 UpgradeService.start()
 QuestService.start()
 TutorialService.start()
@@ -25,7 +25,7 @@ local function hasWarning(text)
 end
 
 -- Tu partida "real": veterano con el Valle, tutorial completado y 9 000 de energía.
-local REAL = { Version = 2, Energy = 9000, UpgradeLevels = { GeneratorPower = 12 }, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 300, EnergyEarned = 50000 }, Claimed = { DefeatFive = true } }, Tutorial = { Status = "Completed", Step = 5 } }
+local REAL = { Version = 2, Diamonds = 9000, UpgradeLevels = { GeneratorPower = 12 }, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 300, DiamondsEarned = 50000 }, Claimed = { DefeatFive = true } }, Tutorial = { Status = "Completed", Step = 5 } }
 storeData.player_1 = deep(REAL)
 
 print("-- 1. Partida publicada con el interruptor olvidado en true")
@@ -49,12 +49,12 @@ join(me)
 advance(0)
 profile = PlayerDataService.get(me)
 check("NINGUNA llamada al DataStore al entrar (ni lectura ni bloqueo)", storeCalls == callsBefore and getStoreCalls == storesBefore)
-check("perfil temporal: 💰 15000 y 0 💎, mejoras a 0, solo la mascota inicial y sin zonas", profile.Sandbox == true and profile.Money == DevConfig.SandboxStartingMoney and profile.Energy == 0 and profile.UpgradeLevels.LaserSpeed == 0 and profile.UpgradeLevels.GeneratorPower == nil and #profile.PetData.Pets == 1 and #profile.PetData.UnlockedZones == 0)
+check("perfil temporal: 💰 15000 y 0 💎, mejoras a 0, solo la mascota inicial y sin zonas", profile.Sandbox == true and profile.Money == DevConfig.SandboxStartingMoney and profile.Diamonds == 0 and profile.UpgradeLevels.LaserSpeed == 0 and profile.UpgradeLevels.GeneratorPower == nil and #profile.PetData.Pets == 1 and #profile.PetData.UnlockedZones == 0)
 check("misiones nuevas (nada reclamado del perfil real)", profile.PetData.Quests.Stats.Kills == 0 and next(profile.PetData.Quests.Claimed) == nil)
 check("núcleos iniciales (solo Naturaleza), sin archivo y sin llamadas al DataStore", same(profile.PetData.Cores, CoreLogic.empty()) and #profile.PetData.CoresArchive == 0 and storeCalls == callsBefore and getStoreCalls == storesBefore)
 check("atributo TestMode para el aviso y tutorial activo en el paso 1", me:GetAttribute("TestMode") == true and me:GetAttribute("TutorialStatus") == "Active" and me:GetAttribute("TutorialStep") == 0)
 advance(1)
-check("el 💰 inicial NO cuenta como 💎 conseguidos (sin producción pasiva; paso 1 sin hacer)", profile.PetData.Quests.Stats.EnergyEarned == 0 and me:GetAttribute("TutorialStep") == 0)
+check("el 💰 inicial NO cuenta como 💎 conseguidos (sin producción pasiva; paso 1 sin hacer)", profile.PetData.Quests.Stats.DiamondsEarned == 0 and me:GetAttribute("TutorialStep") == 0)
 GameEvents.fire("WaveWon", me, "Tutorial") -- lo que hace WaveService al ganar la práctica
 advance(1)
 check("tras ganar la oleada de práctica: paso 1 hecho", me:GetAttribute("TutorialStep") == 1)
@@ -112,10 +112,10 @@ advance(0)
 profile = PlayerDataService.get(me)
 check("carga normal del perfil real (DataStore usado)", storeCalls > callsBefore and profile.DataState == "Loaded" and not profile.Sandbox and profile.Money >= 45000)
 check("sin aviso de modo prueba", me:GetAttribute("TestMode") == nil)
-profile.Energy += 5
-local expected = profile.Energy
+profile.Diamonds += 5
+local expected = profile.Diamonds
 leave(me)
 advance(0)
-check("y se guarda con normalidad", storeData.player_1.Energy == expected)
+check("y se guarda con normalidad", storeData.player_1.Diamonds == expected)
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

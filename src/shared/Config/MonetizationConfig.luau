@@ -56,11 +56,11 @@ local MonetizationConfig = {
 		},
 	},
 
-	-- Compras sueltas de 💎 (en el código, Energy): Min diamantes.
+	-- Compras sueltas de 💎 (Diamonds en el código): Min diamantes.
 	Products = {
-		EnergySmall = { Id = 0, Order = 1, Icon = "💎", Name = "Bolsa de diamantes", Min = 150 },
-		EnergyMedium = { Id = 0, Order = 2, Icon = "💠", Name = "Cofre de diamantes", Min = 700 },
-		EnergyLarge = { Id = 0, Order = 3, Icon = "👑", Name = "Tesoro de diamantes", Min = 3000 },
+		DiamondsSmall = { Id = 0, Order = 1, Icon = "💎", Name = "Bolsa de diamantes", Min = 150 },
+		DiamondsMedium = { Id = 0, Order = 2, Icon = "💠", Name = "Cofre de diamantes", Min = 700 },
+		DiamondsLarge = { Id = 0, Order = 3, Icon = "👑", Name = "Tesoro de diamantes", Min = 3000 },
 	},
 
 	-- Mascotas exclusivas (por su PetId de PetConfig): cada compra da una, aunque el
@@ -80,7 +80,7 @@ local MonetizationConfig = {
 	},
 
 	-- Efecto de cada pase
-	EnergyMultiplier = 2, -- DoubleEnergy (×2 de 💎)
+	DiamondMultiplier = 2, -- DoubleEnergy (×2 de 💎)
 	PetSlotBonus = 2, -- PetSpace: mascotas equipadas de más
 	InventoryBonus = 60, -- PetSpace: espacio de inventario de más
 	TripleCount = 3, -- TripleHatch: huevos por apertura

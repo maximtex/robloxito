@@ -92,7 +92,10 @@ local STORE_NAME = "RebirthCity_PlayerData_v1"
 --     las iniciales, y quien ya jugaba no vuelve a elegir estilo).
 -- 14: añade Classes (clases de los estilos; sin el campo, la gratis de cada estilo).
 -- 15: añade World (mundo en el que estabas, 1 o 2: apareces allí; sin el campo, el 1).
-local SCHEMA_VERSION = 15
+-- 16: sin ⚡ ni cristal. Se devuelve el 100 % del 💰 de la Resonancia del Cristal (la mejora
+--     GeneratorPower ya no existe) y las fichas de las ventajas de renacer quitadas (Inicio
+--     rápido y Sueño profundo); ver refundRetired. Lo demás se queda tal cual.
+local SCHEMA_VERSION = 16
 local LOCK_TIMEOUT = 30 * 60
 local LOAD_ATTEMPTS = 5
 local LOAD_RETRY_DELAY = 5
@@ -102,6 +105,11 @@ local MAX_STORED_PETS = 1000 -- tope de seguridad contra datos corruptos
 local MAX_ENERGY = 1e15 -- tope de seguridad (muy por encima de cualquier partida real)
 local MAX_ARCHIVED_UPGRADES = 50
 local MAX_CORES_ARCHIVE = 20 -- entradas nuevas como máximo (las existentes nunca se borran)
+-- Lo que costaba la Resonancia del Cristal (en 💰 desde la economía 2): nivel N = floor(60 · 1,45^N),
+-- hasta el nivel 50. Solo se usa para devolverla (refundRetired).
+local RESONANCE = { UpgradeId = "GeneratorPower", BaseCost = 60, CostMultiplier = 1.45, MaxLevel = 50 }
+-- Ventajas de la tienda de fichas que se quitaron, con lo que costaba cada nivel.
+local RETIRED_REBIRTH_SHOP = { HeadStart = { 2, 4, 8 }, Dreams = { 1, 2, 3, 5 } }
 
 export type PetEntry = { Uid: string, PetId: string }
 
@@ -119,16 +127,16 @@ export type PetData = {
 	UpgradeLevels: { [string]: number },
 	ArchivedUpgrades: { [string]: number }, -- mejoras que ya no existen: se conservan tal cual
 	Tutorial: TutorialLogic.TutorialData, -- tutorial inicial (activo en partidas antiguas)
-	Cores: CoreLogic.CoreData, -- núcleos (producen energía; ver CoreService)
+	Cores: CoreLogic.CoreData, -- núcleos (dan las habilidades Q/R; ver CoreService)
 	CoresArchive: { any }, -- valores de núcleos corregidos al sanear (ver sanitizeCores)
 	-- os.time() del último guardado correcto (0 si no hay: partidas antiguas o nuevas).
-	-- Solo se lee al cargar (recompensa offline); al guardar se escribe la hora actual.
+	-- Ya no se usa (era la base de la recompensa offline); al guardar se escribe la hora actual.
 	LastSeen: number,
 	Rebirth: RebirthLogic.RebirthData, -- renacimientos, fichas y tienda (ver RebirthService)
 	Adventure: AdventureLogic.AdventureData, -- historias, amuletos y bendiciones (AdventureService)
 	Rewards: RewardLogic.RewardData, -- premio diario y códigos (RewardService)
 	Shop: MonetizationLogic.ShopData, -- compras sueltas concedidas y mejora automática (ShopService)
-	Weekly: LeaderboardLogic.Weekly, -- energía generada esta semana (clasificación semanal)
+	Weekly: LeaderboardLogic.Weekly, -- 💎 conseguidos esta semana (clasificación semanal)
 	Weapons: WeaponLogic.WeaponData, -- armas, niveles y la equipada (WeaponService)
 	Bosses: { [string]: number }, -- jefes derrotados (BossRewardService)
 	Items: ItemLogic.ItemData, -- pociones, huevos guardados y títulos (ItemService)
@@ -141,6 +149,8 @@ export type PetData = {
 	World: number, -- mundo en el que estabas (1 o 2; ZoneService: apareces allí)
 	-- Solo en memoria (no se guarda): lo convertido al cargar, para avisar al jugador.
 	EconomyConverted: { Energy: number, Money: number }?,
+	-- Devolución de la Resonancia y de las ventajas de renacer quitadas (guardado v16), una vez.
+	RetiredRefund: { Level: number, Money: number, Tokens: number }?,
 }
 
 -- "Loaded": datos cargados y bloqueados para esta sesión.
@@ -337,6 +347,41 @@ local function migrateEconomy(raw: { [string]: any }, result: PetData)
 	end
 end
 
+-- Guardado v16: lo que ya no existe se devuelve una sola vez (al quitarlo del registro ya no
+-- se puede volver a cobrar):
+-- - Resonancia del Cristal (archivada en ArchivedUpgrades al no ser ya una mejora): el 💰 de
+--   todos sus niveles (100 %), y se borra.
+-- - Inicio rápido y Sueño profundo de la tienda de fichas: las fichas de sus niveles, y se
+--   borran.
+local function refundRetired(result: PetData)
+	local money, tokens = 0, 0
+	local rawLevel = result.ArchivedUpgrades[RESONANCE.UpgradeId]
+	local level = if isFiniteNumber(rawLevel) then math.clamp(math.floor(rawLevel), 0, RESONANCE.MaxLevel) else 0
+	result.ArchivedUpgrades[RESONANCE.UpgradeId] = nil
+	for n = 0, level - 1 do
+		money += math.floor(RESONANCE.BaseCost * RESONANCE.CostMultiplier ^ n)
+	end
+	local shop = result.Rebirth.Shop
+	for itemId, costs in RETIRED_REBIRTH_SHOP do
+		local owned = shop[itemId]
+		if owned ~= nil then
+			for n = 1, math.min(owned, #costs) do
+				tokens += costs[n]
+			end
+			shop[itemId] = nil
+		end
+	end
+	if money > 0 then
+		result.Money = math.min(result.Money + money, MAX_ENERGY)
+	end
+	if tokens > 0 then
+		result.Rebirth.Tokens += tokens
+	end
+	if money > 0 or tokens > 0 then
+		result.RetiredRefund = { Level = level, Money = money, Tokens = tokens }
+	end
+end
+
 local function sanitize(raw: any): PetData
 	local result = SaveService.emptyData()
 	if type(raw) ~= "table" then
@@ -448,6 +493,8 @@ local function sanitize(raw: any): PetData
 	result.Cave = CaveLogic.sanitizeProgress(raw.Cave)
 	-- Economía: sin EconomyVersion (v12 o anteriores), la ⚡ se convierte en 💰.
 	migrateEconomy(raw, result)
+	-- v16: la Resonancia del Cristal y las ventajas de renacer quitadas se devuelven.
+	refundRetired(result)
 	-- Habilidades: sin el campo (v12 o anteriores), las iniciales. Quien ya tenía partida
 	-- guardada (con mascotas) ya eligió estilo: no se le vuelve a preguntar.
 	result.Skills = SkillLogic.sanitize(raw.Skills)

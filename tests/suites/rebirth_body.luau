@@ -115,7 +115,7 @@ check("aviso a todos: quién y cuántos", broadcast and broadcast.Name == "Rebir
 check("inventario de mascotas reenviado (espacios al día)", PetService.Pushed == pushedBefore + 1)
 advance(0)
 local saved = record(1)
-check("guardado en seguida: Version 15 y Rebirth en el registro", saved and saved.Version == 15 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1)
+check("guardado en seguida: Version 16 y Rebirth en el registro", saved and saved.Version == 16 and saved.Rebirth and saved.Rebirth.Count == 1 and saved.Rebirth.Tokens == 1)
 
 fireServer("Rebirth", p1)
 advance(0)

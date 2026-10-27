@@ -400,6 +400,12 @@ local function loadPetData(player: Player, profile: Profile)
 			profile.Dirty = true -- que la conversión quede guardada cuanto antes
 			player:SetAttribute(Constants.Attributes.EconomyNotice, ("%d,%d"):format(converted.Energy, converted.Money))
 		end
+		local refund = data.RetiredRefund
+		if refund then
+			data.RetiredRefund = nil
+			profile.Dirty = true -- que la devolución quede guardada cuanto antes
+			player:SetAttribute(Constants.Attributes.RetiredRefund, ("%d,%d,%d"):format(refund.Level, refund.Money, refund.Tokens))
+		end
 		if #profile.PetData.Pets == 0 then
 			table.insert(profile.PetData.Pets, { Uid = "p1", PetId = "Sproutling" })
 			table.insert(profile.PetData.Equipped, "p1")

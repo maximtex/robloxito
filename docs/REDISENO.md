@@ -257,3 +257,9 @@ Lo que dependía del "poder de energía" ahora usa valores de Config:
 | Mascotas | 100 % a la energía, 50 % daño, 50 % 💰 | 50 % daño, 50 % 💰 |
 | Misiones del cristal | «Despierta el cristal», «Pulir el cristal», «Resonancia plena» | «Mejora tu arma», «Afila tu arma» (evento `WeaponUpgraded`), «Maestro armero» (mismos ids) |
 | Renacer | Resonancia 15 + 5·n | bloqueado («Próximamente») hasta la fase 2 |
+
+**Guardado v16** (`SaveService.refundRetired`): al cargar se devuelve el 100 % del 💰 que
+costó la Resonancia (Σ floor(60 · 1,45ⁿ) por nivel; nivel 15 ≈ 💰 35 000) y las fichas de
+«Inicio rápido» y «Sueño profundo»; las tres se borran del registro, así que no se cobran dos
+veces, y el jugador ve un aviso (atributo `RetiredRefund`). Mascotas, armas, zonas, jefes,
+núcleos, clases, habilidades, misiones, inventario y 💎 se quedan igual.

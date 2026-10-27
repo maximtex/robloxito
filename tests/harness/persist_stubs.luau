@@ -1,5 +1,14 @@
 -- Entorno simulado con planificador de corrutinas (task.spawn/wait/delay como en Roblox)
 -- y DataStore en memoria con latencia y fallos controlables.
+-- 💰 que se devuelve al cargar por una Resonancia del Cristal de nivel `level` (guardado
+-- v16, SaveService.refundRetired): lo que costaba, floor(60 · 1,45^n) por nivel.
+function resonanceRefund(level)
+	local total = 0
+	for n = 0, level - 1 do
+		total += math.floor(60 * 1.45 ^ n)
+	end
+	return total
+end
 Color3 = { fromRGB = function(r, g, b) return { R = r, G = g, B = b } end, new = function(r, g, b) return { R = r, G = g, B = b } end }
 Vector2 = { new = function(x, y) return { X = x, Y = y } end }
 Vector3 = { new = function(x, y, z) return { X = x, Y = y, Z = z } end }

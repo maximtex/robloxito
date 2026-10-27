@@ -54,7 +54,7 @@ storeData.player_2 = { Version = 3, Energy = 10, UpgradeLevels = { GeneratorPowe
 	Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2 }
 local bea, beaProfile = enter("Bea", 2)
 advance(10)
-check("2 h fuera: sin 💎 offline (la ⚡ guardada, 10, pasó a 💰 50)", beaProfile.Energy == 0 and beaProfile.Money == 50)
+check("2 h fuera: sin 💎 offline (la ⚡ guardada, 10, pasó a 💰 50, más la devolución de su Resonancia 8)", beaProfile.Energy == 0 and beaProfile.Money == 50 + resonanceRefund(8))
 check("y sin aviso de energía offline", bea:GetAttribute("OfflineReward") == nil)
 check("los 💎 de los enemigos no dependen de la Resonancia ni de las mascotas (×1 sin pase, poción ni aventuras)", PlayerDataService.diamondMultiplier(beaProfile) == 1)
 leave(bea)

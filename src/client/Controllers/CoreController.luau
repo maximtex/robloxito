@@ -6,7 +6,8 @@
 --   viene despierta y no tiene nivel. Dos huecos: ★ Q (principal) y ◆ R (secundario).
 --   Cada fila muestra la habilidad del elemento con sus números reales (el nivel sube su
 --   maestría) y los combos en los que participa.
--- - Aviso (una vez) de la economía nueva: la ⚡ guardada que se volvió 💰.
+-- - Avisos (una vez) de la economía nueva: la ⚡ guardada que se volvió 💰 y la devolución
+--   de la Resonancia del Cristal y de las ventajas de renacer quitadas.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -562,6 +563,32 @@ function CoreController.start()
 	end
 	player:GetAttributeChangedSignal(Constants.Attributes.EconomyNotice):Connect(showEconomyToast)
 	showEconomyToast()
+
+	-- Aviso de la devolución (una vez): la Resonancia del Cristal y las ventajas de renacer
+	-- quitadas ----------------------------------------------------------------------------
+	local refundShown = false
+	local function showRefundToast()
+		local value = player:GetAttribute(Constants.Attributes.RetiredRefund)
+		if refundShown or typeof(value) ~= "string" then
+			return
+		end
+		local levelText, moneyText, tokensText = value:match("^(%d+),(%d+),(%d+)$")
+		if not levelText then
+			return
+		end
+		refundShown = true
+		local parts = {}
+		if (tonumber(moneyText) or 0) > 0 then
+			table.insert(parts, ("tu Resonancia del Cristal (nivel %s) te devuelve 💰 %s"):format(levelText, formatNumber(tonumber(moneyText) or 0)))
+		end
+		if (tonumber(tokensText) or 0) > 0 then
+			table.insert(parts, ("las ventajas de renacer que ya no existen te devuelven 🪙 %s"):format(formatNumber(tonumber(tokensText) or 0)))
+		end
+		local body = "El cristal ya no existe: " .. table.concat(parts, " y ") .. "."
+		Toasts.show(body, { Title = "💰 ¡Devolución!", Color = THEME.Gold, Duration = 12, OnClick = function() end })
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.RetiredRefund):Connect(showRefundToast)
+	showRefundToast()
 end
 
 return CoreController

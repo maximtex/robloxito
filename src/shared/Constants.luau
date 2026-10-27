@@ -219,6 +219,9 @@ local Constants = {
 		SecondaryCore = "SecondaryCore",
 		-- Economía nueva: la ⚡ guardada se convirtió en 💰 al entrar: "energía,dinero" (una vez).
 		EconomyNotice = "EconomyNotice",
+		-- Guardado v16: la Resonancia y las ventajas de renacer quitadas se devolvieron al entrar:
+		-- "nivel,dinero,fichas" (una vez).
+		RetiredRefund = "RetiredRefund",
 		-- Renacimiento: renacimientos hechos, fichas sin gastar, niveles de la tienda
 		-- ("Loot=1,Strike=2") y mascotas que se pueden equipar a la vez.
 		Rebirths = "Rebirths",

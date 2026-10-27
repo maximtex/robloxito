@@ -49,6 +49,20 @@ def mod(name, path):
     return f"local {name} = (function()\n{source}\nend)()\n"
 
 
+def folder_module(*path):
+    """Módulo dividido en carpeta (X/init.luau + partes, Fase 3): cada parte incrustada como un
+    módulo local con sus require sustituidos y, después, el código de init.luau. Devuelve el
+    cuerpo de una función que devuelve el módulo."""
+    init = read(*path, "init.luau")
+    names = ["Types"] + [n for n in re.findall(r"require\(script\.(\w+)\)", init) if n != "Types"]
+    out = []
+    for name in dict.fromkeys(names):
+        source = REQUIRE.sub(lambda match: match.group(2), read(*path, name + ".luau"))
+        out.append(f"local {name} = (function()\n{source}\nend)()\n")
+    out.append(REQUIRE.sub(lambda match: match.group(2), init))
+    return "\n".join(out)
+
+
 def check_no_require(source):
     bad = [line for line in source.splitlines() if "require(" in line and not line.strip().startswith("--")]
     assert not bad, bad[:5]
@@ -328,29 +342,6 @@ def build_combat():
     return "\n".join(out)
 
 
-PET_COMBAT_REQUIRES = [
-    'local ReplicatedStorage = game:GetService("ReplicatedStorage")',
-    'local Shared = ReplicatedStorage:WaitForChild("Shared")',
-    "local Constants = require(Shared.Constants)",
-    "local PetConfig = require(Shared.Config.PetConfig)",
-    "local PetCombatConfig = require(Shared.Config.PetCombatConfig)",
-    "local WeaponLogic = require(Shared.WeaponLogic)",
-    "local MonetizationLogic = require(Shared.MonetizationLogic)",
-    "local StyleLogic = require(Shared.StyleLogic)",
-    "local StyleConfig = require(Shared.Config.StyleConfig)",
-    "local ClassLogic = require(Shared.ClassLogic)",
-    "local AimLogic = require(Shared.AimLogic)",
-    "local GunLogic = require(Shared.GunLogic)",
-    "local MagicLogic = require(Shared.MagicLogic)",
-    "local WarriorLogic = require(Shared.WarriorLogic)",
-    "local PlayerDataService = require(script.Parent.PlayerDataService)",
-    "local RemoteService = require(script.Parent.RemoteService)",
-    "local EnemyService = require(script.Parent.EnemyService)",
-    "local CombatService = require(script.Parent.CombatService)",
-    "local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)",
-]
-
-
 def build_petcombat():
     out = [harness("petcombat_stubs.luau")]
     for n, p in [
@@ -378,11 +369,9 @@ def build_petcombat():
         ("RateLimiter", "src/server/Util/RateLimiter.luau"),
     ]:
         out.append(mod(n, p))
-    # PetCombatService real, con sus dependencias de servicio sustituidas por las simuladas.
-    source = read("src", "server", "Services", "PetCombatService.luau")
-    for line in PET_COMBAT_REQUIRES:
-        assert line in source, line
-        source = source.replace(line + "\n", "")
+    # PetCombatService real (carpeta con sus partes); sus require apuntan a los módulos de
+    # arriba y a los servicios simulados (petcombat_stubs y petcombat_body).
+    source = folder_module("src", "server", "Services", "PetCombatService")
     out.append(suite("petcombat_body.luau").replace("PETCOMBAT_SOURCE_HERE", source))
     return "\n".join(out)
 

@@ -34,6 +34,10 @@ check("requisito 1: ganar las oleadas del Bosque (10) y 💰 25 000", r1.ArenaId
 check("requisito 2: las del Valle y 💰 75 000 (×3 cada vez)", r2.ArenaId == "CrystalValley" and r2.Wave == WaveLogic.waveCount("CrystalValley") and r2.Money == 75000)
 check("requisito 5: el último modo de la lista", r5.ArenaId == list[#list] and r5.Wave == WaveLogic.waveCount(list[#list]))
 check("después, el último modo en el infinito: +3 oleadas por renacimiento", r6.ArenaId == list[#list] and r6.Wave == WaveLogic.waveCount(list[#list]) + 3 and r8.Wave == WaveLogic.waveCount(list[#list]) + 9)
+check("💰: ×3 hasta el 5.º (25 k, 75 k, 225 k, 675 k, 2,025 M) y ×1,5 desde el 6.º (3,0375 M, 4,55625 M)",
+	RebirthLogic.requirement(2).Money == 225000 and RebirthLogic.requirement(3).Money == 675000 and r5.Money == 2025000
+		and r6.Money == 3037500 and RebirthLogic.requirement(6).Money == 4556250 and r8.Money == math.floor(2025000 * 1.5 ^ 3))
+check("el corte está en Config (LateGrowthFrom = 6, LateMoneyGrowth = 1,5)", RebirthConfig.Requirement.LateGrowthFrom == 6 and RebirthConfig.Requirement.LateMoneyGrowth == 1.5 and RebirthConfig.Requirement.MoneyGrowth == 3)
 check("valores raros cuentan como 0 renacimientos", RebirthLogic.requirement(0 / 0).ArenaId == "Forest" and RebirthLogic.requirement(-4).Money == 25000)
 check("fichas: el renacimiento k da k (1, 2, 5)", RebirthLogic.tokensFor(0) == 1 and RebirthLogic.tokensFor(1) == 2 and RebirthLogic.tokensFor(4) == 5)
 check("botín: +50 % de 💰 por renacimiento (×1, ×1.5, ×3)",

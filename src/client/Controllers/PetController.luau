@@ -48,7 +48,7 @@ local EGG_PANEL_SIZE = Vector2.new(440, 470)
 local EGG_PANEL_CLOSE_DISTANCE = 20
 
 local MESSAGES = {
-	[Codes.InsufficientDiamonds] = "Energía insuficiente",
+	[Codes.InsufficientDiamonds] = "Diamantes insuficientes",
 	[Codes.InsufficientMoney] = "Dinero insuficiente",
 	[Codes.InventoryFull] = "Inventario lleno",
 	[Codes.TooFar] = "Acércate al santuario del huevo",

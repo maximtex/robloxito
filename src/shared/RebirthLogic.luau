@@ -130,7 +130,11 @@ function RebirthLogic.requirement(count: any): Requirement
 	if index > #list then
 		wave += settings.EndlessExtraWaves * (index - #list)
 	end
-	local money = math.floor(settings.MoneyBase * settings.MoneyGrowth ^ done)
+	-- Pasos hasta el renacimiento done + 1: con MoneyGrowth hasta el LateGrowthFrom (sin él)
+	-- y con LateMoneyGrowth desde él.
+	local earlySteps = math.min(done, math.max(0, settings.LateGrowthFrom - 2))
+	local lateSteps = done - earlySteps
+	local money = math.floor(settings.MoneyBase * settings.MoneyGrowth ^ earlySteps * settings.LateMoneyGrowth ^ lateSteps)
 	return { ArenaId = arenaId, Wave = wave, Money = money }
 end
 
@@ -411,6 +415,10 @@ function RebirthLogic.validateConfig(): (boolean, { string })
 		end
 		if not (isFiniteNumber(requirement.MoneyBase) and requirement.MoneyBase >= 0 and isFiniteNumber(requirement.MoneyGrowth) and requirement.MoneyGrowth >= 1) then
 			table.insert(problems, "Requirement: MoneyBase >= 0 y MoneyGrowth >= 1")
+		end
+		if not (isFiniteNumber(requirement.LateGrowthFrom) and requirement.LateGrowthFrom >= 2 and requirement.LateGrowthFrom == math.floor(requirement.LateGrowthFrom)
+			and isFiniteNumber(requirement.LateMoneyGrowth) and requirement.LateMoneyGrowth >= 1) then
+			table.insert(problems, "Requirement: LateGrowthFrom entero >= 2 y LateMoneyGrowth >= 1")
 		end
 	end
 	local orders = {}

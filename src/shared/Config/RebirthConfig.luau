@@ -10,7 +10,9 @@
 --   EL ÚLTIMO RENACIMIENTO (cuenta lo de PetData.Rebirth.Cycle, que se vacía al renacer).
 --   Pasada la lista, el último modo en el modo infinito: EndlessExtraWaves oleadas más por
 --   cada renacimiento de más.
--- - Tener 💰 MoneyBase · MoneyGrowth^n (se paga al renacer; el resto del 💰 se reinicia).
+-- - Tener 💰 MoneyBase, que se multiplica por MoneyGrowth en cada renacimiento hasta el
+--   LateGrowthFrom (sin incluirlo) y por LateMoneyGrowth desde ese (se paga al renacer; el
+--   resto del 💰 se reinicia): 25 k, 75 k, 225 k, 675 k, 2,025 M y luego ×1,5.
 -- Enabled = false lo bloquea ("Próximamente").
 
 local RebirthConfig = {
@@ -21,7 +23,9 @@ local RebirthConfig = {
 		Waves = { "Forest", "CrystalValley", "EmberCaldera", "FrozenTundra", "DividedLands" },
 		EndlessExtraWaves = 3,
 		MoneyBase = 25000,
-		MoneyGrowth = 3,
+		MoneyGrowth = 3, -- renacimientos 2..5
+		LateGrowthFrom = 6, -- desde el 6.º renacimiento crece con LateMoneyGrowth
+		LateMoneyGrowth = 1.5,
 	},
 
 	-- Premio permanente por renacimiento (se suman: 3 renacimientos = ×2.5 de botín).

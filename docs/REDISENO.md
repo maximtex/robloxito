@@ -145,7 +145,7 @@ Las mascotas multiplican el daño (50 % de su bonificación) y el dinero (50 %).
 
 ### Renacimiento
 - (Fase 2 del rediseño de pelea) Requisito: ganar las oleadas del modo que toca desde el
-  último renacimiento (ver sección 6) y tener 💰 25 000 · 3ⁿ. Se reinicia: dinero y niveles
+  último renacimiento (ver sección 6) y tener 💰 (×3 por renacimiento hasta el 5.º, ×1,5 después). Se reinicia: dinero y niveles
   de las armas. Se conserva: 💎, armas compradas y la equipada, mascotas, zonas, jefes
   derrotados, mejoras de la Armería, núcleos, misiones y la tienda de fichas.
 
@@ -282,9 +282,11 @@ Elegido: **oleadas + 💰** y reiniciar solo 💰 y el nivel de las armas.
 | 3 | Oleadas del Titán (Caldera) | 225 000 |
 | 4 | Oleadas del Gólem de Hielo (Tundra) | 675 000 |
 | 5 | Oleadas del Equilibrio (Tierras Divididas) | 2 025 000 |
-| 6, 7… | Tierras Divididas en el modo infinito: 3 oleadas más cada vez | ×3 cada vez |
+| 6 | Tierras Divididas en el modo infinito: 3 oleadas más | 3 037 500 |
+| 7, 8… | Tierras Divididas en el modo infinito: 3 oleadas más cada vez | ×1,5 cada vez (4 556 250, 6 834 375…) |
 
-- `RebirthConfig.Requirement` (Waves, EndlessExtraWaves, MoneyBase, MoneyGrowth).
+- `RebirthConfig.Requirement` (Waves, EndlessExtraWaves, MoneyBase, MoneyGrowth ×3 hasta el
+  5.º renacimiento, LateGrowthFrom = 6 y LateMoneyGrowth ×1,5 desde el 6.º).
 - `RebirthLogic.requirement / progress / recordWave / canRebirth / rebirth(data, money, now)`;
   códigos `WavesNotDone` e `InsufficientMoney` (con el progreso para el cliente).
 - `Rebirth.Cycle` (oleada más alta de cada modo desde el último renacimiento): lo anota

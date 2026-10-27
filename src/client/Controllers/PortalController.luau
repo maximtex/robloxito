@@ -34,7 +34,7 @@ local FADE_SECONDS = 0.25
 local TRAVEL_TIMEOUT = 8
 
 local MESSAGES = {
-	[Codes.InsufficientEnergy] = "Energía insuficiente",
+	[Codes.InsufficientDiamonds] = "Diamantes insuficientes",
 	[Codes.InsufficientMoney] = "Dinero insuficiente",
 	[Codes.TooFar] = "Acércate a la puerta",
 	[Codes.TooFast] = "Espera un momento",
@@ -417,7 +417,7 @@ function PortalController.start()
 			local zone = zoneId and ZoneConfig.Zones[zoneId]
 			Toasts.show("¡" .. (if zone then zone.DisplayName else "Zona") .. " desbloqueado!", { Color = THEME.BuyHighlight })
 			PanelManager.close("Portal")
-		elseif (code == Codes.InsufficientMoney or code == Codes.InsufficientEnergy) and typeof(missing) == "number" then
+		elseif (code == Codes.InsufficientMoney or code == Codes.InsufficientDiamonds) and typeof(missing) == "number" then
 			showMessage(ui.Feedback, ("Te faltan 💰 %s"):format(formatNumber(missing)), THEME.Error)
 		elseif code == Codes.RebirthLocked and typeof(missing) == "number" then
 			showMessage(ui.Feedback, ("Te faltan 🔄 %d renacimientos"):format(missing), THEME.Error)

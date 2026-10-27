@@ -7,16 +7,17 @@
 --       incluye recompensas de misiones), PetAbilities.
 --   { Source = "ZoneKills", Zone = ... }   enemigos derrotados en una zona.
 --   { Source = "BossTypes" }   jefes distintos derrotados al menos una vez.
---   { Source = "State", Key = ... }   estado actual del perfil: UpgradeLevel, PetsOwned,
---       PetsEquipped, CombatPetsOwned, ZonesUnlocked (zonas compradas).
+--   { Source = "State", Key = ... }   estado actual del perfil: WeaponLevel (nivel del arma,
+--       guante o bastón más mejorado), PetsOwned, PetsEquipped, CombatPetsOwned,
+--       ZonesUnlocked (zonas compradas), Rebirths.
 --   { Source = "Daily", Event = "Kill" | "Energy" | "PetAbility" | "Upgrade" | "Egg", Kind?, Zone? }
---       contador del día (solo para misiones diarias). Upgrade: mejoras de la Resonancia
---       del Cristal compradas; Egg: huevos abiertos.
+--       contador del día (solo para misiones diarias). Upgrade: mejoras de armas, guantes o
+--       bastones compradas (GameEvents "WeaponUpgraded"); Egg: huevos abiertos.
 -- RequiresZone: no se muestra como alcanzable (ni se ofrece como diaria) sin esa zona.
 -- RequiresCombatPet: solo se ofrece como diaria si el jugador tiene una mascota de combate.
 --
 -- Recompensa (💎 diamantes, en el código Energy; la calcula el servidor al reclamar):
---   clamp(Share · coste en 💰 de la siguiente mejora de Resonancia · RewardCostScale, Min, Max)
+--   min(Min · ZoneFactor de tu mejor zona abierta, Max)
 -- Así acompaña a la etapa actual sin dispararse (Max). Referencia: un enemigo pequeño da
 -- ~1 💎, un Bruto ~4, una partida de oleadas ganada ~60 y los jefes 60 / 150 / 400; las
 -- habilidades nuevas cuestan unos cientos (StyleConfig.Catalog).
@@ -28,8 +29,16 @@ local QuestConfig = {
 	DailyCount = 3,
 	DailyAlways = { "DailyHunt" }, -- siempre entre las diarias del día
 	DaySeconds = 86400, -- las diarias cambian a las 00:00 UTC (hora del servidor)
-	RewardUpgradeId = "GeneratorPower",
-	RewardCostScale = 1 / 30, -- 💰 del coste de la mejora -> 💎 de la recompensa
+	-- Multiplicador de las recompensas según la mejor zona abierta (la más alta cuenta).
+	ZoneFactor = {
+		Forest = 1,
+		CrystalValley = 1.5,
+		EmberCaldera = 2,
+		FrozenTundra = 3,
+		GoblinFortress = 4,
+		World2 = 5,
+		DividedLands = 5,
+	},
 	MaxIdLength = 64,
 	ClaimRateLimit = { Cooldown = 0.25, WindowSeconds = 2, MaxPerWindow = 8 },
 	RequestRateLimit = { Cooldown = 1, WindowSeconds = 5, MaxPerWindow = 6 },
@@ -39,11 +48,11 @@ local QuestConfig = {
 	Missions = {
 		{
 			Id = "BuyUpgrade",
-			Title = "Despierta el cristal",
-			Description = "Compra una mejora de Resonancia del Cristal.",
-			Goal = { Source = "State", Key = "UpgradeLevel" },
+			Title = "Mejora tu arma",
+			Description = "Mejora tu arma, guante o bastón en la tienda de tu estilo (L).",
+			Goal = { Source = "State", Key = "WeaponLevel" },
 			Target = 1,
-			Reward = { Min = 4, Share = 1, Max = 40 },
+			Reward = { Min = 4, Max = 40 },
 		},
 		{
 			Id = "DefeatFive",
@@ -51,7 +60,7 @@ local QuestConfig = {
 			Description = "Derrota a 5 enemigos.",
 			Goal = { Source = "Stat", Key = "Kills" },
 			Target = 5,
-			Reward = { Min = 8, Share = 1, Max = 80 },
+			Reward = { Min = 8, Max = 80 },
 		},
 		{
 			Id = "FirstPet",
@@ -59,7 +68,7 @@ local QuestConfig = {
 			Description = "Consigue tu primera mascota en el Jardín de los Huevos.",
 			Goal = { Source = "State", Key = "PetsOwned" },
 			Target = 1,
-			Reward = { Min = 12, Share = 1, Max = 100 },
+			Reward = { Min = 12, Max = 100 },
 		},
 		{
 			Id = "EquipPet",
@@ -67,7 +76,7 @@ local QuestConfig = {
 			Description = "Equipa una mascota.",
 			Goal = { Source = "State", Key = "PetsEquipped" },
 			Target = 1,
-			Reward = { Min = 6, Share = 0.5, Max = 60 },
+			Reward = { Min = 6, Max = 60 },
 		},
 		{
 			Id = "DefeatStrong",
@@ -75,7 +84,7 @@ local QuestConfig = {
 			Description = "Derrota a un enemigo fuerte.",
 			Goal = { Source = "Stat", Key = "StrongKills" },
 			Target = 1,
-			Reward = { Min = 20, Share = 1, Max = 160 },
+			Reward = { Min = 20, Max = 160 },
 		},
 		{
 			Id = "EarnEnergy",
@@ -83,7 +92,7 @@ local QuestConfig = {
 			Description = "Consigue 40 💎 derrotando enemigos.",
 			Goal = { Source = "Stat", Key = "EnergyEarned" },
 			Target = 40,
-			Reward = { Min = 30, Share = 1, Max = 200 },
+			Reward = { Min = 30, Max = 200 },
 		},
 		{
 			Id = "UnlockValley",
@@ -91,7 +100,7 @@ local QuestConfig = {
 			Description = "Desbloquea el Valle Cristalino.",
 			Goal = { Source = "State", Key = "ZonesUnlocked" },
 			Target = 1,
-			Reward = { Min = 80, Share = 1, Max = 500 },
+			Reward = { Min = 80, Max = 500 },
 		},
 		{
 			Id = "FirstBoss",
@@ -99,7 +108,7 @@ local QuestConfig = {
 			Description = "Derrota a tu primer jefe.",
 			Goal = { Source = "Stat", Key = "BossKills" },
 			Target = 1,
-			Reward = { Min = 60, Share = 1.5, Max = 600 },
+			Reward = { Min = 60, Max = 600 },
 		},
 		{
 			Id = "ValleyHunter",
@@ -108,7 +117,7 @@ local QuestConfig = {
 			Goal = { Source = "ZoneKills", Zone = "CrystalValley" },
 			Target = 10,
 			RequiresZone = "CrystalValley",
-			Reward = { Min = 120, Share = 1, Max = 600 },
+			Reward = { Min = 120, Max = 600 },
 		},
 		{
 			Id = "UnlockCaldera",
@@ -116,7 +125,7 @@ local QuestConfig = {
 			Description = "Desbloquea la Caldera de Brasas (pide 3 renacimientos).",
 			Goal = { Source = "State", Key = "ZonesUnlocked" },
 			Target = 2,
-			Reward = { Min = 600, Share = 1, Max = 5000 },
+			Reward = { Min = 600, Max = 5000 },
 		},
 		{
 			Id = "CalderaHunter",
@@ -125,7 +134,7 @@ local QuestConfig = {
 			Goal = { Source = "ZoneKills", Zone = "EmberCaldera" },
 			Target = 15,
 			RequiresZone = "EmberCaldera",
-			Reward = { Min = 1000, Share = 1, Max = 6000 },
+			Reward = { Min = 1000, Max = 6000 },
 		},
 	},
 
@@ -137,7 +146,7 @@ local QuestConfig = {
 			Description = "Derrota a 15 enemigos.",
 			Goal = { Source = "Daily", Event = "Kill" },
 			Target = 15,
-			Reward = { Min = 20, Share = 1, Max = 300 },
+			Reward = { Min = 20, Max = 300 },
 		},
 		{
 			Id = "DailyStrong",
@@ -145,7 +154,7 @@ local QuestConfig = {
 			Description = "Derrota a 2 enemigos fuertes.",
 			Goal = { Source = "Daily", Event = "Kill", Kind = "Strong" },
 			Target = 2,
-			Reward = { Min = 30, Share = 1, Max = 300 },
+			Reward = { Min = 30, Max = 300 },
 		},
 		{
 			Id = "DailyEnergy",
@@ -153,15 +162,15 @@ local QuestConfig = {
 			Description = "Consigue 60 💎 derrotando enemigos.",
 			Goal = { Source = "Daily", Event = "Energy" },
 			Target = 60,
-			Reward = { Min = 24, Share = 0.8, Max = 240 },
+			Reward = { Min = 24, Max = 240 },
 		},
 		{
 			Id = "DailyUpgrade",
-			Title = "Pulir el cristal",
-			Description = "Mejora la Resonancia del Cristal 10 veces.",
+			Title = "Afila tu arma",
+			Description = "Mejora tus armas, guantes o bastones 3 veces.",
 			Goal = { Source = "Daily", Event = "Upgrade" },
-			Target = 10,
-			Reward = { Min = 24, Share = 1, Max = 300 },
+			Target = 3,
+			Reward = { Min = 24, Max = 300 },
 		},
 		{
 			Id = "DailyEggs",
@@ -169,7 +178,7 @@ local QuestConfig = {
 			Description = "Abre 3 huevos.",
 			Goal = { Source = "Daily", Event = "Egg" },
 			Target = 3,
-			Reward = { Min = 30, Share = 1, Max = 300 },
+			Reward = { Min = 30, Max = 300 },
 		},
 		{
 			Id = "DailyPets",
@@ -178,7 +187,7 @@ local QuestConfig = {
 			Goal = { Source = "Daily", Event = "PetAbility" },
 			Target = 30,
 			RequiresCombatPet = true,
-			Reward = { Min = 30, Share = 1, Max = 300 },
+			Reward = { Min = 30, Max = 300 },
 		},
 		{
 			Id = "DailyValley",
@@ -187,7 +196,7 @@ local QuestConfig = {
 			Goal = { Source = "Daily", Event = "Kill", Zone = "CrystalValley" },
 			Target = 12,
 			RequiresZone = "CrystalValley",
-			Reward = { Min = 60, Share = 1, Max = 400 },
+			Reward = { Min = 60, Max = 400 },
 		},
 		{
 			Id = "DailyBoss",
@@ -196,7 +205,7 @@ local QuestConfig = {
 			Goal = { Source = "Daily", Event = "Kill", Kind = "Boss" },
 			Target = 1,
 			RequiresZone = "CrystalValley", -- a partir de la etapa media
-			Reward = { Min = 80, Share = 1.5, Max = 500 },
+			Reward = { Min = 80, Max = 500 },
 		},
 		{
 			Id = "DailyCaldera",
@@ -205,26 +214,26 @@ local QuestConfig = {
 			Goal = { Source = "Daily", Event = "Kill", Zone = "EmberCaldera" },
 			Target = 12,
 			RequiresZone = "EmberCaldera",
-			Reward = { Min = 600, Share = 1, Max = 4000 },
+			Reward = { Min = 600, Max = 4000 },
 		},
 	},
 
 	-- Logros permanentes: se desbloquean solos (una vez) al cumplirse.
 	Achievements = {
 		{ Id = "FirstBlood", Title = "Primer enemigo", Description = "Derrota a tu primer enemigo.", Goal = { Source = "Stat", Key = "Kills" }, Target = 1 },
-		{ Id = "Hunter100", Title = "Cazador", Description = "Derrota a 100 enemigos.", Goal = { Source = "Stat", Key = "Kills" }, Target = 100, Reward = { Min = 60, Share = 1, Max = 600 } },
-		{ Id = "Hunter500", Title = "Leyenda del bosque", Description = "Derrota a 500 enemigos.", Goal = { Source = "Stat", Key = "Kills" }, Target = 500, Reward = { Min = 200, Share = 2, Max = 1600 } },
+		{ Id = "Hunter100", Title = "Cazador", Description = "Derrota a 100 enemigos.", Goal = { Source = "Stat", Key = "Kills" }, Target = 100, Reward = { Min = 60, Max = 600 } },
+		{ Id = "Hunter500", Title = "Leyenda del bosque", Description = "Derrota a 500 enemigos.", Goal = { Source = "Stat", Key = "Kills" }, Target = 500, Reward = { Min = 200, Max = 1600 } },
 		{ Id = "FirstBoss", Title = "Primer jefe", Description = "Derrota a un jefe.", Goal = { Source = "Stat", Key = "BossKills" }, Target = 1 },
-		{ Id = "BossHunter", Title = "Cazajefes", Description = "Derrota a 5 jefes.", Goal = { Source = "Stat", Key = "BossKills" }, Target = 5, Reward = { Min = 200, Share = 2, Max = 1600 } },
-		{ Id = "BothBosses", Title = "Domador de colosos", Description = "Derrota al Guardián del Bosque y al Coloso de Amatista.", Goal = { Source = "BossTypes" }, Target = 2, Reward = { Min = 300, Share = 2, Max = 1600 } },
-		{ Id = "AllBosses", Title = "Señor de los titanes", Description = "Derrota a los tres jefes: Guardián, Coloso y Titán de la Caldera.", Goal = { Source = "BossTypes" }, Target = 3, Reward = { Min = 1000, Share = 2, Max = 6000 } },
+		{ Id = "BossHunter", Title = "Cazajefes", Description = "Derrota a 5 jefes.", Goal = { Source = "Stat", Key = "BossKills" }, Target = 5, Reward = { Min = 200, Max = 1600 } },
+		{ Id = "BothBosses", Title = "Domador de colosos", Description = "Derrota al Guardián del Bosque y al Coloso de Amatista.", Goal = { Source = "BossTypes" }, Target = 2, Reward = { Min = 300, Max = 1600 } },
+		{ Id = "AllBosses", Title = "Señor de los titanes", Description = "Derrota a los tres jefes: Guardián, Coloso y Titán de la Caldera.", Goal = { Source = "BossTypes" }, Target = 3, Reward = { Min = 1000, Max = 6000 } },
 		{ Id = "FirstPet", Title = "Primera mascota", Description = "Consigue una mascota.", Goal = { Source = "State", Key = "PetsOwned" }, Target = 1 },
-		{ Id = "Collector", Title = "Coleccionista", Description = "Ten 10 mascotas.", Goal = { Source = "State", Key = "PetsOwned" }, Target = 10, Reward = { Min = 100, Share = 1, Max = 800 } },
-		{ Id = "CombatPet", Title = "Guardián de cristal", Description = "Consigue una mascota de combate.", Goal = { Source = "State", Key = "CombatPetsOwned" }, Target = 1, Reward = { Min = 100, Share = 1, Max = 800 } },
+		{ Id = "Collector", Title = "Coleccionista", Description = "Ten 10 mascotas.", Goal = { Source = "State", Key = "PetsOwned" }, Target = 10, Reward = { Min = 100, Max = 800 } },
+		{ Id = "CombatPet", Title = "Guardián de cristal", Description = "Consigue una mascota de combate.", Goal = { Source = "State", Key = "CombatPetsOwned" }, Target = 1, Reward = { Min = 100, Max = 800 } },
 		{ Id = "NewHorizon", Title = "Nuevo horizonte", Description = "Desbloquea una zona nueva.", Goal = { Source = "State", Key = "ZonesUnlocked" }, Target = 1 },
-		{ Id = "Resonance10", Title = "Resonancia plena", Description = "Lleva la Resonancia del Cristal al nivel 10.", Goal = { Source = "State", Key = "UpgradeLevel" }, Target = 10, Reward = { Min = 60, Share = 0.5, Max = 200 } },
-		{ Id = "FirstRebirth", Title = "Renacido", Description = "Renace por primera vez en el Cristal del Renacimiento.", Goal = { Source = "State", Key = "Rebirths" }, Target = 1, Reward = { Min = 100, Share = 1, Max = 800 } },
-		{ Id = "Reborn5", Title = "Ciclo eterno", Description = "Renace 5 veces.", Goal = { Source = "State", Key = "Rebirths" }, Target = 5, Reward = { Min = 400, Share = 2, Max = 4000 } },
+		{ Id = "Resonance10", Title = "Maestro armero", Description = "Lleva un arma, guante o bastón al nivel 10.", Goal = { Source = "State", Key = "WeaponLevel" }, Target = 10, Reward = { Min = 60, Max = 200 } },
+		{ Id = "FirstRebirth", Title = "Renacido", Description = "Renace por primera vez.", Goal = { Source = "State", Key = "Rebirths" }, Target = 1, Reward = { Min = 100, Max = 800 } },
+		{ Id = "Reborn5", Title = "Ciclo eterno", Description = "Renace 5 veces.", Goal = { Source = "State", Key = "Rebirths" }, Target = 5, Reward = { Min = 400, Max = 4000 } },
 	},
 }
 

@@ -8,10 +8,9 @@
 --   día 1. Tras el día 7 empieza otra vuelta (lo ya conseguido no se pierde).
 --
 -- Cómo se escribe un premio (sirve igual para la racha y para los códigos):
---   Money = { Minutes = 10, Min = 2500 }  -> 💰 de N minutos de TU "poder de energía"
---                                            (· EconomyConfig.RewardMoneyRate), nunca menos
---                                            de Min (así vale lo mismo al empezar que con
---                                            mucho avance).
+--   Money = { Minutes = 10, Min = 2500 }  -> 💰 de N minutos de pelea en tu mejor zona
+--                                            abierta (ZoneConfig.Zones.*.MoneyPerMinute),
+--                                            nunca menos de Min (así crece con tu avance).
 --   Blessings = { Abundance = 1 }         -> bendiciones de las aventuras (se guardan y se
 --                                            activan cuando se quiere desde 🧿 Amuletos).
 --   Pet = true                            -> una mascota del mejor huevo que ya puedas abrir

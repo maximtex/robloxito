@@ -168,9 +168,8 @@ check("última misión: Amuleto de Savia, puesto solo en la ranura vacía", code
 check("historia completada: ya no ofrece nada", AdventureLogic.state(d, "Herbalist").Status == "Done" and AdventureLogic.accept(d, "Herbalist") == "AlreadyClaimed" and AdventureLogic.turnIn(d, "Herbalist") == "AlreadyClaimed")
 local first = AdventureConfig.Npcs.Herbalist.Steps[1]
 local firstMoney = first.Reward.Money
-local middleCost = (firstMoney.Min + firstMoney.Max) / 2 / firstMoney.Share
-check("💰: clamp(Share · coste, Min, Max)",
-	AdventureLogic.rewardMoney(first, 1) == firstMoney.Min and AdventureLogic.rewardMoney(first, middleCost) == math.floor(firstMoney.Share * middleCost) and AdventureLogic.rewardMoney(first, 1e9) == firstMoney.Max
+check("💰: min(Min · factor de la zona, Max)",
+	AdventureLogic.rewardMoney(first, 1) == firstMoney.Min and AdventureLogic.rewardMoney(first, 3) == math.min(firstMoney.Min * 3, firstMoney.Max) and AdventureLogic.rewardMoney(first, 1e9) == firstMoney.Max
 		and AdventureLogic.rewardMoney(first, nil) == firstMoney.Min and AdventureLogic.rewardMoney(first, 0 / 0) == firstMoney.Min)
 -- Dos misiones a la vez: un mismo enemigo cuenta para todas las que lo piden.
 local both = AdventureLogic.empty()
@@ -328,7 +327,7 @@ args = act(p1, "TurnIn", "Herbalist")
 check("entregar lejos: TooFar", args[1] == false and args[2] == Codes.TooFar)
 at(p1, npcPos.Herbalist, 5)
 local moneyBefore = profile.Money
-local expectedMoney = AdventureLogic.rewardMoney(AdventureConfig.Npcs.Herbalist.Steps[1], Economy.getUpgradeCost("GeneratorPower", 5))
+local expectedMoney = AdventureLogic.rewardMoney(AdventureConfig.Npcs.Herbalist.Steps[1], AdventureConfig.ZoneMoneyFactor.Forest)
 args = act(p1, "TurnIn", "Herbalist")
 check(("entregar: +%d 💰 y una Bendición de Abundancia"):format(expectedMoney),
 	args[1] == true and args[4].Money == expectedMoney and args[4].Blessing == "Abundance" and near(profile.Money - moneyBefore, expectedMoney) and profile.PetData.Adventure.Blessings.Abundance == 1)

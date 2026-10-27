@@ -2,7 +2,7 @@
 -- cliente solo pide (RewardAction "Claim" o "Redeem" con el texto del código).
 -- - Racha y códigos: lógica pura en RewardLogic; premios en RewardConfig y CodesConfig
 --   (esta última solo en el servidor).
--- - Premios: 💰 (N minutos del poder de energía, con mínimo), bendiciones (AdventureService,
+-- - Premios: 💰 (N minutos del 💰/min de tu mejor zona, con mínimo), bendiciones (AdventureService,
 --   se guardan sin activar) y mascota del mejor huevo que ya pueda abrir (PetService; con el
 --   inventario lleno, su precio en 💰).
 -- - La marca de "reclamado"/"canjeado" va antes que el premio, sin pausas, y se guarda en
@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local RewardConfig = require(Shared.Config.RewardConfig)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
 local EggConfig = require(Shared.Config.EggConfig)
 local RebirthLogic = require(Shared.RebirthLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -22,6 +23,7 @@ local RemoteService = require(script.Parent.RemoteService)
 local AdventureService = require(script.Parent.AdventureService)
 local PetService = require(script.Parent.PetService)
 local RewardLogic = require(script.Parent.Parent.Util.RewardLogic)
+local ZoneLogic = require(script.Parent.Parent.Util.ZoneLogic)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local CodesConfig = require(script.Parent.Parent.CodesConfig)
 
@@ -59,7 +61,7 @@ local function snapshotOf(profile: PlayerDataService.Profile?): any
 	if not profile then
 		return { Ready = false }
 	end
-	return RewardLogic.snapshot(profile.PetData.Rewards, clock.now(), profile.ProductionPerSecond)
+	return RewardLogic.snapshot(profile.PetData.Rewards, clock.now(), ZoneLogic.bestMoneyPerMinute(profile, ZoneConfig))
 end
 
 local function refreshAttribute(player: Player, profile: PlayerDataService.Profile?)
@@ -89,7 +91,7 @@ local function grant(player: Player, profile: PlayerDataService.Profile, reward:
 	end
 	local money = 0
 	if reward.Money then
-		money += RewardLogic.moneyAmount(reward.Money, profile.ProductionPerSecond)
+		money += RewardLogic.moneyAmount(reward.Money, ZoneLogic.bestMoneyPerMinute(profile, ZoneConfig))
 	end
 	if reward.Blessings then
 		local added = AdventureService.grantBlessings(player, reward.Blessings)

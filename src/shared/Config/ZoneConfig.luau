@@ -3,6 +3,11 @@
 -- Para abrir una zona: derrotar al jefe de la anterior (RequiredBoss, tipo de EnemyConfig;
 -- se cuenta en PetData.Bosses), los renacimientos que pida y pagar su precio en 💰 (UnlockCost).
 --
+-- MoneyPerMinute: 💰 por minuto que se gana más o menos peleando en esa zona (estimado con la
+-- recompensa de su enemigo pequeño a partir de los ~700/min medidos en el Bosque). Los premios
+-- "de N minutos" (premio diario, cofres, códigos: RewardLogic.moneyAmount) usan el de la mejor
+-- zona abierta del jugador (ZoneLogic.bestMoneyPerMinute). Ajustable después de jugar.
+--
 -- Los 5 mapas del Mundo 1 son cuadrados de 320×320 (halfSpan = 160) pegados de forma
 -- continua en +Z sin puentes intermedios:
 --   1. Forest:         Z = -160 .. +160 (Center Z = 0)
@@ -23,6 +28,7 @@ local ZoneConfig = {
 	Zones = {
 		Forest = {
 			DisplayName = "Bosque Inicial",
+			MoneyPerMinute = 700, -- 💰/min de referencia (premios por minutos)
 			Center = Vector2.new(0, 0),
 			UnlockCost = 0, -- siempre disponible
 			Arrival = Vector3.new(0, 0, 125),
@@ -31,6 +37,7 @@ local ZoneConfig = {
 		},
 		CrystalValley = {
 			DisplayName = "Valle Morado",
+			MoneyPerMinute = 2200, -- 💰/min de referencia (premios por minutos)
 			-- Pegado directamente tras el Bosque (Z = 160..480, centro en Z = 320).
 			Center = Vector2.new(0, 320),
 			UnlockCost = 12500, -- 💰
@@ -41,6 +48,7 @@ local ZoneConfig = {
 		},
 		EmberCaldera = {
 			DisplayName = "Caldera de Brasas",
+			MoneyPerMinute = 6400, -- 💰/min de referencia (premios por minutos)
 			-- Pegada directamente tras el Valle Morado (Z = 480..800, centro en Z = 640).
 			Center = Vector2.new(0, 640),
 			UnlockCost = 125000, -- 💰
@@ -52,6 +60,7 @@ local ZoneConfig = {
 		},
 		FrozenTundra = {
 			DisplayName = "Tundra Helada",
+			MoneyPerMinute = 20000, -- 💰/min de referencia (premios por minutos)
 			-- Pegada tras la Caldera (Z = 800..1120, centro en Z = 960).
 			Center = Vector2.new(0, 960),
 			UnlockCost = 600000, -- 💰
@@ -62,6 +71,7 @@ local ZoneConfig = {
 		},
 		GoblinFortress = {
 			DisplayName = "Fortaleza Goblin",
+			MoneyPerMinute = 64000, -- 💰/min de referencia (premios por minutos)
 			-- Pegada tras la Tundra (Z = 1120..1440, centro en Z = 1280). Final del Mundo 1.
 			Center = Vector2.new(0, 1280),
 			UnlockCost = 3500000, -- 💰
@@ -72,6 +82,7 @@ local ZoneConfig = {
 		},
 		World2 = {
 			DisplayName = "Mundo 2",
+			MoneyPerMinute = 64000, -- 💰/min de referencia (premios por minutos)
 			World = 2,
 			-- Pueblo del Mundo 2, lejos de todo (X = 2000). Sin precio: se abre solo al derrotar al
 			-- Rey Goblin (ZoneLogic.isUnlocked / BossRewardService).
@@ -84,6 +95,7 @@ local ZoneConfig = {
 		},
 		DividedLands = {
 			DisplayName = "Tierras Divididas",
+			MoneyPerMinute = 160000, -- 💰/min de referencia (premios por minutos)
 			World = 2,
 			-- Al norte del pueblo del Mundo 2 (Z = -480..-160, centro (2000, -320) del mundo):
 			-- volcán al oeste, glaciar al este, el Altar del Equilibrio en medio (el Coloso que se

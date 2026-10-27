@@ -158,7 +158,7 @@ function AdventureLogic.validateConfig(): (boolean, { string })
 				table.insert(problems, name .. ": amuleto desconocido " .. tostring(reward.Amulet))
 			end
 			local money = reward.Money
-			if not money or money.Min < 0 or money.Max < money.Min or money.Share < 0 then
+			if not money or money.Min < 0 or money.Max < money.Min then
 				table.insert(problems, name .. ": dinero no válido")
 			end
 			for _, field in { "Title", "Objective", "Offer", "Active", "Ready" } do
@@ -476,14 +476,15 @@ function AdventureLogic.turnIn(data: AdventureData, npcId: any): (string, any, n
 	return "Success", step, stepIndex
 end
 
--- 💰 de un paso: clamp(Share · coste, Min, Max) con el coste de la siguiente mejora.
-function AdventureLogic.rewardMoney(step: any, nextUpgradeCost: number?): number
+-- 💰 de un paso: min(Min · factor, Max) con el factor de la zona del personaje
+-- (AdventureConfig.ZoneMoneyFactor; sin factor válido, el mínimo).
+function AdventureLogic.rewardMoney(step: any, factor: number?): number
 	local settings = step and step.Reward and step.Reward.Money
 	if not settings then
 		return 0
 	end
-	local cost = if isFiniteNumber(nextUpgradeCost) and (nextUpgradeCost :: number) > 0 then nextUpgradeCost :: number else 0
-	return math.floor(math.clamp(settings.Share * cost, settings.Min, settings.Max))
+	local f = if isFiniteNumber(factor) and (factor :: number) > 0 then factor :: number else 1
+	return math.floor(math.clamp(settings.Min * f, settings.Min, settings.Max))
 end
 
 -- Poner un amuleto en una ranura (si ya estaba en otra, se mueve).

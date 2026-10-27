@@ -9,7 +9,7 @@
 --         (solo los ve quien tiene la misión; se recogen al pasar cerca).
 --     { Type = "Talk", Npc = NpcId }  llevar algo a otro personaje (hablar con él).
 -- - Recompensas (Reward): 💰 (la calcula el servidor al entregar:
---   clamp(Share · coste de la siguiente mejora de Resonancia, Min, Max)), una bendición para usar cuando se quiera y, al final de cada historia, un
+--   min(Min · ZoneMoneyFactor de la zona del personaje, Max)), una bendición para usar cuando se quiera y, al final de cada historia, un
 --   amuleto con una pasiva.
 -- - Amuletos: se lleva uno a la vez (ranura 1); al terminar las cuatro historias del
 --   Bosque y del Valle (SlotStories) se abre la segunda ranura.
@@ -28,7 +28,12 @@ local AdventureConfig = {
 	CollectRadius = 5, -- distancia horizontal para recoger un objeto perdido
 	CollectHeight = 12, -- diferencia de altura máxima al recogerlo
 	NpcSafeRadius = 11, -- los enemigos no persiguen a nadie tan cerca de un personaje
-	RewardUpgradeId = "GeneratorPower",
+	-- 💰 de cada misión = min(Min · factor de la zona del personaje, Max).
+	ZoneMoneyFactor = {
+		Forest = 2,
+		CrystalValley = 3,
+		EmberCaldera = 4,
+	},
 	MaxActiveSeconds = 3600, -- tope de una bendición alargada
 	ActionRateLimit = { Cooldown = 0.3, WindowSeconds = 3, MaxPerWindow = 8 },
 	RequestRateLimit = { Cooldown = 1, WindowSeconds = 5, MaxPerWindow = 6 },
@@ -61,7 +66,7 @@ local AdventureConfig = {
 					Active = "Las flores brillan con una luz celeste. Busca por la pradera del este, más allá del Jardín de los Huevos.",
 					Ready = "¡Mis flores! Con esto preparo mis tés. Toma, una bendición de mi huerto.",
 					Goal = { Type = "Collect", Items = { "Dew1", "Dew2", "Dew3", "Dew4", "Dew5" } },
-					Reward = { Money = { Min = 500, Share = 1, Max = 10000 }, Blessing = "Abundance" },
+					Reward = { Money = { Min = 500, Max = 10000 }, Blessing = "Abundance" },
 				},
 				{
 					Title = "Fuera, Espinillos",
@@ -70,7 +75,7 @@ local AdventureConfig = {
 					Active = "Todavía oigo crujir ramitas... ¡quedan Espinillos por la pradera!",
 					Ready = "Mira qué tranquilo quedó todo. Ten, te lo ganaste.",
 					Goal = { Type = "Kill", Enemies = { "Thornling" }, Target = 8 },
-					Reward = { Money = { Min = 1000, Share = 1.5, Max = 20000 }, Blessing = "Abundance" },
+					Reward = { Money = { Min = 1000, Max = 20000 }, Blessing = "Abundance" },
 				},
 				{
 					Title = "Un remedio para Tavo",
@@ -80,7 +85,7 @@ local AdventureConfig = {
 					Delivery = "¿Un ungüento de la abuela Hiedra? ¡Bendita sea! Ya me siento mejor. Dile que muchas gracias.",
 					Ready = "¿Ya se lo llevaste? Eres un sol. Toma mi Amuleto de Savia: me acompañó cuarenta años, ahora te toca a ti.",
 					Goal = { Type = "Talk", Npc = "Hunter" },
-					Reward = { Money = { Min = 2000, Share = 2, Max = 40000 }, Amulet = "Sap" },
+					Reward = { Money = { Min = 2000, Max = 40000 }, Amulet = "Sap" },
 				},
 			},
 		},
@@ -110,7 +115,7 @@ local AdventureConfig = {
 					Active = "Los Brutos rondan los extremos del bosque, al oeste y al este. Pegan fuerte: esquiva cuando levanten los brazos.",
 					Ready = "¡Ja! Sabía que tenías buen brazo. Toma esto para tu próxima pelea.",
 					Goal = { Type = "Kill", Enemies = { "Barkbrute" }, Target = 3 },
-					Reward = { Money = { Min = 750, Share = 1.2, Max = 15000 }, Blessing = "Fury" },
+					Reward = { Money = { Min = 750, Max = 15000 }, Blessing = "Fury" },
 				},
 				{
 					Title = "Flechas perdidas",
@@ -119,7 +124,7 @@ local AdventureConfig = {
 					Active = "Mis flechas tienen plumas rojas y brillan entre el pasto, por el camino del oeste.",
 					Ready = "¡Mis flechas! Con estas vuelvo a cazar. Ten tu recompensa.",
 					Goal = { Type = "Collect", Items = { "Arrow1", "Arrow2", "Arrow3", "Arrow4" } },
-					Reward = { Money = { Min = 1000, Share = 1.5, Max = 20000 }, Blessing = "Fury" },
+					Reward = { Money = { Min = 1000, Max = 20000 }, Blessing = "Fury" },
 				},
 				{
 					Title = "El Guardián del Bosque",
@@ -128,7 +133,7 @@ local AdventureConfig = {
 					Active = "El Círculo del Guardián está al final del camino del oeste. Cuando golpee el suelo, ¡aléjate!",
 					Ready = "¡Lo lograste! Este Colmillo del Cazador es tuyo: con él vas a pegar más fuerte.",
 					Goal = { Type = "Kill", Enemies = { "ForestWarden" }, Target = 1 },
-					Reward = { Money = { Min = 2500, Share = 2.5, Max = 45000 }, Amulet = "Fang" },
+					Reward = { Money = { Min = 2500, Max = 45000 }, Amulet = "Fang" },
 				},
 			},
 		},
@@ -158,7 +163,7 @@ local AdventureConfig = {
 					Active = "Los trozos brillan en dorado: uno cerca de la torre del vigía, otro junto a las setas gigantes, otro detrás del árbol ancestral... ¡explora!",
 					Ready = "¡El mapa entero! Bueno, con un poco de cinta. ¡Toma, te lo mereces!",
 					Goal = { Type = "Collect", Items = { "Map1", "Map2", "Map3", "Map4", "Map5" } },
-					Reward = { Money = { Min = 1000, Share = 1.5, Max = 20000 }, Blessing = "Fortune" },
+					Reward = { Money = { Min = 1000, Max = 20000 }, Blessing = "Fortune" },
 				},
 				{
 					Title = "Carta para el Valle",
@@ -168,7 +173,7 @@ local AdventureConfig = {
 					Delivery = "¿Un mapa del bosque, de parte de Pip? ¡Qué detallado! Dile que lo guardaré junto a mis cristales.",
 					Ready = "¿¡Lumi lo vio!? ¡Increíble! Toma, ¡gracias, gracias!",
 					Goal = { Type = "Talk", Npc = "Oracle" },
-					Reward = { Money = { Min = 3000, Share = 1.5, Max = 30000 }, Blessing = "Fortune" },
+					Reward = { Money = { Min = 3000, Max = 30000 }, Blessing = "Fortune" },
 				},
 				{
 					Title = "Fragmentos inquietos",
@@ -177,7 +182,7 @@ local AdventureConfig = {
 					Active = "Los Fragmentos Errantes andan por el oeste y el norte del Valle Cristalino.",
 					Ready = "¡Eres el mejor explorador que conozco! Ten mi Pluma del Viento: con ella vas a correr como el viento.",
 					Goal = { Type = "Kill", Enemies = { "Shardling" }, Target = 10 },
-					Reward = { Money = { Min = 6000, Share = 2, Max = 50000 }, Amulet = "Feather" },
+					Reward = { Money = { Min = 6000, Max = 50000 }, Amulet = "Feather" },
 				},
 			},
 		},
@@ -207,7 +212,7 @@ local AdventureConfig = {
 					Active = "Los Gólems son lentos pero duros. Buscan sombra al oeste y al sur del valle.",
 					Ready = "Siento la calma volver. Acepta esta bendición.",
 					Goal = { Type = "Kill", Enemies = { "GeodeGolem" }, Target = 3 },
-					Reward = { Money = { Min = 4000, Share = 1.5, Max = 30000 }, Blessing = "Fortune" },
+					Reward = { Money = { Min = 4000, Max = 30000 }, Blessing = "Fortune" },
 				},
 				{
 					Title = "Esquirlas de luz",
@@ -216,7 +221,7 @@ local AdventureConfig = {
 					Active = "Las esquirlas brillan en violeta: mira cerca de la gran geoda, junto al lago y hacia las montañas.",
 					Ready = "Con ellas veo... a alguien muy fuerte. Sí: eres tú. Toma.",
 					Goal = { Type = "Collect", Items = { "Shard1", "Shard2", "Shard3", "Shard4", "Shard5" } },
-					Reward = { Money = { Min = 6000, Share = 2, Max = 45000 }, Blessing = "Abundance" },
+					Reward = { Money = { Min = 6000, Max = 45000 }, Blessing = "Abundance" },
 				},
 				{
 					Title = "El Coloso de Amatista",
@@ -225,7 +230,7 @@ local AdventureConfig = {
 					Active = "El Trono de Amatista está al este del valle, siguiendo el camino de faroles.",
 					Ready = "Lo has logrado. Este Corazón de Geoda ahora late por ti: los enemigos te darán más botín.",
 					Goal = { Type = "Kill", Enemies = { "AmethystColossus" }, Target = 1 },
-					Reward = { Money = { Min = 12500, Share = 3, Max = 75000 }, Amulet = "Geode" },
+					Reward = { Money = { Min = 12500, Max = 75000 }, Amulet = "Geode" },
 				},
 			},
 		},
@@ -255,7 +260,7 @@ local AdventureConfig = {
 					Active = "Las Chispas saltan por toda la caldera, sobre todo al oeste y al este del camino.",
 					Ready = "¡Ya no chisporrotean! Toma esta bendición, te la has ganado.",
 					Goal = { Type = "Kill", Enemies = { "Cinderling" }, Target = 10 },
-					Reward = { Money = { Min = 15000, Share = 1.5, Max = 100000 }, Blessing = "Fury" },
+					Reward = { Money = { Min = 15000, Max = 100000 }, Blessing = "Fury" },
 				},
 				{
 					Title = "Núcleos de brasa",
@@ -264,7 +269,7 @@ local AdventureConfig = {
 					Active = "Los núcleos brillan en naranja: busca cerca del lago de lava, junto a la obsidiana y hacia las montañas.",
 					Ready = "¡Qué calorcito más bueno! La fragua ya ruge. Toma.",
 					Goal = { Type = "Collect", Items = { "Ember1", "Ember2", "Ember3", "Ember4", "Ember5" } },
-					Reward = { Money = { Min = 22500, Share = 2, Max = 150000 }, Blessing = "Abundance" },
+					Reward = { Money = { Min = 22500, Max = 150000 }, Blessing = "Abundance" },
 				},
 				{
 					Title = "El Titán de la Caldera",
@@ -273,7 +278,7 @@ local AdventureConfig = {
 					Active = "El Corazón de la Caldera está al fondo, siguiendo el camino hacia el volcán.",
 					Ready = "¡Lo hiciste! Aquí tienes el Corazón de Magma: tu cristal arderá como nunca.",
 					Goal = { Type = "Kill", Enemies = { "CalderaTitan" }, Target = 1 },
-					Reward = { Money = { Min = 45000, Share = 3, Max = 250000 }, Amulet = "Magma" },
+					Reward = { Money = { Min = 45000, Max = 250000 }, Amulet = "Magma" },
 				},
 			},
 		},

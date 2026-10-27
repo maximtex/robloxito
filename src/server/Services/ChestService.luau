@@ -1,6 +1,6 @@
 -- Cofres escondidos del Bosque (ChestConfig). Cada cofre se abre con su aviso de
 -- proximidad: lo valida el servidor (perfil cargado, distancia y espera de ESE jugador) y
--- concede 💰 (minutos de su poder de energía, con mínimo) y a veces una bendición.
+-- concede 💰 (minutos del 💰/min de su mejor zona, con mínimo) y a veces una bendición.
 -- - La espera se marca antes del premio y se guarda en seguida (Rewards.Chests): no se
 --   cobra dos veces aunque lleguen dos avisos seguidos o se cierre el servidor.
 -- - El cliente (ChestController) recibe las esperas (ChestState) y pinta cada cofre
@@ -14,12 +14,14 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local ChestConfig = require(Shared.Config.ChestConfig)
+local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local AdventureService = require(script.Parent.AdventureService)
 local WildsService = require(script.Parent.WildsService)
 local RewardLogic = require(script.Parent.Parent.Util.RewardLogic)
+local ZoneLogic = require(script.Parent.Parent.Util.ZoneLogic)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 
@@ -104,7 +106,7 @@ function ChestService.open(player: Player, chestId: any, position: Vector3?): (s
 	local detail: any = { ReadyAt = readyAt }
 	local reward = chest.Reward
 	if reward.Money then
-		local money = RewardLogic.moneyAmount(reward.Money, profile.ProductionPerSecond)
+		local money = RewardLogic.moneyAmount(reward.Money, ZoneLogic.bestMoneyPerMinute(profile, ZoneConfig))
 		if money > 0 then
 			profile.Money += money
 			detail.Money = money

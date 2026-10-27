@@ -8,8 +8,8 @@
 -- - Progreso SOLO de eventos del servidor: derrotas con recompensa (EnemyService),
 --   conversaciones (interact) y objetos recogidos al pasar cerca (bucle de este servicio,
 --   con las posiciones que da NpcService).
--- - Recompensas al entregar: 💰 (clamp(Share · coste de la siguiente mejora, Min,
---   Max)), bendición y, al final de cada historia, el
+-- - Recompensas al entregar: 💰 (min(Min · factor de la zona del personaje, Max):
+--   AdventureConfig.ZoneMoneyFactor), bendición y, al final de cada historia, el
 --   amuleto. La marca de "entregada" va antes que la recompensa, sin pausas.
 -- - Pasivas: la producción se recalcula al cambiar amuletos o bendiciones (y cuando una
 --   bendición caduca); el daño y el botín los leen CombatService, AbilityService,
@@ -24,7 +24,6 @@ local StarterPlayer = game:GetService("StarterPlayer")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
-local Economy = require(Shared.Economy)
 local AdventureConfig = require(Shared.Config.AdventureConfig)
 local AdventureLogic = require(Shared.AdventureLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -109,20 +108,20 @@ local function isNear(player: Player, npcId: string): boolean
 	return position ~= nil and npc ~= nil and distance(position, npc) <= AdventureConfig.InteractDistance
 end
 
-local function nextUpgradeCost(profile: PlayerDataService.Profile): number
-	local upgradeId = AdventureConfig.RewardUpgradeId
-	return Economy.getUpgradeCost(upgradeId, profile.UpgradeLevels[upgradeId] or 0) or 0
+-- Factor del 💰 de las misiones de un personaje: el de su zona (AdventureConfig.ZoneMoneyFactor).
+local function moneyFactor(npcId: string): number
+	local npc = AdventureConfig.Npcs[npcId]
+	return (npc and AdventureConfig.ZoneMoneyFactor[npc.Zone]) or 1
 end
 
 -- 💰 del paso actual de cada personaje (para mostrarlo antes de aceptar).
 local function rewardsOf(profile: PlayerDataService.Profile): { [string]: number }
 	local data = dataOf(profile)
-	local cost = nextUpgradeCost(profile)
 	local rewards = {}
 	for _, npcId in AdventureLogic.npcOrder() do
 		local state = AdventureLogic.state(data, npcId)
 		local step = AdventureLogic.stepOf(npcId, state.Step)
-		rewards[npcId] = if step then AdventureLogic.rewardMoney(step, cost) else 0
+		rewards[npcId] = if step then AdventureLogic.rewardMoney(step, moneyFactor(npcId)) else 0
 	end
 	return rewards
 end
@@ -304,7 +303,7 @@ function AdventureService.act(player: Player, action: any, arg1: any, arg2: any)
 		if code ~= "Success" then
 			return codeOf(code), { Npc = arg1 }
 		end
-		local money = AdventureLogic.rewardMoney(step, nextUpgradeCost(profile))
+		local money = AdventureLogic.rewardMoney(step, moneyFactor(arg1))
 		if money > 0 then
 			profile.Money += money
 		end

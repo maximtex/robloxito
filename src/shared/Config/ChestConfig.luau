@@ -1,6 +1,6 @@
 -- Cofres escondidos del Bosque (ChestService): rincones que premian explorar el mapa.
--- Cada cofre se abre con su aviso de proximidad (tecla E) y da 💰 (minutos de TU
--- poder de energía, con un mínimo; como el premio diario) y a veces una bendición. Luego
+-- Cada cofre se abre con su aviso de proximidad (tecla E) y da 💰 (minutos de tu mejor
+-- zona, ZoneConfig MoneyPerMinute, con un mínimo; como el premio diario) y a veces una bendición. Luego
 -- se cierra para ese jugador durante Cooldown segundos (se guarda en su registro, campo
 -- Rewards.Chests); cada jugador ve sus cofres abiertos o cerrados.
 --

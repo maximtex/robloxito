@@ -32,7 +32,7 @@ local DevConfig = require(script.Parent.Parent.DevConfig)
 local Codes = Constants.PurchaseCodes
 local CHECK_ATTEMPTS = 3
 local PROFILE_WAIT = 30 -- segundos esperando al perfil del jugador (debería existir ya)
-local AUTO_UPGRADE_ID = QuestConfig.RewardUpgradeId -- la Resonancia del Cristal
+local AUTO_UPGRADE_ID = "GeneratorPower" -- la Resonancia del Cristal
 
 local ShopService = {}
 

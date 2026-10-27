@@ -1,4 +1,4 @@
-QuestLogic.init(QuestConfig, EnemyConfig, Economy)
+QuestLogic.init(QuestConfig, EnemyConfig)
 
 local failures = 0
 local function check(name, ok)
@@ -6,7 +6,7 @@ local function check(name, ok)
 	print((ok and "OK   " or "FALLO") .. "  " .. name)
 end
 local function ctxWith(overrides)
-	local ctx = { UpgradeLevel = 0, PetsOwned = 0, PetsEquipped = 0, CombatPetsOwned = 0, ZonesUnlocked = 0, UnlockedZones = { Forest = true } }
+	local ctx = { WeaponLevel = 0, PetsOwned = 0, PetsEquipped = 0, CombatPetsOwned = 0, ZonesUnlocked = 0, UnlockedZones = { Forest = true } }
 	for k, v in overrides or {} do ctx[k] = v end
 	return ctx
 end
@@ -28,7 +28,7 @@ do
 			end
 			if def.RequiresZone and not ZoneConfig.Zones[def.RequiresZone] then ok = false end
 			if goal.Kind and goal.Kind ~= "Normal" and goal.Kind ~= "Strong" and goal.Kind ~= "Boss" then ok = false end
-			if def.Reward and not (def.Reward.Min > 0 and def.Reward.Max >= def.Reward.Min and def.Reward.Share > 0) then ok = false end
+			if def.Reward and not (def.Reward.Min > 0 and def.Reward.Max >= def.Reward.Min) then ok = false end
 		end
 	end
 	check("ids únicos, objetivos > 0, zonas y tipos de enemigo existentes, recompensas coherentes", ok)
@@ -82,20 +82,22 @@ check("misión del Valle sin el Valle -> Locked", code == "Locked")
 
 print("-- 3. Recompensa una sola vez")
 code, amount = QuestLogic.claim(data, "DefeatFive", ctx)
-local DEFEAT_REWARD = QuestLogic.reward(QuestLogic.Missions.DefeatFive, 0)
+local DEFEAT_REWARD = QuestLogic.reward(QuestLogic.Missions.DefeatFive, 1)
 check(("primera reclamación -> Success +%d 💎"):format(amount), code == "Success" and amount == DEFEAT_REWARD and amount == QuestLogic.Missions.DefeatFive.Reward.Min)
 local code2, amount2 = QuestLogic.claim(data, "DefeatFive", ctx)
 check("segunda reclamación -> AlreadyClaimed y 0", code2 == "AlreadyClaimed" and amount2 == 0)
 
 print("-- Recompensa según la etapa")
 local mission = QuestLogic.Missions.UnlockValley
-check(("nivel 0 -> mínimo (%d)"):format(mission.Reward.Min), QuestLogic.reward(mission, 0) == mission.Reward.Min)
--- El coste sale de EconomyConfig (Economy.getUpgradeCost), no de un número fijo: si cambia
--- la curva de la Resonancia, la recompensa la sigue.
-local cost12 = Economy.getUpgradeCost(QuestConfig.RewardUpgradeId, 12)
-local expected12 = math.floor(math.clamp(mission.Reward.Share * cost12 * QuestConfig.RewardCostScale, mission.Reward.Min, mission.Reward.Max))
-check(("nivel 12 -> coste de la mejora 12 · escala (%d)"):format(expected12), QuestLogic.reward(mission, 12) == expected12 and expected12 > mission.Reward.Min)
-check(("nivel 50 -> tope (%d)"):format(mission.Reward.Max), QuestLogic.reward(mission, 50) == mission.Reward.Max)
+check(("solo el Bosque -> factor 1 y el mínimo (%d)"):format(mission.Reward.Min), QuestLogic.rewardFactor(ctxWith()) == 1 and QuestLogic.reward(mission, 1) == mission.Reward.Min)
+-- El factor sale de QuestConfig.ZoneFactor (la mejor zona abierta), no de un número fijo.
+local valleyFactor = QuestLogic.rewardFactor(ctxWith({ UnlockedZones = { Forest = true, CrystalValley = true } }))
+local expectedValley = math.floor(math.min(mission.Reward.Min * QuestConfig.ZoneFactor.CrystalValley, mission.Reward.Max))
+check(("con el Valle -> Min · %s (%d)"):format(tostring(valleyFactor), expectedValley), valleyFactor == QuestConfig.ZoneFactor.CrystalValley and QuestLogic.reward(mission, valleyFactor) == expectedValley and expectedValley > mission.Reward.Min)
+local bestFactor = QuestLogic.rewardFactor(ctxWith({ UnlockedZones = { Forest = true, DividedLands = true, CrystalValley = true } }))
+check("cuenta la zona con el factor más alto", bestFactor == QuestConfig.ZoneFactor.DividedLands)
+check(("factor enorme -> tope (%d)"):format(mission.Reward.Max), QuestLogic.reward(mission, 1e6) == mission.Reward.Max)
+check("factor no válido -> mínimo", QuestLogic.reward(mission, 0 / 0) == mission.Reward.Min and QuestLogic.reward(mission, -3) == mission.Reward.Min)
 
 print("-- 5. Logros sin duplicados")
 local adata = QuestLogic.empty()
@@ -114,7 +116,7 @@ for _, n in hunter do if n.Id == "Hunter100" then hunterReward = n.Reward hunter
 local HUNTER_REWARD = 0
 for _, def in QuestConfig.Achievements do
 	if def.Id == "Hunter100" then
-		HUNTER_REWARD = QuestLogic.reward(def, 0)
+		HUNTER_REWARD = QuestLogic.reward(def, 1)
 	end
 end
 check(("Hunter100 una vez con su recompensa (+%d)"):format(hunterReward), hunterCount == 1 and hunterReward == HUNTER_REWARD and HUNTER_REWARD > 0)
@@ -200,7 +202,7 @@ check(("EarnEnergy a %d/%d no se puede reclamar"):format(earnTarget - 1, earnTar
 kill(edata, "Thornling")
 QuestLogic.evaluate(edata, ctx)
 local before = edata.Stats.EnergyEarned
-QuestLogic.claim(edata, "BuyUpgrade", ctxWith({ UpgradeLevel = 1 }))
+QuestLogic.claim(edata, "BuyUpgrade", ctxWith({ WeaponLevel = 1 }))
 check("la energía de una recompensa no cuenta como progreso", edata.Stats.EnergyEarned == before)
 -- Una derrota de jefe: misión FirstBoss (energía) + logro FirstBoss (insignia sin energía)
 kill(edata, "ForestWarden")
@@ -290,12 +292,13 @@ do
 	q.Daily.Claimed = {}
 	q.Daily.Notified = {}
 	local kills = q.Stats.Kills
-	for _ = 1, 12 do
-		GameEvents.fire("UpgradePurchased", alice, "GeneratorPower")
+	local upgradeTarget = QuestLogic.Daily.DailyUpgrade.Target
+	for _ = 1, upgradeTarget + 2 do
+		GameEvents.fire("WeaponUpgraded", alice, "BasicLaser")
 	end
-	GameEvents.fire("UpgradePurchased", alice, "OtraMejora") -- solo cuenta la Resonancia del Cristal
+	GameEvents.fire("UpgradePurchased", alice, "WalkSpeed") -- las mejoras que no son de armas no cuentan
 	GameEvents.fire("EggOpened", alice, "ForestEgg")
-	check("diaria de mejoras: 10/10 (con tope); huevos: 1/3", q.Daily.Progress.DailyUpgrade == 10 and q.Daily.Progress.DailyEggs == 1)
+	check(("diaria de armas: %d/%d (con tope); huevos: 1/3"):format(upgradeTarget, upgradeTarget), q.Daily.Progress.DailyUpgrade == upgradeTarget and q.Daily.Progress.DailyEggs == 1)
 	check("esos eventos no tocan otras diarias ni las estadísticas", (q.Daily.Progress.DailyHunt or 0) == 0 and q.Stats.Kills == kills)
 	GameEvents.fire("EggOpened", bob, "ForestEgg")
 	check("con los datos cargando no cuenta", profiles[bob].PetData.Quests.Daily.Progress.DailyEggs == nil)

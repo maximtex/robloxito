@@ -46,7 +46,14 @@ check("el día 7 da mascota y 💰", RewardLogic.streakReward(7).Pet == true and
 local future = RewardLogic.empty()
 future.Streak, future.LastDay = 3, D + 5
 check("reloj atrasado (último premio «en el futuro»): no se reclama", RewardLogic.claim(future, D) == "AlreadyClaimed" and future.Streak == 3)
-check("💰: N minutos del poder · RewardMoneyRate, nunca menos del mínimo", RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 0) == 500 and RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 100) == 60000 * EconomyConfig.RewardMoneyRate and RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 0 / 0) == 500)
+check("💰: N minutos del 💰/min de la mejor zona, nunca menos del mínimo", RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 0) == 500 and RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 700) == 7000 and RewardLogic.moneyAmount({ Minutes = 10, Min = 500 }, 0 / 0) == 500)
+do
+	local fake = { Money = 0, PetData = { UnlockedZones = {}, Bosses = {} } }
+	local forestRate = ZoneLogic.bestMoneyPerMinute(fake, ZoneConfig)
+	table.insert(fake.PetData.UnlockedZones, "EmberCaldera")
+	local calderaRate = ZoneLogic.bestMoneyPerMinute(fake, ZoneConfig)
+	check("💰/min: el del Bosque al empezar y el de la mejor zona abierta después", forestRate == ZoneConfig.Zones.Forest.MoneyPerMinute and calderaRate == ZoneConfig.Zones.EmberCaldera.MoneyPerMinute)
+end
 local dirty = RewardLogic.sanitize({ Streak = -4, LastDay = "ayer", Claims = 1 / 0, Codes = { OK = true, [5] = true, MAL = "sí", ["DEMASIADOLARGODEMASIADOLARGO"] = true } })
 check("saneado: números raros a 0 y solo códigos válidos", dirty.Streak == 0 and dirty.LastDay == 0 and dirty.Claims == 0 and dirty.Codes.OK == true and count(dirty.Codes) == 1)
 
@@ -202,7 +209,7 @@ join(p1)
 advance(1)
 check("al cargar: premio disponible (insignia DailyReady)", p1:GetAttribute("DailyReady") == true)
 local state = lastResult("RewardState", p1)
-local day1Money = RewardLogic.moneyAmount(RewardConfig.Streak[1].Money, PlayerDataService.get(p1).ProductionPerSecond)
+local day1Money = RewardLogic.moneyAmount(RewardConfig.Streak[1].Money, ZoneLogic.bestMoneyPerMinute(PlayerDataService.get(p1), ZoneConfig))
 check("estado al cliente: día 1 con el 💰 calculado", state and state[1].Ready and state[1].CanClaim and state[1].Day == 1 and state[1].Days[1].Money == day1Money and day1Money >= RewardConfig.Streak[1].Money.Min)
 local before = PlayerDataService.get(p1).Money
 fireServer("RewardAction", p1, "Claim")
@@ -368,7 +375,7 @@ local chestProfile = PlayerDataService.get(p1)
 local chestBefore = chestProfile.Money
 local blessingsBefore = chestProfile.PetData.Adventure.Blessings.Abundance or 0
 local chestCode, chestDetail = ChestService.open(p1, "Waterfall")
-local chestEnergy = RewardLogic.moneyAmount(chestDef.Reward.Money, chestProfile.ProductionPerSecond)
+local chestEnergy = RewardLogic.moneyAmount(chestDef.Reward.Money, ZoneLogic.bestMoneyPerMinute(chestProfile, ZoneConfig))
 check("cofre: se abre con su 💰 y su bendición", chestCode == Codes.Success and chestDetail.Money == chestEnergy and chestProfile.Money == chestBefore + chestEnergy and chestDetail.Blessings and chestDetail.Blessings.Abundance == 1 and chestProfile.PetData.Adventure.Blessings.Abundance == blessingsBefore + 1)
 check("cofre: cuenta los abiertos (1 de todos)", chestDetail.Opened == 1 and chestDetail.Total == #ChestConfig.Chests and chestDetail.ReadyAt == now + ChestConfig.Cooldown)
 advance(1)

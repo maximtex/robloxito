@@ -53,7 +53,9 @@ check(("producción recalculada con la mejora y la mascota: %s/s"):format(tostri
 check("el cliente recibe el dinero, los 💎 y el nivel guardados", alice:GetAttribute("Money") == math.floor(expected) and alice:GetAttribute("Energy") == 40 and alice:GetAttribute("UpgradeLevel_GeneratorPower") == 3)
 
 print("-- 3. Compra de mejora y recompensa de misión simultáneas")
-advance(1) -- la misión "comprar una mejora" queda marcada (estado del perfil)
+-- La misión "Mejora tu arma" (BuyUpgrade) pide un arma a nivel 1 (la mejora la Armería).
+profile.PetData.Weapons.Levels[WeaponConfig.StarterWeapon] = 1
+advance(1) -- la misión queda marcada (estado del perfil)
 fireServer("RequestQuests", alice)
 local before = profile.Energy
 local moneyBefore = profile.Money
@@ -136,13 +138,7 @@ storeData.player_7 = { Version = 2, Energy = -50 }
 local warningsBefore = #warnings
 local status7, loaded7 = SaveService.load(7)
 check("energía negativa guardada -> valor inicial, con aviso en consola", status7 == "Loaded" and loaded7.Energy == 0 and #warnings > warningsBefore)
-local resonanceReward = 0
-for _, def in QuestConfig.Achievements do
-	if def.Id == "Resonance10" then
-		resonanceReward = QuestLogic.reward(def, 50)
-	end
-end
-check(("nivel 999 recortado a 50 desbloquea su logro una vez (+%d 💎 con el logro Resonancia plena)"):format(danProfile.Energy), resonanceReward > 0 and danProfile.Energy == resonanceReward and danProfile.PetData.Quests.Achievements.Resonance10 == true)
+check("energía negativa -> 0 (el nivel de la Resonancia ya no da logros)", danProfile.Energy == 0 and danProfile.PetData.Quests.Achievements.Resonance10 == nil)
 check("nivel por encima del máximo -> 50", danProfile.UpgradeLevels.GeneratorPower == 50)
 check("solo mejoras existentes en el perfil", danProfile.UpgradeLevels.OldBoost == nil)
 leave(dan)

@@ -28,6 +28,7 @@ local EnergyService = require(script.Parent.EnergyService)
 local PetCombatService = require(script.Parent.PetCombatService)
 local QuestLogic = require(script.Parent.Parent.Util.QuestLogic)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local ZoneLogic = require(script.Parent.Parent.Util.ZoneLogic)
 local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 
 local Codes = Constants.PurchaseCodes
@@ -51,8 +52,9 @@ local function contextOf(profile: PlayerDataService.Profile): QuestLogic.Context
 	local unlocked: { [string]: boolean } = {}
 	local purchased = 0
 	for zoneId, zone in ZoneConfig.Zones do
-		if (zone.UnlockCost or 0) <= 0 then
-			unlocked[zoneId] = true -- zonas gratuitas (el Bosque)
+		-- zonas gratuitas (el Bosque; el Mundo 2 solo con su jefe derrotado)
+		if (zone.UnlockCost or 0) <= 0 and ZoneLogic.isUnlocked(profile, ZoneConfig, zoneId) then
+			unlocked[zoneId] = true
 		end
 	end
 	for _, zoneId in profile.PetData.UnlockedZones do
@@ -73,7 +75,6 @@ local function contextOf(profile: PlayerDataService.Profile): QuestLogic.Context
 		weaponLevel = math.max(weaponLevel, level)
 	end
 	return {
-		UpgradeLevel = profile.UpgradeLevels[QuestConfig.RewardUpgradeId] or 0,
 		WeaponLevel = weaponLevel,
 		PetsOwned = #profile.PetData.Pets + #profile.PetData.Archived,
 		PetsEquipped = #profile.PetData.Equipped,
@@ -88,7 +89,7 @@ end
 QuestService.contextOf = contextOf
 
 local function signatureOf(ctx: QuestLogic.Context): string
-	return ("%d|%d|%d|%d|%d|%d"):format(ctx.UpgradeLevel, ctx.PetsOwned, ctx.PetsEquipped, ctx.CombatPetsOwned, ctx.ZonesUnlocked, ctx.Rebirths or 0)
+	return ("%d|%d|%d|%d|%d|%d"):format(ctx.WeaponLevel or 0, ctx.PetsOwned, ctx.PetsEquipped, ctx.CombatPetsOwned, ctx.ZonesUnlocked, ctx.Rebirths or 0)
 end
 
 local function readyProfile(player: Player): PlayerDataService.Profile?
@@ -208,12 +209,10 @@ function QuestService.start()
 	PetCombatService.onAbilityHit(function(player)
 		record(player, { Type = "PetAbility" })
 	end)
-	-- Diarias de "mejora el cristal" y "abre huevos".
-	GameEvents.on("UpgradePurchased", function(player, upgradeId)
-		if upgradeId == QuestConfig.RewardUpgradeId then
-			record(player, { Type = "Upgrade" })
-			update(player, false)
-		end
+	-- Diarias de "afila tu arma" y "abre huevos".
+	GameEvents.on("WeaponUpgraded", function(player)
+		record(player, { Type = "Upgrade" })
+		update(player, false)
 	end)
 	GameEvents.on("EggOpened", function(player)
 		record(player, { Type = "Egg" })

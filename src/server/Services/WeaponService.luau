@@ -15,6 +15,7 @@ local WeaponLogic = require(Shared.WeaponLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 
 local Codes = Constants.PurchaseCodes
 local RateLimit = EconomyConfig.PurchaseRateLimit
@@ -47,6 +48,7 @@ function WeaponService.act(player: Player, action: any, weaponId: any): (string,
 		code, cost = WeaponLogic.upgrade(weapons, weaponId, profile.Money)
 		if code == "Success" then
 			profile.Money -= cost
+			GameEvents.fire("WeaponUpgraded", player, weaponId) -- diaria "Afila tu arma"
 		end
 	elseif action == "Equip" then
 		code = WeaponLogic.equip(weapons, weaponId)

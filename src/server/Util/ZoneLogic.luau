@@ -23,6 +23,28 @@ function ZoneLogic.isUnlocked(profile: ProfileLike, zoneConfig, zoneId: string):
 	return false
 end
 
+-- El valor más alto de `values` ({ [zoneId] = número }) entre las zonas abiertas del jugador
+-- (`fallback` si no hay ninguno). Lo usan los premios que crecen con el avance: factores de
+-- misiones (QuestConfig.ZoneFactor) y 💰 por minuto (bestMoneyPerMinute).
+function ZoneLogic.bestValue(profile: ProfileLike, zoneConfig, values: { [string]: number }, fallback: number): number
+	local best = nil
+	for zoneId, value in values do
+		if type(value) == "number" and value == value and value < math.huge and ZoneLogic.isUnlocked(profile, zoneConfig, zoneId) then
+			best = if best then math.max(best, value) else value
+		end
+	end
+	return best or fallback
+end
+
+-- 💰 por minuto de la mejor zona abierta (ZoneConfig.Zones.*.MoneyPerMinute).
+function ZoneLogic.bestMoneyPerMinute(profile: ProfileLike, zoneConfig): number
+	local values = {}
+	for zoneId, zone in zoneConfig.Zones do
+		values[zoneId] = zone.MoneyPerMinute
+	end
+	return ZoneLogic.bestValue(profile, zoneConfig, values, 0)
+end
+
 -- Zonas sin precio que abre este jefe al derrotarlo (las que aún no estaban en la lista se
 -- añaden a UnlockedZones). Devuelve las que se acaban de abrir.
 function ZoneLogic.unlockByBoss(profile: ProfileLike, zoneConfig, bossType: string): { string }

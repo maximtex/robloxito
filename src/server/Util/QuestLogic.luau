@@ -16,13 +16,11 @@ local QuestLogic = {}
 
 local QuestConfig: any
 local EnemyConfig: any
-local Economy: any
 
 -- Dependencias (inyectadas para poder probarla fuera de Roblox).
-function QuestLogic.init(questConfig: any, enemyConfig: any, economy: any)
+function QuestLogic.init(questConfig: any, enemyConfig: any)
 	QuestConfig = questConfig
 	EnemyConfig = enemyConfig
-	Economy = economy
 	QuestLogic.Missions = {}
 	QuestLogic.Daily = {}
 	QuestLogic.Achievements = {}
@@ -47,7 +45,6 @@ export type QuestData = {
 
 -- Estado del perfil que usan las misiones de tipo "State".
 export type Context = {
-	UpgradeLevel: number,
 	WeaponLevel: number?, -- nivel del arma más mejorada (sin el campo cuenta como 0)
 	PetsOwned: number,
 	PetsEquipped: number,
@@ -183,15 +180,26 @@ end
 
 -- Recompensas -----------------------------------------------------------------------------
 
-function QuestLogic.reward(def: any, upgradeLevel: number): number
+-- Factor de las recompensas: el más alto de QuestConfig.ZoneFactor entre las zonas abiertas
+-- del contexto (1 si no hay ninguna).
+function QuestLogic.rewardFactor(ctx: Context): number
+	local best = 1
+	for zoneId, factor in QuestConfig.ZoneFactor or {} do
+		if ctx.UnlockedZones[zoneId] and type(factor) == "number" and factor == factor and factor < math.huge then
+			best = math.max(best, factor)
+		end
+	end
+	return best
+end
+
+-- 💎 de una misión con el factor de la mejor zona: min(Min · factor, Max).
+function QuestLogic.reward(def: any, factor: number): number
 	local settings = def.Reward
 	if not settings then
 		return 0
 	end
-	local cost = Economy.getUpgradeCost(QuestConfig.RewardUpgradeId, math.max(0, math.floor(upgradeLevel))) or 0
-	local scale = QuestConfig.RewardCostScale
-	scale = if type(scale) == "number" and scale > 0 and scale < math.huge then scale else 1
-	return math.floor(math.clamp(settings.Share * cost * scale, settings.Min, settings.Max))
+	local f = if type(factor) == "number" and factor == factor and factor > 0 and factor < math.huge then factor else 1
+	return math.floor(math.clamp(settings.Min * f, settings.Min, settings.Max))
 end
 
 -- Progreso -------------------------------------------------------------------------------
@@ -288,7 +296,7 @@ end
 -- Eventos del servidor ----------------------------------------------------------------------
 
 -- event = { Type = "Kill", TypeId, ZoneId } | { Type = "Energy", Amount } | { Type = "PetAbility" }
---   | { Type = "Upgrade" } (mejora de Resonancia comprada) | { Type = "Egg" } (huevo abierto)
+--   | { Type = "Upgrade" } (mejora de arma, guante o bastón comprada) | { Type = "Egg" } (huevo abierto)
 --   | { Type = "WaveWin" } (partida de oleadas ganada)
 -- Devuelve true si el evento era válido y se registró.
 function QuestLogic.record(data: QuestData, event: any): boolean
@@ -362,7 +370,7 @@ function QuestLogic.evaluate(data: QuestData, ctx: Context): { any }
 	for _, def in QuestConfig.Achievements do
 		if not data.Achievements[def.Id] and QuestLogic.progress(def, data, ctx) >= def.Target then
 			data.Achievements[def.Id] = true
-			table.insert(notices, { Type = "Achievement", Id = def.Id, Reward = QuestLogic.reward(def, ctx.UpgradeLevel) })
+			table.insert(notices, { Type = "Achievement", Id = def.Id, Reward = QuestLogic.reward(def, QuestLogic.rewardFactor(ctx)) })
 		end
 	end
 	return notices
@@ -389,7 +397,7 @@ function QuestLogic.claim(data: QuestData, questId: any, ctx: Context): (string,
 		end
 		data.Done[questId] = true
 		data.Claimed[questId] = true
-		return "Success", QuestLogic.reward(mission, ctx.UpgradeLevel)
+		return "Success", QuestLogic.reward(mission, QuestLogic.rewardFactor(ctx))
 	end
 	local daily = QuestLogic.Daily[questId]
 	if daily and table.find(data.Daily.Ids, questId) then
@@ -400,7 +408,7 @@ function QuestLogic.claim(data: QuestData, questId: any, ctx: Context): (string,
 			return "NotComplete", 0
 		end
 		data.Daily.Claimed[questId] = true
-		return "Success", QuestLogic.reward(daily, ctx.UpgradeLevel)
+		return "Success", QuestLogic.reward(daily, QuestLogic.rewardFactor(ctx))
 	end
 	-- Diarias de otro día, logros (se conceden solos) o ids inventados.
 	return "InvalidRequest", 0
@@ -428,7 +436,7 @@ function QuestLogic.snapshot(data: QuestData, ctx: Context, day: number): any
 			Id = def.Id,
 			Progress = if done then def.Target else progress,
 			Target = def.Target,
-			Reward = QuestLogic.reward(def, ctx.UpgradeLevel),
+			Reward = QuestLogic.reward(def, QuestLogic.rewardFactor(ctx)),
 			Status = status(data.Claimed[def.Id] == true, done, isLocked(def, ctx)),
 		})
 	end
@@ -440,7 +448,7 @@ function QuestLogic.snapshot(data: QuestData, ctx: Context, day: number): any
 				Id = id,
 				Progress = progress,
 				Target = def.Target,
-				Reward = QuestLogic.reward(def, ctx.UpgradeLevel),
+				Reward = QuestLogic.reward(def, QuestLogic.rewardFactor(ctx)),
 				Status = status(data.Daily.Claimed[id] == true, progress >= def.Target, false),
 			})
 		end
@@ -451,7 +459,7 @@ function QuestLogic.snapshot(data: QuestData, ctx: Context, day: number): any
 			Id = def.Id,
 			Progress = if unlocked then def.Target else QuestLogic.progress(def, data, ctx),
 			Target = def.Target,
-			Reward = if def.Reward then QuestLogic.reward(def, ctx.UpgradeLevel) else 0,
+			Reward = if def.Reward then QuestLogic.reward(def, QuestLogic.rewardFactor(ctx)) else 0,
 			Unlocked = unlocked,
 		})
 	end
@@ -468,7 +476,7 @@ end
 -- En Roblox se inicializa solo; las pruebas llaman a init con sus propias tablas.
 if typeof(script) == "Instance" then
 	local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
-	QuestLogic.init(require(Shared.Config.QuestConfig), require(Shared.Config.EnemyConfig), require(Shared.Economy))
+	QuestLogic.init(require(Shared.Config.QuestConfig), require(Shared.Config.EnemyConfig))
 end
 
 return QuestLogic

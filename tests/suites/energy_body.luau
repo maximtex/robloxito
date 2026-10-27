@@ -1,4 +1,4 @@
--- Energía solo de matar (EconomyConfig.PassiveEnergy = false, el rediseño "solo disparar"):
+-- 💎 (en el código, Energy) solo de matar: ya no hay producción pasiva ni offline.
 -- servicios REALES (PlayerDataService, EnergyService, QuestService, TutorialService) sobre
 -- la persistencia simulada.
 PlayerDataService.start()
@@ -20,7 +20,7 @@ local function enter(name, userId)
 end
 
 print("-- 1. Sin energía pasiva")
-check("el interruptor está apagado en el juego", EconomyConfig.PassiveEnergy == false)
+check("ya no existe la producción pasiva (ni su interruptor)", EconomyConfig.PassiveEnergy == nil and EconomyConfig.BaseProductionPerSecond == nil)
 check("cada enemigo da una parte de su recompensa en ⚡", EconomyConfig.KillEnergyShare > 0 and EconomyConfig.KillEnergyShare < 1)
 local ana, profile = enter("Ana", 1)
 local before = profile.Energy

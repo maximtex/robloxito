@@ -32,7 +32,6 @@ local EggConfig = {
 		},
 	},
 	PurchaseCooldown = 1.2,
-	UnlockUpgradeId = "GeneratorPower",
 
 	Gardens = {
 		Forest = {
@@ -87,7 +86,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 6,
 			Cost = 150000,
-			RequiredLevel = 0,
 			Zone = "FrozenTundra",
 			RequiredZone = "FrozenTundra",
 			Chances = {
@@ -113,7 +111,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 7,
 			Cost = 600000,
-			RequiredLevel = 0,
 			Zone = "FrozenTundra",
 			RequiredZone = "FrozenTundra",
 			Chances = {
@@ -141,7 +138,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 8,
 			Cost = 2500000,
-			RequiredLevel = 0,
 			Zone = "World2",
 			RequiredZone = "World2",
 			Chances = {
@@ -167,7 +163,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 9,
 			Cost = 9000000,
-			RequiredLevel = 0,
 			Zone = "World2",
 			RequiredZone = "World2",
 			Chances = {
@@ -193,7 +188,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 10,
 			Cost = 30000000,
-			RequiredLevel = 0,
 			Zone = "World2",
 			RequiredZone = "World2",
 			Chances = {
@@ -221,7 +215,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 11,
 			Cost = 60000000,
-			RequiredLevel = 0,
 			Zone = "DividedLands",
 			RequiredZone = "DividedLands",
 			Chances = {
@@ -248,7 +241,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 1,
 			Cost = 250,
-			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "Sproutling", Chance = 55 },
 				{ PetId = "MushroomHopper", Chance = 35 },
@@ -272,7 +264,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 2,
 			Cost = 2500,
-			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "MossFox", Chance = 55 },
 				{ PetId = "QuartzFox", Chance = 33 },
@@ -296,7 +287,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 3,
 			Cost = 20000,
-			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "CrystalTurtle", Chance = 55 },
 				{ PetId = "EmeraldFawn", Chance = 33 },
@@ -321,7 +311,6 @@ local EggConfig = {
 			Enabled = true,
 			Order = 4,
 			Cost = 7500,
-			RequiredLevel = 0,
 			Chances = {
 				{ PetId = "ClassicDog", Chance = 50 },
 				{ PetId = "ClassicBunny", Chance = 30 },
@@ -344,7 +333,6 @@ local EggConfig = {
 			Enabled = false,
 			Order = 4,
 			Cost = 25000,
-			RequiredLevel = 0,
 			Zone = "CrystalValley",
 			RequiredZone = "CrystalValley",
 			Chances = {
@@ -366,7 +354,6 @@ local EggConfig = {
 			Enabled = false,
 			Order = 5,
 			Cost = 300000,
-			RequiredLevel = 0,
 			Zone = "EmberCaldera",
 			RequiredZone = "EmberCaldera",
 			Chances = {

@@ -12,9 +12,9 @@
 --                                       energía y los gestiona CoreService.
 --   CoresArchive: { entrada }           valores de Cores corregidos al sanear, guardados
 --                                       ANTES de normalizar. Nunca se borra ni se reescribe.
---   LastSeen: number                    os.time() del último guardado correcto: base de la
---                                       recompensa offline (PlayerDataService).
---   Rebirth: { Count, Tokens, Shop, BestLevel, LastAt }  renacimientos, fichas y ventajas
+--   LastSeen: number                    os.time() del último guardado correcto (ya no da
+--                                       recompensa offline: se conserva por compatibilidad).
+--   Rebirth: { Count, Tokens, Shop, LastAt }  renacimientos, fichas y ventajas
 --                                       de la tienda (RebirthLogic; los gestiona RebirthService).
 --   Adventure: { Npcs, Amulets, Equipped, Blessings, Active }  historias de los personajes,
 --                                       amuletos y bendiciones (AdventureLogic; los gestiona
@@ -411,7 +411,7 @@ local function sanitize(raw: any): PetData
 	result.Tutorial = TutorialLogic.sanitize(raw.Tutorial)
 	-- Núcleos: las partidas v2 no los tienen y empiezan solo con Naturaleza.
 	sanitizeCores(raw, result)
-	-- Último guardado (base de la producción offline). Sin él (o no válido): 0, nada
+	-- Último guardado (antes, base de la producción offline). Sin él (o no válido): 0, nada
 	-- retroactivo.
 	local lastSeen = raw.LastSeen
 	result.LastSeen = if isFiniteNumber(lastSeen) and lastSeen > 0 and lastSeen <= 1e10 then math.floor(lastSeen) else 0

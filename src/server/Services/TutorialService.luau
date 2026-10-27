@@ -1,7 +1,7 @@
 -- Tutorial inicial (lógica en TutorialLogic, pasos en TutorialConfig).
 -- - Los pasos los marca SOLO el servidor con los datos del perfil (los mismos que las
 --   misiones: QuestService.contextOf y las estadísticas guardadas).
--- - Sin bucle propio: se actualiza con el aviso de producción de cada segundo y al
+-- - Sin bucle propio: se actualiza con el aviso de 💎 de cada segundo y al
 --   terminar de cargar los datos.
 -- - El cliente solo puede pedir omitirlo (SkipTutorial, con límite de frecuencia).
 -- - Estado en el perfil guardado (PetData.Tutorial) y replicado con atributos
@@ -60,7 +60,7 @@ function TutorialService.start()
 	local skipRemote = RemoteService.get(Constants.Remotes.SkipTutorial)
 
 	PlayerDataService.onPetDataReady(update)
-	-- Cada segundo (con la producción): pasos cumplidos desde el último ciclo.
+	-- Cada segundo (aviso de EnergyService): pasos cumplidos desde el último ciclo.
 	EnergyService.onProduced(function(player)
 		update(player)
 	end)

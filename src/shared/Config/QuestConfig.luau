@@ -231,6 +231,7 @@ local QuestConfig = {
 		{ Id = "Collector", Title = "Coleccionista", Description = "Ten 10 mascotas.", Goal = { Source = "State", Key = "PetsOwned" }, Target = 10, Reward = { Min = 100, Max = 800 } },
 		{ Id = "CombatPet", Title = "Guardián de cristal", Description = "Consigue una mascota de combate.", Goal = { Source = "State", Key = "CombatPetsOwned" }, Target = 1, Reward = { Min = 100, Max = 800 } },
 		{ Id = "NewHorizon", Title = "Nuevo horizonte", Description = "Desbloquea una zona nueva.", Goal = { Source = "State", Key = "ZonesUnlocked" }, Target = 1 },
+		-- (Id antiguo: era "Resonancia plena"; se conserva para no volver a darlo a quien ya lo tiene)
 		{ Id = "Resonance10", Title = "Maestro armero", Description = "Lleva un arma, guante o bastón al nivel 10.", Goal = { Source = "State", Key = "WeaponLevel" }, Target = 10, Reward = { Min = 60, Max = 200 } },
 		{ Id = "FirstRebirth", Title = "Renacido", Description = "Renace por primera vez.", Goal = { Source = "State", Key = "Rebirths" }, Target = 1, Reward = { Min = 100, Max = 800 } },
 		{ Id = "Reborn5", Title = "Ciclo eterno", Description = "Renace 5 veces.", Goal = { Source = "State", Key = "Rebirths" }, Target = 5, Reward = { Min = 400, Max = 4000 } },

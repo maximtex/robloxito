@@ -1,15 +1,13 @@
--- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
--- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
-EconomyConfig.PassiveEnergy = true
--- Y con la economía 1 (la ⚡ como moneda): así la ⚡ de estos registros antiguos no se
+-- Con la economía 1 (la ⚡ como moneda): así la ⚡ de estos registros antiguos no se
 -- convierte en 💰 (esa conversión la prueba la batería persist).
 EconomyConfig.Version = 1
 -- Persistencia v3 (Fase 2, etapa 1): Cores, CoresArchive y LastSeen con el SaveService y
 -- el PlayerDataService REALES sobre un DataStore en memoria con datos controlados.
--- Desde la fase 2 los núcleos desbloqueados SÍ producen (y hay producción offline al
--- cargar): la sección 4 lo comprueba; el resto sigue validando solo la persistencia.
+-- Los núcleos ya no producen nada (ni conectado ni offline): la sección 4 lo comprueba;
+-- el resto valida la persistencia. La Resonancia del Cristal (GeneratorPower) ya no es una
+-- mejora: sus niveles guardados quedan archivados (ArchivedUpgrades) y se vuelven a guardar.
 -- La vuelta atrás usa el SaveService v2 congelado (tests/fixtures/SaveService_v2.luau).
-QuestLogic.init(QuestConfig, EnemyConfig, Economy)
+QuestLogic.init(QuestConfig, EnemyConfig)
 PlayerDataService.start()
 UpgradeService.start()
 QuestService.start()
@@ -54,10 +52,9 @@ local V2 = {
 storeData.player_11 = deep(V2)
 local ana, p = enter("Ana", 11)
 check("carga Loaded con los núcleos por defecto (Naturaleza desbloqueada y seleccionada, el resto bloqueado)", p.DataState == "Loaded" and same(p.PetData.Cores, CoreLogic.empty()))
-check("Naturaleza sin Level propio: su nivel sigue siendo UpgradeLevels.GeneratorPower (7)", p.PetData.Cores.Elements.Nature.Level == nil and p.UpgradeLevels.GeneratorPower == 7)
+check("Naturaleza sin Level propio; la Resonancia (7) queda archivada, fuera del perfil", p.PetData.Cores.Elements.Nature.Level == nil and p.UpgradeLevels.GeneratorPower == nil and p.PetData.ArchivedUpgrades.GeneratorPower == 7)
 check("una partida antigua no es una corrección: nada archivado ni avisado", #p.PetData.CoresArchive == 0)
-local expectedProduction = Economy.getProductionPerSecond({ GeneratorPower = 7 }) * PetMath.getTotalMultiplier({ "MossFox" })
-check(("sin efecto económico: energía 1234 y producción %s/s, como en v2"):format(tostring(expectedProduction)), p.Energy == 1234 and p.ProductionPerSecond == expectedProduction)
+check("sin efecto económico: 💎 1234 y sin producción", p.Energy == 1234 and p.ProductionPerSecond == nil)
 check("la carga solo toma el bloqueo: todavía no escribe Cores", record(11).Cores == nil and record(11).Version == 2 and record(11).Session ~= nil)
 
 print("-- 2. Guardado en v3")
@@ -91,16 +88,9 @@ storeData.player_12 = deep(V3)
 local ben
 ben, p = enter("Ben", 12)
 check("se carga tal cual, sin correcciones", same(p.PetData.Cores, V3.Cores) and same(p.PetData.CoresArchive, V3.CoresArchive))
--- Fase 2: Agua (nivel 4) y Fuego (seleccionado: afinidad) producen; y al cargar se concede
--- la producción offline desde LastSeen (máximo 4 h, al 50 %, sin afinidad).
-local cleanCores = CoreLogic.sanitize(V3.Cores)
--- Sin mascotas guardadas recibe la inicial (Brotecillo): cuenta en la producción y offline
-local expectedOffline = CoreLogic.offlineReward(cleanCores, { GeneratorPower = 2 }, p.PetMultiplier, V3.LastSeen, os.time())
-check(("fase 2: producción de todos los núcleos + afinidad (%s/s) y offline %s al cargar"):format(tostring(p.ProductionPerSecond), tostring(expectedOffline)),
-	p.ProductionPerSecond == CoreLogic.effectiveProduction(cleanCores, { GeneratorPower = 2 }, p.PetMultiplier)
-		and p.ProductionPerSecond > Economy.getProductionPerSecond({ GeneratorPower = 2 })
-		and expectedOffline > 0 and p.Energy == 50 + expectedOffline
-		and ben:GetAttribute("OfflineReward") == ("%.0f,%.0f"):format(expectedOffline, CoreConfig.Offline.CapSeconds))
+-- Agua (nivel 4) y Fuego (seleccionado) despiertos, y LastSeen de hace mucho: ya no hay
+-- producción ni recompensa offline al cargar.
+check("los núcleos despiertos no producen ni dan 💎 offline al cargar", p.ProductionPerSecond == nil and p.Energy == 50 and ben:GetAttribute("OfflineReward") == nil)
 exit(ben)
 check("al guardar: Cores y CoresArchive idénticos y LastSeen actualizado", same(record(12).Cores, V3.Cores) and same(record(12).CoresArchive, V3.CoresArchive) and record(12).LastSeen == os.time())
 
@@ -243,12 +233,12 @@ local V1 = { Version = 1, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped 
 storeData.player_21 = deep(V1)
 local ivy
 ivy, p = enter("Ivy", 21)
-check("v1 carga: energía y mejora iniciales, núcleos por defecto, nada archivado", p.DataState == "Loaded" and p.Energy == EconomyConfig.StartingEnergy and p.UpgradeLevels.GeneratorPower == 0 and same(p.PetData.Cores, CoreLogic.empty()) and #p.PetData.CoresArchive == 0)
+check("v1 carga: energía y mejora iniciales, núcleos por defecto, nada archivado", p.DataState == "Loaded" and p.Energy == EconomyConfig.StartingEnergy and p.UpgradeLevels.LaserSpeed == 0 and same(p.PetData.Cores, CoreLogic.empty()) and #p.PetData.CoresArchive == 0)
 local energy21 = p.Energy
 exit(ivy)
 r = record(21)
 check("v1 guardado en la versión actual: Cores, LastSeen y Version 15", r.Version == 15 and same(r.Cores, CoreLogic.empty()) and r.LastSeen == os.time() and r.Session == nil)
-check("v1: mascotas, equipadas, NextPetUid, zonas y estadísticas intactas", same(r.Pets, V1.Pets) and same(r.Equipped, V1.Equipped) and r.NextPetUid == 2 and same(r.UnlockedZones, V1.UnlockedZones) and r.Quests.Stats.Kills == 7 and r.Energy == energy21 and r.UpgradeLevels.GeneratorPower == 0)
+check("v1: mascotas, equipadas, NextPetUid, zonas y estadísticas intactas", same(r.Pets, V1.Pets) and same(r.Equipped, V1.Equipped) and r.NextPetUid == 2 and same(r.UnlockedZones, V1.UnlockedZones) and r.Quests.Stats.Kills == 7 and r.Energy == energy21 and r.UpgradeLevels.LaserSpeed == 0 and r.UpgradeLevels.GeneratorPower == nil)
 
 print("-- 12. Migración v2 completa: NextPetUid, Tutorial.Step, Quests y mejoras archivadas")
 local today = QuestLogic.dayOf(os.time())
@@ -268,7 +258,7 @@ local jo
 jo, p = enter("Jo", 22)
 check("la mascota de una especie desconocida queda archivada, no borrada", #p.PetData.Pets == 2 and #p.PetData.Archived == 1 and p.PetData.Archived[1].Uid == "6")
 check("NextPetUid 9 y Tutorial en el paso 2 (activo) se cargan tal cual", p.PetData.NextPetUid == 9 and p.PetData.Tutorial.Status == "Active" and p.PetData.Tutorial.Step == 2)
-check("la mejora desconocida no entra en el perfil pero se conserva archivada", p.UpgradeLevels.OldBoost == nil and p.PetData.ArchivedUpgrades.OldBoost == 3 and p.UpgradeLevels.GeneratorPower == 9)
+check("las mejoras que no existen (OldBoost, la Resonancia) no entran en el perfil pero se conservan archivadas", p.UpgradeLevels.OldBoost == nil and p.PetData.ArchivedUpgrades.OldBoost == 3 and p.UpgradeLevels.GeneratorPower == nil and p.PetData.ArchivedUpgrades.GeneratorPower == 9)
 check("misiones: todo lo guardado está en el perfil (estadísticas, hechas, reclamadas, logros y diaria)", contains(p.PetData.Quests, V2FULL.Quests))
 local sessionQuests = QuestLogic.serialize(p.PetData.Quests)
 local energy22 = p.Energy

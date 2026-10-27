@@ -6,11 +6,11 @@
 -- varias páginas:
 -- - Servidor: los mejores jugadores de este servidor, al momento (atributos del Player).
 -- - Global: los mejores de todos los servidores (OrderedDataStore), leídos cada minuto.
--- - Semana: energía generada esta semana (se reinicia los lunes a las 00:00 UTC).
+-- - Semana: 💎 conseguidos esta semana (se reinicia los lunes a las 00:00 UTC).
 -- Publicación: cada PublishSeconds (y al salir) se escribe lo de cada jugador con datos
 -- cargados, solo si cambió. Los perfiles de prueba o sin cargar nunca se publican.
--- La energía de la semana se suma aquí (producción del cristal y botín de enemigos) y se
--- guarda en el campo Weekly del registro.
+-- Los 💎 de la semana se suman aquí (los de enemigos y oleadas, con el aviso de
+-- EnergyService) y se guardan en el campo Weekly del registro.
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -421,7 +421,7 @@ function LeaderboardService.start()
 	end
 	refresh()
 
-	-- Energía de la semana: la producción (los enemigos sueltan dinero, no energía).
+	-- 💎 de la semana: los que se consiguen peleando (EnergyService, una vez por ciclo).
 	EnergyService.onProduced(function(player, amount)
 		local profile = PlayerDataService.get(player)
 		if profile and PlayerDataService.isPetDataReady(profile) then

@@ -49,13 +49,13 @@ local function notify(player: Player, kind: string, key: string?, detail: any)
 	end
 end
 
--- Aplica los pases: producción, espacios de mascotas, inventario y atributos.
+-- Aplica los pases: espacios de mascotas, inventario y atributos.
 local function apply(player: Player)
 	local profile = PlayerDataService.get(player)
 	if not profile then
 		return
 	end
-	PlayerDataService.recalculateProduction(player)
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	if PlayerDataService.isPetDataReady(profile) then
 		PetService.enforceEquipLimit(player)
@@ -184,7 +184,6 @@ end
 function ShopService.start()
 	resultRemote = RemoteService.get(Constants.Remotes.ShopResult)
 	local actionRemote = RemoteService.get(Constants.Remotes.ShopAction)
-	PlayerDataService.expectPasses()
 
 	-- Interruptor de la mejora automática.
 	actionRemote.OnServerEvent:Connect(function(player: Player, action: any, value: any)

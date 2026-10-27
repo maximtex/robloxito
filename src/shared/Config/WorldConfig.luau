@@ -221,6 +221,24 @@ local WorldConfig = {
 		MagicChance = 0.2,
 	},
 
+	-- Sitios que dejaron reservados los antiguos altares de los núcleos (el Círculo Elemental,
+	-- ya quitado). Se conservan para que LandscapeLayout siga repartiendo la decoración igual:
+	-- un círculo de radio KeepClearRadius + 1.5 a Radius studs del centro, en cada ángulo
+	-- (grados: 0 = +X, 90 = +Z). NO cambiar: movería el bosque.
+	AltarReserve = {
+		Radius = 21,
+		KeepClearRadius = 3.6,
+		Angles = {
+			Water = 201,
+			Fire = 339,
+			Wind = 224,
+			Lightning = 316,
+			Ice = 247,
+			Shadow = 293,
+			Celestial = 270,
+		},
+	},
+
 	-- Zonas donde no se colocan flores. (X, Z, radio)
 	KeepClear = {
 		Vector3.new(0, 25, 9), -- spawn

@@ -5,8 +5,8 @@
 -- Daño de una habilidad (AbilityLogic.damage):
 --   daño = DamageRatio · daño del jugador (CombatMath.playerDamage) · maestría
 --   maestría = 1 + Mastery.PerLevel · min(nivel del núcleo, Mastery.MaxLevel)
--- Naturaleza NO tiene maestría: su nivel es el del cristal, que ya sube el daño del
--- jugador (si la tuviera, lo contaría dos veces y nadie querría cambiar de elemento).
+-- Naturaleza NO tiene maestría: no tiene nivel (antes era el del Cristal del
+-- Renacimiento, que ya no existe).
 -- Así mejorar el núcleo que usas lo hace más fuerte (hasta ×2 al nivel 50).
 -- Ejemplo: jugador de 35 de daño con Fuego al nivel 10 -> Llamarada 1.3 · 35 · 1.2 = 54.6.
 --

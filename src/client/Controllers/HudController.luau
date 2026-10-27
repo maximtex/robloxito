@@ -313,10 +313,11 @@ function HudController.start()
 	applyScale()
 
 	local lastEnergy: number? = nil
-	local function popEnergy(energy: number, production: number)
+	-- Los 💎 saltan un poco cada vez que suben (enemigos, oleadas, misiones)
+	local function popEnergy(energy: number)
 		local previous = lastEnergy
 		lastEnergy = energy
-		if previous and energy - previous > math.max(production * 2, 1) then
+		if previous and energy > previous then
 			ui.EnergyPop.Scale = 1.12
 			TweenService:Create(ui.EnergyPop, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 		end
@@ -335,7 +336,6 @@ function HudController.start()
 
 	local function refresh()
 		local energy = player:GetAttribute(Constants.Attributes.Energy)
-		local production = player:GetAttribute(Constants.Attributes.ProductionPerSecond)
 		local tokens = player:GetAttribute(Constants.Attributes.RebirthTokens)
 		local tokenCount = if typeof(tokens) == "number" and tokens > 0 then tokens else 0
 		ui.TokensValue.Text = formatNumber(tokenCount)
@@ -344,7 +344,7 @@ function HudController.start()
 		ui.MoneyValue.Text = "$" .. formatNumber(money)
 		popMoney(money)
 
-		if typeof(energy) ~= "number" or typeof(production) ~= "number" then
+		if typeof(energy) ~= "number" then
 			ui.EnergyValue.Text = "0"
 			return
 		end
@@ -353,11 +353,10 @@ function HudController.start()
 		local petMult = player:GetAttribute(Constants.Attributes.PetMultiplier)
 		local multVal = if typeof(petMult) == "number" and petMult > 0 then petMult else 1
 		ui.MultValue.Text = ("×%s"):format(formatNumber(multVal, 1))
-		popEnergy(energy, production)
+		popEnergy(energy)
 	end
 
 	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(refresh)
-	player:GetAttributeChangedSignal(Constants.Attributes.ProductionPerSecond):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.RebirthTokens):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.PetMultiplier):Connect(refresh)
 	player:GetAttributeChangedSignal(Constants.Attributes.Money):Connect(refresh)

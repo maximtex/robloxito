@@ -42,8 +42,6 @@ local function petLimits(profile)
 	return {
 		MaxInventory = MonetizationLogic.maxInventory(profile.Passes, PetConfig.MaxInventory),
 		MaxEquipped = MonetizationLogic.maxEquipped(profile.PetData.Rebirth, profile.Passes, PetConfig.MaxEquipped),
-		UnlockUpgradeId = EggConfig.UnlockUpgradeId,
-		UnlockLevel = RebirthLogic.unlockLevel(profile.PetData.Rebirth, profile.UpgradeLevels[EggConfig.UnlockUpgradeId] or 0),
 	}
 end
 function PetServiceStub.pushInventory()

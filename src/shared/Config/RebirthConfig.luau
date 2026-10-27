@@ -1,27 +1,19 @@
--- Renacimiento (Rebirth). Al renacer se reinician el 💰, el nivel de las armas y la
--- Resonancia del Cristal; se conservan los 💎, mascotas, núcleos, zonas, misiones y los
--- huevos ya desbloqueados. A cambio:
--- - Multiplicador permanente del "poder" (el de los 💎 y los premios en 💰) y de daño,
---   que crece con cada renacimiento.
+-- Renacimiento (Rebirth). Al renacer se reinician el 💰 y el nivel de las armas; se
+-- conservan los 💎, mascotas, núcleos, zonas y misiones. A cambio:
+-- - Multiplicador permanente del botín en 💰 de los enemigos y del daño, que crece con
+--   cada renacimiento.
 -- - Fichas de renacimiento para la tienda de ventajas permanentes (Shop).
 -- La lógica pura está en RebirthLogic; el servidor (RebirthService) decide todo.
 --
--- Ritmo: el primer renacimiento pide Resonancia nivel 15 y cada siguiente 5 niveles más,
--- hasta el nivel máximo de la mejora. Ajustado en la ronda 10 con una simulación del avance
--- (cristal + núcleos + mascotas, sin contar misiones, combate ni premios): con 15, el primer
--- renacimiento llega a la ~media hora de juego atento (con 20 tardaba ~1 h) y la Caldera
--- (3 renacimientos) hacia la hora y media o dos horas. Sigue siendo ajustable con datos reales.
+-- Antes pedía un nivel de la Resonancia del Cristal, que ya no existe. Hasta que llegue el
+-- requisito nuevo (fase 2 del rediseño), Enabled = false: no se puede renacer y el panel
+-- dice "Próximamente". Se conserva lo ya conseguido (renacimientos, fichas y tienda).
 
 local RebirthConfig = {
-	-- Mejora que se reinicia y que marca el requisito (la Resonancia del Cristal).
-	UpgradeId = "GeneratorPower",
+	Enabled = false,
 
-	-- Nivel de Resonancia necesario para el renacimiento n + 1 (n = renacimientos hechos):
-	--   min(nivel máximo de la mejora, BaseLevel + LevelStep · n)
-	Requirement = { BaseLevel = 15, LevelStep = 5 },
-
-	-- Premio permanente por renacimiento (se suman: 3 renacimientos = ×2.5 de energía).
-	EnergyBonus = 0.5, -- +50 % de energía por renacimiento
+	-- Premio permanente por renacimiento (se suman: 3 renacimientos = ×2.5 de botín).
+	LootBonus = 0.5, -- +50 % de 💰 de los enemigos por renacimiento
 	DamageBonus = 0.1, -- +10 % de daño por renacimiento
 
 	-- Fichas que da el renacimiento número k: Base + PerRebirth · (k - 1) (1, 2, 3...).
@@ -49,7 +41,7 @@ local RebirthConfig = {
 			Order = 2,
 			DisplayName = "Botín abundante",
 			Icon = "💰",
-			Description = "+25 % de energía al derrotar enemigos",
+			Description = "+25 % de 💰 al derrotar enemigos",
 			PerLevel = 0.25,
 			Costs = { 1, 2, 4, 6 },
 		},
@@ -60,22 +52,6 @@ local RebirthConfig = {
 			Description = "+15 % de daño (ataques, habilidades y mascotas)",
 			PerLevel = 0.15,
 			Costs = { 1, 2, 4, 6 },
-		},
-		HeadStart = {
-			Order = 4,
-			DisplayName = "Inicio rápido",
-			Icon = "🚀",
-			Description = "Cada renacimiento empieza con +4 niveles de Resonancia",
-			PerLevel = 4,
-			Costs = { 2, 4, 8 },
-		},
-		Dreams = {
-			Order = 5,
-			DisplayName = "Sueño profundo",
-			Icon = "🌙",
-			Description = "+1 h de producción mientras no juegas",
-			PerLevel = 3600,
-			Costs = { 1, 2, 3, 5 },
 		},
 	},
 
@@ -90,7 +66,6 @@ local RebirthConfig = {
 		},
 	},
 	HaloTiers = { 1, 5, 10, 20 }, -- renacimientos a partir de los que cambia el color del aura
-	MaxHaloGems = 12, -- gemas que orbitan el cristal (una por renacimiento, hasta este tope)
 	Sounds = {
 		Rebirth = "rbxassetid://9116394876",
 		Burst = "rbxasset://sounds/impact_explosion_03.mp3",

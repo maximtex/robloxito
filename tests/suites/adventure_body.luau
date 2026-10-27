@@ -1,13 +1,10 @@
--- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
--- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
-EconomyConfig.PassiveEnergy = true
 EconomyConfig.Version = 1 -- la ⚡ de los registros antiguos de aquí no se convierte en 💰
 -- Aventuras: AdventureLogic (pura) y el AdventureService REAL con PlayerDataService y
 -- SaveService reales sobre un DataStore en memoria. Configuración, saneado, aceptar /
 -- progreso / entregar (derrotas, objetos perdidos y entregas entre personajes), amuletos y
--- ranuras, bendiciones (activar, alargar, tope y caducidad), pasivas (producción, offline,
--- daño, botín, velocidad), distancias, límites de frecuencia y guardado v5.
-QuestLogic.init(QuestConfig, EnemyConfig, Economy)
+-- ranuras, bendiciones (activar, alargar, tope y caducidad), pasivas (💎, daño, botín,
+-- velocidad), distancias, límites de frecuencia y guardado v5.
+QuestLogic.init(QuestConfig, EnemyConfig)
 local defeat = nil
 EnemyService.onDefeated = function(listener)
 	defeat = listener
@@ -223,7 +220,6 @@ p.Amulets = { Sap = true, Fang = true, Geode = true, Feather = true }
 p.Equipped[1] = "Sap"
 p.Active = { Abundance = 100, Fury = 100, Fortune = 100 }
 check("💎: Savia ×1.25 · Abundancia ×2 = ×2.5 (antes de caducar)", near(AdventureLogic.diamondMultiplier(p, 50), 2.5) and near(AdventureLogic.diamondMultiplier(p, 100), 1.25))
-check("offline: solo amuletos (×1.25)", near(AdventureLogic.offlineMultiplier(p), 1.25))
 p.Equipped[1] = "Fang"
 check("daño: Colmillo ×1.2 · Furia ×1.3", near(AdventureLogic.damageMultiplier(p, 50), 1.2 * 1.3) and near(AdventureLogic.diamondMultiplier(p, 50), 2))
 p.Equipped[1] = "Geode"
@@ -286,8 +282,7 @@ join(p1)
 advance(0)
 local profile = PlayerDataService.get(p1)
 check("datos cargados: estado inicial enviado (4 personajes con misión)", profile.DataState == "Loaded" and lastState(p1) and lastState(p1).Ready and lastState(p1).Npcs.Herbalist.Status == "Offer")
-profile.UpgradeLevels.GeneratorPower = 5
-PlayerDataService.recalculateProduction(p1)
+PlayerDataService.refreshStats(p1)
 local baseDiamonds = PlayerDataService.diamondMultiplier(profile)
 
 playerPos[p1] = Vector3.new(0, 3, 0)
@@ -408,7 +403,7 @@ advance(0)
 local again = PlayerDataService.get(p1b)
 check("al volver: todo igual y la pasiva aplicada", again.PetData.Adventure.Amulets.Sap and again.PetData.Adventure.Equipped[1] == "Sap" and lastState(p1b).Npcs.Herbalist.Status == "Done")
 
--- Partidas antiguas y producción offline
+-- Partidas antiguas
 storeData.player_2 = { Version = 4, Energy = 50, UpgradeLevels = { GeneratorPower = 3 } }
 local p2 = makePlayer("Bea", 2)
 join(p2)
@@ -422,12 +417,7 @@ local p4 = makePlayer("Dani", 4)
 join(p3)
 join(p4)
 advance(0)
-local function offline(player)
-	local value = player:GetAttribute("OfflineReward")
-	return tonumber(string.match(value or "", "^(%d+)")) or 0
-end
-check(("offline con Savia ×1.25 (la bendición no cuenta sin jugar): %d -> %d"):format(offline(p3), offline(p4)),
-	offline(p3) > 0 and math.abs(offline(p4) - offline(p3) * 1.25) <= 1)
+check("2 h fuera, con o sin amuleto: ya no hay 💎 offline", PlayerDataService.get(p3).Energy == 0 and PlayerDataService.get(p4).Energy == 0 and p3:GetAttribute("OfflineReward") == nil and p4:GetAttribute("OfflineReward") == nil)
 check("al entrar con la bendición aún activa: 💎 ×2.5", near(PlayerDataService.diamondMultiplier(PlayerDataService.get(p4)), PlayerDataService.diamondMultiplier(PlayerDataService.get(p3)) * 2.5))
 
 -- Sin datos cargados no se hace nada

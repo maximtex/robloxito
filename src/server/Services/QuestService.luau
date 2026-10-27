@@ -2,7 +2,7 @@
 -- - El progreso sale SOLO de avisos de servicios del servidor: derrotas con recompensa
 --   (EnemyService), energía producida (EnergyService), habilidades de mascota con daño
 --   real (PetCombatService) y el estado del perfil (mejora, mascotas, zonas).
--- - Sin bucle propio: se actualiza con el aviso de producción de cada segundo (cambio de
+-- - Sin bucle propio: se actualiza con el aviso de 💎 de cada segundo (cambio de
 --   día, misiones de estado) y envía el estado solo si ha cambiado, como mucho cada
 --   PushInterval segundos (o al momento al reclamar).
 -- - Reclamar: validación, límite de frecuencia y marca de "reclamada" antes de sumar la
@@ -223,7 +223,7 @@ function QuestService.start()
 		record(player, { Type = "WaveWin" })
 		update(player, false)
 	end)
-	-- Cada segundo (con la producción): energía, cambio de día y misiones de estado.
+	-- Cada segundo (aviso de EnergyService): 💎 conseguidos, cambio de día y misiones de estado.
 	EnergyService.onProduced(function(player, amount)
 		if amount > 0 then
 			record(player, { Type = "Energy", Amount = amount })

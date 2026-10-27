@@ -10,7 +10,7 @@
 -- veterano con el Valle no repite nada: el tutorial se completa solo).
 -- Sin recompensas: las mismas acciones ya las premian las misiones.
 --
--- Guide: a dónde apunta la guía del cliente ("Crystal", "Waves" (el altar de la práctica de
+-- Guide: a dónde apunta la guía del cliente ("Waves" (el altar de la práctica de
 -- las oleadas, WaveConfig.Places), "Cave" (la boca de la Cueva de los Espinillos y, dentro,
 -- el altar de las Oleadas del Guardián, CaveConfig), "Egg:<EggId>", "Arena:<zona del jefe>",
 -- "Portal:<PortalId>") o qué parte de la interfaz se señala ("ArmoryButton", "PetsButton").

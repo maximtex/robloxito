@@ -1,4 +1,4 @@
-QuestLogic.init(QuestConfig, EnemyConfig, Economy)
+QuestLogic.init(QuestConfig, EnemyConfig)
 PlayerDataService.start()
 UpgradeService.start()
 QuestService.start()
@@ -16,12 +16,14 @@ local function same(a, b)
 	for k in b do if a[k] == nil then return false end end
 	return true
 end
+-- La mejora de prueba: la Cadencia de la Armería (se paga con 💰).
+local UPGRADE = "LaserSpeed"
 local function buy(player)
 	advance(0.5) -- respeta el límite de frecuencia de las compras
-	fireServer("PurchaseUpgrade", player, "GeneratorPower")
+	fireServer("PurchaseUpgrade", player, UPGRADE)
 	return lastResult("PurchaseResult", player)
 end
-local cost = function(level) return Economy.getUpgradeCost("GeneratorPower", level) end
+local cost = function(level) return Economy.getUpgradeCost(UPGRADE, level) end
 
 print("-- 1. Perfil antiguo sin Energy ni UpgradeLevels")
 storeData.player_1 = { Version = 1, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = { "1" }, NextPetUid = 2, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 7 } } }
@@ -29,28 +31,28 @@ local alice = newPlayer("Alice", 1)
 join(alice)
 advance(0)
 local profile = PlayerDataService.get(alice)
-check("carga con energía inicial y mejora a 0", profile.DataState == "Loaded" and profile.Energy == 0 and profile.UpgradeLevels.GeneratorPower == 0)
+check("carga con 💎 iniciales y mejora a 0", profile.DataState == "Loaded" and profile.Energy == 0 and profile.UpgradeLevels.LaserSpeed == 0)
 check("mascotas, zonas y misiones antiguas intactas", #profile.PetData.Pets == 1 and profile.PetData.UnlockedZones[1] == "CrystalValley" and profile.PetData.Quests.Stats.Kills == 7)
 check("el cliente ve DataStatus = Loaded y sin error de guardado", alice:GetAttribute("DataStatus") == "Loaded" and alice:GetAttribute("SaveError") == false)
 
 print("-- 2. Guardar y cargar dinero, diamantes y mejoras")
 profile.Money = 5000
-profile.Energy = 40 -- 💎 (la Resonancia se paga con 💰)
+profile.Energy = 40 -- 💎 (la Cadencia se paga con 💰)
 for _ = 1, 3 do buy(alice) end
 local expected = 5000 - cost(0) - cost(1) - cost(2)
-check(("3 compras reales: nivel 3 y 💰 %d (los 💎 no se tocan)"):format(expected), profile.UpgradeLevels.GeneratorPower == 3 and profile.Money == expected and profile.Energy == 40)
+check(("3 compras reales: nivel 3 y 💰 %d (los 💎 no se tocan)"):format(expected), profile.UpgradeLevels.LaserSpeed == 3 and profile.Money == expected and profile.Energy == 40)
 leave(alice)
 advance(0)
-check("al salir se guardan Money, Energy (💎) y UpgradeLevels (y se libera el bloqueo)", record(1).Money == expected and record(1).Energy == 40 and record(1).UpgradeLevels.GeneratorPower == 3 and record(1).Session == nil and record(1).Version == 15 and record(1).EconomyVersion == 2)
+check("al salir se guardan Money, Energy (💎) y UpgradeLevels (y se libera el bloqueo)", record(1).Money == expected and record(1).Energy == 40 and record(1).UpgradeLevels.LaserSpeed == 3 and record(1).Session == nil and record(1).Version == 15 and record(1).EconomyVersion == 2)
 check("y las clases (v14): la gratis de cada estilo, activa", record(1).Classes ~= nil and record(1).Classes.Owned.Soldier == 1 and record(1).Classes.Active.Fists == "Brawler" and record(1).Classes.Active.Magic == "Apprentice")
 check("y el resto del registro sigue igual", #record(1).Pets == 1 and record(1).UnlockedZones[1] == "CrystalValley" and record(1).Quests.Stats.Kills == 7)
 alice = newPlayer("Alice", 1)
 join(alice)
 advance(0)
 profile = PlayerDataService.get(alice)
-check(("al volver: 💰 %d, 💎 40, nivel 3"):format(profile.Money), profile.Money == expected and profile.Energy == 40 and profile.UpgradeLevels.GeneratorPower == 3)
-check(("producción recalculada con la mejora y la mascota: %s/s"):format(tostring(profile.ProductionPerSecond)), math.abs(profile.ProductionPerSecond - 4 * PetMath.getTotalMultiplier({ "MossFox" })) < 1e-9)
-check("el cliente recibe el dinero, los 💎 y el nivel guardados", alice:GetAttribute("Money") == math.floor(expected) and alice:GetAttribute("Energy") == 40 and alice:GetAttribute("UpgradeLevel_GeneratorPower") == 3)
+check(("al volver: 💰 %d, 💎 40, nivel 3"):format(profile.Money), profile.Money == expected and profile.Energy == 40 and profile.UpgradeLevels.LaserSpeed == 3)
+check("multiplicador de mascotas recalculado con la mascota guardada", math.abs(profile.PetMultiplier - PetMath.getTotalMultiplier({ "MossFox" })) < 1e-9 and profile.ProductionPerSecond == nil)
+check("el cliente recibe el dinero, los 💎 y el nivel guardados", alice:GetAttribute("Money") == math.floor(expected) and alice:GetAttribute("Energy") == 40 and alice:GetAttribute("UpgradeLevel_LaserSpeed") == 3)
 
 print("-- 3. Compra de mejora y recompensa de misión simultáneas")
 -- La misión "Mejora tu arma" (BuyUpgrade) pide un arma a nivel 1 (la mejora la Armería).
@@ -59,15 +61,15 @@ advance(1) -- la misión queda marcada (estado del perfil)
 fireServer("RequestQuests", alice)
 local before = profile.Energy
 local moneyBefore = profile.Money
-local levelBefore = profile.UpgradeLevels.GeneratorPower
+local levelBefore = profile.UpgradeLevels.LaserSpeed
 advance(1)
 -- Las dos solicitudes en el mismo instante
-fireServer("PurchaseUpgrade", alice, "GeneratorPower")
+fireServer("PurchaseUpgrade", alice, UPGRADE)
 fireServer("ClaimQuest", alice, "BuyUpgrade")
 local purchase = lastResult("PurchaseResult", alice)
 local claim = lastResult("QuestResult", alice)
 local reward = claim[4]
-check(("compra OK (nivel %d -> %d) y reclamación OK (+%s)"):format(levelBefore, profile.UpgradeLevels.GeneratorPower, tostring(reward)), purchase[1] == true and claim[1] == true and profile.UpgradeLevels.GeneratorPower == levelBefore + 1)
+check(("compra OK (nivel %d -> %d) y reclamación OK (+%s)"):format(levelBefore, profile.UpgradeLevels.LaserSpeed, tostring(reward)), purchase[1] == true and claim[1] == true and profile.UpgradeLevels.LaserSpeed == levelBefore + 1)
 local afterBoth = before + reward
 local moneyAfter = moneyBefore - cost(levelBefore)
 check(("exacto: 💰 %d - %d = %d y 💎 %d + %d = %d (sin pérdidas ni duplicados)"):format(moneyBefore, cost(levelBefore), moneyAfter, before, reward, afterBoth), profile.Energy == afterBoth and profile.Money == moneyAfter)
@@ -77,7 +79,7 @@ fireServer("ClaimQuest", alice, "BuyUpgrade")
 check("la recompensa no se repite", profile.Energy == afterBoth and lastResult("QuestResult", alice)[2] == "AlreadyClaimed")
 leave(alice)
 advance(0)
-check("lo guardado coincide con la sesión (💎, 💰, nivel y misión reclamada)", record(1).Energy == afterBoth and record(1).Money == moneyAfter and record(1).UpgradeLevels.GeneratorPower == levelBefore + 1 and record(1).Quests.Claimed.BuyUpgrade == true)
+check("lo guardado coincide con la sesión (💎, 💰, nivel y misión reclamada)", record(1).Energy == afterBoth and record(1).Money == moneyAfter and record(1).UpgradeLevels.LaserSpeed == levelBefore + 1 and record(1).Quests.Claimed.BuyUpgrade == true)
 alice = newPlayer("Alice", 1)
 join(alice)
 advance(1)
@@ -93,10 +95,10 @@ join(bob)
 advance(30)
 local bobProfile = PlayerDataService.get(bob)
 check("tras 5 intentos: estado Failed y el cliente lo sabe", bobProfile.DataState == "Failed" and bob:GetAttribute("DataStatus") == "Failed")
-check("se juega con valores de sesión (no con los guardados)", bobProfile.Energy == 0 and bobProfile.UpgradeLevels.GeneratorPower == 0)
+check("se juega con valores de sesión (no con los guardados)", bobProfile.Energy == 0 and bobProfile.UpgradeLevels.LaserSpeed == 0)
 bobProfile.Money = 100
 local r = buy(bob)
-check("puede seguir jugando en modo sesión (compra permitida)", r[1] == true and bobProfile.UpgradeLevels.GeneratorPower == 1)
+check("puede seguir jugando en modo sesión (compra permitida)", r[1] == true and bobProfile.UpgradeLevels.LaserSpeed == 1)
 advance(200) -- pasan guardados automáticos
 leave(bob)
 advance(0)
@@ -121,15 +123,15 @@ join(cara)
 local caraProfile = PlayerDataService.get(cara)
 caraProfile.Energy += 25 -- recompensa de un enemigo durante la carga
 advance(0.5)
-fireServer("PurchaseUpgrade", cara, "GeneratorPower")
-check("durante la carga no se puede comprar (NotReady)", lastResult("PurchaseResult", cara)[2] == "NotReady" and caraProfile.UpgradeLevels.GeneratorPower == 0)
+fireServer("PurchaseUpgrade", cara, UPGRADE)
+check("durante la carga no se puede comprar (NotReady)", lastResult("PurchaseResult", cara)[2] == "NotReady" and caraProfile.UpgradeLevels.LaserSpeed == 0)
 advance(3)
 storeLatency = 0
-check(("al cargar: la ⚡ guardada (500) pasa a 💰 2500 y los 25 💎 ganados se quedan (%d), nivel 2"):format(caraProfile.Energy), caraProfile.Energy == 25 and caraProfile.Money == 2500 and caraProfile.UpgradeLevels.GeneratorPower == 2)
+check(("al cargar: la ⚡ guardada (500) pasa a 💰 2500 y los 25 💎 ganados se quedan (%d); la Resonancia ya no es una mejora"):format(caraProfile.Energy), caraProfile.Energy == 25 and caraProfile.Money == 2500 and caraProfile.UpgradeLevels.GeneratorPower == nil)
 check("y se avisa al jugador una vez (EconomyNotice)", cara:GetAttribute("EconomyNotice") == "500,2500")
 
 print("-- 7. Valores corruptos y mejoras desconocidas")
-storeData.player_4 = { Version = 2, Energy = -50, UpgradeLevels = { GeneratorPower = 999, OldBoost = 3, Broken = "x" } }
+storeData.player_4 = { Version = 2, Energy = -50, UpgradeLevels = { LaserSpeed = 999, OldBoost = 3, Broken = "x" } }
 local dan = newPlayer("Dan", 4)
 join(dan)
 advance(0)
@@ -138,17 +140,17 @@ storeData.player_7 = { Version = 2, Energy = -50 }
 local warningsBefore = #warnings
 local status7, loaded7 = SaveService.load(7)
 check("energía negativa guardada -> valor inicial, con aviso en consola", status7 == "Loaded" and loaded7.Energy == 0 and #warnings > warningsBefore)
-check("energía negativa -> 0 (el nivel de la Resonancia ya no da logros)", danProfile.Energy == 0 and danProfile.PetData.Quests.Achievements.Resonance10 == nil)
-check("nivel por encima del máximo -> 50", danProfile.UpgradeLevels.GeneratorPower == 50)
+check("energía negativa -> 0", danProfile.Energy == 0)
+check("nivel por encima del máximo -> el máximo de la mejora", danProfile.UpgradeLevels.LaserSpeed == EconomyConfig.Upgrades.LaserSpeed.MaxLevel)
 check("solo mejoras existentes en el perfil", danProfile.UpgradeLevels.OldBoost == nil)
 leave(dan)
 advance(0)
-check("la mejora desconocida se conserva en el registro al guardar", record(4).UpgradeLevels.OldBoost == 3 and record(4).UpgradeLevels.GeneratorPower == 50)
-storeData.player_6 = { Version = 2, Energy = 0 / 0, UpgradeLevels = { GeneratorPower = 0 / 0 } }
+check("la mejora desconocida se conserva en el registro al guardar", record(4).UpgradeLevels.OldBoost == 3 and record(4).UpgradeLevels.LaserSpeed == EconomyConfig.Upgrades.LaserSpeed.MaxLevel)
+storeData.player_6 = { Version = 2, Energy = 0 / 0, UpgradeLevels = { LaserSpeed = 0 / 0 } }
 local fay = newPlayer("Fay", 6)
 join(fay)
 advance(0)
-check("NaN -> 0 (energía y nivel)", PlayerDataService.get(fay).Energy == 0 and PlayerDataService.get(fay).UpgradeLevels.GeneratorPower == 0)
+check("NaN -> 0 (💎 y nivel)", PlayerDataService.get(fay).Energy == 0 and PlayerDataService.get(fay).UpgradeLevels.LaserSpeed == 0)
 
 print("-- 8. Salir durante la carga")
 storeData.player_5 = { Version = 2, Energy = 300, UpgradeLevels = { GeneratorPower = 1 } }

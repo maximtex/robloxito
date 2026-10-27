@@ -1,21 +1,15 @@
--- Estado de cada jugador. Energía, dinero, mejoras, mascotas, zonas, misiones y núcleos se
--- cargan y guardan con SaveService (un único DataStore).
--- Producción: todos los núcleos desbloqueados (Naturaleza = el cristal) más la afinidad
--- del seleccionado, por el multiplicador de mascotas (CoreLogic.effectiveProduction) y por
--- el de renacimiento (RebirthLogic.energyMultiplier, aparte para no chocar con el tope de
--- mascotas). Ya no decide los 💎: los multiplica diamondMultiplier (pase, poción y
--- aventuras). Al cargar se concede la producción offline desde
--- el último guardado (CoreLogic), también con el multiplicador de renacimiento, sus horas
--- extra y los amuletos (las bendiciones son solo para jugar).
--- Pases de la tienda (profile.Passes, los rellena ShopService al consultar a Roblox): el
--- de «Energía ×2» multiplica la producción y la offline (para la offline se espera unos
--- segundos a saber qué pases tiene).
+-- Estado de cada jugador. 💎 (en el código, Energy), dinero, mejoras, mascotas, zonas,
+-- misiones y núcleos se cargan y guardan con SaveService (un único DataStore).
+-- Nada se gana sin jugar: no hay producción por segundo ni recompensa offline.
+-- refreshStats recalcula el multiplicador de mascotas (daño y 💰); diamondMultiplier da el
+-- de los 💎 (pase Diamantes ×2, poción y aventuras).
+-- Pases de la tienda: profile.Passes, los rellena ShopService al consultar a Roblox.
 -- Replica valores al cliente mediante atributos del Player, que el cliente
 -- no puede modificar en el servidor.
 --
 -- Carga:
--- - Mientras carga ("Loading") se sigue produciendo energía y cobrando recompensas de
---   enemigos; al terminar se SUMA a la energía guardada (no se pierde ni se duplica).
+-- - Mientras carga ("Loading") se siguen cobrando recompensas de enemigos (💎 y 💰); al
+--   terminar se SUMAN a lo guardado (no se pierde ni se duplica).
 --   Gastar no es posible durante la carga (mejoras, armas, huevos y zonas exigen datos listos).
 -- - Si la carga falla ("Failed") se juega con valores de sesión y NUNCA se guarda: los
 --   datos buenos del DataStore no se pisan con valores por defecto.
@@ -37,7 +31,6 @@ local ZoneConfig = require(Shared.Config.ZoneConfig)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
 local WeaponLogic = require(Shared.WeaponLogic)
 local Constants = require(Shared.Constants)
-local Economy = require(Shared.Economy)
 local PetMath = require(Shared.PetMath)
 local RebirthLogic = require(Shared.RebirthLogic)
 local AdventureLogic = require(Shared.AdventureLogic)
@@ -52,14 +45,12 @@ local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
 local DevConfig = require(script.Parent.Parent.DevConfig)
 
 local AUTOSAVE_INTERVAL = 90
-local PASSES_WAIT = 8 -- segundos como mucho esperando a saber los pases (producción offline)
 
 export type DataState = "Loading" | "Loaded" | "Unavailable" | "Failed"
 
 export type Profile = {
 	Energy: number,
 	Money: number, -- lo sueltan los enemigos (EnemyService); paga la Tienda de Láser
-	ProductionPerSecond: number,
 	UpgradeLevels: { [string]: number },
 	PetMultiplier: number,
 	PetData: SaveService.PetData,
@@ -76,13 +67,6 @@ local PlayerDataService = {}
 
 local profiles: { [Player]: Profile } = {}
 local readyListeners: { (Player) -> () } = {}
-local expectPasses = false -- hay una tienda que consulta los pases (ShopService.start)
-
--- La tienda avisa de que consultará los pases de cada jugador: la producción offline espera
--- (poco) a saber si tiene «Energía ×2».
-function PlayerDataService.expectPasses()
-	expectPasses = true
-end
 
 local function createProfile(): Profile
 	local upgradeLevels = {}
@@ -93,7 +77,6 @@ local function createProfile(): Profile
 	return {
 		Energy = EconomyConfig.StartingEnergy,
 		Money = EconomyConfig.StartingMoney,
-		ProductionPerSecond = Economy.getProductionPerSecond(upgradeLevels),
 		UpgradeLevels = upgradeLevels,
 		PetMultiplier = 1,
 		PetData = SaveService.emptyData(),
@@ -136,13 +119,12 @@ function PlayerDataService.getEquippedPetIds(profile: Profile): { string }
 	return petIds
 end
 
-function PlayerDataService.recalculateProduction(player: Player)
+-- Multiplicador de las mascotas equipadas (daño y 💰). Se llama al cambiar mascotas,
+-- mejoras, renacimientos o datos cargados.
+function PlayerDataService.refreshStats(player: Player)
 	local profile = profiles[player]
 	if profile then
 		profile.PetMultiplier = PetMath.getTotalMultiplier(PlayerDataService.getEquippedPetIds(profile))
-		-- Con solo Naturaleza y sin renacer es exactamente Economy · mascotas, como antes.
-		local base = CoreLogic.effectiveProduction(profile.PetData.Cores, profile.UpgradeLevels, profile.PetMultiplier)
-		profile.ProductionPerSecond = base * RebirthLogic.energyMultiplier(profile.PetData.Rebirth)
 	end
 end
 
@@ -233,7 +215,6 @@ function PlayerDataService.replicate(player: Player)
 	local attributes = Constants.Attributes
 	player:SetAttribute(attributes.Energy, math.floor(profile.Energy))
 	setIfChanged(player, attributes.Money, math.floor(profile.Money))
-	setIfChanged(player, attributes.ProductionPerSecond, profile.ProductionPerSecond)
 	for upgradeId, level in profile.UpgradeLevels do
 		setIfChanged(player, attributes.UpgradeLevelPrefix .. upgradeId, level)
 	end
@@ -315,7 +296,6 @@ function PlayerDataService.replicate(player: Player)
 	setIfChanged(player, attributes.Rebirths, RebirthLogic.count(rebirth))
 	setIfChanged(player, attributes.RebirthTokens, if type(rebirth) == "table" then rebirth.Tokens or 0 else 0)
 	setIfChanged(player, attributes.RebirthShop, RebirthLogic.shopText(rebirth))
-	setIfChanged(player, attributes.RebirthBestLevel, if type(rebirth) == "table" then rebirth.BestLevel or 0 else 0)
 	setIfChanged(player, attributes.MaxEquipped, MonetizationLogic.maxEquipped(rebirth, profile.Passes, PetConfig.MaxEquipped))
 	-- Energía generada en total (clasificaciones; la cuenta QuestService).
 	local quests = profile.PetData.Quests
@@ -381,39 +361,9 @@ local function startSandbox(player: Player, profile: Profile)
 	profile.Money = sandboxMoney()
 	player:SetAttribute(Constants.Attributes.TestMode, true)
 	print(("[PlayerDataService] 🧪 Perfil temporal de prueba creado para %s (UserId %d)."):format(player.Name, player.UserId))
-	PlayerDataService.recalculateProduction(player)
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	notifyReady(player)
-end
-
--- Producción offline desde el último guardado correcto (CoreLogic.offlineReward: base de
--- los núcleos · mascotas · 50 %, máximo 4 h más las del renacimiento) por el multiplicador
--- de renacimiento. Se suma directamente, sin pasar por
--- EnergyService, así que NO cuenta para las misiones de "generar energía". Se guarda en
--- seguida para que LastSeen avance y la misma ausencia no se pueda cobrar dos veces.
-local function grantOfflineReward(player: Player, profile: Profile)
-	-- Rediseño "solo disparar": sin energía pasiva tampoco hay energía mientras no juegas.
-	if EconomyConfig.PassiveEnergy == false then
-		return
-	end
-	-- El pase «Energía ×2» también vale offline: se espera (poco) a saber si lo tiene.
-	local deadline = os.clock() + PASSES_WAIT
-	while expectPasses and not profile.PassesChecked and os.clock() < deadline and profiles[player] == profile do
-		task.wait(0.25)
-	end
-	if profiles[player] ~= profile then
-		return
-	end
-	local data = profile.PetData
-	local rawReward, seconds = CoreLogic.offlineReward(data.Cores, profile.UpgradeLevels, profile.PetMultiplier, data.LastSeen, os.time(), RebirthLogic.offlineBonusSeconds(data.Rebirth))
-	local reward = math.floor(rawReward * RebirthLogic.energyMultiplier(data.Rebirth) * AdventureLogic.offlineMultiplier(data.Adventure) * MonetizationLogic.energyMultiplier(profile.Passes))
-	if reward <= 0 then
-		return
-	end
-	profile.Energy += reward
-	data.LastSeen = os.time() -- ya cobrada (el próximo guardado escribe la hora real)
-	player:SetAttribute(Constants.Attributes.OfflineReward, ("%.0f,%.0f"):format(reward, seconds))
-	PlayerDataService.saveNow(player)
 end
 
 local function loadPetData(player: Player, profile: Profile)
@@ -433,7 +383,7 @@ local function loadPetData(player: Player, profile: Profile)
 
 	profile.DataState = status
 	if status == "Loaded" and data then
-		-- Lo ganado mientras cargaba (producción y enemigos) se suma a lo guardado. Durante la
+		-- Lo ganado mientras cargaba (enemigos) se suma a lo guardado. Durante la
 		-- carga no se puede gastar, así que la diferencia nunca es negativa.
 		local gainedWhileLoading = math.max(0, profile.Energy - EconomyConfig.StartingEnergy)
 		profile.Energy = data.Energy + gainedWhileLoading
@@ -464,11 +414,7 @@ local function loadPetData(player: Player, profile: Profile)
 		warn("[PlayerDataService] No se pudieron cargar los datos de " .. player.Name .. "; no se guardará para proteger sus datos.")
 	end
 
-	PlayerDataService.recalculateProduction(player)
-	if status == "Loaded" and data then
-		-- En su propio hilo: si espera a saber los pases, los datos ya están listos mientras.
-		task.spawn(grantOfflineReward, player, profile)
-	end
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	if PlayerDataService.isPetDataReady(profile) then
 		notifyReady(player)

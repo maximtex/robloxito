@@ -89,7 +89,7 @@ local Constants = {
 		-- Núcleos elementales (CoreService):
 		-- Cliente -> servidor: () pide el estado de sus núcleos
 		RequestCores = "RequestCores",
-		-- Servidor -> cliente: (state) núcleos, niveles, costes y producción (solo para mostrar)
+		-- Servidor -> cliente: (state) núcleos, niveles, costes y habilidades (solo para mostrar)
 		CoreState = "CoreState",
 		-- Cliente -> servidor: (action: "Unlock" | "Upgrade" | "Select", elementId: string)
 		-- El servidor decide si procede y cuánto cuesta.
@@ -190,7 +190,6 @@ local Constants = {
 		AutoFire = "AutoFire",
 		-- Jefes que ha derrotado alguna vez, separados por comas (portales y tutorial).
 		BossesDefeated = "BossesDefeated",
-		ProductionPerSecond = "ProductionPerSecond",
 		PlayerDamage = "PlayerDamage",
 		DamagePerSecond = "DamagePerSecond",
 		UpgradeLevelPrefix = "UpgradeLevel_",
@@ -213,22 +212,18 @@ local Constants = {
 		-- true solo en el modo prueba del tutorial (Studio): nada se carga ni se guarda.
 		TestMode = "TestMode",
 		-- Núcleos elementales: desbloqueados separados por comas ("Nature,Water") y elemento
-		-- seleccionado. Solo para la interfaz (CoreShrineController pinta los altares).
+		-- seleccionado. Solo para la interfaz.
 		UnlockedCores = "UnlockedCores",
 		SelectedCore = "SelectedCore",
 		-- Elemento secundario (habilidad en la R); "" si no hay.
 		SecondaryCore = "SecondaryCore",
-		-- Producción offline concedida al entrar: "energía,segundos" (una vez por sesión).
-		OfflineReward = "OfflineReward",
 		-- Economía nueva: la ⚡ guardada se convirtió en 💰 al entrar: "energía,dinero" (una vez).
 		EconomyNotice = "EconomyNotice",
 		-- Renacimiento: renacimientos hechos, fichas sin gastar, niveles de la tienda
-		-- ("Loot=1,Strike=2"), mejor nivel de Resonancia con el que se renació (los huevos
-		-- que abrió siguen abiertos) y mascotas que se pueden equipar a la vez.
+		-- ("Loot=1,Strike=2") y mascotas que se pueden equipar a la vez.
 		Rebirths = "Rebirths",
 		RebirthTokens = "RebirthTokens",
 		RebirthShop = "RebirthShop",
-		RebirthBestLevel = "RebirthBestLevel",
 		MaxEquipped = "MaxEquipped",
 		-- Tienda: pases que tiene ("DoubleEnergy,TripleHatch"), espacio de inventario y si la
 		-- mejora automática está funcionando (tiene el pase y el interruptor encendido).
@@ -318,7 +313,7 @@ local Constants = {
 		Cooldown = "Cooldown", -- aún recargando
 		NoTarget = "NoTarget", -- habilidad con objetivo sin ningún enemigo delante (no se gasta)
 		-- Renacimiento
-		LevelTooLow = "LevelTooLow", -- falta Resonancia para renacer
+		ComingSoon = "ComingSoon", -- aún no disponible (renacer, hasta su requisito nuevo)
 		InsufficientTokens = "InsufficientTokens", -- faltan fichas para la ventaja
 		-- Aventuras
 		AlreadyAccepted = "AlreadyAccepted", -- esa misión ya está en curso

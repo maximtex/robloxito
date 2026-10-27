@@ -1,4 +1,4 @@
--- Núcleos elementales (FASE 2): desbloquear, mejorar y elegir el elemento activo.
+-- Núcleos elementales: desbloquear, mejorar y elegir el elemento activo (habilidades Q/R).
 -- Toda la decisión es del servidor (CoreLogic): el cliente solo pide una acción y
 -- muestra el estado que se le envía.
 --
@@ -7,8 +7,8 @@
 --   cambiar el principal). Se valida el tipo, el límite de frecuencia y que los datos estén listos (como con huevos y zonas: con
 --   los datos aún cargando no se gasta). CoreLogic modifica los datos y devuelve el coste,
 --   que se resta en el MISMO paso, sin pausas entre medias.
--- - Naturaleza se mejora con la Resonancia del Cristal (UpgradeService), no aquí.
--- - Tras un cambio: producción recalculada, atributos replicados, perfil marcado para
+-- - Naturaleza viene desbloqueada y no tiene nivel.
+-- - Tras un cambio: atributos replicados, perfil marcado para
 --   guardar (desbloquear y elegir se guardan al momento) y estado nuevo al cliente.
 -- - Estado (CoreState) bajo petición (RequestCores) y después de cada acción. Incluye la
 --   habilidad de cada elemento con sus números reales (AbilityLogic.summary).
@@ -52,15 +52,13 @@ local requestLimiter = RateLimiter.new(0.5, 3, 8)
 -- Estado para mostrar (todo calculado aquí; el cliente no repite fórmulas).
 function CoreService.snapshot(profile: PlayerDataService.Profile): { [string]: any }
 	local data = profile.PetData.Cores
-	local levels = profile.UpgradeLevels
 	local elements = {}
 	local previousUnlocked = true
 	local playerDamage = PlayerDataService.combatStats(profile).Power -- escala con el arma equipada
 	for index, elementId in CoreConfig.Order do
 		local unlocked = CoreLogic.isUnlocked(data, elementId)
-		local level = CoreLogic.level(data, levels, elementId)
-		local isDefault = index == 1
-		local maxLevel = if isDefault then EconomyConfig.Upgrades[CoreConfig.Elements[elementId].UpgradeId].MaxLevel else CoreConfig.Upgrade.MaxLevel
+		local level = CoreLogic.level(data, elementId)
+		local maxLevel = if index == 1 then 0 else CoreConfig.Upgrade.MaxLevel
 		local upgradeCost = if unlocked then CoreLogic.upgradeCost(elementId, level) else nil
 		local ability = AbilityLogic.get(elementId)
 		table.insert(elements, {
@@ -68,10 +66,6 @@ function CoreService.snapshot(profile: PlayerDataService.Profile): { [string]: a
 			Unlocked = unlocked,
 			Level = level,
 			MaxLevel = maxLevel,
-			-- Producción base actual (o la que tendría al despertarlo, si está bloqueado).
-			Production = CoreLogic.productionAt(elementId, level),
-			-- Lo que añade el siguiente nivel (0 si está al máximo).
-			NextGain = if upgradeCost then CoreLogic.productionAt(elementId, level + 1) - CoreLogic.productionAt(elementId, level) else 0,
 			UpgradeCost = upgradeCost,
 			UnlockCost = if unlocked then nil else CoreLogic.unlockCost(elementId),
 			-- Se puede despertar ya (los anteriores están despiertos si es secuencial).
@@ -92,14 +86,9 @@ function CoreService.snapshot(profile: PlayerDataService.Profile): { [string]: a
 		Ready = PlayerDataService.isPetDataReady(profile),
 		Selected = data.Selected,
 		Secondary = CoreLogic.secondaryOf(data),
-		SwitchCost = CoreLogic.switchCost(data, levels),
+		SwitchCost = CoreLogic.switchCost(),
 		-- Hora del servidor (os.time) a partir de la cual se puede volver a cambiar.
 		SwitchReadyAt = if data.LastSwitchAt > 0 then data.LastSwitchAt + CoreConfig.Switch.CooldownSeconds else 0,
-		AffinityRate = CoreLogic.affinityRate(),
-		AffinityProduction = CoreLogic.affinityBonus(data, levels),
-		BaseProduction = CoreLogic.baseProduction(data, levels),
-		PetMultiplier = profile.PetMultiplier,
-		Total = profile.ProductionPerSecond,
 		Elements = elements,
 	}
 end
@@ -132,15 +121,14 @@ function CoreService.perform(player: Player, action: any, elementId: any): (stri
 	elseif action == "Upgrade" then
 		code, cost = CoreLogic.upgrade(data, elementId, profile.Energy)
 	elseif action == "Secondary" then
-		code, cost = CoreLogic.selectSecondary(data, profile.UpgradeLevels, elementId, profile.Energy, os.time())
+		code, cost = CoreLogic.selectSecondary(data, elementId, profile.Energy, os.time())
 	else
-		code, cost = CoreLogic.selectElement(data, profile.UpgradeLevels, elementId, profile.Energy, os.time())
+		code, cost = CoreLogic.selectElement(data, elementId, profile.Energy, os.time())
 	end
 
 	if code == "Success" then
 		-- Mismo paso que la modificación de los datos: sin pausas entre medias.
 		profile.Energy -= cost
-		PlayerDataService.recalculateProduction(player)
 		PlayerDataService.replicate(player)
 		PlayerDataService.markDirty(player)
 		if action ~= "Upgrade" then

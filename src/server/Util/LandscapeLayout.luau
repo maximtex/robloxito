@@ -87,15 +87,16 @@ export type Obstacles = { Hard: { Circle }, SolidOnly: { Circle }, Paths: { any 
 
 -- Lo que ya hay en el Bosque (WorldConfig y compañía) y las zonas de juego.
 local function forestObstacles(): Obstacles
-	local World, Shrines = Deps.WorldConfig, Deps.CoreShrineConfig
+	local World = Deps.WorldConfig
+	local reserve = World.AltarReserve
 	local hard, solidOnly = {}, {}
 	table.insert(hard, circle(0, 0, World.Terrain.PlazaRadius + 3, "Plaza"))
 	for _, zone in World.KeepClear do
 		table.insert(hard, circle(zone.X, zone.Y, zone.Z, "KeepClear"))
 	end
-	for elementId in Shrines.Angles do
-		local offset = Shrines.offset(elementId)
-		table.insert(hard, circle(offset.X, offset.Y, Shrines.KeepClearRadius + 1.5, "Altar_" .. elementId))
+	for elementId, degrees in reserve.Angles do
+		local angle = math.rad(degrees)
+		table.insert(hard, circle(math.cos(angle) * reserve.Radius, math.sin(angle) * reserve.Radius, reserve.KeepClearRadius + 1.5, "Altar_" .. elementId))
 	end
 	local tree = World.AncientTree
 	table.insert(hard, circle(tree.Position.X, tree.Position.Y, tree.RootReach + 2, "AncientTree"))
@@ -680,7 +681,6 @@ if typeof(script) == "Instance" then
 		WorldConfig = require(Shared.Config.WorldConfig),
 		ValleyConfig = require(Shared.Config.ValleyConfig),
 		CalderaConfig = require(Shared.Config.CalderaConfig),
-		CoreShrineConfig = require(Shared.Config.CoreShrineConfig),
 		EggConfig = require(Shared.Config.EggConfig),
 		ZoneConfig = require(Shared.Config.ZoneConfig),
 		EnemyConfig = require(Shared.Config.EnemyConfig),

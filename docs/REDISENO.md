@@ -79,13 +79,15 @@ jefes siguen donde están).
 ## 2. Arquitectura del rediseño
 
 ### Monedas
+(Actualizado en la fase 1 del rediseño de pelea: ver la sección 5.)
+
 | Moneda | Se gana | Se gasta |
 |---|---|---|
-| 💰 Dinero | Enemigos (cada golpe y al morir), jefes | Armas y sus mejoras |
-| ⚡ Energía | Núcleos (producción), misiones, cofres, premios, jefes | Resonancia del Cristal (renacer), huevos, zonas, núcleos |
+| 💰 Dinero | Enemigos, oleadas, cofres, premio diario, códigos, aventuras | Armas, guantes, bastones y sus mejoras, huevos, zonas, mejoras de la Armería |
+| 💎 Diamantes | Enemigos (pocos), oleadas, jefes, misiones, diarias, logros, tienda | Habilidades de los estilos, Velocidad de Correr, núcleos |
+| 🔄 Fichas | Renacer | Tienda de fichas |
 
-Las mascotas multiplican la energía (100 % de su bonificación), el daño (50 %) y el dinero
-(50 %).
+Las mascotas multiplican el daño (50 % de su bonificación) y el dinero (50 %).
 
 ### Armas (fase 3)
 - `WeaponConfig` + `WeaponLogic` (puras) y `WeaponService` (servidor). Siete armas con daño,
@@ -142,9 +144,11 @@ Las mascotas multiplican la energía (100 % de su bonificación), el daño (50 %
 - Los jefes derrotados se guardan (`Bosses`); quien ya tenía una zona la conserva.
 
 ### Renacimiento
-- Requisito sin cambios (nivel de Resonancia). Se reinicia: energía, dinero, Resonancia y
-  niveles de las armas. Se conserva: armas compradas y la equipada, mascotas, zonas, jefes
-  derrotados, mejoras de la Armería, núcleos, misiones y la tienda de fichas.
+- (Fase 1 del rediseño de pelea) Ya no hay Resonancia: renacer queda bloqueado
+  («Próximamente», `RebirthConfig.Enabled = false`) hasta que la fase 2 elija el requisito
+  nuevo. Se reinicia: dinero y niveles de las armas. Se conserva: 💎, armas compradas y la
+  equipada, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos, misiones y la
+  tienda de fichas.
 
 ### Guardado
 - Esquema v8: `Weapons` (`WeaponLogic.serialize`) y `Bosses`. Los registros antiguos cargan
@@ -222,3 +226,34 @@ motivos ajenos al rediseño (`sanctuary` 1, `shrines` 2, `quest` 1, `landscape` 
 | 18 | El progreso se conserva al volver | ✅ batería | `persist`: dinero, armas, equipada, niveles y jefes. En Studio no se puede (DataStore sin acceso a la API) |
 | 19 | Sin botones rotos ni errores | ✅ | Studio: los 9 paneles se abren y cierran; 0 errores en cliente y servidor |
 | 20 | Varios jugadores a la vez | ⚠️ código | Estado por jugador, reparto por daño y premios por jugador; falta una prueba con 2 jugadores en Studio |
+
+## 5. Rediseño de pelea, fase 1: sin ⚡ energía ni cristal
+
+El juego pasa a ser de pelea (estilos, armas, oleadas, mazmorras y jefes). Las únicas
+monedas son 💰, 💎 y 🔄 fichas. Se quitó:
+- La **Resonancia del Cristal** (mejora `GeneratorPower`), el santuario del cristal
+  (`GeneratorService`, `GeneratorAnimator`, `CrystalAppearance`) y el Círculo Elemental
+  (`CoreShrineService`, `CoreShrineController`, `CoreShrineConfig`). De `GeneratorConfig`
+  solo quedan `Position` (origen del mapa) y `TerrainFillOffset`; los sitios que reservaban
+  los altares pasan a `WorldConfig.AltarReserve` para que el reparto del bosque no cambie.
+- La **producción** por segundo y la **recompensa offline** (`ProductionPerSecond`,
+  `CoreLogic` producción/afinidad/offline, `EconomyConfig.PassiveEnergy`). Los núcleos se
+  despiertan y suben con 💎 y solo dan sus habilidades (Q/R); Naturaleza no tiene nivel.
+  `EnergyService` solo suma 💎 (`grant`) y avisa una vez por segundo a misiones y tutorial.
+- Del renacimiento: el requisito de Resonancia (queda «Próximamente» hasta la fase 2) y las
+  ventajas «Inicio rápido» y «Sueño profundo».
+
+Lo que dependía del "poder de energía" ahora usa valores de Config:
+
+| Qué | Antes | Ahora |
+|---|---|---|
+| 💎 por enemigo y de las oleadas | · poder de diamantes (Resonancia, núcleos, mascotas…) | · `PlayerDataService.diamondMultiplier` (pase ×2, poción, amuletos, bendición) |
+| Premio diario, cofres, códigos | minutos de producción | minutos de `ZoneConfig.Zones.*.MoneyPerMinute` de la mejor zona abierta |
+| Misiones, diarias, logros (💎) | coste de la siguiente Resonancia / 30 | Min · `QuestConfig.ZoneFactor` de la mejor zona, con Max |
+| Aventuras (💰) | coste de la siguiente Resonancia | Min · `AdventureConfig.ZoneMoneyFactor` de la zona del personaje, con Max |
+| Amuletos Savia/Magma, Bendición de Abundancia | poder del cristal | +25 % / +50 % / ×2 de 💎 |
+| Pase «Mejora automática» (`AutoUpgrade`) | subía la Resonancia | mejora con 💰 el arma del estilo actual |
+| Pase «Diamantes ×2» (`DoubleEnergy`) | ×2 de poder (también offline) | ×2 de 💎 |
+| Mascotas | 100 % a la energía, 50 % daño, 50 % 💰 | 50 % daño, 50 % 💰 |
+| Misiones del cristal | «Despierta el cristal», «Pulir el cristal», «Resonancia plena» | «Mejora tu arma», «Afila tu arma» (evento `WeaponUpgraded`), «Maestro armero» (mismos ids) |
+| Renacer | Resonancia 15 + 5·n | bloqueado («Próximamente») hasta la fase 2 |

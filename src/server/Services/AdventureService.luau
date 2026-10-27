@@ -11,8 +11,8 @@
 -- - Recompensas al entregar: 💰 (min(Min · factor de la zona del personaje, Max):
 --   AdventureConfig.ZoneMoneyFactor), bendición y, al final de cada historia, el
 --   amuleto. La marca de "entregada" va antes que la recompensa, sin pausas.
--- - Pasivas: la producción se recalcula al cambiar amuletos o bendiciones (y cuando una
---   bendición caduca); el daño y el botín los leen CombatService, AbilityService,
+-- - Pasivas: los atributos se recalculan al cambiar amuletos o bendiciones (y cuando una
+--   bendición caduca); los 💎 los multiplica PlayerDataService.diamondMultiplier; el daño y el botín los leen CombatService, AbilityService,
 --   PetCombatService y EnemyService con AdventureLogic; la velocidad se aplica al
 --   Humanoid (atributo BaseWalkSpeed, que respeta también el Vendaval).
 -- - Los datos viven en el perfil guardado (PetData.Adventure). Sin datos cargados no se
@@ -233,9 +233,9 @@ local function applyCharacter(player: Player, profile: PlayerDataService.Profile
 	setPendant(character, first)
 end
 
--- Producción (amuletos y bendiciones de energía) y personaje al día.
+-- Atributos (amuletos y bendiciones) y personaje al día.
 local function refreshPassives(player: Player, profile: PlayerDataService.Profile)
-	PlayerDataService.recalculateProduction(player)
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	-- Lo visual nunca debe impedir que la acción termine.
 	local ok, problem = pcall(applyCharacter, player, profile)
@@ -396,7 +396,7 @@ function AdventureService.grantBlessings(player: Player, blessings: any): { [str
 	return added
 end
 
--- Bendiciones caducadas: producción al día. Devuelve true si alguna terminó.
+-- Bendiciones caducadas: atributos al día. Devuelve true si alguna terminó.
 function AdventureService.prune(player: Player): boolean
 	local profile = readyProfile(player)
 	if not profile then

@@ -14,7 +14,6 @@ LandscapeLayout.init({
 	WorldConfig = WorldConfig,
 	ValleyConfig = ValleyConfig,
 	CalderaConfig = CalderaConfig,
-	CoreShrineConfig = CoreShrineConfig,
 	EggConfig = EggConfig,
 	ZoneConfig = ZoneConfig,
 	EnemyConfig = EnemyConfig,
@@ -62,8 +61,8 @@ check("páginas de cada monolito: existen, la primera es la del servidor y las g
 print("-- 2. Sitio en el bosque")
 local obstacles = LandscapeLayout.obstacles("Forest")
 -- Lo que LandscapeLayout aún cuenta pero el mapa de bloques (StudFloor) ya no construye: el
--- santuario y los altares de los núcleos (GeneratorService y CoreShrineService no arrancan en
--- init.server.luau) y la decoración del terreno antiguo de WorldConfig (plaza de adoquines,
+-- sitio que reservaban los antiguos altares de los núcleos (WorldConfig.AltarReserve) y la
+-- decoración del terreno antiguo de WorldConfig (plaza de adoquines,
 -- árboles, rocas, columnas, setas y cristales). Comprobado en Studio: los monolitos solo
 -- rozan un montón de regalos de Navidad.
 local GONE = { "^Plaza$", "^Altar_", "^AncientTree$", "^Tree%d", "^Rock%d", "^Column%d", "^Mushrooms%d", "^Crystals%d" }

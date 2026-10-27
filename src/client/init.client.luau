@@ -2,9 +2,6 @@
 -- Los módulos que no esperan a nada arrancan primero; los que esperan a los remotes,
 -- después. PetController va en su propio hilo para no retrasar el HUD.
 
-local GeneratorAnimator = require(script.Controllers.GeneratorAnimator)
-local CrystalAppearance = require(script.Controllers.CrystalAppearance)
-local CoreShrineController = require(script.Controllers.CoreShrineController)
 local EggShrineAnimator = require(script.Controllers.EggShrineAnimator)
 local HudController = require(script.Controllers.HudController)
 local PetFollower = require(script.Controllers.PetFollower)
@@ -40,9 +37,6 @@ local DungeonGates = require(script.Controllers.DungeonGates)
 local ChestController = require(script.Controllers.ChestController)
 local LeaderboardController = require(script.Controllers.LeaderboardController)
 
-GeneratorAnimator.start()
-CrystalAppearance.start()
-CoreShrineController.start()
 EggShrineAnimator.start() -- los huevos de los santuarios flotan y giran
 PetFollower.start()
 WaveVisibility.start() -- oleadas privadas: solo se ven los enemigos de tu partida (o del mundo)
@@ -64,7 +58,7 @@ task.spawn(QuestController.start)
 task.spawn(CoreController.start)
 task.spawn(DataStatusController.start)
 task.spawn(TutorialController.start)
-task.spawn(RebirthController.start) -- renacer: panel, tienda de fichas y corona del cristal
+task.spawn(RebirthController.start) -- renacer: panel y tienda de fichas
 task.spawn(AdventureController.start) -- personajes, misiones opcionales, amuletos y bendiciones
 task.spawn(RewardsController.start) -- premio diario y códigos (🎁 Premios)
 task.spawn(ShopController.start) -- pases y compras de energía (💎 Tienda)

@@ -8,8 +8,8 @@
 
 local ItemConfig = {
 	-- Pociones. Multiplier: lo que multiplica mientras dura (ItemLogic.multiplier).
-	--   Energy  💎 de los enemigos y de los premios de las oleadas (EnemyService, WaveService)
-	--           y la producción por segundo si la hay (PlayerDataService.recalculateProduction)
+	--   Energy  💎 de los enemigos y de los premios de las oleadas
+	--           (PlayerDataService.diamondMultiplier)
 	--   Damage  todo el daño del jugador: disparos, habilidades y mascotas (EnemyService.damage)
 	--   Money   dinero de los enemigos (EnemyService: lootMultiplier)
 	--   Luck    sorteo de los huevos: se tira LuckRolls veces y se queda el mejor (PetService)

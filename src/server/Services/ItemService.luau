@@ -249,7 +249,7 @@ local function usePotion(player: Player, potionId: any): (string, any?)
 	if code ~= Codes.Success then
 		return code, nil
 	end
-	PlayerDataService.recalculateProduction(player) -- energía
+	PlayerDataService.refreshStats(player) -- energía
 	PlayerDataService.replicate(player) -- daño mostrado
 	PlayerDataService.markDirty(player)
 	return code, { PotionId = potionId, Seconds = seconds }
@@ -307,7 +307,7 @@ local function tick()
 		if items and next(items.Boosts) ~= nil then
 			local ended = ItemLogic.expire(items, now)
 			if #ended > 0 then
-				PlayerDataService.recalculateProduction(player)
+				PlayerDataService.refreshStats(player)
 				PlayerDataService.replicate(player)
 				for _, potionId in ended do
 					resultRemote:FireClient(player, true, Codes.Success, "BoostEnded", potionId)

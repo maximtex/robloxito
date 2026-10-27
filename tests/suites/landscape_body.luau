@@ -28,7 +28,6 @@ LandscapeLayout.init({
 	WorldConfig = WorldConfig,
 	ValleyConfig = ValleyConfig,
 	CalderaConfig = CalderaConfig,
-	CoreShrineConfig = CoreShrineConfig,
 	EggConfig = EggConfig,
 	ZoneConfig = ZoneConfig,
 	EnemyConfig = EnemyConfig,

@@ -9,7 +9,7 @@ function Economy.getUpgradeDefinition(upgradeId: string)
 	return EconomyConfig.Upgrades[upgradeId]
 end
 
--- Moneda con la que se paga una mejora: "Money" (Tienda de Láser) o "Energy" (las demás)
+-- Moneda con la que se paga una mejora: "Money" (💰) o "Energy" (💎)
 function Economy.getUpgradeCurrency(upgradeId: string): string
 	local definition = EconomyConfig.Upgrades[upgradeId]
 	return if definition and definition.Currency == "Money" then "Money" else "Energy"
@@ -21,17 +21,6 @@ function Economy.getUpgradeCost(upgradeId: string, currentLevel: number): number
 		return nil
 	end
 	return math.floor(definition.BaseCost * definition.CostMultiplier ^ currentLevel)
-end
-
-function Economy.getProductionPerSecond(upgradeLevels: { [string]: number }): number
-	local total = EconomyConfig.BaseProductionPerSecond
-	for upgradeId, level in upgradeLevels do
-		local definition = EconomyConfig.Upgrades[upgradeId]
-		if definition then
-			total += definition.ProductionPerLevel * level
-		end
-	end
-	return total
 end
 
 return Economy

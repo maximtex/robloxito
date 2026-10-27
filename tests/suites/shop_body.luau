@@ -1,6 +1,3 @@
--- Esta batería prueba la producción pasiva y offline (cristal y núcleos), que sigue en el
--- código detrás de EconomyConfig.PassiveEnergy: se enciende para comprobarla.
-EconomyConfig.PassiveEnergy = true
 -- Premios y tienda: RewardLogic, MonetizationLogic, EggLogic (abrir varios, regalo, mejor
 -- huevo) y la semana de LeaderboardLogic (puras), y RewardService y ShopService REALES con
 -- PlayerDataService y SaveService reales sobre un DataStore en memoria (pases simulados de
@@ -128,9 +125,9 @@ local function eggProfile(energy, level, zones, pets)
 	for index = 1, pets or 0 do
 		table.insert(list, { Uid = tostring(index), PetId = "Sproutling" })
 	end
-	return { Money = energy, Energy = 0, UpgradeLevels = { GeneratorPower = level }, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1, UnlockedZones = zones or {} } }
+	return { Money = energy, Energy = 0, PetData = { Pets = list, Equipped = {}, NextPetUid = (pets or 0) + 1, UnlockedZones = zones or {} } }
 end
-local limits = { MaxInventory = 60, MaxEquipped = 3, UnlockUpgradeId = "GeneratorPower" }
+local limits = { MaxInventory = 60, MaxEquipped = 3 }
 local forest = EggConfig.Eggs.ForestEgg
 local poor = eggProfile(forest.Cost * 2, 0)
 check("×3 sin 💰 para los tres: no cobra ni da nada", EggLogic.purchaseMany(poor, forest, { 1, 2, 3 }, limits, Codes) == Codes.InsufficientMoney and poor.Money == forest.Cost * 2 and #poor.PetData.Pets == 0)
@@ -341,7 +338,7 @@ local function level(id) return WeaponLogic.level(weapons5, id) end
 profile5.Money = 1e7
 advance(1.5)
 local level5 = level(gun5)
-check("con el pase se mejora sola el arma equipada con 💰 (hasta 5 por tick)", level5 >= 5 and level5 <= 5 * 2 and profile5.Money < 1e7 and p5:GetAttribute("AutoUpgrade") == true and profile5.UpgradeLevels.GeneratorPower == 0)
+check("con el pase se mejora sola el arma equipada con 💰 (hasta 5 por tick)", level5 >= 5 and level5 <= 5 * 2 and profile5.Money < 1e7 and p5:GetAttribute("AutoUpgrade") == true and profile5.UpgradeLevels.GeneratorPower == nil)
 profile5.PetData.Style = "Fists"
 local gloves5 = WeaponLogic.equippedFor(weapons5, "Fists")
 local gunBefore = level(gun5)
@@ -363,16 +360,14 @@ profile1.Money = 1e7
 advance(2)
 check("sin el pase: nunca sube sola", WeaponLogic.level(profile1.PetData.Weapons, gun1) == level1)
 
-print("-- 11. Producción offline con Energía ×2")
+print("-- 11. Diamantes ×2 no da nada sin jugar")
 Market.Owned[6] = { [101] = true }
 storeData.player_6 = { Version = 5, LastSeen = os.time() - 2 * 3600, Energy = 0 }
 local p6 = newPlayer("Fede", 6)
 join(p6)
 advance(10)
 local profile6 = PlayerDataService.get(p6)
-local base6 = CoreLogic.offlineReward(profile6.PetData.Cores, profile6.UpgradeLevels, profile6.PetMultiplier, os.time() - 2 * 3600 - 10, os.time() - 10, 0)
-local offline = p6:GetAttribute("OfflineReward")
-check("la offline espera a saber los pases y se dobla", offline ~= nil and tonumber(string.split(offline, ",")[1]) == math.floor(base6 * 2))
+check("con el pase y 2 h fuera: ni 💎 offline ni aviso (el pase solo dobla lo que ganas peleando)", profile6.Passes.DoubleEnergy == true and profile6.Energy == 0 and p6:GetAttribute("OfflineReward") == nil)
 
 print("-- Cofres escondidos (ChestService real)")
 ChestService.startRemotes()

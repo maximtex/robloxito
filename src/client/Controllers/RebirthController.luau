@@ -1,28 +1,23 @@
 -- Interfaz del renacimiento (solo presentación; el servidor decide todo):
--- - Azulejo "Renacer" en la barra del menú (o tecla T) con una barra del progreso hacia el
---   siguiente renacimiento; su borde late en dorado cuando ya se puede renacer. Aviso
---   "Renacer" en el Cristal del Renacimiento que abre el mismo panel.
--- - Panel (PanelManager): bonificación actual, requisito con barra, lo que se gana y lo que
---   se reinicia, botón de renacer con confirmación (dos pulsaciones) y tienda de fichas.
--- - Al renacer: destello, sacudida, título "RENACIMIENTO II", estallido de luz en el
---   cristal y sonido. Corona de gemas sobre el cristal (una por renacimiento, solo la ve
---   cada jugador para sí) y aviso breve cuando renace otro jugador.
--- El estado sale de atributos del Player (Rebirths, RebirthTokens, RebirthShop,
--- UpgradeLevel_GeneratorPower) y los números de RebirthLogic, igual que en el servidor.
+-- - Azulejo "Renacer" en la barra del menú (o tecla T); su borde late en dorado cuando ya
+--   se puede renacer.
+-- - Panel (PanelManager): bonificación actual, requisito, lo que se gana y lo que se
+--   reinicia, botón de renacer con confirmación (dos pulsaciones) y tienda de fichas.
+--   Mientras RebirthConfig.Enabled sea false (el requisito nuevo llega en la fase 2 del
+--   rediseño), el botón dice "🔒 Próximamente" y no se puede renacer.
+-- - Al renacer: destello, sacudida, título "RENACIMIENTO II" y sonido; aviso breve cuando
+--   renace otro jugador.
+-- El estado sale de atributos del Player (Rebirths, RebirthTokens, RebirthShop) y los
+-- números de RebirthLogic, igual que en el servidor.
 
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
-local EconomyConfig = require(Shared.Config.EconomyConfig)
-local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local RebirthConfig = require(Shared.Config.RebirthConfig)
 local RebirthLogic = require(Shared.RebirthLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -41,13 +36,10 @@ local PANEL_NAME = "Rebirth"
 local PANEL_SIZE = Vector2.new(620, 560)
 local ROW_HEIGHT = 64
 local CONFIRM_SECONDS = 4
-local LEVEL_ATTRIBUTE = Attributes.UpgradeLevelPrefix .. RebirthConfig.UpgradeId
-local UPGRADE_NAME = EconomyConfig.Upgrades[RebirthConfig.UpgradeId].DisplayName
 local GOLD = RebirthConfig.Colors.Glow
-local CRYSTAL_CENTER = GeneratorConfig.Position + Vector3.new(0, GeneratorConfig.CoreHeight, 0)
 
 local MESSAGES = {
-	[Codes.LevelTooLow] = "Aún te falta Resonancia para renacer.",
+	[Codes.ComingSoon] = "El renacimiento vuelve pronto con un requisito nuevo.",
 	[Codes.InsufficientTokens] = "Te faltan fichas.",
 	[Codes.MaxLevel] = "Esa ventaja ya está al máximo.",
 	[Codes.NotReady] = "Tus datos aún se están cargando.",
@@ -72,7 +64,6 @@ local function currentData(): any
 		Count = attributeNumber(Attributes.Rebirths),
 		Tokens = attributeNumber(Attributes.RebirthTokens),
 		Shop = RebirthLogic.parseShop(player:GetAttribute(Attributes.RebirthShop)),
-		BestLevel = attributeNumber(Attributes.RebirthBestLevel),
 		LastAt = 0,
 	}
 end
@@ -113,129 +104,9 @@ local function playSound(id: string, volume: number, pitch: number?)
 	end)
 end
 
--- Estallido de luz en el cristal (local): anillo que se expande y chispas.
-local function crystalBurst(color: Color3)
-	local folder = Workspace:FindFirstChild("RebirthEffects") or Instance.new("Folder")
-	folder.Name = "RebirthEffects"
-	folder.Parent = Workspace
-	local ring = Instance.new("Part")
-	ring.Name = "Shockwave"
-	ring.Anchored = true
-	ring.CanCollide = false
-	ring.CanQuery = false
-	ring.CanTouch = false
-	ring.CastShadow = false
-	ring.Material = Enum.Material.Neon
-	ring.Color = color
-	ring.Shape = Enum.PartType.Cylinder
-	ring.Size = Vector3.new(0.3, 4, 4)
-	ring.CFrame = CFrame.new(GeneratorConfig.Position + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
-	ring.Transparency = 0.2
-	ring.Parent = folder
-	TweenService:Create(ring, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.3, 70, 70), Transparency = 1 }):Play()
-
-	local core = Instance.new("Part")
-	core.Name = "Sparks"
-	core.Anchored = true
-	core.CanCollide = false
-	core.CanQuery = false
-	core.CanTouch = false
-	core.Transparency = 1
-	core.Size = Vector3.one
-	core.CFrame = CFrame.new(CRYSTAL_CENTER)
-	core.Parent = folder
-	local emitter = Instance.new("ParticleEmitter")
-	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	emitter.Color = ColorSequence.new(color, Color3.new(1, 1, 1))
-	emitter.LightEmission = 1
-	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(1, 0) })
-	emitter.Speed = NumberRange.new(14, 30)
-	emitter.SpreadAngle = Vector2.new(180, 180)
-	emitter.Lifetime = NumberRange.new(1, 1.8)
-	emitter.Drag = 2
-	emitter.Rate = 0
-	emitter.Parent = core
-	emitter:Emit(120)
-	local light = Instance.new("PointLight")
-	light.Color = color
-	light.Range = 40
-	light.Brightness = 6
-	light.Parent = core
-	TweenService:Create(light, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Brightness = 0 }):Play()
-	task.delay(3, function()
-		ring:Destroy()
-		core:Destroy()
-	end)
-end
-
--- Corona de gemas sobre el cristal (local: cada jugador ve la suya) ---------------------------
-
-local halo = {
-	Folder = nil :: Folder?,
-	Gems = {} :: { BasePart },
-	Count = -1,
-}
-
 local function haloColor(count: number): Color3
 	local tier = RebirthLogic.haloTier(count)
 	return RebirthConfig.Colors.Halo[math.max(1, tier)]
-end
-
-local function rebuildHalo(count: number)
-	if halo.Count == count then
-		return
-	end
-	halo.Count = count
-	if not halo.Folder then
-		local folder = Instance.new("Folder")
-		folder.Name = "RebirthHalo"
-		folder.Parent = Workspace
-		halo.Folder = folder
-	end
-	for _, gem in halo.Gems do
-		gem:Destroy()
-	end
-	table.clear(halo.Gems)
-	local gems = math.min(count, RebirthConfig.MaxHaloGems)
-	local color = haloColor(count)
-	for index = 1, gems do
-		local gem = Instance.new("Part")
-		gem.Name = "Gem" .. index
-		gem.Anchored = true
-		gem.CanCollide = false
-		gem.CanQuery = false
-		gem.CanTouch = false
-		gem.CastShadow = false
-		gem.Size = Vector3.new(0.55, 0.95, 0.55)
-		gem.Material = if index % 2 == 0 then Enum.Material.Glass else Enum.Material.Neon
-		gem.Transparency = if index % 2 == 0 then 0.15 else 0
-		gem.Color = if index % 2 == 0 then color:Lerp(Color3.new(1, 1, 1), 0.35) else color
-		gem.Parent = halo.Folder
-		table.insert(halo.Gems, gem)
-	end
-end
-
-local haloElapsed = 0
-local function updateHalo(deltaTime: number)
-	local count = #halo.Gems
-	if count == 0 then
-		return
-	end
-	haloElapsed += deltaTime
-	local camera = Workspace.CurrentCamera
-	if camera and (camera.CFrame.Position - CRYSTAL_CENTER).Magnitude > GeneratorConfig.Animation.MaxDistance then
-		return
-	end
-	local parts, cframes = {}, {}
-	local radius = 2.6 + count * 0.12
-	local center = CRYSTAL_CENTER + Vector3.new(0, 6.6 + math.sin(haloElapsed * 0.8) * 0.25, 0)
-	for index, gem in halo.Gems do
-		local angle = haloElapsed * 0.5 + (index / count) * math.pi * 2
-		local position = center + Vector3.new(math.cos(angle) * radius, math.sin(haloElapsed * 1.6 + index) * 0.18, math.sin(angle) * radius)
-		table.insert(parts, gem)
-		table.insert(cframes, CFrame.new(position) * CFrame.Angles(0, -angle + haloElapsed, 0) * CFrame.Angles(0, 0, math.rad(45)) * CFrame.Angles(math.rad(45), 0, 0))
-	end
-	Workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 end
 
 -- Construcción de la interfaz ------------------------------------------------------------------
@@ -567,10 +438,6 @@ function RebirthController.start()
 			return ("+%d"):format(value)
 		elseif itemId == "Loot" or itemId == "Strike" then
 			return ("+%d %%"):format(math.floor(value * 100 + 0.5))
-		elseif itemId == "HeadStart" then
-			return ("nivel %d"):format(value)
-		elseif itemId == "Dreams" then
-			return ("+%d h"):format(math.floor(value / 3600 + 0.5))
 		end
 		return tostring(value)
 	end
@@ -604,10 +471,8 @@ function RebirthController.start()
 	local function render()
 		local data = currentData()
 		local count = data.Count
-		local level = attributeNumber(LEVEL_ATTRIBUTE)
-		local required = RebirthLogic.requiredLevel(count)
-		local ready = RebirthLogic.canRebirth(data, level) and dataReady()
-		local progress = math.clamp(level / math.max(1, required), 0, 1)
+		local ready = RebirthLogic.canRebirth(data) and dataReady()
+		local progress = if ready then 1 else 0
 
 		-- Azulejo del menú
 		menuEntry.setProgress(progress)
@@ -620,20 +485,19 @@ function RebirthController.start()
 		ui.Subtitle.Text = if count > 0
 			then ("Renacimientos: %d (%s)  ·  🪙 %s"):format(count, RebirthLogic.numeral(count), tokensText(data.Tokens))
 			else ("Aún no has renacido  ·  🪙 %s"):format(tokensText(data.Tokens))
-		ui.Bonus.Text = ("Tu bonificación:  ✦ %s poder   ⚔ %s daño"):format(
-			multiplierText(RebirthLogic.energyMultiplierAt(count)),
+		ui.Bonus.Text = ("Tu bonificación:  💰 %s botín   ⚔ %s daño"):format(
+			multiplierText(RebirthLogic.lootBonusAt(count)),
 			multiplierText(RebirthLogic.damageMultiplierAt(count, strike))
 		)
-		ui.Requirement.Text = ("Para renacer: %s nivel %d"):format(UPGRADE_NAME, required)
+		ui.Requirement.Text = if RebirthConfig.Enabled then "Para renacer: ¡ya puedes!" else "Para renacer: llega pronto un requisito nuevo"
 		ui.Fill.Size = UDim2.fromScale(progress, 1)
-		ui.TrackText.Text = if ready then "¡Listo para renacer!" else ("Nivel %d / %d"):format(level, required)
-		ui.Gain.Text = ("Al renacer:  ✦ %s poder  ·  ⚔ %s daño  ·  🪙 +%s"):format(
-			multiplierText(RebirthLogic.energyMultiplierAt(count + 1)),
+		ui.TrackText.Text = if ready then "¡Listo para renacer!" else "Próximamente"
+		ui.Gain.Text = ("Al renacer:  💰 %s botín  ·  ⚔ %s daño  ·  🪙 +%s"):format(
+			multiplierText(RebirthLogic.lootBonusAt(count + 1)),
 			multiplierText(RebirthLogic.damageMultiplierAt(count + 1, strike)),
 			tokensText(RebirthLogic.tokensFor(count))
 		)
-		local startLevel = RebirthLogic.headStartLevel(data, RebirthLogic.requiredLevel(count + 1))
-		ui.Resets.Text = ("Se reinician tu 💰, el nivel de tus armas y la %s (vuelve al nivel %d). Te quedas tus 💎, habilidades, armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos, misiones y los huevos ya desbloqueados."):format(UPGRADE_NAME, startLevel)
+		ui.Resets.Text = "Se reinician tu 💰 y el nivel de tus armas. Te quedas tus 💎, habilidades, armas, mascotas, zonas, jefes derrotados, mejoras de la Armería, núcleos y misiones."
 
 		local confirming = ready and os.clock() < confirmUntil
 		if pending then
@@ -643,7 +507,7 @@ function RebirthController.start()
 		elseif ready then
 			ui.RebirthButton.Text = "🔄 Renacer ahora"
 		else
-			ui.RebirthButton.Text = ("🔒 Te faltan %d niveles de Resonancia"):format(math.max(0, required - level))
+			ui.RebirthButton.Text = "🔒 Próximamente"
 		end
 		ui.RebirthButton.BackgroundColor3 = if confirming then Color3.fromRGB(176, 110, 30) elseif ready then Color3.fromRGB(150, 112, 34) else THEME.Disabled
 		ui.RebirthButton.TextColor3 = if ready then THEME.Text else THEME.Muted
@@ -655,7 +519,7 @@ function RebirthController.start()
 	-- El azulejo del menú late en dorado cuando se puede renacer.
 	local function updateButtonGlow()
 		local data = currentData()
-		local ready = RebirthLogic.canRebirth(data, attributeNumber(LEVEL_ATTRIBUTE)) and dataReady()
+		local ready = RebirthLogic.canRebirth(data) and dataReady()
 		menuEntry.setAttention(ready, GOLD)
 	end
 
@@ -694,9 +558,7 @@ function RebirthController.start()
 			if not dataReady() then
 				setFeedback(MESSAGES[Codes.NotReady], THEME.Error)
 			else
-				local data = currentData()
-				local missing = RebirthLogic.requiredLevel(data.Count) - attributeNumber(LEVEL_ATTRIBUTE)
-				setFeedback(("Sube la %s %d niveles más (mejórala en la tarjeta de abajo)."):format(UPGRADE_NAME, math.max(1, missing)), THEME.Error)
+				setFeedback(MESSAGES[Codes.ComingSoon], THEME.Error)
 			end
 			return
 		end
@@ -732,7 +594,7 @@ function RebirthController.start()
 		TweenService:Create(ui.Flash, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1, BackgroundColor3 = color }):Play()
 		ui.BigTitle.Text = "✨ RENACIMIENTO " .. RebirthLogic.numeral(count) .. " ✨"
 		ui.BigTitle.TextColor3 = color
-		ui.BigSubtitle.Text = ("✦ %s poder para siempre  ·  🪙 +%s"):format(multiplierText(RebirthLogic.energyMultiplierAt(count)), tokensText(tokens))
+		ui.BigSubtitle.Text = ("💰 %s botín para siempre  ·  🪙 +%s"):format(multiplierText(RebirthLogic.lootBonusAt(count)), tokensText(tokens))
 		ui.BigTitle.TextTransparency = 0
 		ui.TitleStroke.Transparency = 0
 		ui.BigSubtitle.TextTransparency = 0
@@ -740,7 +602,6 @@ function RebirthController.start()
 		local baseScale = ui.TitleScale.Scale
 		ui.TitleScale.Scale = baseScale * 0.4
 		TweenService:Create(ui.TitleScale, TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = baseScale }):Play()
-		crystalBurst(color)
 		playSound(RebirthConfig.Sounds.Rebirth, 0.9)
 		playSound(RebirthConfig.Sounds.Burst, 0.45, 0.8)
 		if AbilityController.shake then
@@ -766,11 +627,7 @@ function RebirthController.start()
 				PanelManager.close(PANEL_NAME)
 				playCinematic(tonumber(detail.Count) or attributeNumber(Attributes.Rebirths), tonumber(detail.Tokens) or 0)
 			else
-				local message = MESSAGES[code] or tostring(code)
-				if code == Codes.LevelTooLow and typeof(detail) == "table" and detail.Required then
-					message = ("Necesitas %s nivel %d para renacer."):format(UPGRADE_NAME, detail.Required)
-				end
-				setFeedback(message, THEME.Error)
+				setFeedback(MESSAGES[code] or tostring(code), THEME.Error)
 			end
 			render()
 		elseif action == "Shop" then
@@ -801,38 +658,11 @@ function RebirthController.start()
 	local function onStateChanged()
 		render()
 		updateButtonGlow()
-		rebuildHalo(attributeNumber(Attributes.Rebirths))
 	end
-	for _, name in { Attributes.Rebirths, Attributes.RebirthTokens, Attributes.RebirthShop, LEVEL_ATTRIBUTE, Attributes.DataStatus } do
+	for _, name in { Attributes.Rebirths, Attributes.RebirthTokens, Attributes.RebirthShop, Attributes.DataStatus } do
 		player:GetAttributeChangedSignal(name):Connect(onStateChanged)
 	end
 	onStateChanged()
-	RunService.Heartbeat:Connect(updateHalo)
-
-	-- Aviso "Renacer" en el cristal (sobre la plataforma del santuario) ---------------------------
-	task.spawn(function()
-		while true do
-			local model = Workspace:FindFirstChild(GeneratorConfig.ModelName)
-			local dais = model and model:FindFirstChild("Dais")
-			if dais and dais:IsA("BasePart") and not dais:FindFirstChild("RebirthPrompt") then
-				local prompt = Instance.new("ProximityPrompt")
-				prompt.Name = "RebirthPrompt"
-				prompt.ActionText = "Renacer"
-				prompt.ObjectText = GeneratorConfig.DisplayName
-				prompt.KeyboardKeyCode = Enum.KeyCode.E
-				prompt.HoldDuration = 0
-				prompt.MaxActivationDistance = 12
-				prompt.RequiresLineOfSight = false
-				prompt.Parent = dais
-			end
-			task.wait(if dais then 10 else 1)
-		end
-	end)
-	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
-		if prompt.Name == "RebirthPrompt" then
-			PanelManager.open(PANEL_NAME)
-		end
-	end)
 end
 
 return RebirthController

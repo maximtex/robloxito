@@ -555,7 +555,7 @@ function AbilityService.perform(player: Player, slot: any): (string, string?, nu
 		State = state,
 		Ability = ability,
 		ElementId = elementId :: string,
-		Level = CoreLogic.level(profile.PetData.Cores, profile.UpgradeLevels, elementId :: string),
+		Level = CoreLogic.level(profile.PetData.Cores, elementId :: string),
 		Base = PlayerDataService.combatStats(profile).Power, -- escala con el arma equipada
 		Root = root,
 		Humanoid = humanoid,

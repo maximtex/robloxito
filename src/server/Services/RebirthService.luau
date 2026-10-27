@@ -1,17 +1,17 @@
 -- Renacimiento (Rebirth). Todo se decide aquí; el cliente solo pide.
--- - Renacer (remote Rebirth): datos listos, Resonancia >= requisito (RebirthLogic). En el
---   mismo paso: +1 renacimiento, fichas, dinero al inicial (los 💎 se quedan), Resonancia al
---   nivel de "Inicio rápido" y las armas a nivel 0. Las armas (y la equipada), mascotas,
---   núcleos, zonas, jefes derrotados, mejoras de la Armería y misiones se quedan.
+-- - Renacer (remote Rebirth): datos listos y RebirthLogic.canRebirth (mientras
+--   RebirthConfig.Enabled sea false responde ComingSoon: el requisito nuevo llega en la fase
+--   2 del rediseño). En el mismo paso: +1 renacimiento, fichas, dinero al inicial (los 💎 se
+--   quedan) y las armas a nivel 0. Las armas (y la equipada), mascotas, núcleos, zonas, jefes
+--   derrotados, mejoras de la Armería y misiones se quedan.
 --   Se guarda en seguida (no se pierde un renacimiento por un cierre).
 -- - Tienda (remote RebirthShop): sube una ventaja pagando fichas (RebirthLogic.buy).
 -- - Estado al cliente por atributos (PlayerDataService.replicate): Rebirths,
---   RebirthTokens, RebirthShop, RebirthBestLevel y MaxEquipped.
+--   RebirthTokens, RebirthShop y MaxEquipped.
 -- - Social: columna "Renacimientos" en la lista de jugadores (leaderstats), etiqueta
 --   "🔄 II" sobre la cabeza y aviso a todos cuando alguien renace (RebirthEvent).
--- Los multiplicadores (energía, botín, daño, mascotas, offline) los aplican
--- PlayerDataService, EnemyService, CombatService, AbilityService, PetCombatService y
--- PetService con RebirthLogic.
+-- Los multiplicadores (botín, daño, mascotas) los aplican EnemyService, CombatService,
+-- AbilityService, PetCombatService y PetService con RebirthLogic.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -59,21 +59,19 @@ function RebirthService.rebirth(player: Player): (string, any)
 		return Codes.NotReady, nil
 	end
 	local data = profile.PetData.Rebirth
-	local level = profile.UpgradeLevels[RebirthConfig.UpgradeId] or 0
-	local code, result = RebirthLogic.rebirth(data, level, os.time())
+	local code, result = RebirthLogic.rebirth(data, os.time())
 	if code ~= "Success" then
-		return Codes[code] or Codes.InvalidRequest, { Required = RebirthLogic.requiredLevel(RebirthLogic.count(data)), Level = level }
+		return Codes[code] or Codes.InvalidRequest, nil
 	end
-	-- Reinicio en el mismo paso (sin pausas: nadie produce ni gasta entre medias): dinero,
-	-- Resonancia y el nivel de cada arma. Se conservan los 💎 (y las habilidades compradas),
-	-- las armas (y la equipada), las mascotas, las zonas, los jefes derrotados, las mejoras de
-	-- la Armería y los núcleos.
+	-- Reinicio en el mismo paso (sin pausas: nadie gana ni gasta entre medias): dinero y el
+	-- nivel de cada arma. Se conservan los 💎 (y las habilidades compradas), las armas (y la
+	-- equipada), las mascotas, las zonas, los jefes derrotados, las mejoras de la Armería y
+	-- los núcleos.
 	profile.Money = EconomyConfig.StartingMoney
-	profile.UpgradeLevels[RebirthConfig.UpgradeId] = result.Level
 	for weaponId in profile.PetData.Weapons.Levels do
 		profile.PetData.Weapons.Levels[weaponId] = 0
 	end
-	PlayerDataService.recalculateProduction(player)
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	PlayerDataService.markDirty(player)
 	PlayerDataService.saveNow(player)
@@ -97,7 +95,7 @@ function RebirthService.buy(player: Player, itemId: any): (string, any)
 	if code ~= "Success" then
 		return Codes[code] or Codes.InvalidRequest, { ItemId = itemId, Cost = cost }
 	end
-	PlayerDataService.recalculateProduction(player)
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	PlayerDataService.markDirty(player)
 	PlayerDataService.saveNow(player)

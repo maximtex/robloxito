@@ -1,17 +1,14 @@
 -- Interfaz de los núcleos elementales (solo presentación; el servidor decide todo):
--- - Se abre desde cada altar del Círculo Elemental ("Ver núcleo"), con ese núcleo
---   resaltado, o con la tecla N. Ya no tiene azulejo en la barra del menú (Santiago lo
---   quitó: la barra queda con 7 botones y Renacer en el centro).
--- - Panel (PanelManager) con los ocho núcleos: despertar, mejorar y elegir el elemento
---   activo (afinidad), con costes, producción y nivel que envía el servidor (CoreState).
---   Naturaleza es el cristal: su "Mejorar" es la Resonancia del Cristal (PurchaseUpgrade).
---   Dos huecos: ★ Q (principal, con afinidad) y ◆ R (secundario). Cada fila muestra la
---   habilidad del elemento con sus números reales y los combos en los que participa.
--- - Aviso de bienvenida (pila común de avisos) con la producción offline concedida al
---   entrar (atributo OfflineReward, una vez por sesión).
+-- - Se abre con la tecla N. Ya no tiene azulejo en la barra del menú (Santiago lo quitó:
+--   la barra queda con 7 botones y Renacer en el centro).
+-- - Panel (PanelManager) con los ocho núcleos: despertar, mejorar (con 💎) y elegir el
+--   elemento activo, con costes y nivel que envía el servidor (CoreState). Naturaleza
+--   viene despierta y no tiene nivel. Dos huecos: ★ Q (principal) y ◆ R (secundario).
+--   Cada fila muestra la habilidad del elemento con sus números reales (el nivel sube su
+--   maestría) y los combos en los que participa.
+-- - Aviso (una vez) de la economía nueva: la ⚡ guardada que se volvió 💰.
 
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -20,8 +17,6 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CoreConfig = require(Shared.Config.CoreConfig)
-local CoreShrineConfig = require(Shared.Config.CoreShrineConfig)
-local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
 local AbilityLogic = require(Shared.AbilityLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -36,12 +31,9 @@ local Codes = Constants.PurchaseCodes
 local PANEL_NAME = "Cores"
 local PANEL_SIZE = Vector2.new(660, 520)
 local ROW_HEIGHT = 110 -- nombre, detalle, habilidad del elemento y sus combos
-local TOAST_SECONDS = 9
-local NATURE_UPGRADE_ID = CoreConfig.Elements[CoreConfig.DefaultElement].UpgradeId
 
 local MESSAGES = {
 	[Codes.InsufficientEnergy] = "Te faltan 💎.",
-	[Codes.InsufficientMoney] = "Te falta 💰.",
 	[Codes.Locked] = "Despierta antes los núcleos anteriores.",
 	[Codes.AlreadyUnlocked] = "Ese núcleo ya está despierto.",
 	[Codes.AlreadySelected] = "Ese elemento ya está en ese hueco.",
@@ -60,34 +52,24 @@ local function elementName(elementId: string): string
 	return if element then element.DisplayName else elementId
 end
 
-local function elementColor(elementId: string): Color3
-	if elementId == CoreConfig.DefaultElement then
-		return GeneratorConfig.Colors.Turquoise
-	end
-	local look = CoreShrineConfig.Elements[elementId]
-	return if look then look.Color else THEME.Accent
-end
+-- Color de cada elemento en el panel (los de los antiguos altares del Círculo Elemental).
+local ELEMENT_COLORS = {
+	Nature = Color3.fromRGB(32, 229, 209),
+	Water = Color3.fromRGB(60, 150, 255),
+	Fire = Color3.fromRGB(255, 92, 36),
+	Wind = Color3.fromRGB(110, 228, 186),
+	Lightning = Color3.fromRGB(255, 212, 50),
+	Ice = Color3.fromRGB(140, 214, 255),
+	Shadow = Color3.fromRGB(140, 72, 220),
+	Celestial = Color3.fromRGB(255, 210, 110),
+}
 
-local function formatDuration(seconds: number): string
-	seconds = math.max(0, math.floor(seconds))
-	local hours = math.floor(seconds / 3600)
-	local minutes = math.floor((seconds % 3600) / 60)
-	if hours > 0 then
-		return ("%d h %d min"):format(hours, minutes)
-	elseif minutes > 0 then
-		return ("%d min"):format(minutes)
-	end
-	return ("%d s"):format(seconds)
+local function elementColor(elementId: string): Color3
+	return ELEMENT_COLORS[elementId] or THEME.Accent
 end
 
 local function energy(): number
 	local value = player:GetAttribute(Constants.Attributes.Energy)
-	return if typeof(value) == "number" then value else 0
-end
-
--- 💰 (la mejora de Naturaleza es la Resonancia del Cristal, que se paga con dinero)
-local function money(): number
-	local value = player:GetAttribute(Constants.Attributes.Money)
 	return if typeof(value) == "number" then value else 0
 end
 
@@ -179,7 +161,7 @@ end
 
 -- Controlador ---------------------------------------------------------------------------
 
-type RowButton = { Button: TextButton, Cost: number?, Enabled: boolean, Money: boolean?, Shimmer: (boolean) -> () }
+type RowButton = { Button: TextButton, Cost: number?, Enabled: boolean, Shimmer: (boolean) -> () }
 
 function CoreController.start()
 	local remotes = ReplicatedStorage:WaitForChild(Constants.RemotesFolderName)
@@ -187,15 +169,12 @@ function CoreController.start()
 	local stateRemote = remotes:WaitForChild(Constants.Remotes.CoreState) :: RemoteEvent
 	local actionRemote = remotes:WaitForChild(Constants.Remotes.CoreAction) :: RemoteEvent
 	local resultRemote = remotes:WaitForChild(Constants.Remotes.CoreResult) :: RemoteEvent
-	local purchaseRemote = remotes:WaitForChild(Constants.Remotes.PurchaseUpgrade) :: RemoteEvent
-	local purchaseResult = remotes:WaitForChild(Constants.Remotes.PurchaseResult) :: RemoteEvent
 
 	local ui = buildGui()
 	local state: any = nil
 	local highlight: string? = nil
 	local rowButtons: { RowButton } = {}
 	local rowFrames: { [string]: Frame } = {}
-	local pendingNature = false
 	local feedbackToken = 0
 
 	local function setFeedback(text: string, color: Color3)
@@ -210,11 +189,10 @@ function CoreController.start()
 		end)
 	end
 
-	-- Botones según los 💎 (o el 💰) actuales (sin reconstruir las filas cada segundo).
+	-- Botones según los 💎 actuales (sin reconstruir las filas cada segundo).
 	local function refreshAffordability()
 		for _, entry in rowButtons do
-			local current = if entry.Money then money() else energy()
-			local affordable = entry.Enabled and (entry.Cost == nil or current >= entry.Cost)
+			local affordable = entry.Enabled and (entry.Cost == nil or energy() >= entry.Cost)
 			entry.Button.BackgroundColor3 = if affordable then THEME.Buy else THEME.Disabled
 			entry.Button.TextColor3 = if affordable then THEME.Text else THEME.Muted
 			UiKit.setDisabled(entry.Button, not affordable)
@@ -222,19 +200,19 @@ function CoreController.start()
 		end
 	end
 
-	local function addButton(parent: Instance, name: string, text: string, width: number, cost: number?, enabled: boolean, onClick: () -> (), useMoney: boolean?): TextButton
+	local function addButton(parent: Instance, name: string, text: string, width: number, cost: number?, enabled: boolean, onClick: () -> ()): TextButton
 		local button = UiKit.button(parent, name, {
 			Size = UDim2.fromOffset(width, 34),
 			TextSize = 15,
 			Text = text,
 			LayoutOrder = #parent:GetChildren(),
 		})
-		local entry: RowButton = { Button = button, Cost = cost, Enabled = enabled, Money = useMoney, Shimmer = UiKit.shimmer(button, 10) }
+		local entry: RowButton = { Button = button, Cost = cost, Enabled = enabled, Shimmer = UiKit.shimmer(button, 10) }
 		table.insert(rowButtons, entry)
 		button.Activated:Connect(function()
 			if button:GetAttribute("Disabled") == true then
-				if entry.Enabled and entry.Cost and (if entry.Money then money() else energy()) < entry.Cost then
-					setFeedback(("Te falta: necesitas %s %s."):format(if entry.Money then "💰" else "💎", formatNumber(entry.Cost)), THEME.Error)
+				if entry.Enabled and entry.Cost and energy() < entry.Cost then
+					setFeedback(("Te faltan 💎: necesitas %s."):format(formatNumber(entry.Cost)), THEME.Error)
 				end
 				return
 			end
@@ -317,16 +295,13 @@ function CoreController.start()
 			TextSize = 19,
 			TextColor3 = if element.Unlocked then THEME.Text else THEME.Muted,
 			TextTruncate = Enum.TextTruncate.AtEnd,
-			Text = elementName(id) .. (if isDefault then "  · el cristal" else ""),
+			Text = elementName(id),
 		})
 		local detail
 		if element.Unlocked then
-			detail = ("Nv. %d/%d  ·  poder %s"):format(element.Level, element.MaxLevel, formatNumber(element.Production, 1))
-			if selected and not isDefault and state.AffinityProduction > 0 then
-				detail ..= ("  ·  ★ +%s afinidad"):format(formatNumber(state.AffinityProduction, 1))
-			end
+			detail = if isDefault then "Despierto desde el principio" else ("Nv. %d/%d  ·  cada nivel, más fuerte su habilidad"):format(element.Level, element.MaxLevel)
 		elseif element.Available then
-			detail = ("Dormido  ·  al despertarlo: poder %s y su habilidad"):format(formatNumber(element.Production, 1))
+			detail = "Dormido  ·  al despertarlo: su habilidad"
 		else
 			detail = ("Requiere despertar %s"):format(if previous then elementName(previous.Id) else "el anterior")
 		end
@@ -399,16 +374,10 @@ function CoreController.start()
 		end
 
 		if element.UpgradeCost then
-			local label = ("MEJORAR · %s %s"):format(if isDefault then "💰" else "💎", formatNumber(element.UpgradeCost))
-			addButton(actions, "Upgrade", label, 150, element.UpgradeCost, state.Ready, function()
-				if isDefault then
-					pendingNature = true
-					purchaseRemote:FireServer(NATURE_UPGRADE_ID)
-				else
-					actionRemote:FireServer("Upgrade", id)
-				end
-			end, isDefault)
-		else
+			addButton(actions, "Upgrade", "MEJORAR · 💎 " .. formatNumber(element.UpgradeCost), 150, element.UpgradeCost, state.Ready, function()
+				actionRemote:FireServer("Upgrade", id)
+			end)
+		elseif not isDefault then
 			badge(actions, "MÁX", THEME.Gold, 70)
 		end
 
@@ -451,19 +420,18 @@ function CoreController.start()
 			ui.Subtitle.Text = "Cargando tus núcleos…"
 			return
 		end
-		local affinity = if state.AffinityProduction > 0 then (" + afinidad %s"):format(formatNumber(state.AffinityProduction, 1)) else ""
-		ui.Subtitle.Text = ("Poder base %s%s  ·  mascotas ×%s  =  %s"):format(
-			formatNumber(state.BaseProduction, 1),
-			affinity,
-			formatNumber(state.PetMultiplier, 2),
-			formatNumber(state.Total, 1)
-		)
+		local awake = 0
+		for _, element in state.Elements do
+			if element.Unlocked then
+				awake += 1
+			end
+		end
+		ui.Subtitle.Text = ("Despiertos: %d/%d  ·  cada uno da una habilidad (Q y R)"):format(awake, #state.Elements)
 		if not state.Ready then
 			ui.Subtitle.Text = "Tus datos aún se están cargando…"
 		end
 		local waitingSwitch = math.ceil((state.SwitchReadyAt or 0) - Workspace:GetServerTimeNow())
-		ui.Hint.Text = ("★ Q: principal (+%d %% de poder)   ◆ R: secundario   ·   cambiar: %s%s\nUsa dos elementos que combinen: la marca de uno + la habilidad del otro = ¡combo!"):format(
-			math.floor((CoreConfig.Affinity and CoreConfig.Affinity.Bonus or 0) * 100 + 0.5),
+		ui.Hint.Text = ("★ Q: principal   ◆ R: secundario   ·   cambiar: %s%s\nUsa dos elementos que combinen: la marca de uno + la habilidad del otro = ¡combo!"):format(
 			if (state.SwitchCost or 0) > 0 then "💎 " .. formatNumber(state.SwitchCost) else "gratis",
 			if waitingSwitch > 0 then ("  (espera %d s)"):format(waitingSwitch) else ""
 		)
@@ -473,7 +441,7 @@ function CoreController.start()
 			previous = element
 		end
 		refreshAffordability()
-		-- Llevar a la vista el núcleo resaltado (desde su altar).
+		-- Llevar a la vista el núcleo resaltado.
 		local target = highlight and rowFrames[highlight]
 		if target then
 			task.defer(function()
@@ -548,7 +516,7 @@ function CoreController.start()
 			elseif action == "Upgrade" then
 				setFeedback(("Núcleo de %s mejorado."):format(name), THEME.BuyHighlight)
 			elseif action == "Select" then
-				setFeedback(("★ %s en la Q (afinidad activada)."):format(name), THEME.Gold)
+				setFeedback(("★ %s en la Q."):format(name), THEME.Gold)
 			elseif action == "Secondary" then
 				setFeedback(("◆ %s en la R."):format(name), THEME.Gold)
 			end
@@ -561,95 +529,18 @@ function CoreController.start()
 		end
 	end)
 
-	-- Mejora de Naturaleza (la Resonancia del Cristal, del HUD de energía).
-	purchaseResult.OnClientEvent:Connect(function(success: boolean, code: string)
-		if not pendingNature then
-			return
-		end
-		pendingNature = false
-		if PanelManager.isOpen(PANEL_NAME) then
-			if success then
-				setFeedback("Cristal (Naturaleza) mejorado.", THEME.BuyHighlight)
-			else
-				setFeedback(MESSAGES[code] or tostring(code), THEME.Error)
-			end
-		end
-	end)
-
 	-- Lo que cambia los números del panel: pedir el estado nuevo si está abierto.
 	local function refreshIfOpen()
 		if PanelManager.isOpen(PANEL_NAME) then
 			requestRemote:FireServer()
 		end
 	end
-	player:GetAttributeChangedSignal(Constants.Attributes.UpgradeLevelPrefix .. NATURE_UPGRADE_ID):Connect(refreshIfOpen)
-	player:GetAttributeChangedSignal(Constants.Attributes.PetMultiplier):Connect(refreshIfOpen)
 	player:GetAttributeChangedSignal(Constants.Attributes.DataStatus):Connect(refreshIfOpen)
-	for _, attribute in { Constants.Attributes.Energy, Constants.Attributes.Money } do
-		player:GetAttributeChangedSignal(attribute):Connect(function()
-			if PanelManager.isOpen(PANEL_NAME) then
-				refreshAffordability()
-			end
-		end)
-	end
-
-	-- Avisos "Ver núcleo" en los altares del Círculo Elemental ------------------------------
-	local function addPrompts(root: Instance)
-		for _, altar in root:GetChildren() do
-			local elementId = altar:GetAttribute("Element")
-			local cap = altar:FindFirstChild("ColumnCap")
-			if typeof(elementId) == "string" and cap and cap:IsA("BasePart") and not cap:FindFirstChild("CorePrompt") then
-				local prompt = Instance.new("ProximityPrompt")
-				prompt.Name = "CorePrompt"
-				prompt.ActionText = "Ver núcleo"
-				prompt.ObjectText = elementName(elementId)
-				prompt.KeyboardKeyCode = Enum.KeyCode.E
-				prompt.HoldDuration = 0
-				prompt.MaxActivationDistance = 10
-				prompt.RequiresLineOfSight = false
-				prompt:SetAttribute("CoreId", elementId)
-				prompt.Parent = cap
-			end
-		end
-	end
-	task.spawn(function()
-		while true do
-			local root = Workspace:FindFirstChild(CoreShrineConfig.ModelName)
-			if root then
-				addPrompts(root)
-			end
-			task.wait(if root and #root:GetChildren() >= #CoreConfig.Order - 1 then 10 else 1)
+	player:GetAttributeChangedSignal(Constants.Attributes.Energy):Connect(function()
+		if PanelManager.isOpen(PANEL_NAME) then
+			refreshAffordability()
 		end
 	end)
-	ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt)
-		local elementId = prompt:GetAttribute("CoreId")
-		if typeof(elementId) == "string" then
-			openAt(elementId)
-		end
-	end)
-
-	-- Aviso de producción offline ------------------------------------------------------------
-	local toastShown = false
-	local function showOfflineToast()
-		local value = player:GetAttribute(Constants.Attributes.OfflineReward)
-		if toastShown or typeof(value) ~= "string" then
-			return
-		end
-		local amount, seconds = value:match("^(%d+),(%d+)$")
-		if not amount then
-			return
-		end
-		toastShown = true
-		local body = ("Tus núcleos produjeron ⚡ %s mientras no estabas (%s, al %d %%)."):format(
-			formatNumber(tonumber(amount) or 0),
-			formatDuration(tonumber(seconds) or 0),
-			math.floor(CoreConfig.Offline.Efficiency * 100 + 0.5)
-		)
-		-- Se cierra sola o al pulsarla.
-		Toasts.show(body, { Title = "🌙 ¡Bienvenido de vuelta!", Color = THEME.Gold, Duration = TOAST_SECONDS, OnClick = function() end })
-	end
-	player:GetAttributeChangedSignal(Constants.Attributes.OfflineReward):Connect(showOfflineToast)
-	showOfflineToast()
 
 	-- Aviso de la economía nueva (una vez): la ⚡ guardada se volvió 💰 ---------------------
 	local economyShown = false

@@ -75,8 +75,6 @@ local function limitsOf(profile: any): EggLogic.Limits
 	return {
 		MaxInventory = maxInventoryOf(profile),
 		MaxEquipped = maxEquippedOf(profile),
-		UnlockUpgradeId = EggConfig.UnlockUpgradeId,
-		UnlockLevel = RebirthLogic.unlockLevel(RebirthLogic.ofProfile(profile), profile.UpgradeLevels[EggConfig.UnlockUpgradeId] or 0),
 	}
 end
 
@@ -122,7 +120,7 @@ function PetService.pushInventory(player: Player)
 end
 
 local function applyPetChange(player: Player)
-	PlayerDataService.recalculateProduction(player)
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	PlayerDataService.markDirty(player)
 	PetService.pushInventory(player)

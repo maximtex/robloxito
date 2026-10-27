@@ -630,11 +630,6 @@ function AdventureLogic.diamondMultiplier(data: AdventureData?, now: number?): n
 	return multiplier(data, "Diamonds", now)
 end
 
--- Producción sin jugar: solo los amuletos (las bendiciones son para jugar).
-function AdventureLogic.offlineMultiplier(data: AdventureData?): number
-	return 1 + AdventureLogic.amuletBonus(data, "Diamonds")
-end
-
 function AdventureLogic.damageMultiplier(data: AdventureData?, now: number?): number
 	return multiplier(data, "Damage", now)
 end

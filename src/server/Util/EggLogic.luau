@@ -6,10 +6,8 @@ local EggLogic = {}
 
 export type PetEntry = { Uid: string, PetId: string }
 export type PetData = { Pets: { PetEntry }, Equipped: { string }, NextPetUid: number, UnlockedZones: { string }? }
-export type ProfileLike = { Money: number, UpgradeLevels: { [string]: number }, PetData: PetData }
--- UnlockLevel (opcional): nivel que cuenta para RequiredLevel si no es el actual de la
--- mejora (con renacimientos, el mejor nivel con el que se renació).
-export type Limits = { MaxInventory: number, MaxEquipped: number, UnlockUpgradeId: string, UnlockLevel: number? }
+export type ProfileLike = { Money: number, PetData: PetData }
+export type Limits = { MaxInventory: number, MaxEquipped: number }
 export type Grant = { PetId: string, Uid: string, AutoEquipped: boolean }
 export type Codes = { [string]: string }
 
@@ -72,7 +70,7 @@ function EggLogic.roll(egg, roll: number): string
 	return egg.Chances[#egg.Chances].PetId
 end
 
--- Requisitos del huevo (zona desbloqueada y nivel). nil si se cumplen; si no, el código.
+-- Requisitos del huevo (zona desbloqueada). nil si se cumplen; si no, el código.
 local function requirementCode(profile: ProfileLike, egg, limits: Limits, codes: Codes): string?
 	-- Huevo de una zona que se compra: la zona debe estar desbloqueada en los datos del
 	-- servidor (nunca se confía en el cliente ni en dónde dice estar).
@@ -81,10 +79,6 @@ local function requirementCode(profile: ProfileLike, egg, limits: Limits, codes:
 		if not table.find(unlocked, egg.RequiredZone) then
 			return codes.ZoneLocked
 		end
-	end
-	local level = limits.UnlockLevel or profile.UpgradeLevels[limits.UnlockUpgradeId] or 0
-	if level < (egg.RequiredLevel or 0) then
-		return codes.Locked
 	end
 	return nil
 end

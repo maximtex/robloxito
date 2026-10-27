@@ -105,7 +105,7 @@ CORE = [
     ("CoreConfig", "src/shared/Config/CoreConfig.luau"),
     ("CoreLogic", "src/server/Util/CoreLogic.luau"),
 ]
-CORE_INIT = "CoreLogic.init(CoreConfig, Economy, EconomyConfig)\n"
+CORE_INIT = "CoreLogic.init(CoreConfig)\n"
 SERVICES_AFTER_GLUE = [
     ("EnergyService", "src/server/Services/EnergyService.luau"),
     ("UpgradeService", "src/server/Services/UpgradeService.luau"),
@@ -296,39 +296,6 @@ def build_sandbox_early():
     return services_suite([harness("persist_stubs.luau"), harness("sandbox_pre.luau")], False, suite("sandbox_early_body.luau"))
 
 
-def build_sanctuary():
-    out = [harness("sanctuary_stubs.luau")]
-    for n, p in [
-        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
-        ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
-        ("EggConfig", "src/shared/Config/EggConfig.luau"),
-        ("PartFactory", "src/server/Util/PartFactory.luau"),
-        ("GeneratorService", "src/server/Services/GeneratorService.luau"),
-        ("GeneratorAnimator", "src/client/Controllers/GeneratorAnimator.luau"),
-    ]:
-        out.append(mod(n, p))
-    out.append(suite("sanctuary_body.luau"))
-    return "\n".join(out)
-
-
-def build_shrines():
-    out = [harness("sanctuary_stubs.luau")]
-    for n, p in [
-        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
-        ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
-        ("CoreConfig", "src/shared/Config/CoreConfig.luau"),
-        ("CoreShrineConfig", "src/shared/Config/CoreShrineConfig.luau"),
-        ("EggConfig", "src/shared/Config/EggConfig.luau"),
-        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
-        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
-        ("PartFactory", "src/server/Util/PartFactory.luau"),
-        ("CoreShrineService", "src/server/Services/CoreShrineService.luau"),
-    ]:
-        out.append(mod(n, p))
-    out.append(suite("shrines_body.luau"))
-    return "\n".join(out)
-
-
 def build_combat():
     enemy_service = read("src", "server", "Services", "EnemyService.luau")
     builders = re.findall(r"^function BUILDERS\.([A-Za-z]+)", enemy_service, re.M)
@@ -486,7 +453,6 @@ def build_landscape():
         ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
         ("ValleyConfig", "src/shared/Config/ValleyConfig.luau"),
         ("CalderaConfig", "src/shared/Config/CalderaConfig.luau"),
-        ("CoreShrineConfig", "src/shared/Config/CoreShrineConfig.luau"),
         ("EggConfig", "src/shared/Config/EggConfig.luau"),
         ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
         ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
@@ -573,7 +539,6 @@ def build_leaderboard():
         ("WorldConfig", "src/shared/Config/WorldConfig.luau"),
         ("ValleyConfig", "src/shared/Config/ValleyConfig.luau"),
         ("CalderaConfig", "src/shared/Config/CalderaConfig.luau"),
-        ("CoreShrineConfig", "src/shared/Config/CoreShrineConfig.luau"),
         ("EggConfig", "src/shared/Config/EggConfig.luau"),
         ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
         ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
@@ -688,12 +653,10 @@ def build_hudlayout():
 
 
 SUITES = [
-    ("sanctuary", "Santuario del Núcleo Cósmico (geometría y animación)", build_sanctuary),
-    ("shrines", "Círculo Elemental: altares de los núcleos (contrato y mapa)", build_shrines),
     ("sandbox", "Modo prueba del tutorial", build_sandbox),
     ("sandbox_early", "Modo prueba con el jugador antes del arranque", build_sandbox_early),
     ("tutorial", "Tutorial inicial", build_tutorial),
-    ("persist", "Persistencia de energía y mejoras", build_persist),
+    ("persist", "Persistencia de 💰, 💎 y mejoras", build_persist),
     ("persist_cores", "Persistencia v3: núcleos, migración y vuelta atrás", build_persist_cores),
     ("quest", "Misiones, diarias y logros", build_quest),
     ("combat", "Combate (daño, muertes, recompensas, objetivos)", build_combat),
@@ -702,17 +665,17 @@ SUITES = [
     ("anim", "Animación de enemigos", build_anim),
     ("pose", "Articulaciones de los enemigos", build_pose),
     ("cores", "Ocho núcleos: configuración y lógica pura", build_cores),
-    ("core_service", "Núcleos fase 2: despertar, mejorar, elegir y producción offline", build_core_service),
+    ("core_service", "Núcleos: despertar, mejorar, elegir (sin producción ni offline)", build_core_service),
     ("abilities", "Habilidades elementales (fórmulas, estados y servicio)", build_abilities),
     ("landscape", "Paisaje: caminos, bosque, puntos de referencia y límites", build_landscape),
-    ("rebirth", "Renacimiento: requisito, reinicio, fichas, tienda y multiplicadores", build_rebirth),
+    ("rebirth", "Renacimiento: bloqueo Próximamente, reinicio, fichas, tienda y multiplicadores", build_rebirth),
     ("adventure", "Aventuras: personajes, misiones, amuletos y bendiciones", build_adventure),
     ("zones", "Zonas: desbloqueo con renacimientos y coherencia de la Caldera", build_zones),
     ("leaderboard", "Monolitos de clasificación: orden y sitio junto al spawn", build_leaderboard),
     ("shop", "Premio diario, códigos, pases, compras sueltas y mejora automática", build_shop),
     ("hudlayout", "Interfaz: menú, avisos y columnas sin solaparse en muchas pantallas", build_hudlayout),
     ("world", "Mundo vivo: día y noche, cofres escondidos y río", build_world),
-    ("energy", "Energía solo de matar: sin producción pasiva ni offline, energía de los enemigos", build_energy),
+    ("energy", "💎 solo de matar: sin producción pasiva ni offline", build_energy),
     ("waves", "Oleadas: arenas, aparición, dificultad, mejoras, racha y botín de cada enemigo", build_waves),
     ("styles", "Estilos de pelea: armas, guerrero, puños y magia (ataque, pasivas, maná, combo y habilidades)", build_styles),
     ("classes", "Clases de cada estilo: comprar, subir, elegir y sus pasivas", build_classes),
@@ -723,10 +686,7 @@ LEGACY = ["pettest", "eggtest", "zonetest", "savetest", "layouttest", "stagetest
 
 # Baterías de sistemas que el servidor ya no arranca: se omiten (no cuentan como fallo)
 # mientras su servicio no tenga un safeStart en src/server/init.server.luau.
-NEEDS_SERVICE = {
-    "sanctuary": "GeneratorService",  # Santuario del Núcleo Cósmico (el cristal de la plaza)
-    "shrines": "CoreShrineService",  # Círculo Elemental (altares de los núcleos)
-}
+NEEDS_SERVICE = {}
 
 
 def started_services():

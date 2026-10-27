@@ -55,13 +55,11 @@ defeat(alice, "ForestWarden", "Boss")
 advance(1)
 check("al derrotar al Guardián del Bosque: paso 4 hecho", step(alice) == 4)
 local energyBefore = profile.Energy
-local production = profile.ProductionPerSecond
 table.insert(profile.PetData.UnlockedZones, "CrystalValley")
 advance(1)
 check("al desbloquear el Valle: tutorial completado", status(alice) == "Completed" and step(alice) == 5)
--- Sin energía pasiva (EconomyConfig.PassiveEnergy = false) ese segundo no produce nada.
-local secondProduction = if EconomyConfig.PassiveEnergy == false then 0 else production
-check(("no concede energía: solo la producción de ese segundo (+%s)"):format(tostring(profile.Energy - energyBefore)), math.abs(profile.Energy - energyBefore - secondProduction) < 1e-9)
+-- Sin producción pasiva: ese segundo no da nada.
+check(("no concede 💎 (+%s)"):format(tostring(profile.Energy - energyBefore)), profile.Energy == energyBefore)
 leave(alice)
 advance(0)
 check("se guarda como completado", record(1).Tutorial.Status == "Completed" and record(1).Tutorial.Step == 5)

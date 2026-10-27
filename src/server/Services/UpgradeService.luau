@@ -90,7 +90,7 @@ local function tryPurchase(player: Player, upgradeId: any): string
 		profile.Energy -= cost
 	end
 	profile.UpgradeLevels[upgradeId] = level + 1
-	PlayerDataService.recalculateProduction(player)
+	PlayerDataService.refreshStats(player)
 	PlayerDataService.replicate(player)
 	GameEvents.fire("UpgradePurchased", player, upgradeId) -- misiones diarias
 

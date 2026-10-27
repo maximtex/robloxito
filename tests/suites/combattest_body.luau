@@ -21,14 +21,14 @@ check("ya no hay una mejora de daño aparte: el daño es del arma (WeaponConfig)
 local shopMoney = true
 for _, upgradeId in { "PetPower", "LaserSpeed" } do
 	local def = EconomyConfig.Upgrades[upgradeId]
-	if not (def and def.Currency == "Money" and def.ProductionPerLevel == 0) then
+	if not (def and def.Currency == "Money") then
 		shopMoney = false
 	end
 end
-check("las mejoras de la Armería cuestan dinero y no producen energía", shopMoney)
+check("las mejoras de la Armería cuestan dinero", shopMoney)
 local speed = EconomyConfig.Upgrades.WalkSpeed
-check("la Velocidad de Correr (puesto ⚡ Mejoras) se paga con 💎 y no produce", speed.Currency == "Energy" and speed.ProductionPerLevel == 0 and speed.SpeedPerLevel > 0)
-check("la Resonancia del Cristal (renacer, huevos) se paga con 💰 (economía 2) y sube el poder", EconomyConfig.Upgrades.GeneratorPower.Currency == "Money" and EconomyConfig.Upgrades.GeneratorPower.ProductionPerLevel > 0)
+check("la Velocidad de Correr (puesto ⚡ Mejoras) se paga con 💎", speed.Currency == "Energy" and speed.SpeedPerLevel > 0)
+check("ya no existe la Resonancia del Cristal (ni la producción de energía)", EconomyConfig.Upgrades.GeneratorPower == nil and EconomyConfig.BaseProductionPerSecond == nil and EconomyConfig.PassiveEnergy == nil)
 local allHit = true
 for _, def in EnemyConfig.Types do
 	if not (def.Damage > 0 and def.Reward > 0) then

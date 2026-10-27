@@ -22,7 +22,6 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local PetConfig = require(Shared.Config.PetConfig)
 local EggConfig = require(Shared.Config.EggConfig)
-local EconomyConfig = require(Shared.Config.EconomyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local PetMath = require(Shared.PetMath)
 local MonetizationLogic = require(Shared.MonetizationLogic)
@@ -59,7 +58,6 @@ local MESSAGES = {
 	[Codes.EquipLimit] = "Ya tienes el máximo de mascotas equipadas",
 	[Codes.Unavailable] = "Los huevos no están disponibles ahora",
 	[Codes.InvalidRequest] = "Solicitud no válida",
-	[Codes.Locked] = "Necesitas más nivel de " .. EconomyConfig.Upgrades[EggConfig.UnlockUpgradeId].DisplayName,
 	[Codes.ZoneLocked] = "Desbloquea primero su zona en el portal",
 }
 
@@ -871,8 +869,6 @@ function PetController.start()
 	local pendingResult: { any }? = nil -- resultado ya recibido; se revela al acabar la secuencia
 	local sequenceToken = 0
 	local animationConnection: RBXScriptConnection? = nil
-	local unlockUpgradeName = EconomyConfig.Upgrades[EggConfig.UnlockUpgradeId].DisplayName
-	local levelAttribute = Constants.Attributes.UpgradeLevelPrefix .. EggConfig.UnlockUpgradeId
 
 	local function zoneUnlocked(zoneId: string): boolean
 		local value = player:GetAttribute(Constants.Attributes.UnlockedZones)
@@ -880,15 +876,11 @@ function PetController.start()
 	end
 
 	-- Comprobación previa en el cliente (solo para la interfaz; el servidor la repite).
-	-- Devuelve: bloqueado, asequible y si el bloqueo es por zona.
+	-- Devuelve: bloqueado, asequible y si el bloqueo es por zona (el único que hay).
 	local function eggState(egg): (boolean, boolean, boolean)
-		-- Tras renacer cuenta el mejor nivel con el que se renació (huevos ya abiertos).
-		local rawLevel = player:GetAttribute(levelAttribute)
-		local best = player:GetAttribute(Constants.Attributes.RebirthBestLevel)
-		local level = math.max(if typeof(rawLevel) == "number" then rawLevel else 0, if typeof(best) == "number" then best else 0)
 		local money = player:GetAttribute(Constants.Attributes.Money) -- los huevos se pagan con 💰
 		local zoneLocked = egg.RequiredZone ~= nil and not zoneUnlocked(egg.RequiredZone)
-		local locked = zoneLocked or level < (egg.RequiredLevel or 0)
+		local locked = zoneLocked
 		local affordable = typeof(money) == "number" and money >= egg.Cost
 		return locked, affordable, zoneLocked
 	end
@@ -918,8 +910,6 @@ function PetController.start()
 		if zoneLocked then
 			local zone = ZoneConfig.Zones[egg.RequiredZone]
 			button.Text = "🔒 Requiere " .. (if zone then zone.DisplayName else egg.RequiredZone)
-		elseif locked then
-			button.Text = ("🔒 %s nivel %d"):format(unlockUpgradeName, egg.RequiredLevel)
 		else
 			button.Text = label .. "  ·  💰 " .. formatNumber(egg.Cost * amount)
 		end
@@ -1086,7 +1076,6 @@ function PetController.start()
 		ui.EggCost.Text = "💰 "
 			.. formatNumber(egg.Cost)
 			.. " por huevo"
-			.. (if (egg.RequiredLevel or 0) > 0 then ("  ·  requiere %s nivel %d"):format(unlockUpgradeName, egg.RequiredLevel) else "")
 		ui.EggShape.BackgroundColor3 = egg.Look.Shell
 		for _, spot in ui.EggSpots do
 			spot.BackgroundColor3 = egg.Look.Spots
@@ -1234,13 +1223,13 @@ function PetController.start()
 		local amount = if count and count > 1 and hasTriple() then MonetizationConfig.TripleCount else 1
 		local eggId = currentEggId :: string
 		local egg = EggConfig.Eggs[eggId]
-		local locked, affordable, zoneLocked = eggState(egg)
+		local locked, affordable = eggState(egg)
 		if amount > 1 then
 			local money = player:GetAttribute(Constants.Attributes.Money)
 			affordable = typeof(money) == "number" and money >= egg.Cost * amount
 		end
 		if locked then
-			showFeedback(ui.EggFeedback, messageFor(if zoneLocked then Codes.ZoneLocked else Codes.Locked), THEME.Error)
+			showFeedback(ui.EggFeedback, messageFor(Codes.ZoneLocked), THEME.Error)
 			return
 		end
 		if not affordable then
@@ -1289,7 +1278,6 @@ function PetController.start()
 	end)
 
 	player:GetAttributeChangedSignal(Constants.Attributes.Money):Connect(refreshEggButton)
-	player:GetAttributeChangedSignal(levelAttribute):Connect(refreshEggButton)
 	player:GetAttributeChangedSignal(Constants.Attributes.UnlockedZones):Connect(refreshEggButton)
 	player:GetAttributeChangedSignal(Constants.Attributes.Passes):Connect(refreshEggButton)
 

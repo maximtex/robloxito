@@ -3,12 +3,10 @@
 -- Producción: todos los núcleos desbloqueados (Naturaleza = el cristal) más la afinidad
 -- del seleccionado, por el multiplicador de mascotas (CoreLogic.effectiveProduction) y por
 -- el de renacimiento (RebirthLogic.energyMultiplier, aparte para no chocar con el tope de
--- mascotas) y por el de las aventuras (amuletos y bendiciones activas,
--- AdventureLogic.productionMultiplier). Al cargar se concede la producción offline desde
+-- mascotas). Ya no decide los 💎: los multiplica diamondMultiplier (pase, poción y
+-- aventuras). Al cargar se concede la producción offline desde
 -- el último guardado (CoreLogic), también con el multiplicador de renacimiento, sus horas
 -- extra y los amuletos (las bendiciones son solo para jugar).
--- Mientras dura, la Poción de Energía (ItemLogic, inventario) también la multiplica (no la
--- offline: el tiempo de las pociones solo corre jugando).
 -- Pases de la tienda (profile.Passes, los rellena ShopService al consultar a Roblox): el
 -- de «Energía ×2» multiplica la producción y la offline (para la offline se espera unos
 -- segundos a saber qué pases tiene).
@@ -144,12 +142,18 @@ function PlayerDataService.recalculateProduction(player: Player)
 		profile.PetMultiplier = PetMath.getTotalMultiplier(PlayerDataService.getEquippedPetIds(profile))
 		-- Con solo Naturaleza y sin renacer es exactamente Economy · mascotas, como antes.
 		local base = CoreLogic.effectiveProduction(profile.PetData.Cores, profile.UpgradeLevels, profile.PetMultiplier)
-		profile.ProductionPerSecond = base
-			* RebirthLogic.energyMultiplier(profile.PetData.Rebirth)
-			* AdventureLogic.productionMultiplier(profile.PetData.Adventure, os.time())
-			* MonetizationLogic.energyMultiplier(profile.Passes)
-			* ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time()) -- Poción de Energía
+		profile.ProductionPerSecond = base * RebirthLogic.energyMultiplier(profile.PetData.Rebirth)
 	end
+end
+
+-- Multiplicador de los 💎 que gana el jugador (enemigos y premios de las oleadas): pase
+-- Diamantes ×2, Poción de Diamantes y aventuras (amuletos de Savia y Magma, Bendición de
+-- Abundancia). EnemyService y WaveService lo aplican sobre la cantidad base.
+function PlayerDataService.diamondMultiplier(profile: Profile): number
+	local now = os.time()
+	return MonetizationLogic.energyMultiplier(profile.Passes)
+		* ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", now)
+		* AdventureLogic.diamondMultiplier(profile.PetData.Adventure, now)
 end
 
 -- Números de combate del jugador con su arma equipada (WeaponLogic): daño de un disparo,

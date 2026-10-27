@@ -321,15 +321,15 @@ local AdventureConfig = {
 	},
 
 	-- Amuletos: pasiva permanente mientras se lleva puesto. Effect.Stat:
-	--   Production (poder del cristal: más 💎 y premios), Damage (ataques, habilidades
+	--   Diamonds (más 💎 de los enemigos y de las oleadas), Damage (ataques, habilidades
 	--   y mascotas), Loot (botín, 💰 y 💎, al derrotar enemigos), WalkSpeed (velocidad al caminar).
 	Amulets = {
 		Sap = {
 			Order = 1,
 			DisplayName = "Amuleto de Savia",
 			Icon = "🌿",
-			Description = "+25 % de poder del cristal (más 💎 y premios)",
-			Effect = { Stat = "Production", Value = 0.25 },
+			Description = "+25 % de 💎 (enemigos y oleadas)",
+			Effect = { Stat = "Diamonds", Value = 0.25 },
 			Color = Color3.fromRGB(120, 220, 120),
 		},
 		Fang = {
@@ -360,8 +360,8 @@ local AdventureConfig = {
 			Order = 5,
 			DisplayName = "Corazón de Magma",
 			Icon = "🌋",
-			Description = "+50 % de poder del cristal (más 💎 y premios)",
-			Effect = { Stat = "Production", Value = 0.5 },
+			Description = "+50 % de 💎 (enemigos y oleadas)",
+			Effect = { Stat = "Diamonds", Value = 0.5 },
 			Color = Color3.fromRGB(255, 140, 60),
 		},
 	},
@@ -377,8 +377,8 @@ local AdventureConfig = {
 			Order = 1,
 			DisplayName = "Bendición de Abundancia",
 			Icon = "🌾",
-			Description = "×2 de poder del cristal (más 💎 y premios)",
-			Effect = { Stat = "Production", Value = 1 },
+			Description = "×2 de 💎 (enemigos y oleadas)",
+			Effect = { Stat = "Diamonds", Value = 1 },
 			Duration = 600,
 			Color = Color3.fromRGB(255, 214, 110),
 		},

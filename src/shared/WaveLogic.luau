@@ -17,7 +17,7 @@ export type Mods = {
 	Splash: { Radius: number, Fraction: number }?,
 	Twin: number, -- probabilidad de disparo extra
 	Explode: { Radius: number, ShotMultiplier: number }?,
-	Loot: number, -- multiplicador del botín (⚡ y 💰)
+	Loot: number, -- multiplicador del botín (💎 y 💰)
 	Heal: number, -- vida por enemigo derrotado
 	StreakSeconds: number, -- segundos extra de la ventana de la racha
 }
@@ -169,22 +169,20 @@ local function rewardScale(arenaId: string?): number
 	return if arena and arena.RewardScale ~= nil then positive(arena.RewardScale) else 1
 end
 
--- Premio por limpiar la oleada `wave` (⚡, 💰) con un poder de energía `power` en el modo
--- `arenaId` (opcional).
-function WaveLogic.clearReward(wave: number, power: number, arenaId: string?): (number, number)
+-- Premio por limpiar la oleada `wave` (💎, 💰) en el modo `arenaId` (opcional). Los 💎 los
+-- multiplica después WaveService con PlayerDataService.diamondMultiplier.
+function WaveLogic.clearReward(wave: number, arenaId: string?): (number, number)
 	local w = math.max(1, math.floor(positive(wave)))
-	local p = math.max(1, positive(power))
 	local scale = rewardScale(arenaId)
-	return math.floor(WaveConfig.ClearEnergy * w * p * scale), math.floor(WaveConfig.ClearMoney * w * scale)
+	return math.floor(WaveConfig.ClearEnergy * w * scale), math.floor(WaveConfig.ClearMoney * w * scale)
 end
 
--- Premio de victoria (⚡, 💰) con un poder de energía `power`; cada modo puede escalarlo
--- (RewardScale y VictoryScale: la práctica del tutorial da menos).
-function WaveLogic.victoryReward(power: number, arenaId: string?): (number, number)
-	local p = math.max(1, positive(power))
+-- Premio de victoria (💎, 💰); cada modo puede escalarlo (RewardScale y VictoryScale: la
+-- práctica del tutorial da menos).
+function WaveLogic.victoryReward(arenaId: string?): (number, number)
 	local arena = arenaId and WaveConfig.Arenas[arenaId]
 	local scale = (if arena and arena.VictoryScale ~= nil then positive(arena.VictoryScale) else 1) * rewardScale(arenaId)
-	return math.floor(WaveConfig.VictoryEnergy * p * scale), math.floor(WaveConfig.VictoryMoney * scale)
+	return math.floor(WaveConfig.VictoryEnergy * scale), math.floor(WaveConfig.VictoryMoney * scale)
 end
 
 -- Cofre de victoria de las mazmorras (Arenas.*.Chest): (💰, poción o nil). `rollPotion` y
@@ -365,17 +363,10 @@ function WaveLogic.goldenMultiplier(golden: boolean): number
 	return if golden then WaveConfig.GoldenOrb.Multiplier else 1
 end
 
--- Energía de un enemigo para quien recibe `share` de su recompensa (la parte del dinero
--- que le toca, antes de multiplicadores), con su poder de energía.
-function WaveLogic.killEnergy(share: number, killShare: number, power: number): number
-	return positive(share) * positive(killShare) * math.max(1, positive(power))
-end
-
--- Poder de 💎 a partir del "poder de energía" (profile.ProductionPerSecond): sube despacio
--- (1 + WaveConfig.DiamondPowerScale · √(poder − 1)) para que los diamantes sigan siendo
--- escasos con la Resonancia, los núcleos y las mascotas.
-function WaveLogic.diamondPower(power: number): number
-	return 1 + math.sqrt(math.max(0, positive(power) - 1)) * positive(WaveConfig.DiamondPowerScale or 0)
+-- 💎 de un enemigo para quien recibe `share` de su recompensa (la parte del dinero que le
+-- toca, antes de multiplicadores).
+function WaveLogic.killEnergy(share: number, killShare: number): number
+	return positive(share) * positive(killShare)
 end
 
 -- Un número de 💎 con decimales -> entero: lo que falta para el siguiente es su probabilidad

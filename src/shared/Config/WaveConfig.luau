@@ -385,16 +385,14 @@ local WaveConfig = {
 	MoneyMultiplier = 0.3,
 
 	-- Premio al limpiar cada oleada (para cada jugador de la partida), por el número de la
-	-- oleada:  💎 = ClearEnergy · w · poder de diamantes     💰 = ClearMoney · w
-	-- (los "Energy" de aquí son 💎: EconomyConfig)
+	-- oleada:  💎 = ClearEnergy · w · multiplicador de 💎     💰 = ClearMoney · w
+	-- (los "Energy" de aquí son 💎: EconomyConfig; el multiplicador es el del pase, la poción
+	-- y las aventuras: PlayerDataService.diamondMultiplier)
 	ClearEnergy = 1,
 	ClearMoney = 15,
 	-- Premio de victoria (además del botín del jefe y su arma la primera vez):
-	VictoryEnergy = 40, -- 💎 · poder de diamantes
+	VictoryEnergy = 40, -- 💎 · multiplicador de 💎
 	VictoryMoney = 600,
-	-- Poder de diamantes (WaveLogic.diamondPower): 1 + DiamondPowerScale · √(poder de energía − 1).
-	-- Sube despacio: poder 2 -> ×1.25, 11 -> ×1.8, 101 -> ×3.5, 1 001 -> ×8.9.
-	DiamondPowerScale = 0.25,
 
 	-- Modo infinito (los modos con jefe; Endless = false en un modo lo quita): al caer el
 	-- jefe se cobra la victoria y cada jugador tiene ChoiceSeconds para elegir si sigue. Las

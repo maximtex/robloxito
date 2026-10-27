@@ -163,10 +163,10 @@ function MonetizationLogic.weaponProductById(productId: any): (string?, any)
 	return nil, nil
 end
 
--- Energía de una compra suelta con la producción actual (por segundo).
-function MonetizationLogic.productEnergy(def: any, production: number): number
-	local rate = if type(production) == "number" and production == production and production > 0 and production < math.huge then production else 0
-	return math.floor(math.max(def.Min or 0, rate * (def.Minutes or 0) * 60))
+-- 💎 de una compra suelta (su Min).
+function MonetizationLogic.productEnergy(def: any): number
+	local amount = def and def.Min
+	return if type(amount) == "number" and amount == amount and amount > 0 and amount < math.huge then math.floor(amount) else 0
 end
 
 -- Datos guardados ------------------------------------------------------------------------------

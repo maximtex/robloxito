@@ -105,7 +105,7 @@ for index = 1, MonetizationConfig.MaxReceipts + 5 do
 	MonetizationLogic.addReceipt(shopData, "r" .. index)
 end
 check("recibos: se recuerdan los últimos " .. MonetizationConfig.MaxReceipts, #shopData.Receipts == MonetizationConfig.MaxReceipts and MonetizationLogic.hasReceipt(shopData, "r" .. (MonetizationConfig.MaxReceipts + 5)) and not MonetizationLogic.hasReceipt(shopData, "a"))
-check("energía de una bolsa: minutos de producción con mínimo", MonetizationLogic.productEnergy(MonetizationConfig.Products.EnergySmall, 0) == MonetizationConfig.Products.EnergySmall.Min and MonetizationLogic.productEnergy({ Minutes = 30, Min = 1 }, 10) == 18000)
+check("💎 de una bolsa: su Min (y 0 si no es válido)", MonetizationLogic.productEnergy(MonetizationConfig.Products.EnergySmall) == MonetizationConfig.Products.EnergySmall.Min and MonetizationLogic.productEnergy({ Min = 0 / 0 }) == 0)
 local petProductsOk = true
 for petId in MonetizationConfig.PetProducts do
 	local pet = PetConfig.Pets[petId]
@@ -267,8 +267,7 @@ join(p2)
 advance(2)
 local profile2 = PlayerDataService.get(p2)
 check("consulta a Roblox: tiene Energía ×2 y Más mascotas", profile2.PassesChecked and profile2.Passes.DoubleEnergy and profile2.Passes.PetSpace and not profile2.Passes.TripleHatch and p2:GetAttribute("Passes") == "DoubleEnergy,PetSpace")
-local baseProduction = CoreLogic.effectiveProduction(profile2.PetData.Cores, profile2.UpgradeLevels, profile2.PetMultiplier)
-check("producción ×2 y 5 mascotas equipadas, 120 de inventario", math.abs(profile2.ProductionPerSecond - baseProduction * 2) < 1e-9 and p2:GetAttribute("MaxEquipped") == 5 and p2:GetAttribute("MaxInventory") == 120)
+check("💎 ×2 y 5 mascotas equipadas, 120 de inventario", PlayerDataService.diamondMultiplier(profile2) == 2 and p2:GetAttribute("MaxEquipped") == 5 and p2:GetAttribute("MaxInventory") == 120)
 -- Sin el pase: las equipadas de más se quitan al saber sus pases.
 storeData.player_3 = { Version = 5, Pets = { { Uid = "1", PetId = "Sproutling" }, { Uid = "2", PetId = "Sproutling" }, { Uid = "3", PetId = "Sproutling" }, { Uid = "4", PetId = "Sproutling" }, { Uid = "5", PetId = "Sproutling" } }, Equipped = { "1", "2", "3", "4", "5" }, NextPetUid = 6 }
 local p3 = newPlayer("Caro", 3)
@@ -336,23 +335,33 @@ local p5 = newPlayer("Eva", 5)
 join(p5)
 advance(2)
 local profile5 = PlayerDataService.get(p5)
-profile5.Money = 1000
+local weapons5 = profile5.PetData.Weapons
+local gun5 = WeaponLogic.equippedFor(weapons5, "Weapons")
+local function level(id) return WeaponLogic.level(weapons5, id) end
+profile5.Money = 1e7
 advance(1.5)
-local level5 = profile5.UpgradeLevels.GeneratorPower
-check("con el pase sube sola la Resonancia (hasta 5 por tick)", level5 >= 5 and p5:GetAttribute("AutoUpgrade") == true)
+local level5 = level(gun5)
+check("con el pase se mejora sola el arma equipada con 💰 (hasta 5 por tick)", level5 >= 5 and level5 <= 5 * 2 and profile5.Money < 1e7 and p5:GetAttribute("AutoUpgrade") == true and profile5.UpgradeLevels.GeneratorPower == 0)
+profile5.PetData.Style = "Fists"
+local gloves5 = WeaponLogic.equippedFor(weapons5, "Fists")
+local gunBefore = level(gun5)
+advance(1.5)
+check("con Puños se mejoran los guantes, no el arma", level(gloves5) >= 1 and level(gun5) == gunBefore)
 fireServer("ShopAction", p5, "SetAuto", false)
 advance(0.1)
-profile5.Money = 1e6
+profile5.Money = 1e7
+local glovesOff = level(gloves5)
 advance(3)
-check("apagada: no sube y el interruptor se guarda", profile5.UpgradeLevels.GeneratorPower == level5 and profile5.PetData.Shop.AutoUpgrade == false and p5:GetAttribute("AutoUpgrade") == false)
+check("apagada: no sube y el interruptor se guarda", level(gloves5) == glovesOff and profile5.PetData.Shop.AutoUpgrade == false and p5:GetAttribute("AutoUpgrade") == false)
 fireServer("ShopAction", p5, "SetAuto", "sí")
 advance(0.6)
 check("interruptor con un valor raro: se ignora", profile5.PetData.Shop.AutoUpgrade == false)
 local profile1 = PlayerDataService.get(p1)
-local level1 = profile1.UpgradeLevels.GeneratorPower
-profile1.Money = 1e6
+local gun1 = WeaponLogic.equippedFor(profile1.PetData.Weapons, "Weapons")
+local level1 = WeaponLogic.level(profile1.PetData.Weapons, gun1)
+profile1.Money = 1e7
 advance(2)
-check("sin el pase: nunca sube sola", profile1.UpgradeLevels.GeneratorPower == level1)
+check("sin el pase: nunca sube sola", WeaponLogic.level(profile1.PetData.Weapons, gun1) == level1)
 
 print("-- 11. Producción offline con Energía ×2")
 Market.Owned[6] = { [101] = true }

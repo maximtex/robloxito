@@ -298,10 +298,9 @@ function ShopController.start()
 				card.Toggle.BackgroundColor3 = if on then THEME.Buy else THEME.Secondary
 			end
 		end
-		local production = player:GetAttribute(Constants.Attributes.ProductionPerSecond)
 		for key, card in ui.ProductCards do
 			local def = MonetizationConfig.Products[key]
-			card.Amount.Text = "+" .. formatNumber(MonetizationLogic.productEnergy(def, if typeof(production) == "number" then production else 0)) .. " 💎"
+			card.Amount.Text = "+" .. formatNumber(MonetizationLogic.productEnergy(def)) .. " 💎"
 			local available = typeof(def.Id) == "number" and def.Id > 0
 			if available then
 				local price = priceOf("Product", def.Id)
@@ -401,7 +400,7 @@ function ShopController.start()
 			PanelManager.toggle(PANEL_NAME)
 		end
 	end)
-	for _, attribute in { Constants.Attributes.Passes, Constants.Attributes.AutoUpgrade, Constants.Attributes.ProductionPerSecond } do
+	for _, attribute in { Constants.Attributes.Passes, Constants.Attributes.AutoUpgrade } do
 		player:GetAttributeChangedSignal(attribute):Connect(function()
 			if PanelManager.isOpen(PANEL_NAME) then
 				render()

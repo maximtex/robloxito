@@ -56,7 +56,7 @@ local bea, beaProfile = enter("Bea", 2)
 advance(10)
 check("2 h fuera: sin 💎 offline (la ⚡ guardada, 10, pasó a 💰 50)", beaProfile.Energy == 0 and beaProfile.Money == 50)
 check("y sin aviso de energía offline", bea:GetAttribute("OfflineReward") == nil)
-check("el poder de energía (Resonancia y mascotas) sigue contando para los enemigos", beaProfile.ProductionPerSecond > 1)
+check("los 💎 de los enemigos no dependen de la Resonancia ni de las mascotas (×1 sin pase, poción ni aventuras)", PlayerDataService.diamondMultiplier(beaProfile) == 1)
 leave(bea)
 advance(0)
 

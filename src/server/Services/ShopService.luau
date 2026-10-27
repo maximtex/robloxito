@@ -3,8 +3,9 @@
 -- - Pases: al entrar se consulta a Roblox cuáles tiene (UserOwnsGamePassAsync) y se guardan
 --   en el perfil (profile.Passes, no en el DataStore: Roblox es la fuente de verdad). Al
 --   comprar uno en la partida (PromptGamePassPurchaseFinished) se aplica en el acto.
---   Efectos: Energía ×2 (PlayerDataService), Más mascotas y Abrir ×3 (PetService) y la
---   mejora automática (bucle de este servicio, con su interruptor guardado en Shop).
+--   Efectos: Diamantes ×2 (PlayerDataService.diamondMultiplier), Más mascotas y Abrir ×3
+--   (PetService) y la mejora automática del arma del estilo actual (bucle de este servicio,
+--   con su interruptor guardado en Shop; WeaponService.act como en la Armería).
 -- - Compras sueltas (ProcessReceipt): se conceden los 💎 o la mascota exclusiva
 --   (PetProducts) UNA vez por compra (el PurchaseId se recuerda en el registro) y solo se
 --   confirma a Roblox cuando la compra quedó guardada; si no se puede guardar, Roblox lo
@@ -20,10 +21,10 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local MonetizationConfig = require(Shared.Config.MonetizationConfig)
 local MonetizationLogic = require(Shared.MonetizationLogic)
-local QuestConfig = require(Shared.Config.QuestConfig)
+local WeaponLogic = require(Shared.WeaponLogic)
+local StyleLogic = require(Shared.StyleLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
-local UpgradeService = require(script.Parent.UpgradeService)
 local PetService = require(script.Parent.PetService)
 local WeaponService = require(script.Parent.WeaponService)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
@@ -32,7 +33,6 @@ local DevConfig = require(script.Parent.Parent.DevConfig)
 local Codes = Constants.PurchaseCodes
 local CHECK_ATTEMPTS = 3
 local PROFILE_WAIT = 30 -- segundos esperando al perfil del jugador (debería existir ya)
-local AUTO_UPGRADE_ID = "GeneratorPower" -- la Resonancia del Cristal
 
 local ShopService = {}
 
@@ -140,7 +140,7 @@ function ShopService.processReceipt(receipt: any): Enum.ProductPurchaseDecision
 		end
 		MonetizationLogic.addReceipt(shop, purchaseId)
 	else
-		local amount = MonetizationLogic.productEnergy(def, profile.ProductionPerSecond)
+		local amount = MonetizationLogic.productEnergy(def)
 		profile.Energy += amount
 		MonetizationLogic.addReceipt(shop, purchaseId)
 		PlayerDataService.replicate(player)
@@ -167,8 +167,10 @@ local function autoUpgradeTick()
 		if profile and MonetizationLogic.owns(profile.Passes, "AutoUpgrade") and profile.DataState ~= "Loading" then
 			local shop = profile.PetData.Shop
 			if type(shop) == "table" and shop.AutoUpgrade then
+				-- Lo que lleva el estilo actual: arma, espada, guantes o bastón.
+				local weaponId = WeaponLogic.equippedFor(profile.PetData.Weapons, StyleLogic.sanitize(profile.PetData.Style))
 				for _ = 1, MonetizationConfig.AutoUpgradeMaxPerTick do
-					if UpgradeService.purchase(player, AUTO_UPGRADE_ID) ~= Codes.Success then
+					if WeaponService.act(player, "Upgrade", weaponId) ~= Codes.Success then
 						break
 					end
 				end

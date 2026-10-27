@@ -1,4 +1,4 @@
--- Cálculos de mascotas compartidos. El servidor los usa para la producción real;
+-- Cálculos de mascotas compartidos. El servidor los usa para el daño y el dinero reales;
 -- el cliente solo para mostrar información.
 
 local PetConfig = require(script.Parent.Config.PetConfig)

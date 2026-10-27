@@ -61,7 +61,6 @@ local AdventureConfig = require(Shared.Config.AdventureConfig)
 local AdventureLogic = require(Shared.AdventureLogic)
 local CombatConfig = require(Shared.Config.CombatConfig)
 local ItemLogic = require(Shared.ItemLogic)
-local MonetizationLogic = require(Shared.MonetizationLogic)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local WaveLogic = require(Shared.WaveLogic)
 local WaveConfig = require(Shared.Config.WaveConfig)
@@ -1024,11 +1023,10 @@ local function onDeath(enemy: Enemy)
 			local bonus = WaveLogic.streakMultiplier(count) * WaveLogic.goldenMultiplier(golden) * lootBonus
 			local earned = math.floor(amount * lootMultiplier(profile) * bonus * enemy.MoneyMultiplier)
 			profile.Money += earned
-			-- ×2 con la Poción de Diamantes del inventario (mientras dura) y con el pase Diamantes ×2
-			local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time()) * MonetizationLogic.energyMultiplier(profile.Passes)
-			-- 💎 (en el código, Energy): pocos, con el poder de diamantes; lo que no llega a uno
-			-- entero es su probabilidad
-			local diamonds = WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare, WaveLogic.diamondPower(profile.ProductionPerSecond)) * bonus * potion
+			-- 💎 (en el código, Energy): pocos, por el pase Diamantes ×2, la Poción de Diamantes y
+			-- las aventuras (PlayerDataService.diamondMultiplier); lo que no llega a uno entero es
+			-- su probabilidad
+			local diamonds = WaveLogic.killEnergy(amount, EconomyConfig.KillEnergyShare) * bonus * PlayerDataService.diamondMultiplier(profile)
 			local energy = EnergyService.grant(player, WaveLogic.roundDiamonds(diamonds, math.random()))
 			if energy <= 0 then
 				PlayerDataService.replicate(player) -- grant ya replica si ha sumado energía

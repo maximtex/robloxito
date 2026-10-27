@@ -222,17 +222,17 @@ local p = AdventureLogic.empty()
 p.Amulets = { Sap = true, Fang = true, Geode = true, Feather = true }
 p.Equipped[1] = "Sap"
 p.Active = { Abundance = 100, Fury = 100, Fortune = 100 }
-check("producción: Savia ×1.25 · Abundancia ×2 = ×2.5 (antes de caducar)", near(AdventureLogic.productionMultiplier(p, 50), 2.5) and near(AdventureLogic.productionMultiplier(p, 100), 1.25))
+check("💎: Savia ×1.25 · Abundancia ×2 = ×2.5 (antes de caducar)", near(AdventureLogic.diamondMultiplier(p, 50), 2.5) and near(AdventureLogic.diamondMultiplier(p, 100), 1.25))
 check("offline: solo amuletos (×1.25)", near(AdventureLogic.offlineMultiplier(p), 1.25))
 p.Equipped[1] = "Fang"
-check("daño: Colmillo ×1.2 · Furia ×1.3", near(AdventureLogic.damageMultiplier(p, 50), 1.2 * 1.3) and near(AdventureLogic.productionMultiplier(p, 50), 2))
+check("daño: Colmillo ×1.2 · Furia ×1.3", near(AdventureLogic.damageMultiplier(p, 50), 1.2 * 1.3) and near(AdventureLogic.diamondMultiplier(p, 50), 2))
 p.Equipped[1] = "Geode"
 check("botín: Corazón de Geoda ×1.4 · Fortuna ×2", near(AdventureLogic.lootMultiplier(p, 50), 2.8))
 p.Equipped[1] = "Feather"
 check("velocidad: Pluma ×1.2", near(AdventureLogic.walkSpeedMultiplier(p), 1.2) and near(AdventureLogic.damageMultiplier(p, 200), 1))
 p.Equipped = { "Feather", "Sap" }
-check("la 2.ª ranura no cuenta sin todas las historias", near(AdventureLogic.productionMultiplier(p, 200), 1))
-check("sin datos o hora no válida: ×1", AdventureLogic.productionMultiplier(nil, 5) == 1 and AdventureLogic.damageMultiplier({}, 5) == 1 and AdventureLogic.lootMultiplier(p, 0 / 0) == 1)
+check("la 2.ª ranura no cuenta sin todas las historias", near(AdventureLogic.diamondMultiplier(p, 200), 1))
+check("sin datos o hora no válida: ×1", AdventureLogic.diamondMultiplier(nil, 5) == 1 and AdventureLogic.damageMultiplier({}, 5) == 1 and AdventureLogic.lootMultiplier(p, 0 / 0) == 1)
 
 print("-- 6. Estado para el cliente")
 local s = AdventureLogic.empty()
@@ -288,7 +288,7 @@ local profile = PlayerDataService.get(p1)
 check("datos cargados: estado inicial enviado (4 personajes con misión)", profile.DataState == "Loaded" and lastState(p1) and lastState(p1).Ready and lastState(p1).Npcs.Herbalist.Status == "Offer")
 profile.UpgradeLevels.GeneratorPower = 5
 PlayerDataService.recalculateProduction(p1)
-local baseProduction = profile.ProductionPerSecond
+local baseDiamonds = PlayerDataService.diamondMultiplier(profile)
 
 playerPos[p1] = Vector3.new(0, 3, 0)
 local args = act(p1, "Accept", "Herbalist")
@@ -340,13 +340,13 @@ check("aviso de recompensa y siguiente misión ofrecida con su 💰", rewardNoti
 args = act(p1, "TurnIn", "Herbalist")
 check("entregar otra vez: NotComplete y sin cobrar", args[1] == false and args[2] == Codes.NotComplete and near(profile.Money - moneyBefore, expectedMoney))
 
--- Bendición: producción ×2 y caduca sola
+-- Bendición: 💎 ×2 y caduca sola
 args = act(p1, "UseBlessing", "Abundance")
-check("usar la bendición: producción ×2", args[1] == true and near(profile.ProductionPerSecond, baseProduction * 2) and near(p1:GetAttribute("ProductionPerSecond"), baseProduction * 2) and profile.PetData.Adventure.Blessings.Abundance == nil)
+check("usar la bendición: 💎 ×2", args[1] == true and near(PlayerDataService.diamondMultiplier(profile), baseDiamonds * 2) and profile.PetData.Adventure.Blessings.Abundance == nil)
 args = act(p1, "UseBlessing", "Abundance")
 check("sin más bendiciones: NotOwned", args[1] == false and args[2] == Codes.NotOwned)
 advance(AdventureConfig.Blessings.Abundance.Duration + 2)
-check("a los 10 min caduca y la producción vuelve", near(profile.ProductionPerSecond, baseProduction) and profile.PetData.Adventure.Active.Abundance == nil)
+check("a los 10 min caduca y los 💎 vuelven a lo normal", near(PlayerDataService.diamondMultiplier(profile), baseDiamonds) and profile.PetData.Adventure.Active.Abundance == nil)
 
 -- Derrotas (solo las que pide la misión)
 args = act(p1, "Accept", "Herbalist")
@@ -368,15 +368,15 @@ check("y abre su conversación avisando de la entrega", dialog[1] == "Hunter" an
 at(p1, npcPos.Herbalist, 3)
 args = act(p1, "TurnIn", "Herbalist")
 check("amuleto: llega puesto y la producción sube ×1.25",
-	args[1] == true and args[4].Amulet == "Sap" and args[4].Finished == true and profile.PetData.Adventure.Equipped[1] == "Sap" and near(profile.ProductionPerSecond, baseProduction * 1.25))
+	args[1] == true and args[4].Amulet == "Sap" and args[4].Finished == true and profile.PetData.Adventure.Equipped[1] == "Sap" and near(PlayerDataService.diamondMultiplier(profile), baseDiamonds * 1.25))
 advance(0)
 check("guardado en seguida: Version 15 y Adventure en el registro", record(1) and record(1).Version == 15 and record(1).Adventure.Amulets.Sap == true and record(1).Adventure.Npcs.Herbalist.Step == 4)
 args = act(p1, "Unequip", 1)
-check("quitarlo: producción normal", args[1] == true and near(profile.ProductionPerSecond, baseProduction))
+check("quitarlo: 💎 normales", args[1] == true and near(PlayerDataService.diamondMultiplier(profile), baseDiamonds))
 args = act(p1, "Equip", "Sap", 2)
 check("la 2.ª ranura sigue cerrada: Locked", args[1] == false and args[2] == Codes.Locked)
 args = act(p1, "Equip", "Sap")
-check("ponérselo otra vez", args[1] == true and near(profile.ProductionPerSecond, baseProduction * 1.25))
+check("ponérselo otra vez", args[1] == true and near(PlayerDataService.diamondMultiplier(profile), baseDiamonds * 1.25))
 fireServer("AdventureAction", p1, "Equip", "Sap")
 fireServer("AdventureAction", p1, "Equip", "Sap")
 advance(0)
@@ -428,7 +428,7 @@ local function offline(player)
 end
 check(("offline con Savia ×1.25 (la bendición no cuenta sin jugar): %d -> %d"):format(offline(p3), offline(p4)),
 	offline(p3) > 0 and math.abs(offline(p4) - offline(p3) * 1.25) <= 1)
-check("al entrar con la bendición aún activa: producción ×2.5", near(PlayerDataService.get(p4).ProductionPerSecond, PlayerDataService.get(p3).ProductionPerSecond * 2.5))
+check("al entrar con la bendición aún activa: 💎 ×2.5", near(PlayerDataService.diamondMultiplier(PlayerDataService.get(p4)), PlayerDataService.diamondMultiplier(PlayerDataService.get(p3)) * 2.5))
 
 -- Sin datos cargados no se hace nada
 storeLatency = 5

@@ -533,11 +533,10 @@ function PetController.start()
 		local failed = dataStatus == "Failed"
 		local status = if snapshot.Ready then "" elseif failed then "  ·  no se pudieron cargar" else "  ·  cargando…"
 		local saving = if snapshot.Ready and snapshot.Saving == false then "  ·  sin guardado en esta sesión" else ""
-		-- Las equipadas suben el poder (entero: también algo los 💎), el daño y el dinero (la
-		-- mitad de su bonificación)
+		-- Las equipadas suben el daño y el dinero (la mitad de su bonificación:
+		-- CombatConfig.PetDamageShare y PetMoneyShare)
 		local half = 1 + (multiplier - 1) * 0.5
-		ui.InventorySubtitle.Text = ("✨ poder ×%s  ·  💥 y 💰 ×%s  ·  %d/%d en total%s%s"):format(
-			formatNumber(multiplier, 2),
+		ui.InventorySubtitle.Text = ("💥 y 💰 ×%s  ·  %d/%d en total%s%s"):format(
 			formatNumber(half, 2),
 			#snapshot.Pets,
 			snapshot.MaxInventory,
@@ -1161,7 +1160,7 @@ function PetController.start()
 		ui.HatchStatus.TextColor3 = THEME.Gold
 		ui.RevealName.Text = if pet then pet.DisplayName else petId
 		ui.RevealName.TextColor3 = rarity.Color
-		ui.RevealDetails.Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(petId)) .. " de producción"
+		ui.RevealDetails.Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(petId)) .. " de poder"
 		ui.RevealEquip.Text = if autoEquipped then "✓ Equipada automáticamente" else "Guardada en tu inventario (ya tienes el máximo equipado)"
 		-- Apertura ×3: las otras dos mascotas, con el color de su rareza, debajo.
 		if #extras > 0 then

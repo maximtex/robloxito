@@ -42,7 +42,6 @@ local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local TutorialConfig = require(Shared.Config.TutorialConfig)
 local ItemLogic = require(Shared.ItemLogic)
-local MonetizationLogic = require(Shared.MonetizationLogic)
 local StudFloor = require(Shared.Util.StudFloor)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
@@ -360,10 +359,9 @@ local function pay(participant: Participant, energy: number, money: number): (nu
 	if not profile then
 		return 0, 0
 	end
-	-- Poción de Diamantes (inventario) y pase Diamantes ×2: también doblan los 💎 de los
+	-- Pase Diamantes ×2, Poción de Diamantes y aventuras: también multiplican los 💎 de los
 	-- premios de las oleadas.
-	local potion = ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Energy", os.time()) * MonetizationLogic.energyMultiplier(profile.Passes)
-	local given = EnergyService.grant(participant.Player, energy * potion)
+	local given = EnergyService.grant(participant.Player, energy * PlayerDataService.diamondMultiplier(profile))
 	local coins = math.max(0, math.floor(money))
 	if coins > 0 then
 		profile.Money += coins
@@ -689,7 +687,7 @@ local function waveCleared(run: Run)
 	for _, participant in run.Participants do
 		local profile = PlayerDataService.get(participant.Player)
 		if profile then
-			local energy, money = WaveLogic.clearReward(wave, WaveLogic.diamondPower(profile.ProductionPerSecond), run.ArenaId)
+			local energy, money = WaveLogic.clearReward(wave, run.ArenaId)
 			local given, coins = pay(participant, energy, money)
 			-- Respiro: recupera parte de la vida (solo quien sigue en pie)
 			local healed = false
@@ -750,7 +748,7 @@ local function payVictory(run: Run)
 	for player, participant in run.Participants do
 		local profile = PlayerDataService.get(player)
 		if profile then
-			participant.VictoryEnergy, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(WaveLogic.diamondPower(profile.ProductionPerSecond), run.ArenaId))
+			participant.VictoryEnergy, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(run.ArenaId))
 			local ok, err = pcall(giveChest, run, participant)
 			if not ok then
 				warn("[WaveService] Cofre: " .. tostring(err))

@@ -625,14 +625,14 @@ local function multiplier(data: AdventureData?, stat: string, now: number?): num
 	return (1 + AdventureLogic.amuletBonus(data, stat)) * (1 + AdventureLogic.blessingBonus(data, stat, now))
 end
 
--- Energía producida (con el jugador conectado).
-function AdventureLogic.productionMultiplier(data: AdventureData?, now: number?): number
-	return multiplier(data, "Production", now)
+-- 💎 de los enemigos y de las oleadas (amuletos de Savia y Magma, Bendición de Abundancia).
+function AdventureLogic.diamondMultiplier(data: AdventureData?, now: number?): number
+	return multiplier(data, "Diamonds", now)
 end
 
 -- Producción sin jugar: solo los amuletos (las bendiciones son para jugar).
 function AdventureLogic.offlineMultiplier(data: AdventureData?): number
-	return 1 + AdventureLogic.amuletBonus(data, "Production")
+	return 1 + AdventureLogic.amuletBonus(data, "Diamonds")
 end
 
 function AdventureLogic.damageMultiplier(data: AdventureData?, now: number?): number

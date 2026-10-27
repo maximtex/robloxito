@@ -34,11 +34,10 @@ local EconomyConfig = {
 	-- Los 💎 salen SOLO de pelear (nada pasivo):
 	-- - PassiveEnergy = false: el cristal y los núcleos ya no suman nada cada segundo ni
 	--   mientras no juegas (EnergyService, PlayerDataService). Con true vuelve lo de antes.
-	-- - Cada enemigo derrotado da 💎 = Reward del enemigo · KillEnergyShare · poder de
-	--   diamantes (WaveLogic.diamondPower del "poder de energía" profile.ProductionPerSecond:
-	--   Resonancia, núcleos, mascotas, renacimiento, amuletos y el pase ×2, que aquí suben
-	--   poco a poco). Lo que no llega a un diamante entero es una probabilidad: con 0.03 un
-	--   Espinillo (35) da 1 💎 casi siempre; un Bruto (140), unos 4.
+	-- - Cada enemigo derrotado da 💎 = Reward del enemigo · KillEnergyShare · multiplicador
+	--   de 💎 (pase Diamantes ×2, Poción de Diamantes, amuletos y Bendición de Abundancia:
+	--   PlayerDataService.diamondMultiplier). Lo que no llega a un diamante entero es una
+	--   probabilidad: con 0.03 un Espinillo (35) da 1 💎 casi siempre; un Bruto (140), unos 4.
 	PassiveEnergy = false,
 	KillEnergyShare = 0.03,
 

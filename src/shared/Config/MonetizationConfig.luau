@@ -27,7 +27,7 @@ local MonetizationConfig = {
 			Order = 2,
 			Icon = "🤖",
 			Name = "Mejora automática",
-			Description = "La Resonancia del Cristal sube sola en cuanto te alcanza el 💰. Se puede apagar.",
+			Description = "Tu arma equipada (o tus guantes o tu bastón, según tu estilo) se mejora sola en cuanto te alcanza el 💰. Se puede apagar.",
 			Color = Color3.fromRGB(110, 236, 220),
 		},
 		TripleHatch = {
@@ -56,12 +56,11 @@ local MonetizationConfig = {
 		},
 	},
 
-	-- Compras sueltas de 💎 (en el código, Energy): Min diamantes (y, si Minutes > 0, N
-	-- minutos del poder de energía si es más).
+	-- Compras sueltas de 💎 (en el código, Energy): Min diamantes.
 	Products = {
-		EnergySmall = { Id = 0, Order = 1, Icon = "💎", Name = "Bolsa de diamantes", Minutes = 0, Min = 150 },
-		EnergyMedium = { Id = 0, Order = 2, Icon = "💠", Name = "Cofre de diamantes", Minutes = 0, Min = 700 },
-		EnergyLarge = { Id = 0, Order = 3, Icon = "👑", Name = "Tesoro de diamantes", Minutes = 0, Min = 3000 },
+		EnergySmall = { Id = 0, Order = 1, Icon = "💎", Name = "Bolsa de diamantes", Min = 150 },
+		EnergyMedium = { Id = 0, Order = 2, Icon = "💠", Name = "Cofre de diamantes", Min = 700 },
+		EnergyLarge = { Id = 0, Order = 3, Icon = "👑", Name = "Tesoro de diamantes", Min = 3000 },
 	},
 
 	-- Mascotas exclusivas (por su PetId de PetConfig): cada compra da una, aunque el
@@ -86,7 +85,7 @@ local MonetizationConfig = {
 	InventoryBonus = 60, -- PetSpace: espacio de inventario de más
 	TripleCount = 3, -- TripleHatch: huevos por apertura
 	AutoUpgradeInterval = 1, -- AutoUpgrade: cada cuántos segundos mira si puede mejorar
-	AutoUpgradeMaxPerTick = 5, -- y cuántos niveles sube como mucho de una vez
+	AutoUpgradeMaxPerTick = 5, -- y cuántos niveles sube como mucho de una vez (arma del estilo actual)
 
 	MaxReceipts = 50, -- compras recordadas por jugador (para no conceder dos veces)
 }

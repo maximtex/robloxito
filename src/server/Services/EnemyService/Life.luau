@@ -8,6 +8,8 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local StudFloor = require(Shared.Util.StudFloor)
 local EnemyLogic = require(script.Parent.Parent.Parent.Util.EnemyLogic)
+local Types = require(script.Parent.Types)
+type Enemy = Types.Enemy
 
 local ctx: any -- tabla de estado compartida (la crea EnemyService/init.luau)
 local BAR_DISTANCE: any

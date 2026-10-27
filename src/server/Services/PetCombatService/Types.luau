@@ -1,5 +1,9 @@
 -- PetCombatService · tipos que comparten sus partes (antes estaban en PetCombatService.luau).
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local WarriorLogic = require(Shared.WarriorLogic)
+
 export type State = {
 	Target: any?,
 	AutoFire: boolean, -- interruptor (solo cuenta con el pase)

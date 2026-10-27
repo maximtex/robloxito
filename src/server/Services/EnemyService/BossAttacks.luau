@@ -13,6 +13,7 @@ local PartFactory = require(script.Parent.Parent.Parent.Util.PartFactory)
 local EnemyLogic = require(script.Parent.Parent.Parent.Util.EnemyLogic)
 local Types = require(script.Parent.Types)
 type Brain = Types.Brain
+type Enemy = Types.Enemy
 
 local ctx: any -- tabla de estado compartida (la crea EnemyService/init.luau)
 local GROUND: any

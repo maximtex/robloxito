@@ -11,6 +11,8 @@ local ClassLogic = require(Shared.ClassLogic)
 local AimLogic = require(Shared.AimLogic)
 local WarriorLogic = require(Shared.WarriorLogic)
 local EnemyService = require(script.Parent.Parent.EnemyService)
+local Types = require(script.Parent.Types)
+type State = Types.State
 
 local ctx: any -- tabla de estado compartida (la crea PetCombatService/init.luau)
 local PetCombatService: any -- la tabla pública del servicio

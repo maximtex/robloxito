@@ -1,5 +1,7 @@
 -- EnemyService · tipos que comparten sus partes (antes estaban en EnemyService.luau).
 
+local EnemyLogic = require(script.Parent.Parent.Parent.Util.EnemyLogic)
+
 export type SafeZone = { Center: Vector3, Radius: number }
 export type SafeArea = { Min: Vector2, Max: Vector2 } -- rectángulo en X/Z del mundo
 

@@ -11,8 +11,8 @@ local PartFactory = require(script.Parent.Parent.Parent.Util.PartFactory)
 local EnemyLogic = require(script.Parent.Parent.Parent.Util.EnemyLogic)
 local TerrainPaint = require(script.Parent.Parent.Parent.Util.TerrainPaint)
 local Types = require(script.Parent.Types)
-type Brain = Types.Brain
 type Enemy = Types.Enemy
+type WaveSpawnOptions = Types.WaveSpawnOptions
 
 local ctx: any -- tabla de estado compartida (la crea EnemyService/init.luau)
 local EnemyService: any -- la tabla pública del servicio

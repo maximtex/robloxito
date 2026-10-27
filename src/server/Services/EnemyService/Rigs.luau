@@ -3,6 +3,8 @@
 -- y lo de las demás partes, en link() o con un reenvío.
 
 local ModelosZona1 = require(script.Parent.Parent.Parent.Util.ModelosZona1)
+local Types = require(script.Parent.Types)
+type Rig = Types.Rig
 
 
 -- Modelos -----------------------------------------------------------------------

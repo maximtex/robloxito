@@ -9,9 +9,12 @@ local Constants = require(Shared.Constants)
 local PetConfig = require(Shared.Config.PetConfig)
 local PetCombatConfig = require(Shared.Config.PetCombatConfig)
 local StyleLogic = require(Shared.StyleLogic)
+local ClassLogic = require(Shared.ClassLogic)
 local WarriorLogic = require(Shared.WarriorLogic)
 local PlayerDataService = require(script.Parent.Parent.PlayerDataService)
 local EnemyService = require(script.Parent.Parent.EnemyService)
+local Types = require(script.Parent.Types)
+type State = Types.State
 
 local ctx: any -- tabla de estado compartida (la crea PetCombatService/init.luau)
 local BOSS_CONTROL: any

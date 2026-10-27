@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
+local WaveLogic = require(Shared.WaveLogic)
 local Types = require(script.Parent.Types)
 type Enemy = Types.Enemy
 

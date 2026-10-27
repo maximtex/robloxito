@@ -14,6 +14,8 @@ local MagicLogic = require(Shared.MagicLogic)
 local WarriorLogic = require(Shared.WarriorLogic)
 local EnemyService = require(script.Parent.Parent.EnemyService)
 local RateLimiter = require(script.Parent.Parent.Parent.Util.RateLimiter)
+local Types = require(script.Parent.Types)
+type State = Types.State
 
 local ctx: any -- tabla de estado compartida (la crea PetCombatService/init.luau)
 local Api = {} -- funciones públicas de esta parte (init.luau las copia a PetCombatService)

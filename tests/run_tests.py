@@ -44,8 +44,13 @@ REQUIRE = re.compile(r"require\(([^()]|\([^()]*\))*?\.(\w+)\)")
 
 
 def mod(name, path):
-    """Módulo real de src/ incrustado: cada require(...X) se sustituye por la variable X."""
-    source = REQUIRE.sub(lambda match: match.group(2), read(*path.split("/")))
+    """Módulo real de src/ incrustado: cada require(...X) se sustituye por la variable X. Si
+    el módulo se dividió en una carpeta (X/init.luau + partes), se monta la carpeta."""
+    folder = os.path.join(ROOT, *path.split("/"))[: -len(".luau")]
+    if not os.path.exists(os.path.join(ROOT, *path.split("/"))) and os.path.isdir(folder):
+        source = folder_module(*path[: -len(".luau")].split("/"))
+    else:
+        source = REQUIRE.sub(lambda match: match.group(2), read(*path.split("/")))
     return f"local {name} = (function()\n{source}\nend)()\n"
 
 
@@ -54,7 +59,9 @@ def folder_module(*path):
     módulo local con sus require sustituidos y, después, el código de init.luau. Devuelve el
     cuerpo de una función que devuelve el módulo."""
     init = read(*path, "init.luau")
-    names = ["Types"] + [n for n in re.findall(r"require\(script\.(\w+)\)", init) if n != "Types"]
+    names = [n for n in re.findall(r"require\(script\.(\w+)\)", init) if n != "Types"]
+    if os.path.exists(os.path.join(ROOT, *path, "Types.luau")):
+        names = ["Types"] + names
     out = []
     for name in dict.fromkeys(names):
         source = REQUIRE.sub(lambda match: match.group(2), read(*path, name + ".luau"))

@@ -36,6 +36,7 @@ local GEAR_EDGE = 16
 local ROW_HEIGHT = 58
 local ROW_GAP = 8
 local LIST_TOP = 252
+local UNAVAILABLE_HEIGHT = 262 -- sin personajes: el panel acaba bajo el aviso (sin hueco vacío)
 
 local player = Players.LocalPlayer
 
@@ -385,6 +386,11 @@ local function bindProfiles(ui: any)
 		ui.ProfilesHint.Text = if available
 			then "Cada uno con su clase y su progreso. Los pases de Robux valen para todos."
 			else "Los personajes no están disponibles ahora (tu partida no se guarda en esta sesión)."
+		ui.Panel.Size = UDim2.fromOffset(PANEL_SIZE.X, if available then PANEL_SIZE.Y else UNAVAILABLE_HEIGHT)
+		ui.Status.Visible = available
+		if not available then
+			ui.Chooser.Frame.Visible = false
+		end
 		local bySlot = {}
 		for _, entry in list do
 			bySlot[entry.Slot] = entry

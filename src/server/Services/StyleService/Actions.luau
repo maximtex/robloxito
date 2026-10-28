@@ -126,8 +126,10 @@ local function setStyle(player: Player, styleId: any, pick: boolean?)
 			return -- ya eligió: se cambia con "Set"
 		end
 		skills.Picked = true
-		-- Primera elección de un personaje nuevo: esa es su clase
-		if not fixed and not profile.Sandbox then
+		-- Primera elección de un personaje nuevo: esa es su clase. Solo si se guarda y hay
+		-- personajes (si no, p. ej. en Studio sin acceso a la API, no podría crear otro y se
+		-- quedaría atado a esa clase): entonces cambia de estilo como siempre.
+		if not fixed and not profile.Sandbox and profile.DataState == "Loaded" and profile.Account ~= nil then
 			profile.PetData.FixedStyle = styleId
 		end
 		PlayerDataService.markDirty(player)

@@ -462,7 +462,8 @@ juegas.
   (`player_<id>`; las partidas de antes siguen ahí) y los demás `player_<id>_s<hueco>`.
 - El personaje de antes de los personajes no tiene clase fija (`FixedStyle` = nil) y cambia de
   estilo como siempre. Uno nuevo entra ya con su clase (no se le pregunta) y un jugador nuevo
-  fija la clase que elige al empezar. Con clase fija, ⇄ y la tecla C no salen y el servidor
+  fija la clase que elige al empezar (solo si su partida se guarda y hay personajes: en Studio
+  sin acceso a la API no se fija y cambia de estilo como siempre). Con clase fija, ⇄ y la tecla C no salen y el servidor
   rechaza el cambio (`StyleService`, código `Locked`).
 - Crear o elegir (`ProfileService`, remotos `ProfileAction` / `ProfileResult`): guarda la cuenta
   y la partida y te hace volver a entrar al juego (`TeleportService`; si no se puede, p. ej. en

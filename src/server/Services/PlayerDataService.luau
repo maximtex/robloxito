@@ -16,6 +16,10 @@
 -- Guardado:
 -- - Se guarda si hay cambios marcados (Dirty) o si la energía/mejoras cambiaron desde el
 --   último guardado correcto. Si falla, queda pendiente y se avisa al jugador (SaveError).
+-- Personajes (ProfileLogic; pruebas con amigos): cada cuenta tiene hasta 3, cada uno con su
+-- clase y su progreso en su propia entrada (SaveService, hueco 1 = la de siempre). Se entra con
+-- el último elegido (cuenta: SaveService.loadAccount); si la cuenta no se puede leer, con el 1.
+-- Crear y elegir: ProfileService. Atributos: Profiles (la lista), ProfileSlot y FixedStyle.
 -- Modo prueba del tutorial (DevConfig.TutorialSandbox, SOLO en Studio):
 -- - Perfil temporal nuevo en memoria; no se llama a SaveService.load ni a .save, así que
 --   el perfil real no se lee, no se bloquea y no se escribe. Se marca con Sandbox = true
@@ -32,6 +36,8 @@ local WeaponConfig = require(Shared.Config.WeaponConfig)
 local WeaponLogic = require(Shared.WeaponLogic)
 local Constants = require(Shared.Constants)
 local PetMath = require(Shared.PetMath)
+local PetClassLogic = require(Shared.PetClassLogic)
+local ProfileLogic = require(Shared.ProfileLogic)
 local RebirthLogic = require(Shared.RebirthLogic)
 local AdventureLogic = require(Shared.AdventureLogic)
 local MonetizationLogic = require(Shared.MonetizationLogic)
@@ -39,6 +45,7 @@ local PetConfig = require(Shared.Config.PetConfig)
 local ItemLogic = require(Shared.ItemLogic)
 local StyleLogic = require(Shared.StyleLogic)
 local SkillLogic = require(Shared.SkillLogic)
+local Economy = require(Shared.Economy)
 local ClassLogic = require(Shared.ClassLogic)
 local SaveService = require(script.Parent.SaveService)
 local CoreLogic = require(script.Parent.Parent.Util.CoreLogic)
@@ -53,6 +60,7 @@ export type Profile = {
 	Money: number, -- lo sueltan los enemigos (EnemyService); paga la Tienda de Láser
 	UpgradeLevels: { [string]: number },
 	PetMultiplier: number,
+	PetBonuses: PetClassLogic.Bonuses, -- clases de las mascotas equipadas (daño, defensa, cura, 💰)
 	PetData: SaveService.PetData,
 	DataState: DataState,
 	Dirty: boolean,
@@ -61,6 +69,9 @@ export type Profile = {
 	Sandbox: boolean, -- perfil temporal del modo prueba: nunca se carga ni se guarda
 	Passes: MonetizationLogic.Passes, -- pases de la tienda (ShopService; no se guardan)
 	PassesChecked: boolean, -- ya se consultaron a Roblox
+	Slot: number, -- personaje con el que juega (ProfileLogic; 1 = el de siempre)
+	Account: ProfileLogic.Account?, -- sus personajes (nil si no se pudo leer la cuenta)
+	Switching: boolean?, -- cambiando de personaje (ProfileService ya guardó la cuenta)
 }
 
 local PlayerDataService = {}
@@ -79,6 +90,7 @@ local function createProfile(): Profile
 		Money = EconomyConfig.StartingMoney,
 		UpgradeLevels = upgradeLevels,
 		PetMultiplier = 1,
+		PetBonuses = PetClassLogic.bonuses({}),
 		PetData = SaveService.emptyData(),
 		DataState = "Loading",
 		Dirty = false,
@@ -87,6 +99,8 @@ local function createProfile(): Profile
 		Sandbox = false,
 		Passes = {},
 		PassesChecked = false,
+		Slot = 1,
+		Account = nil,
 	}
 end
 
@@ -124,7 +138,9 @@ end
 function PlayerDataService.refreshStats(player: Player)
 	local profile = profiles[player]
 	if profile then
-		profile.PetMultiplier = PetMath.getTotalMultiplier(PlayerDataService.getEquippedPetIds(profile))
+		local equipped = PlayerDataService.getEquippedPetIds(profile)
+		profile.PetMultiplier = PetMath.getTotalMultiplier(equipped)
+		profile.PetBonuses = PetClassLogic.bonuses(equipped)
 	end
 end
 
@@ -149,7 +165,9 @@ function PlayerDataService.combatStats(profile: Profile): CombatStats
 	local weaponId = WeaponLogic.equippedFor(weapons, StyleLogic.sanitize(profile.PetData.Style))
 	local level = WeaponLogic.level(weapons, weaponId)
 	local cadence = profile.UpgradeLevels[WeaponConfig.CadenceUpgradeId] or 0
-	local bonus = RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time())
+	-- (y las mascotas Atacantes: PetClassLogic)
+	local petDamage = if profile.PetBonuses then profile.PetBonuses.Damage else 1
+	local bonus = RebirthLogic.damageMultiplier(RebirthLogic.ofProfile(profile)) * AdventureLogic.damageMultiplier(AdventureLogic.ofProfile(profile), os.time()) * petDamage
 	local definition = WeaponLogic.definition(weaponId) or WeaponConfig.Weapons[WeaponConfig.StarterWeapon]
 	return {
 		WeaponId = weaponId,
@@ -180,7 +198,9 @@ local function applyBody(humanoid: Humanoid, profile: Profile)
 	local baseSpeed = (28 + speedLevel * perLevel) * amuletMult * StyleLogic.walkSpeed(style) * class.WalkSpeed
 	humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
 	humanoid.WalkSpeed = baseSpeed
-	local maxHealth = math.floor(BASE_HEALTH * StyleLogic.maxHealth(style) * class.MaxHealth + 0.5)
+	-- Vitalidad (mejora con 💰): +6 % por nivel
+	local vitality = Economy.vitalityMultiplier(profile.UpgradeLevels.Vitality)
+	local maxHealth = math.floor(BASE_HEALTH * StyleLogic.maxHealth(style) * class.MaxHealth * vitality + 0.5)
 	local current = humanoid.MaxHealth
 	if type(current) == "number" and type(humanoid.Health) == "number" and math.abs(current - maxHealth) > 0.01 then
 		local fraction = if current > 0 then math.clamp(humanoid.Health / current, 0, 1) else 1
@@ -206,6 +226,33 @@ local function setIfChanged(player: Player, name: string, value: any)
 	if player:GetAttribute(name) ~= value then
 		player:SetAttribute(name, value)
 	end
+end
+
+-- Mejor zona abierta (la más cara de abrir) para la lista de personajes
+local function bestZone(profile: Profile): string
+	local best, bestCost = "Forest", -1
+	for _, zoneId in profile.PetData.UnlockedZones do
+		local zone = ZoneConfig.Zones[zoneId]
+		local cost = if zone and type(zone.UnlockCost) == "number" then zone.UnlockCost else -1
+		if cost > bestCost then
+			best, bestCost = zoneId, cost
+		end
+	end
+	return best
+end
+
+-- Lo que se ve de este personaje en la lista (clase, renacimientos y mejor zona)
+local function refreshAccountEntry(profile: Profile)
+	local account = profile.Account
+	if not account then
+		return
+	end
+	ProfileLogic.ensureSlot(account, profile.Slot, os.time())
+	local entry = account.Slots[profile.Slot]
+	if entry then
+		entry.Style = profile.PetData.FixedStyle
+	end
+	ProfileLogic.updateSummary(account, profile.Slot, RebirthLogic.count(profile.PetData.Rebirth), bestZone(profile))
 end
 
 function PlayerDataService.replicate(player: Player)
@@ -315,6 +362,36 @@ function PlayerDataService.replicate(player: Player)
 	setIfChanged(player, attributes.MaxInventory, MonetizationLogic.maxInventory(profile.Passes, PetConfig.MaxInventory))
 	local shop = profile.PetData.Shop
 	setIfChanged(player, attributes.AutoUpgrade, MonetizationLogic.owns(profile.Passes, "AutoUpgrade") and type(shop) == "table" and shop.AutoUpgrade == true)
+	-- Personajes (⚙️ Ajustes) y la clase fija de este
+	if profile.Account and profile.DataState == "Loaded" then
+		refreshAccountEntry(profile)
+	end
+	setIfChanged(player, attributes.Profiles, if profile.Account then ProfileLogic.encode(profile.Account) else "")
+	setIfChanged(player, attributes.ProfileSlot, profile.Slot)
+	setIfChanged(player, attributes.FixedStyle, profile.PetData.FixedStyle or "")
+end
+
+-- Personajes de un jugador (ProfileService)
+function PlayerDataService.accountOf(player: Player): ProfileLogic.Account?
+	local profile = profiles[player]
+	return if profile then profile.Account else nil
+end
+
+-- Guarda la cuenta (la lista de personajes) con lo último de este personaje
+function PlayerDataService.saveAccountOf(player: Player, profile: Profile): boolean
+	local account = profile.Account
+	if not account or profile.Sandbox then
+		return false
+	end
+	if profile.DataState == "Loaded" then
+		refreshAccountEntry(profile)
+	end
+	return SaveService.saveAccount(player.UserId, account)
+end
+
+function PlayerDataService.saveAccount(player: Player): boolean
+	local profile = profiles[player]
+	return if profile then PlayerDataService.saveAccountOf(player, profile) else false
 end
 
 -- Firma de la economía (para saber si hay algo nuevo que guardar).
@@ -377,12 +454,23 @@ local function loadPetData(player: Player, profile: Profile)
 		startSandbox(player, profile)
 		return
 	end
-	local status, data = SaveService.load(player.UserId)
+	-- Personajes: se entra con el último elegido (si no se puede leer la cuenta, con el 1)
+	local accountStatus, account = SaveService.loadAccount(player.UserId)
+	if profiles[player] ~= profile then
+		return
+	end
+	local slot = 1
+	if accountStatus == "Loaded" and account then
+		profile.Account = account
+		slot = account.Last
+	end
+	profile.Slot = slot
+	local status, data, isNew = SaveService.load(player.UserId, slot)
 
 	if profiles[player] ~= profile then
 		-- El jugador salió durante la carga: liberar el bloqueo sin cambiar nada.
 		if status == "Loaded" and data then
-			SaveService.save(player.UserId, data, true)
+			SaveService.save(player.UserId, data, true, slot)
 		end
 		return
 	end
@@ -412,6 +500,16 @@ local function loadPetData(player: Player, profile: Profile)
 			profile.Dirty = true -- que la devolución quede guardada cuanto antes
 			player:SetAttribute(Constants.Attributes.RetiredRefund, ("%d,%d,%d"):format(refund.Level, refund.Money, refund.Tokens))
 		end
+		-- Personaje recién creado: entra ya con su clase, fija (no se le pregunta el estilo)
+		local entry = account and account.Slots[slot]
+		if isNew and entry and entry.Style then
+			data.Style = entry.Style
+			data.FixedStyle = entry.Style
+			if type(data.Skills) == "table" then
+				data.Skills.Picked = true
+			end
+			profile.Dirty = true
+		end
 		if #profile.PetData.Pets == 0 then
 			table.insert(profile.PetData.Pets, { Uid = "p1", PetId = "Sproutling" })
 			table.insert(profile.PetData.Equipped, "p1")
@@ -424,6 +522,12 @@ local function loadPetData(player: Player, profile: Profile)
 			.. "En Studio activa Game Settings > Security > Enable Studio Access to API Services.")
 	else
 		warn("[PlayerDataService] No se pudieron cargar los datos de " .. player.Name .. "; no se guardará para proteger sus datos.")
+	end
+	-- Personajes: solo con su partida cargada (si no, no se guarda nada y no se puede cambiar)
+	if status == "Loaded" then
+		refreshAccountEntry(profile)
+	else
+		profile.Account = nil
 	end
 
 	PlayerDataService.refreshStats(player)
@@ -447,7 +551,7 @@ local function saveProfile(player: Player, profile: Profile, release: boolean): 
 	profile.PetData.Diamonds = profile.Diamonds
 	profile.PetData.Money = profile.Money
 	profile.PetData.UpgradeLevels = table.clone(profile.UpgradeLevels)
-	local ok, saved = pcall(SaveService.save, player.UserId, profile.PetData, release)
+	local ok, saved = pcall(SaveService.save, player.UserId, profile.PetData, release, profile.Slot)
 	if ok and saved then
 		profile.SavedEconomy = signature
 		profile.SaveError = false
@@ -520,6 +624,10 @@ local function onPlayerRemoving(player: Player)
 	if profile then
 		for _, callback in leavingListeners do
 			task.spawn(callback, player, profile)
+		end
+		-- La lista de personajes con lo último de este (si cambió de personaje ya se guardó)
+		if profile.Account and not profile.Sandbox and not profile.Switching then
+			task.spawn(PlayerDataService.saveAccountOf, player, profile)
 		end
 		saveProfile(player, profile, true)
 	end

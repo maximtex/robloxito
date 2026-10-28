@@ -82,9 +82,14 @@ function TutorialLogic.update(data: TutorialData, ctx: any, stats: any): boolean
 	return changed
 end
 
--- Omitir: solo si sigue activo. Devuelve true si cambió.
+-- ¿Se puede omitir ya? (activo y con los MinSkipStep primeros pasos hechos)
+function TutorialLogic.canSkip(data: TutorialData): boolean
+	return data.Status == "Active" and data.Step >= (TutorialConfig.MinSkipStep or 0)
+end
+
+-- Omitir: solo si sigue activo y ya se hicieron los primeros pasos. Devuelve true si cambió.
 function TutorialLogic.skip(data: TutorialData): boolean
-	if data.Status ~= "Active" then
+	if not TutorialLogic.canSkip(data) then
 		return false
 	end
 	data.Status = "Skipped"

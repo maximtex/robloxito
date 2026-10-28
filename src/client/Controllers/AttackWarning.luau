@@ -7,6 +7,8 @@
 -- - Media luna roja en el suelo con su alcance, hacia donde va el golpe, que se llena hasta
 --   el momento del golpe: si sales de ella (o te pones detrás), no te da.
 -- - "¡Esquivado!" sobre ti si al soltarlo ya no estabas a su alcance.
+-- Los disparos de los bichos a distancia (AttackKind = "Shot") llevan solo el !: la bola va a
+-- donde estés al soltarla, así que hay que moverse cuando sale (no hay media luna).
 -- Los golpes contra otros jugadores no se avisan aquí (ya se ven los ojos y la animación).
 
 local Debris = game:GetService("Debris")
@@ -45,11 +47,12 @@ type Warning = {
 	Dot: Part,
 	Size: number,
 	Height: number, -- sobre la raíz del bicho
-	Ground: Part,
-	Fill: Frame,
-	Outline: UIStroke,
-	Back: Frame,
+	Ground: Part?, -- nil en los disparos (AttackKind = "Shot")
+	Fill: Frame?,
+	Outline: UIStroke?,
+	Back: Frame?,
 	Gold: boolean,
+	Shot: boolean,
 }
 
 local fxFolder: Folder
@@ -95,7 +98,9 @@ local function clear(model: Model)
 	count -= 1
 	warning.Bar:Destroy()
 	warning.Dot:Destroy()
-	warning.Ground:Destroy()
+	if warning.Ground then
+		warning.Ground:Destroy()
+	end
 end
 
 -- Media luna en el suelo (SurfaceGui sobre una pieza plana): el borde recto junto al bicho y
@@ -268,7 +273,11 @@ local function onAttack(model: Model)
 	local reach = model:GetAttribute("AttackReach")
 	reach = if typeof(reach) == "number" and reach > 0 then reach else 6
 	local bar, dot, size, height = buildMark(model, root)
-	local ground, fill, outline, back = buildGround(root.Position, direction, reach, groundBelow(root.Position, model))
+	local shot = model:GetAttribute("AttackKind") == "Shot"
+	local ground, fill, outline, back
+	if not shot then
+		ground, fill, outline, back = buildGround(root.Position, direction, reach, groundBelow(root.Position, model))
+	end
 	local warning: Warning = {
 		Model = model,
 		At = at,
@@ -285,6 +294,7 @@ local function onAttack(model: Model)
 		Outline = outline,
 		Back = back,
 		Gold = false,
+		Shot = shot,
 	}
 	warnings[model] = warning
 	placeMark(warning, 0.2, 0)
@@ -300,7 +310,7 @@ local function update()
 			continue
 		end
 		if now >= warning.At then
-			local wasDodged = dodged(warning)
+			local wasDodged = not warning.Shot and dodged(warning)
 			clear(model)
 			if wasDodged then
 				showDodge()
@@ -310,16 +320,20 @@ local function update()
 		local total = math.max(0.05, warning.At - warning.Started)
 		local progress = math.clamp((now - warning.Started) / total, 0, 1)
 		-- La media luna se llena; al final, todo dorado: ¡ahora! (bloquear o apartarse)
-		warning.Fill.Size = UDim2.fromScale(progress, progress * 2)
+		if warning.Fill then
+			warning.Fill.Size = UDim2.fromScale(progress, progress * 2)
+		end
 		local gold = warning.At - now <= PARRY_WINDOW
 		if gold ~= warning.Gold then
 			warning.Gold = gold
 			local color = if gold then GOLD else RED
 			warning.Bar.Color = color
 			warning.Dot.Color = color
-			warning.Fill.BackgroundColor3 = color
-			warning.Outline.Color = color
-			warning.Back.BackgroundColor3 = color
+			if warning.Fill and warning.Outline and warning.Back then
+				warning.Fill.BackgroundColor3 = color
+				warning.Outline.Color = color
+				warning.Back.BackgroundColor3 = color
+			end
 		end
 		-- Aparece de golpe (con rebote), tiembla mientras se prepara y en dorado late más grande
 		local appear = math.clamp((now - warning.Started) / 0.14, 0, 1)

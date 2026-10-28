@@ -60,7 +60,7 @@ function CoreService.snapshot(profile: PlayerDataService.Profile): { [string]: a
 		local level = CoreLogic.level(data, elementId)
 		local maxLevel = if index == 1 then 0 else CoreConfig.Upgrade.MaxLevel
 		local upgradeCost = if unlocked then CoreLogic.upgradeCost(elementId, level) else nil
-		local ability = AbilityLogic.get(elementId)
+		local ability = AbilityLogic.castable(elementId) -- Naturaleza: sin habilidad (el dash es de todos)
 		table.insert(elements, {
 			Id = elementId,
 			Unlocked = unlocked,

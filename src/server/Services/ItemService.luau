@@ -2,6 +2,8 @@
 -- - Botín de los jefes: a cada jugador que recibe parte de la recompensa de un jefe, sus
 --   pociones y, a veces, un huevo (ItemConfig.BossDrops). Los demás enemigos (también los
 --   de las oleadas) a veces sueltan una poción (ItemConfig.EnemyDrops).
+-- - Poción de Vida: cura al momento (ItemConfig.Potions.Health.Heal), no con la vida llena ni
+--   antes de HealCooldown desde la anterior. La sueltan los enemigos (ItemConfig.HealthDrops).
 -- - Pociones: tomar una (ItemAction "UsePotion") y quitarla al acabarse. Mientras dura, la
 --   aplican PlayerDataService (energía y daño mostrado), EnemyService (daño y dinero) y
 --   PetService (suerte de los huevos), leyendo ItemLogic.
@@ -35,6 +37,7 @@ local BILLBOARD_NAME = "TituloJugador"
 local ItemService = {}
 
 local random = Random.new()
+local healReadyAt: { [Player]: number } = {} -- Poción de Vida: cuándo se puede tomar otra
 local actionLimiter = RateLimiter.new(0.25, 3, 10)
 local syncLimiter = RateLimiter.new(1, 5, 4)
 local stateRemote: RemoteEvent
@@ -181,23 +184,35 @@ end
 
 -- Botín de los jefes ------------------------------------------------------------------------
 
--- Enemigo normal o fuerte: a veces una poción (el mismo aviso "Drop" que los jefes).
+-- Enemigo normal o fuerte: a veces una poción (el mismo aviso "Drop" que los jefes) y, más a
+-- menudo, una Poción de Vida (ItemConfig.HealthDrops).
 local function onEnemyDrop(player: Player, info: { TypeId: string, Kind: string })
-	local potionId = ItemLogic.rollEnemyDrop(info.Kind, function()
+	local function roll()
 		return random:NextNumber()
-	end)
-	if not potionId then
+	end
+	local got = {}
+	local potionId = ItemLogic.rollEnemyDrop(info.Kind, roll)
+	local healId = if ItemLogic.rollHealthDrop(info.Kind, roll) then ItemLogic.healPotion() else nil
+	if not potionId and not healId then
 		return
 	end
 	local _, items = readyItems(player)
-	if not items or ItemLogic.addPotion(items, potionId, 1) <= 0 then
+	if not items then
+		return
+	end
+	for _, id in { potionId, healId } do
+		if id and ItemLogic.addPotion(items, id, 1) > 0 then
+			table.insert(got, id)
+		end
+	end
+	if #got == 0 then
 		return
 	end
 	PlayerDataService.markDirty(player)
 	local def = EnemyConfig.Types[info.TypeId]
 	resultRemote:FireClient(player, true, Codes.Success, "Drop", {
 		Boss = if def then def.DisplayName else info.TypeId,
-		Potions = { potionId },
+		Potions = got,
 	})
 	ItemService.push(player)
 end
@@ -219,6 +234,13 @@ local function onDefeated(player: Player, info: { TypeId: string, Kind: string }
 		if ItemLogic.addPotion(items, potionId, 1) > 0 then
 			table.insert(gotPotions, potionId)
 		end
+	end
+	-- Los jefes, además, una Poción de Vida (ItemConfig.HealthDrops.Boss)
+	local healId = ItemLogic.healPotion()
+	if healId and ItemLogic.rollHealthDrop("Boss", function()
+		return random:NextNumber()
+	end) and ItemLogic.addPotion(items, healId, 1) > 0 then
+		table.insert(gotPotions, healId)
 	end
 	local gotEgg = if drop.Egg and ItemLogic.addEgg(items, drop.Egg, 1) > 0 then drop.Egg else nil
 	if #gotPotions == 0 and not gotEgg then
@@ -245,9 +267,36 @@ local function usePotion(player: Player, potionId: any): (string, any?)
 	if not profile or not items then
 		return Codes.NotReady, nil
 	end
+	-- Poción de Vida: cura al momento (no con la vida llena ni seguida)
+	local def = ItemConfig.Potions[potionId]
+	local humanoid: Humanoid? = nil
+	if def and def.Heal then
+		local character = player.Character
+		humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if not (humanoid and humanoid.Health > 0) then
+			return Codes.InvalidRequest, nil
+		end
+		if (items.Potions[potionId] or 0) < 1 then
+			return Codes.NotOwned, nil
+		end
+		if humanoid.Health >= humanoid.MaxHealth - 0.5 then
+			return Codes.FullHealth, nil
+		end
+		if (healReadyAt[player] or 0) > os.clock() then
+			return Codes.Cooldown, nil
+		end
+	end
 	local code, seconds = ItemLogic.usePotion(items, potionId, os.time(), Codes)
 	if code ~= Codes.Success then
 		return code, nil
+	end
+	if def and def.Heal and humanoid then
+		local before = humanoid.Health
+		humanoid.Health = math.min(humanoid.MaxHealth, before + humanoid.MaxHealth * def.Heal)
+		healReadyAt[player] = os.clock() + (ItemConfig.HealCooldown or 6)
+		PlayerDataService.markDirty(player)
+		ItemService.push(player)
+		return code, { PotionId = potionId, Seconds = 0, Healed = math.floor(humanoid.Health - before + 0.5), Cooldown = ItemConfig.HealCooldown or 6 }
 	end
 	PlayerDataService.refreshStats(player) -- energía
 	PlayerDataService.replicate(player) -- daño mostrado
@@ -370,6 +419,7 @@ function ItemService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		actionLimiter:remove(player)
 		syncLimiter:remove(player)
+		healReadyAt[player] = nil
 	end)
 
 	task.spawn(function()

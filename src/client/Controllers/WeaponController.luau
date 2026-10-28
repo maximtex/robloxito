@@ -336,7 +336,7 @@ local function buildCard(row: ScrollingFrame, weaponId: string, def, order: numb
 		shadow.ZIndex = 2
 		shadow.Parent = card
 	else
-		-- Sin imagen: el objeto de su categoría en grande (🗡️, 🥊, 🔱, 🔫) y su elemento de
+		-- Sin imagen: el objeto de su categoría en grande (🗡️, 🥊, 🔱, 🏹) y su elemento de
 		-- insignia en la esquina, para que se vea qué es (antes solo el elemento: 🔮 parecía
 		-- un orbe aunque fuera una espada).
 		local category = WeaponConfig.Categories[def.Category or "Weapons"]
@@ -922,7 +922,7 @@ function WeaponController.start()
 			card.Stats[2].Text = ("Velocidad de ataque: %.2f s"):format(styled.Cooldown)
 			if category == "Weapons" then
 				local gun = GunLogic.spec(weaponId)
-				card.Stats[3].Text = ("%s · %d balas · %d"):format(gun.Name or styled.Gun, styled.Magazine, styled.Range)
+				card.Stats[3].Text = ("%s · %d flechas · %d"):format(gun.Name or styled.Gun, styled.Magazine, styled.Range)
 			elseif category == "Magic" then
 				local element = MagicLogic.elementDef(MagicLogic.element(weaponId))
 				card.Stats[3].Text = ("%s %s · %d de alcance"):format(element.Icon or "", element.Name or "", styled.Range)

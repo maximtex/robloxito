@@ -6,7 +6,7 @@
 --   Magia, cada uno con su ataque, su ventaja y su desventaja, su pasiva y sus cuatro
 --   habilidades. La insignia ⚡ del segundo (o la tecla B) abre las ⚡ Mejoras
 --   (SkillsController).
--- - Puños: dash con Shift (o el botón 💨 en pantallas táctiles), con su recarga. Magia: el
+-- - Todos: dash con Shift (o el botón 💨), con su recarga (el de Puños, mejor). Magia: el
 --   teletransporte con Shift (o el botón ✨; también el clic derecho corto, CombatController).
 -- - Guerrero: Salto aplastante (tu cliente hace el salto: leapMove) y la onda cortante.
 -- - Combos (StyleEvent "Combo"): el nombre grande sobre el enemigo y un aviso.
@@ -31,6 +31,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local StyleConfig = require(Shared.Config.StyleConfig)
+local StyleLogic = require(Shared.StyleLogic)
 local SkillLogic = require(Shared.SkillLogic)
 local ClassLogic = require(Shared.ClassLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -422,7 +423,7 @@ local function buildButtons()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
 	local buttons = { makeButton(screenGui, 1), makeButton(screenGui, 2) }
-	-- 💨 Dash de Puños en pantallas táctiles (con teclado es Shift)
+	-- 💨 Dash (todos; Magia: ✨ teletransporte). Con teclado, Shift
 	local dashFrame, dashScale = UiKit.panel(screenGui, "StyleDashButton", Vector2.new(58, 58), Vector2.new(1, 1), UDim2.new(1, -300, 1, -34))
 	dashFrame.BackgroundColor3 = StyleConfig.Styles.Fists.Color
 	dashFrame.BackgroundTransparency = 0
@@ -450,10 +451,22 @@ local function buildButtons()
 		Text = "💨",
 		ZIndex = 3,
 	}, dashFrame)
+	-- Tecla debajo (solo con teclado)
+	local dashKey = UiKit.text(dashFrame, "Key", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 1, 2),
+		Size = UDim2.fromOffset(64, 16),
+		Font = FONTS.Display,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "Shift",
+		ZIndex = 4,
+	})
+	UiKit.outline(dashKey, 1.5)
 	dashFrame.Visible = false
 	screenGui.Parent = playerGui
 	UiKit.bindScale(screenGui, { buttons[1].Scale, buttons[2].Scale, dashScale })
-	return screenGui, buttons, { Frame = dashFrame, Button = dashButton, Cooldown = dashCooldown }
+	return screenGui, buttons, { Frame = dashFrame, Button = dashButton, Cooldown = dashCooldown, Key = dashKey }
 end
 
 -- Efectos de las habilidades --------------------------------------------------------------
@@ -621,9 +634,10 @@ local function grenadeFx(owner: Player, from: Vector3, to: Vector3, delay: numbe
 	TweenService:Create(warning, TweenInfo.new(delay), { Transparency = 0.55 }):Play()
 	Debris:AddItem(warning, delay + 0.05)
 	local start = CharacterPose.handPosition(owner.Character) or from
-	local bomb = fxPart(Vector3.one * 1.1, CFrame.new(start), Color3.fromRGB(46, 52, 60))
+	-- Bomba de brea del Arquero: vasija de barro con la mecha encendida
+	local bomb = fxPart(Vector3.one * 1.1, CFrame.new(start), Color3.fromRGB(150, 92, 56))
 	bomb.Shape = Enum.PartType.Ball
-	bomb.Material = Enum.Material.Metal
+	bomb.Material = Enum.Material.Slate
 	local fuse = fxPart(Vector3.one * 0.4, CFrame.new(start), Color3.fromRGB(255, 200, 80))
 	fuse.Shape = Enum.PartType.Ball
 	local sparks = Instance.new("ParticleEmitter")
@@ -759,22 +773,19 @@ local function novaFx(owner: Player, position: Vector3, radius: number, hits: an
 	playSound("NovaBlast", if owner == player then nil else position)
 end
 
--- Rayo perforante: un rayo grueso y recto con su núcleo blanco
+-- Flecha perforante: una flecha enorme que cruza recta y deja una estela de su color
 local function pierceFx(owner: Player, from: Vector3, to: Vector3, width: number, hits: any)
 	local color = tint or StyleConfig.Styles.Weapons.Color
 	CharacterPose.aim(owner.Character)
 	local distance = (to - from).Magnitude
 	if distance > 0.5 then
 		local center = CFrame.lookAt(from:Lerp(to, 0.5), to) * CFrame.Angles(0, math.rad(90), 0)
-		local beam = fxPart(Vector3.new(distance, width * 0.5, width * 0.5), center, color)
-		beam.Shape = Enum.PartType.Cylinder
-		beam.Transparency = 0.25
-		local core = fxPart(Vector3.new(distance, width * 0.18, width * 0.18), center, Color3.new(1, 1, 1))
-		core.Shape = Enum.PartType.Cylinder
-		for _, part in { beam, core } do
-			TweenService:Create(part, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1, Size = Vector3.new(distance, 0.1, 0.1) }):Play()
-			Debris:AddItem(part, 0.4)
-		end
+		local streak = fxPart(Vector3.new(distance, width * 0.14, width * 0.14), center, color)
+		streak.Shape = Enum.PartType.Cylinder
+		streak.Transparency = 0.35
+		TweenService:Create(streak, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1, Size = Vector3.new(distance, 0.05, 0.05) }):Play()
+		Debris:AddItem(streak, 0.4)
+		CombatController.arrow(from, to, color, math.clamp(width * 0.45, 1.5, 3.5))
 	end
 	CombatController.showHits(hits, color, owner == player, 1.1)
 	if owner == player then
@@ -783,8 +794,9 @@ local function pierceFx(owner: Player, from: Vector3, to: Vector3, width: number
 	playSound("Pierce", if owner == player then nil else from)
 end
 
--- Torreta: base de metal, poste y cabeza que gira hacia cada objetivo
-local turrets: { [Player]: { Model: Model, Head: BasePart, Gun: Vector3 } } = {}
+-- Balista (antes torreta): base y poste de madera y una ballesta grande que gira hacia cada
+-- objetivo y le dispara flechas
+local turrets: { [Player]: { Model: Model, Head: BasePart, Prod: BasePart, Gun: Vector3 } } = {}
 local function removeTurret(owner: Player)
 	local turret = turrets[owner]
 	turrets[owner] = nil
@@ -809,16 +821,19 @@ local function turretFx(owner: Player, position: Vector3, duration: number)
 		part.Parent = model
 		return part
 	end
-	local base = piece(Vector3.new(0.6, 2.6, 2.6), CFrame.new(position + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(70, 78, 92), Enum.Material.Metal)
+	local wood = Color3.fromRGB(120, 82, 48)
+	local base = piece(Vector3.new(0.6, 2.6, 2.6), CFrame.new(position + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90)), wood:Lerp(Color3.new(0, 0, 0), 0.25), Enum.Material.Wood)
 	base.Shape = Enum.PartType.Cylinder
-	piece(Vector3.new(0.6, 1.8, 0.6), CFrame.new(position + Vector3.new(0, 1.4, 0)), Color3.fromRGB(110, 118, 130), Enum.Material.Metal)
-	local head = piece(Vector3.new(1.4, 0.9, 1.8), CFrame.new(position + Vector3.new(0, 2.6, 0)), color, Enum.Material.Neon)
+	piece(Vector3.new(0.6, 1.8, 0.6), CFrame.new(position + Vector3.new(0, 1.4, 0)), wood, Enum.Material.Wood)
+	local gun = position + Vector3.new(0, 2.6, 0)
+	local head = piece(Vector3.new(0.6, 0.5, 2.6), CFrame.new(gun), wood, Enum.Material.Wood)
+	local prod = piece(Vector3.new(3, 0.25, 0.3), head.CFrame * CFrame.new(0, 0, -1.1), color, Enum.Material.Neon)
 	local light = Instance.new("PointLight")
 	light.Color = color
 	light.Range = 10
 	light.Brightness = 1.5
-	light.Parent = head
-	turrets[owner] = { Model = model, Head = head, Gun = position + Vector3.new(0, 2.6, 0) }
+	light.Parent = prod
+	turrets[owner] = { Model = model, Head = head, Prod = prod, Gun = gun }
 	WaveFx.ring(position, color, 1, 8, 0.4, 0.2)
 	playSound("Turret", if owner == player then nil else position)
 	task.delay(duration + 0.6, function()
@@ -832,8 +847,9 @@ local function turretShotFx(owner: Player, from: Vector3, to: Vector3, hits: any
 	local turret = turrets[owner]
 	if turret and turret.Head.Parent then
 		turret.Head.CFrame = CFrame.lookAt(turret.Gun, Vector3.new(to.X, turret.Gun.Y, to.Z))
+		turret.Prod.CFrame = turret.Head.CFrame * CFrame.new(0, 0, -1.1)
 	end
-	CombatController.beam(from, to, color, 0.3)
+	CombatController.arrow(from, to, color, 1.3)
 	CombatController.emitAt("Glint", to, color, 4)
 	CombatController.showHits(hits, color, owner == player, 0.7)
 	if owner == player then
@@ -1262,11 +1278,17 @@ function StyleController.start()
 	panelUi.Close.Activated:Connect(function()
 		PanelManager.close(PANEL_NAME)
 	end)
+	-- Personajes: con clase fija no se cambia de estilo (se crea otro personaje en ⚙️ Ajustes)
+	local function fixedStyle(): string?
+		local value = player:GetAttribute(Constants.Attributes.FixedStyle)
+		return if type(value) == "string" and value ~= "" then value else nil
+	end
 	local function refreshCards()
 		local current = styleId()
+		local fixed = fixedStyle()
 		for id, card in panelUi.Cards do
 			local chosen = id == current
-			card.Button.Text = if chosen then "✓ En uso" else "Elegir"
+			card.Button.Text = if chosen then "✓ En uso" elseif fixed then "🔒 Otro personaje" else "Elegir"
 			card.Button.BackgroundColor3 = if chosen then THEME.Inset else StyleConfig.Styles[id].Color
 			card.Stroke.Thickness = if chosen then 5 else 3
 			card.Stroke.Transparency = if chosen then 0 else 0.4
@@ -1282,6 +1304,16 @@ function StyleController.start()
 	first.Switch.Activated:Connect(function()
 		PanelManager.toggle(PANEL_NAME)
 	end)
+	local function refreshSwitch()
+		local fixed = fixedStyle()
+		first.Switch.Visible = fixed == nil
+		if fixed and PanelManager.isOpen(PANEL_NAME) then
+			PanelManager.close(PANEL_NAME)
+		end
+		refreshCards()
+	end
+	player:GetAttributeChangedSignal(Constants.Attributes.FixedStyle):Connect(refreshSwitch)
+	refreshSwitch()
 	buttons[2].Switch.Activated:Connect(function()
 		PanelManager.toggle("Skills")
 	end)
@@ -1303,8 +1335,10 @@ function StyleController.start()
 			})
 		end
 		refreshCards()
-		-- 💨 dash de Puños o ✨ teletransporte de Magia
-		dashUi.Frame.Visible = (style == "Fists" or style == "Magic") and UserInputService.TouchEnabled
+		-- 💨 dash (todos) o ✨ teletransporte de Magia. También con teclado (con la tecla Shift
+		-- encima), para que se sepa que existe
+		dashUi.Frame.Visible = true
+		dashUi.Key.Visible = UserInputService.KeyboardEnabled
 		dashUi.Button.Text = if style == "Magic" then "✨" else "💨"
 		dashUi.Frame.BackgroundColor3 = def.Color
 	end
@@ -1348,7 +1382,11 @@ function StyleController.start()
 	end
 	ContextActionService:BindAction(PANEL_ACTION, function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
-			PanelManager.toggle(PANEL_NAME)
+			if fixedStyle() then
+				Toasts.show("🔒 Este personaje tiene su clase. Crea otro en ⚙️ Ajustes → Personajes", { Color = THEME.Error, Key = "StyleNotice" })
+			else
+				PanelManager.toggle(PANEL_NAME)
+			end
 		end
 		return Enum.ContextActionResult.Pass
 	end, false, Enum.KeyCode.C)
@@ -1358,11 +1396,12 @@ function StyleController.start()
 		end
 		return Enum.ContextActionResult.Pass
 	end, false, Enum.KeyCode.B)
-	-- Dash de Puños o teletransporte de Magia (Shift, el stick izquierdo pulsado del mando o
-	-- el botón 💨 / ✨). El teletransporte va hacia donde andas; quieto, hacia el ratón.
+	-- Dash (todos; el de Puños es mejor) o teletransporte de Magia (Shift, el stick izquierdo
+	-- pulsado del mando o el botón 💨 / ✨). El teletransporte va hacia donde andas; quieto,
+	-- hacia el ratón.
 	local function tryDash()
 		local style = styleId()
-		if style == "Fists" then
+		if StyleLogic.dashSpec(style) then
 			actionRemote:FireServer("Dash")
 		elseif style == "Magic" then
 			local character = player.Character
@@ -1380,13 +1419,14 @@ function StyleController.start()
 	end, false, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
 	dashUi.Button.Activated:Connect(tryDash)
 
-	-- Al lado de las habilidades elementales (Q, y R si se ve), o encima en táctil; la segunda
-	-- a la izquierda de la primera
+	-- Al lado de las habilidades elementales (Q y R, las que se vean: con solo Naturaleza no
+	-- hay ninguna), o encima en táctil; la segunda a la izquierda de la primera
 	local abilityHud = player:WaitForChild("PlayerGui"):WaitForChild("AbilityHud", 15)
+	local primary = abilityHud and abilityHud:FindFirstChild("AbilityButton") :: GuiObject?
 	local secondary = abilityHud and abilityHud:FindFirstChild("SecondaryButton") :: GuiObject?
 	local function place()
 		local uiScale = UiKit.computeScale(hud.AbsoluteSize)
-		local slots = if secondary and secondary.Visible then 2 else 1
+		local slots = (if primary == nil or primary.Visible then 1 else 0) + (if secondary and secondary.Visible then 1 else 0)
 		local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 		for slot, ui in buttons do
 			local shift = (slot - 1) * (BUTTON_SIZE + GAP)
@@ -1409,6 +1449,9 @@ function StyleController.start()
 	UserInputService.LastInputTypeChanged:Connect(place)
 	if secondary then
 		secondary:GetPropertyChangedSignal("Visible"):Connect(place)
+	end
+	if primary then
+		primary:GetPropertyChangedSignal("Visible"):Connect(place)
 	end
 	place()
 
@@ -1442,7 +1485,9 @@ function StyleController.start()
 		if dashUi.Frame.Visible then
 			local dashAt = player:GetAttribute(Constants.Attributes.DashReadyAt)
 			local left = if typeof(dashAt) == "number" then dashAt - serverNow() else 0
-			local total = if styleId() == "Magic" then StyleConfig.Styles.Magic.Blink.Cooldown else StyleConfig.Styles.Fists.Dash.Cooldown * classMods("Fists").DashCooldown
+			local style = styleId()
+			local spec = StyleLogic.dashSpec(style)
+			local total = if spec then spec.Cooldown * classMods(style).DashCooldown else StyleConfig.Styles.Magic.Blink.Cooldown
 			dashUi.Cooldown.Size = UDim2.fromScale(1, if left > 0 then math.clamp(left / total, 0, 1) else 0)
 		end
 	end)
@@ -1472,6 +1517,8 @@ function StyleController.start()
 					end
 				elseif event.Code == "NotReady" then
 					bounce(ui.Button, -0.08)
+				elseif event.Code == "Locked" then
+					Toasts.show("🔒 Este personaje tiene su clase. Crea otro en ⚙️ Ajustes → Personajes", { Color = THEME.Error, Key = "StyleNotice" })
 				end
 			elseif event.Action ~= "Set" and event.Action ~= "Blink" then
 				bounce(ui.Button, 0.18)

@@ -101,7 +101,7 @@ local function giveChest(run: Run, participant: Participant)
 	local player = participant.Player
 	local profile = PlayerDataService.get(player)
 	local items = profile and ItemLogic.ofProfile(profile)
-	local money, potion = WaveLogic.chestReward(run.ArenaId, math.random(), math.random(), ItemLogic.potionOrder())
+	local money, potion = WaveLogic.chestReward(run.ArenaId, math.random(), math.random(), ItemLogic.boostOrder())
 	if money <= 0 and not potion then
 		return
 	end

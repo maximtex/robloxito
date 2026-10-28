@@ -1,8 +1,8 @@
 -- Elegir estilo al empezar: a un jugador nuevo (atributo StylePicked = false con sus datos
--- ya cargados) se le enseña una pantalla con los cuatro estilos (Armas, Guerrero, Puños y
+-- ya cargados) se le enseña una pantalla con los cuatro estilos (Arquero, Guerrero, Puños y
 -- Magia), cada uno con lo que hace, su ventaja, su desventaja y sus dos primeras
 -- habilidades. Al elegir se pide StyleAction("Pick", estilo) y StyleService lo pone y lo
--- marca (no se vuelve a preguntar; luego se cambia cuando se quiera con la tecla C).
+-- marca: es la clase fija de ese personaje (para otra, otro personaje en ⚙️ Ajustes).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -68,7 +68,7 @@ local function build()
 		TextSize = 18,
 		TextColor3 = THEME.Muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		Text = "Cada uno tiene su tienda, sus habilidades y su progreso. Podrás cambiarlo cuando quieras (tecla C).",
+		Text = "Es la clase de este personaje. ¿Quieres otra? Crea otro personaje en ⚙️ Ajustes.",
 	})
 	local row = UiKit.create("Frame", {
 		Name = "Cards",

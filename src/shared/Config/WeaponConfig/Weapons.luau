@@ -1,12 +1,12 @@
--- WeaponConfig · Weapons: armas de fuego (estilo Armas). Solo datos (los campos se explican en
+-- WeaponConfig · Weapons: ballestas y arcos del Arquero (estilo "Weapons"; antes armas de fuego). Solo datos (los campos se explican en
 -- WeaponConfig/init.luau); init.luau los junta en WeaponConfig.Weapons.
 
 return {
 	Laser = {
 		Gun = "Pistol",
-		DisplayName = "Láser básico",
-		Description = "Rayo rápido y preciso. Tu primera arma.",
-		Icon = "🔫",
+		DisplayName = "Ballesta de aprendiz",
+		Description = "Virotes rápidos y precisos. Tu primera arma.",
+		Icon = "🏹",
 		Damage = 8,
 		Cooldown = 0.4,
 		Range = 60,
@@ -17,13 +17,12 @@ return {
 		Order = 1,
 		Rarity = "Común",
 		CardColors = { Color3.fromRGB(166, 236, 255), Color3.fromRGB(47, 166, 242), Color3.fromRGB(19, 94, 196) },
-		Tagline = "⚡ Rayo rápido",
-		Art = "rbxassetid://115189526493315",
+		Tagline = "🏹 Rápida y precisa",
 	},
 	PlasmaBlaster = {
 		Gun = "Shotgun",
-		DisplayName = "Bláster de plasma",
-		Description = "Bolas de plasma lentas que explotan y dañan a los que estén cerca.",
+		DisplayName = "Ballesta de pólvora",
+		Description = "Virotes con pólvora que explotan y dañan a los que estén cerca.",
 		Icon = "💥",
 		Damage = 25.6,
 		Cooldown = 0.8,
@@ -37,7 +36,6 @@ return {
 		Rarity = "Raro",
 		CardColors = { Color3.fromRGB(255, 220, 106), Color3.fromRGB(247, 128, 31), Color3.fromRGB(207, 51, 15) },
 		Tagline = "💥 Explota en área",
-		Art = "rbxassetid://89889778592812",
 	},
 	ThornBow = {
 		Gun = "Sniper",
@@ -61,8 +59,8 @@ return {
 	},
 	CrystalCannon = {
 		Gun = "Rifle",
-		DisplayName = "Cañón cristalino",
-		Description = "Rayo de cristal que salta a dos enemigos más.",
+		DisplayName = "Ballesta de cristal",
+		Description = "Virotes de cristal que saltan a dos enemigos más.",
 		Icon = "💎",
 		Damage = 64,
 		Cooldown = 0.72,
@@ -77,12 +75,11 @@ return {
 		Rarity = "Legendario",
 		CardColors = { Color3.fromRGB(158, 239, 255), Color3.fromRGB(63, 134, 242), Color3.fromRGB(58, 47, 184) },
 		Tagline = "⚡ Salta a 2 más",
-		Art = "rbxassetid://131638372208866",
 	},
 	AmethystPrism = {
 		Gun = "Sniper",
-		DisplayName = "Prisma de amatista",
-		Description = "Rayo que salta a cuatro enemigos. Lo suelta el Coloso de Amatista.",
+		DisplayName = "Arbalesta de amatista",
+		Description = "Virotes que saltan a cuatro enemigos. La suelta el Coloso de Amatista.",
 		Icon = "🔮",
 		Damage = 112,
 		Cooldown = 0.88,
@@ -96,12 +93,11 @@ return {
 		Rarity = "Legendario",
 		CardColors = { Color3.fromRGB(236, 184, 255), Color3.fromRGB(163, 82, 240), Color3.fromRGB(85, 24, 158) },
 		Tagline = "⚡ Salta a 4 más",
-		Art = "rbxassetid://94787144945196",
 	},
 	VoidCannon = {
 		Gun = "Launcher",
-		DisplayName = "Cañón del vacío",
-		Description = "Esferas de vacío que explotan en un área grande.",
+		DisplayName = "Balista del vacío",
+		Description = "Virotes de vacío que explotan en un área grande.",
 		Icon = "🌑",
 		Damage = 256,
 		Cooldown = 1.28,
@@ -116,12 +112,11 @@ return {
 		Rarity = "Mítica",
 		CardColors = { Color3.fromRGB(185, 166, 255), Color3.fromRGB(91, 63, 210), Color3.fromRGB(34, 18, 98) },
 		Tagline = "💥 Área grande",
-		Art = "rbxassetid://79163263488986",
 	},
 	MagmaHeart = {
 		Gun = "Shotgun",
-		DisplayName = "Corazón de magma",
-		Description = "Bolas de magma que explotan y frenan a los enemigos. Lo suelta el Titán de la Caldera.",
+		DisplayName = "Ballesta de magma",
+		Description = "Virotes de magma que explotan y frenan a los enemigos. La suelta el Titán de la Caldera.",
 		Icon = "🔥",
 		Damage = 416,
 		Cooldown = 1.2,
@@ -135,14 +130,13 @@ return {
 		Rarity = "Mítica",
 		CardColors = { Color3.fromRGB(255, 195, 90), Color3.fromRGB(240, 80, 42), Color3.fromRGB(156, 18, 12) },
 		Tagline = "💥 Área + 🧊 frena",
-		Art = "rbxassetid://122488165200469",
 	},
 
 	-- Tundra Helada, Fortaleza Goblin y Mundo 2 (más fuertes: DPS 600 · 900 · 1500 · 2400 · 4000)
 	FrostCannon = {
 		Gun = "Rifle",
-		DisplayName = "Cañón de escarcha",
-		Description = "Rayo de hielo que salta a tres enemigos y los frena.",
+		DisplayName = "Ballesta de escarcha",
+		Description = "Virotes de hielo que saltan a tres enemigos y los frenan.",
 		Icon = "❄️",
 		Damage = 600,
 		Cooldown = 1,
@@ -160,7 +154,7 @@ return {
 	},
 	GlacierLance = {
 		Gun = "Sniper",
-		DisplayName = "Lanza glaciar",
+		DisplayName = "Arbalesta glaciar",
 		Description = "Carámbanos que saltan a cinco enemigos. La suelta el Gólem de Hielo.",
 		Icon = "🧊",
 		Damage = 900,
@@ -178,8 +172,8 @@ return {
 	},
 	GoblinCannon = {
 		Gun = "Launcher",
-		DisplayName = "Cañón del Rey Goblin",
-		Description = "Bombas goblin que revientan en un área enorme. Lo suelta el Rey Goblin.",
+		DisplayName = "Balista del Rey Goblin",
+		Description = "Bombas goblin que revientan en un área enorme. La suelta el Rey Goblin.",
 		Icon = "💣",
 		Damage = 1500,
 		Cooldown = 1,
@@ -196,8 +190,8 @@ return {
 	},
 	StarRifle = {
 		Gun = "Rifle",
-		DisplayName = "Rifle estelar",
-		Description = "Rayos de estrella que saltan a cuatro enemigos. Solo en el Mundo 2.",
+		DisplayName = "Ballesta estelar",
+		Description = "Virotes de estrella que saltan a cuatro enemigos. Solo en el Mundo 2.",
 		Icon = "🌟",
 		Damage = 2400,
 		Cooldown = 1,
@@ -216,8 +210,8 @@ return {
 	},
 	CosmicCannon = {
 		Gun = "Launcher",
-		DisplayName = "Cañón cósmico",
-		Description = "Esferas de galaxia que explotan y frenan en un área gigante. Solo en el Mundo 2.",
+		DisplayName = "Balista cósmica",
+		Description = "Virotes de galaxia que explotan y frenan en un área gigante. Solo en el Mundo 2.",
 		Icon = "🌌",
 		Damage = 4000,
 		Cooldown = 1,
@@ -236,8 +230,8 @@ return {
 	},
 	SupernovaCannon = {
 		Gun = "Shotgun",
-		DisplayName = "Cañón supernova",
-		Description = "Disparos de estrella que explotan en un área gigante y saltan a otros dos. Solo en el Mundo 2.",
+		DisplayName = "Ballesta supernova",
+		Description = "Virotes de estrella que explotan en un área gigante y saltan a otros dos. Solo en el Mundo 2.",
 		Icon = "☀️",
 		Damage = 6500,
 		Cooldown = 1,
@@ -256,8 +250,8 @@ return {
 	},
 	VoidAnnihilator = {
 		Gun = "Sniper",
-		DisplayName = "Aniquilador del vacío",
-		Description = "El arma más fuerte: rayos del vacío que saltan a seis enemigos y los frenan. Solo en el Mundo 2.",
+		DisplayName = "Arco del vacío",
+		Description = "El arma más fuerte: flechas del vacío que saltan a seis enemigos y los frenan. Solo en el Mundo 2.",
 		Icon = "🌑",
 		Damage = 10000,
 		Cooldown = 1,

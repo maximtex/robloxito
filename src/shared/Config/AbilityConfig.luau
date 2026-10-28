@@ -153,8 +153,12 @@ local AbilityConfig = {
 	},
 
 	Abilities = {
-		-- Raíces que brotan a tu alrededor: daño en área e inmovilizan.
+		-- Raíces que brotan a tu alrededor: daño en área e inmovilizan. Ya NO es una habilidad
+		-- de la Q (Skill = false; pruebas con amigos: la tenía todo el mundo y no se podía
+		-- mejorar): en su lugar todos tienen el dash (StyleConfig.Dash, tecla Shift). Los datos
+		-- siguen para la marca y los combos de Naturaleza (bastones de ese elemento).
 		Nature = {
+			Skill = false,
 			Name = "Raíces Atrapantes",
 			Icon = "🌿",
 			Color = Color3.fromRGB(120, 214, 96),

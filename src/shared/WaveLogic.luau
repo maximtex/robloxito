@@ -68,6 +68,29 @@ function WaveLogic.hasEndless(arenaId: string): boolean
 	return arena ~= nil and arena.Boss ~= nil and not arena.Tutorial and arena.Endless ~= false and WaveConfig.Endless ~= nil
 end
 
+-- ¿Vuelve el jefe en esta oleada del modo infinito? (cada Endless.BossEvery tras el jefe:
+-- oleada waveCount + k con k múltiplo de BossEvery)
+function WaveLogic.isEndlessBossWave(arenaId: string, wave: number): boolean
+	local settings = WaveConfig.Endless
+	local every = if settings then math.floor(positive(settings.BossEvery)) else 0
+	if every <= 0 or not WaveLogic.hasEndless(arenaId) then
+		return false
+	end
+	local k = math.floor(positive(wave)) - WaveLogic.waveCount(arenaId)
+	return k >= 1 and k % every == 0
+end
+
+-- Vida extra del jefe que vuelve en el modo infinito: + BossHealthGrowth por cada vez que ya
+-- ha vuelto (la primera, ×(1 + BossHealthGrowth)). 1 si no es una de esas oleadas.
+function WaveLogic.endlessBossHealth(arenaId: string, wave: number): number
+	if not WaveLogic.isEndlessBossWave(arenaId, wave) then
+		return 1
+	end
+	local settings = WaveConfig.Endless
+	local k = math.floor(positive(wave)) - WaveLogic.waveCount(arenaId)
+	return 1 + positive(settings.BossHealthGrowth) * (k / math.floor(positive(settings.BossEvery)))
+end
+
 -- Oleadas del modo infinito: después del jefe (oleada waveCount + k, k >= 1) salen los de
 -- la última oleada de hordas, CountGrowth más por cada k; cada StrongEvery, el doble de
 -- fuertes. nil si no es una oleada infinita.

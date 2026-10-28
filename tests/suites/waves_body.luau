@@ -314,6 +314,51 @@ for _, arenaId in { "Forest", "CrystalValley", "EmberCaldera" } do
 end
 check("tras el jefe, oleadas sin fin y cada vez con más enemigos", endlessOK)
 check("solo enemigos normales o fuertes de su zona", endlessTypesOK)
+-- El jefe vuelve en el modo infinito cada Endless.BossEvery oleadas (pruebas con amigos)
+do
+	local every = WaveConfig.Endless.BossEvery
+	local count = WaveLogic.waveCount("Forest")
+	check("en el infinito vuelve el jefe cada BossEvery oleadas", every >= 2 and WaveLogic.isEndlessBossWave("Forest", count + every) and WaveLogic.isEndlessBossWave("Forest", count + 2 * every)
+		and not WaveLogic.isEndlessBossWave("Forest", count + 1) and not WaveLogic.isEndlessBossWave("Forest", count) and not WaveLogic.isEndlessBossWave("Forest", 3))
+	check("y cada vez con más vida", WaveLogic.endlessBossHealth("Forest", count + every) > 1 and WaveLogic.endlessBossHealth("Forest", count + 2 * every) > WaveLogic.endlessBossHealth("Forest", count + every)
+		and WaveLogic.endlessBossHealth("Forest", count + 1) == 1)
+	check("sin infinito (tutorial) nunca vuelve", not WaveLogic.isEndlessBossWave("Tutorial", 10))
+end
+-- Bichos a distancia (Def.Ranged) y peligros de las arenas de los jefes (Def.Hazard)
+do
+	local rangedOK, rangedInWaves, hazardsOK = true, {}, true
+	for typeId, def in EnemyConfig.Types do
+		local r = def.Ranged
+		if r then
+			if not (def.Kind ~= "Boss" and r.Range > def.AttackRange + 4 and (r.Keep or 0) < r.Range and r.Damage > 0 and r.Cooldown > 0 and r.Speed > 0) then
+				rangedOK = false
+				print("  " .. typeId .. ": Ranged raro")
+			end
+		end
+	end
+	for arenaId, mode in WaveConfig.Arenas do
+		for _, counts in mode.Waves do
+			for typeId in counts do
+				if EnemyConfig.Types[typeId].Ranged then
+					rangedInWaves[arenaId] = true
+				end
+			end
+		end
+		local boss = mode.Boss and EnemyConfig.Types[mode.Boss]
+		local h = boss and boss.Hazard
+		if boss and not (h and h.Interval > h.Telegraph and h.Radius > 0 and h.Damage > 0 and (h.Count or 1) >= 1) then
+			hazardsOK = false
+			print("  " .. arenaId .. ": su jefe no tiene peligro de arena")
+		end
+	end
+	check("los bichos a distancia tienen alcance, daño y recarga razonables", rangedOK)
+	check("hay bichos a distancia en las oleadas de cada zona", rangedInWaves.Forest and rangedInWaves.CrystalValley and rangedInWaves.EmberCaldera and rangedInWaves.FrozenTundra and rangedInWaves.DividedLands and rangedInWaves.DividedLandsCave)
+	check("cada jefe de oleadas tiene su peligro de arena (avisado antes de dañar)", hazardsOK)
+	-- Los lanzadores dan lo mismo que el bicho al que sustituyen: el ritmo de 💰 y 💎 no cambia
+	check("los lanzadores dan el mismo botín que los bichos que sustituyen", EnemyConfig.Types.ThornCaster.Reward == EnemyConfig.Types.Thornling.Reward
+		and EnemyConfig.Types.CrystalCaster.Reward == EnemyConfig.Types.Shardling.Reward and EnemyConfig.Types.EmberCaster.Reward == EnemyConfig.Types.Cinderling.Reward
+		and EnemyConfig.Types.FrostCaster.Reward == EnemyConfig.Types.FrostWolf.Reward)
+end
 local function strongCount(arenaId, wave)
 	local n = 0
 	for typeId, count in WaveLogic.endlessCounts(arenaId, wave) do

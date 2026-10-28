@@ -364,3 +364,123 @@ Precio de las puertas: Valle 25 000 (antes 12 500), Caldera 250 000 (125 000), T
   sin él, 100 %). Botón de engranaje abajo a la izquierda (escritorio) o arriba en la
   columna izquierda (táctil). Más grande que el 100 % no cabe en pantallas pequeñas (lo
   comprueba la suite "hudlayout" con cada tamaño).
+
+## 9. Correcciones de las pruebas con amigos, bloque 3: enemigos y jefes
+
+- Bichos a distancia (`Def.Ranged`, `EnemyService.Ai`): se paran a tiro, avisan el disparo
+  (ojos y ¡! sobre su objetivo, sin media luna: `AttackKind = "Shot"`) y la bola va a donde
+  estabas al soltarla (moverse la esquiva). Si te acercas mientras recargan, retroceden; pegados
+  a ti golpean como los demás. Uno nuevo por zona con su propio modelo (`Rigs` estilo "Caster":
+  brujo con túnica y bastón): Brujo Espinoso (Bosque), Hechicero de Cristal (Valle), Piromante
+  (Caldera) y Chamán de Escarcha (Tundra). En las oleadas sustituyen a 1 de cada 4 bichos
+  normales desde la 3.ª (y 2 en la escolta del jefe); dan el mismo botín que el bicho al que
+  sustituyen, así que el ritmo de 💰 y 💎 no cambia. Hay unos pocos también por el mundo. En
+  las Tierras Divididas, los Espíritus de Escarcha disparan hielo.
+- Jefes:
+  - Persecución (`EnemyConfig.Pursuit`, `EnemyLogic.pursuitBoost`): si te alejas de su alcance
+    más de 1,5 s, aceleran poco a poco (hasta ×2,2) sin pasar del 95 % de tu velocidad. Ya no
+    se les puede dar vueltas sin peligro.
+  - Peligros de su arena (`Def.Hazard`, `BossAttacks`): cada ~7 s caen avisos en el suelo
+    donde está cada jugador (y por la arena): espinas que ralentizan (Guardián), cristales que
+    caen (Coloso de Amatista), erupciones de lava (Titán, Ignis, el Coloso del Equilibrio),
+    carámbanos que congelan (Gólem de Hielo, Glacius) y rocas (Rey Goblin). Con furia, más
+    seguidos.
+- Atascos: si un bicho que te persigue casi no se mueve, salta; si sigue, rodea por un lado; y
+  tras 6 s vuelve a su sitio (`Ai.handleStuck`).
+- Modo infinito: cada 5 oleadas tras el jefe vuelve el jefe del modo con su escolta y +40 % de
+  vida cada vez (`WaveConfig.Endless.BossEvery` y `BossHealthGrowth`, `WaveLogic.isEndlessBossWave`).
+  Al derrotarlo es una oleada superada más.
+
+## 10. Correcciones de las pruebas con amigos, bloque 4 (1): dash, defensa y pociones
+
+- Dash para todos (`StyleConfig.Dash`: 14 studs cada 3,5 s; `StyleLogic.dashSpec`): Shift, el
+  stick izquierdo pulsado o el botón 💨 (también con teclado, con la tecla debajo). Puños tiene
+  el suyo (16 studs cada 2,5 s) y Magia su teletransporte.
+- Raíces ya no es la Q de Naturaleza (`AbilityConfig.Abilities.Nature.Skill = false`,
+  `AbilityLogic.castable`): sin otro núcleo no hay botón Q. Con Naturaleza de principal y otro
+  de secundario, el secundario pasa a la Q. Sus datos siguen para las marcas y los combos.
+- Mejoras defensivas con 💰 en ⚡ Mejoras (junto a la Velocidad): Vitalidad (+6 % de vida por
+  nivel, hasta 10) y Armadura (-3 % de daño recibido por nivel, hasta 10).
+- Poción de Vida (❤️): cura al momento la mitad de la vida máxima (no con la vida llena; 6 s
+  entre dos). Tecla Y (↑ en el mando) o el botón junto al ⚙️ (late en rojo con poca vida).
+  La sueltan el 3 % de los normales, el 12 % de los fuertes y todos los jefes (`HealthDrops`).
+  No sale en los cofres ni en el sorteo de impulsos (`ItemLogic.boostOrder`).
+
+## 11. Bloque 4 (2): el pistolero pasa a Arquero
+
+Las armas de fuego no pegaban con el tema medieval. El estilo "Weapons" se llama ahora
+🏹 **Arquero**, con los mismos números (daño, cadencia, carcaj, alcance, críticos y clases):
+- Tipos (`WeaponConfig.Guns`, mismos ids): Pistol → ballesta de mano, Rifle → ballesta de
+  repetición, Shotgun → ballesta de abanico, Sniper → arbalesta, Launcher → balista de mano.
+  Modelos nuevos en `GearModels` (tablero, arco, cuerdas y virote con la punta del color del
+  arma); el Arco de espinas sigue siendo un arco.
+- Armas: Ballesta de aprendiz, Ballesta de pólvora, Ballesta de cristal, Arbalesta de amatista,
+  Balista del vacío… (los ids no cambian: las partidas guardadas siguen igual). Sin las
+  ilustraciones de pistolas: la tarjeta enseña 🏹 y el elemento.
+- Disparos: flechas que vuelan con estela y se clavan (`CombatController.arrowFx`), sin
+  fogonazo; la balista lanza un virote con bomba. Sonidos de cuerda en vez de tiros.
+- Habilidades: Tiro rápido, Bomba de brea, Flecha perforante, Balista; Mundo 2: Lluvia de
+  bombas, Triple flecha, Furia del arquero y Balista de asedio. Clases: Guardabosques, Tirador
+  certero, Ballestero, Artificiero y Maestro arquero.
+
+## 12. Bloque 4 (3): clases de mascota
+
+Cada mascota tiene una clase según su forma (`PetConfig.StyleClasses`; las clásicas, `ClassById`)
+y, además de su multiplicador de siempre, da su bonificación: `Base` × `ClassPower` de su rareza
+(Común 1 … Mítica 5), sumando las equipadas y con tope (`PetClassLogic`):
+- ⚔️ Atacante (dragones, zorritos de brasa y de cuarzo, perrito): +3 % de daño (tope +60 %).
+- 🛡️ Tanque (tortugas, osito): -3 % de daño recibido (tope -35 %).
+- 💚 Sanadora (setas, búhos, cervatillos): cura 0,15 % de la vida por segundo, también
+  peleando (tope 1,5 %/s).
+- 💰 Recolectora (brotes, zorros, conejito): +5 % de 💰 (tope +100 %).
+Se ve en cada tarjeta de mascota (rareza · clase · lo que da), al abrir un huevo y en el resumen
+de las equipadas. Lo aplican `PlayerDataService` (daño), `StyleService` (daño recibido),
+`HealthService` (cura) y `EnemyService` (💰).
+
+## 13. Bloque 4 (4): tutorial más claro y obligatorio al principio
+
+- Textos cortos y en pasos numerados, con la tecla de cada cosa y "sigue la flecha"
+  (`TutorialConfig.Steps`); enseña también el dash (Shift), las clases de mascota y la ❤️
+  poción (Y).
+- No se puede omitir hasta hacer los 2 primeros pasos (primera oleada y mejorar el arma:
+  `TutorialConfig.MinSkipStep`, `TutorialLogic.canSkip`); antes, el botón Omitir no sale y el
+  servidor lo ignora.
+
+## 14. Bloque 4 (5): personajes con clase fija
+
+Cambiar de clase a mitad de partida no tenía gracia. Ahora cada cuenta tiene hasta 3
+**personajes** (⚙️ Ajustes → 👤 Personajes), cada uno con su clase fija y su propio progreso:
+💰, 💎, armas, mascotas, zonas, renacimientos, misiones… Lo comprado con Robux en **pases** es
+de la cuenta (vale para todos); las compras sueltas (💎, pociones) van al personaje con el que
+juegas.
+- Cuenta (`ProfileLogic`, DataStore `RebirthCity_Accounts_v1`, entrada `account_<id>`): los
+  huecos (clase, renacimientos y mejor zona, para la lista) y con cuál se entra (`Last`). Se lee
+  al entrar (`SaveService.loadAccount`); si no se puede, se juega con el 1 y no se puede cambiar
+  ni se guarda la cuenta. Al guardarla se juntan los huecos guardados (`ProfileLogic.merge`):
+  un guardado viejo nunca borra un personaje.
+- Cada personaje guarda su partida en su entrada (`SaveService.keyFor`): el 1 es la de siempre
+  (`player_<id>`; las partidas de antes siguen ahí) y los demás `player_<id>_s<hueco>`.
+- El personaje de antes de los personajes no tiene clase fija (`FixedStyle` = nil) y cambia de
+  estilo como siempre. Uno nuevo entra ya con su clase (no se le pregunta) y un jugador nuevo
+  fija la clase que elige al empezar. Con clase fija, ⇄ y la tecla C no salen y el servidor
+  rechaza el cambio (`StyleService`, código `Locked`).
+- Crear o elegir (`ProfileService`, remotos `ProfileAction` / `ProfileResult`): guarda la cuenta
+  y la partida y te hace volver a entrar al juego (`TeleportService`; si no se puede, p. ej. en
+  Studio, te saca con un mensaje para que vuelvas a entrar). Si la cuenta no se puede guardar,
+  no se cambia nada.
+- Atributos para el cliente: `Profiles` (la lista: `hueco:clase:renacimientos:zona|…`),
+  `ProfileSlot` y `FixedStyle`. Pruebas: batería `profiles`.
+
+## 15. Bloque 4 (6): equipo visible
+
+No se notaba la clase ni lo que mejorabas. Además de lo que llevas en la mano, `GearService`
+viste al personaje (`OutfitLogic`, modelos en `GearModels.outfit`, R15 y R6; nada choca ni se
+puede apuntar):
+- Pieza de cada clase, del color de la clase: 🏹 carcaj con flechas a la espalda y correa al
+  pecho, ⚔️ escudo redondo a la espalda, 👊 cinta en la frente con colas y fajín, ✨ capa con
+  hombros y broches dorados.
+- Armadura según su nivel (`OutfitLogic.ArmorTiers`): desde el 1 hombreras de cuero, desde el 4
+  de hierro (dos placas), desde el 7 de acero con peto y al 10 todo dorado con un brillo del
+  color de la clase.
+- Se rehace al cambiar de estilo, al subir de grado (atributo `UpgradeLevel_Armor`) y al
+  reaparecer. Pruebas en la batería `styles`.

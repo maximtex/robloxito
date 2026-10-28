@@ -54,7 +54,7 @@ local WeaponConfig = {
 	-- Icon de cada arma (su elemento: 🔮, 🌑, 🔥…) va de insignia en la esquina. Antes solo se
 	-- veía el Icon y una espada de amatista parecía un orbe (pruebas con amigos).
 	Categories = {
-		Weapons = { Title = "ARMERÍA", Icon = "⚔️", ItemIcon = "🔫", Item = "arma", Items = "armas", Hit = "por disparo" },
+		Weapons = { Title = "ARQUERÍA", Icon = "🏹", ItemIcon = "🏹", Item = "arma", Items = "armas", Hit = "por disparo" },
 		Warrior = { Title = "ESPADAS", Icon = "🗡️", ItemIcon = "🗡️", Item = "espada", Items = "espadas", Hit = "por tajo" },
 		Fists = { Title = "GUANTES", Icon = "🥊", ItemIcon = "🥊", Item = "guantes", Items = "guantes", Hit = "por golpe" },
 		Magic = { Title = "BASTONES", Icon = "✨", ItemIcon = "🔱", Item = "bastón", Items = "bastones", Hit = "por hechizo" },
@@ -62,7 +62,8 @@ local WeaponConfig = {
 	MaxLevel = 25,
 	LevelDamageBonus = 0.15, -- +15 % de daño por nivel del arma
 
-	-- Tipos de arma de fuego (campo Gun de cada arma del estilo Armas; GunLogic). Sobre el
+	-- Tipos de arma del Arquero (campo Gun de cada arma del estilo "Weapons"; GunLogic). Los ids
+	-- son los de cuando eran armas de fuego (Pistol, Rifle...): solo cambian nombre y modelo. Sobre el
 	-- daño y el tiempo entre disparos del arma:
 	--   FireScale    × tiempo entre disparos (y × daño de cada disparo: mismo DPS)
 	--   DamageScale  × daño de cada disparo (compensa la recarga; la escopeta, si entran todos)
@@ -75,8 +76,8 @@ local WeaponConfig = {
 	--   AdsCrit / AdsCritPower  críticos extra al apuntar
 	Guns = {
 		Pistol = {
-			Name = "Pistola",
-			Icon = "🔫",
+			Name = "Ballesta de mano",
+			Icon = "🏹",
 			Text = "Precisa y rápida de recargar.",
 			FireScale = 1,
 			DamageScale = 1.35,
@@ -88,9 +89,9 @@ local WeaponConfig = {
 			AdsCrit = 0.1,
 		},
 		Rifle = {
-			Name = "Rifle",
-			Icon = "🪖",
-			Text = "Automático: mantén el clic y escupe balas.",
+			Name = "Ballesta de repetición",
+			Icon = "⚙️",
+			Text = "Automática: mantén el clic y no para de soltar virotes.",
 			FireScale = 0.4,
 			DamageScale = 1.3,
 			RangeScale = 1,
@@ -101,9 +102,9 @@ local WeaponConfig = {
 			AdsCrit = 0.1,
 		},
 		Shotgun = {
-			Name = "Escopeta",
-			Icon = "💥",
-			Text = "Perdigones en abanico: brutal de cerca.",
+			Name = "Ballesta de abanico",
+			Icon = "🪶",
+			Text = "Varios virotes en abanico: brutal de cerca.",
 			FireScale = 1.6,
 			DamageScale = 1.45,
 			RangeScale = 0.5,
@@ -115,9 +116,9 @@ local WeaponConfig = {
 			AdsCrit = 0.05,
 		},
 		Sniper = {
-			Name = "Francotirador",
+			Name = "Arbalesta",
 			Icon = "🎯",
-			Text = "Lento y letal: atraviesa a 2 más y apuntando hace críticos enormes.",
+			Text = "Lenta y letal: atraviesa a 2 más y apuntando hace críticos enormes.",
 			FireScale = 2.2,
 			DamageScale = 1.5,
 			RangeScale = 1.5,
@@ -131,9 +132,9 @@ local WeaponConfig = {
 			AdsCritPower = 1,
 		},
 		Launcher = {
-			Name = "Bazuca",
-			Icon = "🚀",
-			Text = "Cohetes que explotan en un área grande.",
+			Name = "Balista de mano",
+			Icon = "🧨",
+			Text = "Virotes con brea que explotan en un área grande.",
 			FireScale = 2,
 			DamageScale = 1.4,
 			RangeScale = 1,

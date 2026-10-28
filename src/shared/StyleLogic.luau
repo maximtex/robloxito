@@ -17,6 +17,19 @@ function StyleLogic.definition(styleId: any)
 	return if type(styleId) == "string" then StyleConfig.Styles[styleId] else nil
 end
 
+-- Dash de un estilo (tecla Shift): el suyo (Puños) o el de todos (StyleConfig.Dash). Magia no
+-- tiene: usa su teletransporte (Blink).
+function StyleLogic.dashSpec(styleId: any): { Distance: number, Cooldown: number }?
+	local def = StyleLogic.definition(styleId)
+	if def and def.Dash then
+		return def.Dash
+	end
+	if def and def.Blink then
+		return nil
+	end
+	return StyleConfig.Dash
+end
+
 -- Estilo guardado -> uno que existe (si no, el de por defecto).
 function StyleLogic.sanitize(styleId: any): string
 	return if StyleLogic.definition(styleId) then styleId else StyleConfig.Default

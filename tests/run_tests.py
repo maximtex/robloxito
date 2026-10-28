@@ -92,6 +92,8 @@ BASE = [
     ("AdventureLogic", "src/shared/AdventureLogic.luau"),
     ("PetConfig", "src/shared/Config/PetConfig.luau"),
     ("PetMath", "src/shared/PetMath.luau"),
+    # Clases de mascota (Atacante, Tanque, Sanadora, Recolectora)
+    ("PetClassLogic", "src/shared/PetClassLogic.luau"),
     ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
     ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
     ("ZoneLogic", "src/server/Util/ZoneLogic.luau"),
@@ -113,6 +115,7 @@ BASE = [
     ("ClassLogic", "src/shared/ClassLogic.luau"),
     # Ajustes del jugador (campo Settings del guardado).
     ("SettingsLogic", "src/shared/SettingsLogic.luau"),
+    ("ProfileLogic", "src/shared/ProfileLogic.luau"),
     # Puertas de la cueva (campo Cave del guardado v12).
     ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
     ("CaveLogic", "src/shared/CaveLogic.luau"),
@@ -198,6 +201,11 @@ def build_persist():
 def build_persist_cores():
     # Con el SaveService v2 congelado (tests/fixtures) para probar la vuelta atrás.
     return persist_suite("persist_cores_body.luau", [("SaveServiceV2", "tests/fixtures/SaveService_v2.luau")])
+
+
+def build_profiles():
+    # Personajes: lógica pura, una entrada por personaje y ProfileService sobre la persistencia real.
+    return persist_suite("profiles_body.luau", after_glue=[("ProfileService", "src/server/Services/ProfileService.luau")])
 
 
 def build_core_service():
@@ -287,6 +295,7 @@ def build_quest():
         ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
         ("ClassLogic", "src/shared/ClassLogic.luau"),
         ("SettingsLogic", "src/shared/SettingsLogic.luau"),
+        ("ProfileLogic", "src/shared/ProfileLogic.luau"),
         ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
         ("CaveLogic", "src/shared/CaveLogic.luau"),
     ] + CORE + [
@@ -372,6 +381,7 @@ def build_petcombat():
         ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
         ("ClassLogic", "src/shared/ClassLogic.luau"),
         ("SettingsLogic", "src/shared/SettingsLogic.luau"),
+        ("ProfileLogic", "src/shared/ProfileLogic.luau"),
         ("AimLogic", "src/shared/AimLogic.luau"),
         ("GunLogic", "src/shared/GunLogic.luau"),
         ("MagicLogic", "src/shared/MagicLogic.luau"),
@@ -429,6 +439,7 @@ def build_styles():
         ("WeaponConfig", "src/shared/Config/WeaponConfig.luau"),
         ("MagicLogic", "src/shared/MagicLogic.luau"),
         ("WarriorLogic", "src/shared/WarriorLogic.luau"),
+        ("OutfitLogic", "src/shared/OutfitLogic.luau"),
     ]:
         out.append(mod(n, p))
     out.append(suite("styles_body.luau"))
@@ -445,6 +456,7 @@ def build_classes():
         ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
         ("ClassLogic", "src/shared/ClassLogic.luau"),
         ("SettingsLogic", "src/shared/SettingsLogic.luau"),
+        ("ProfileLogic", "src/shared/ProfileLogic.luau"),
     ]:
         out.append(mod(n, p))
     out.append(suite("classes_body.luau"))
@@ -666,6 +678,7 @@ SUITES = [
     ("tutorial", "Tutorial inicial", build_tutorial),
     ("persist", "Persistencia de 💰, 💎 y mejoras", build_persist),
     ("persist_cores", "Persistencia v3: núcleos, migración y vuelta atrás", build_persist_cores),
+    ("profiles", "Personajes: hasta 3, cada uno con su clase fija y su progreso", build_profiles),
     ("quest", "Misiones, diarias y logros", build_quest),
     ("combat", "Combate (daño, muertes, recompensas, objetivos)", build_combat),
     ("weapons", "Armas: comprar, mejorar, equipar, daño y guardado", build_weapons),

@@ -60,4 +60,35 @@ check("los 💎 de los enemigos no dependen de la Resonancia ni de las mascotas 
 leave(bea)
 advance(0)
 
+print("-- Mejoras defensivas (Vitalidad y Armadura, con 💰)")
+local vit, arm = EconomyConfig.Upgrades.Vitality, EconomyConfig.Upgrades.Armor
+check("existen, se pagan con 💰 y tienen tope", vit and arm and vit.Currency == "Money" and arm.Currency == "Money" and vit.MaxLevel > 0 and arm.MaxLevel > 0)
+check("Vitalidad: +6 % de vida por nivel y los niveles de más cuentan como el máximo", Economy.vitalityMultiplier(0) == 1 and math.abs(Economy.vitalityMultiplier(5) - 1.3) < 1e-9 and Economy.vitalityMultiplier(99) == Economy.vitalityMultiplier(vit.MaxLevel))
+check("Armadura: -3 % de daño por nivel, nunca menos de la mitad", Economy.armorMultiplier(nil) == 1 and math.abs(Economy.armorMultiplier(10) - 0.7) < 1e-9 and Economy.armorMultiplier(1e9) >= 0.5 and Economy.armorMultiplier(0 / 0) == 1)
+check("cada nivel cuesta más", Economy.getUpgradeCost("Armor", 1) > Economy.getUpgradeCost("Armor", 0) and Economy.getUpgradeCost("Vitality", 9) > Economy.getUpgradeCost("Vitality", 8))
+
+print("-- Clases de mascota (Atacante, Tanque, Sanadora, Recolectora)")
+local classesOK = true
+for petId in PetConfig.Pets do
+	local classId = PetClassLogic.classOf(petId)
+	if not PetConfig.Classes[classId] then
+		classesOK = false
+		print("   sin clase", petId)
+	end
+end
+check("cada mascota tiene una clase que existe", classesOK)
+check("las ★ Evo tienen la clase de su mascota base", PetClassLogic.classOf("ClassicBear_Evo") == PetClassLogic.classOf("ClassicBear") and PetClassLogic.classOf("CrystalTurtle_Evo") == "Tank")
+check("formas: tortugas Tanque, dragones Atacantes, búhos Sanadores, zorros Recolectores", PetClassLogic.classOf("CrystalTurtle") == "Tank" and PetClassLogic.classOf("AmethystDragon") == "Attacker"
+	and PetClassLogic.classOf("MoonOwl") == "Healer" and PetClassLogic.classOf("MossFox") == "Collector")
+local _, common = PetClassLogic.bonusOf("Sproutling")
+local _, legendary = PetClassLogic.bonusOf("AmethystDragon")
+check("más rara, más bonificación", legendary > common and common > 0)
+local none = PetClassLogic.bonuses({})
+check("sin mascotas: nada", none.Damage == 1 and none.DamageTaken == 1 and none.Heal == 0 and none.Money == 1)
+local tanks = PetClassLogic.bonuses({ "SunTurtle_Evo", "SunTurtle_Evo", "SunTurtle_Evo", "SunTurtle_Evo" })
+check("los Tanques se suman con tope (nunca invulnerable)", math.abs(tanks.DamageTaken - (1 - PetConfig.Classes.Tank.Max)) < 1e-9)
+local mixed = PetClassLogic.bonuses({ "AmethystDragon", "CrystalTurtle", "MoonOwl", "Nope" })
+check("cada clase da lo suyo y las que no existen no cuentan", mixed.Damage > 1 and mixed.DamageTaken < 1 and mixed.Heal > 0 and mixed.Money == 1)
+check("texto de la interfaz", string.find(PetClassLogic.describe("CrystalTurtle"), "Tanque", 1, true) ~= nil and string.find(PetClassLogic.describe("MoonOwl"), "vida/s", 1, true) ~= nil)
+
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

@@ -169,6 +169,15 @@ function ItemLogic.usePotion(data: ItemData, potionId: string, now: number, code
 	if (data.Potions[potionId] or 0) < 1 then
 		return codes.NotOwned, nil
 	end
+	if def.Heal then
+		-- Poción de Vida: se gasta y ya (la cura la hace ItemService)
+		data.Potions[potionId] -= 1
+		if data.Potions[potionId] <= 0 then
+			data.Potions[potionId] = nil
+		end
+		data.PotionsUsed += 1
+		return codes.Success, 0
+	end
 	local left = ItemLogic.remaining(data, potionId, now)
 	if left + def.Seconds > ItemConfig.MaxBoostSeconds + 1 then
 		return codes.Full, nil -- ya tiene el máximo acumulado
@@ -225,7 +234,7 @@ end
 -- EggConfig.Eggs).
 function ItemLogic.rollBossDrop(typeId: string, random: () -> number, eggs: { [string]: any }): { Potions: { string }, Egg: string? }
 	local def = ItemConfig.BossDrops[typeId] or ItemConfig.BossDrops.Default
-	local order = ItemLogic.potionOrder()
+	local order = ItemLogic.boostOrder()
 	local drop = { Potions = {}, Egg = nil }
 	for _ = 1, def.Potions or 0 do
 		local index = math.clamp(math.floor(random() * #order) + 1, 1, #order)
@@ -244,8 +253,24 @@ function ItemLogic.rollEnemyDrop(kind: string, random: () -> number): string?
 	if type(chance) ~= "number" or chance <= 0 or random() >= chance then
 		return nil
 	end
-	local order = ItemLogic.potionOrder()
+	local order = ItemLogic.boostOrder()
 	return order[math.clamp(math.floor(random() * #order) + 1, 1, #order)]
+end
+
+-- ¿Suelta una Poción de Vida? (ItemConfig.HealthDrops según su Kind)
+function ItemLogic.rollHealthDrop(kind: string, random: () -> number): boolean
+	local chance = ItemConfig.HealthDrops and ItemConfig.HealthDrops[kind]
+	return type(chance) == "number" and chance > 0 and random() < chance
+end
+
+-- Id de la Poción de Vida (la que cura al momento), o nil.
+function ItemLogic.healPotion(): string?
+	for potionId, def in ItemConfig.Potions do
+		if def.Heal then
+			return potionId
+		end
+	end
+	return nil
 end
 
 -- Títulos ---------------------------------------------------------------------------------
@@ -321,9 +346,22 @@ end
 
 local potionOrder = ordered(ItemConfig.Potions)
 local titleOrder = ordered(ItemConfig.Titles)
+-- Solo los impulsos (con tiempo): los que salen al azar en el botín y los cofres
+local boostOrder = {}
+for _, potionId in potionOrder do
+	if not ItemConfig.Potions[potionId].Heal then
+		table.insert(boostOrder, potionId)
+	end
+end
 
+-- Todas las pociones (inventario)
 function ItemLogic.potionOrder(): { string }
 	return potionOrder
+end
+
+-- Las pociones con tiempo (impulsos), sin la de Vida
+function ItemLogic.boostOrder(): { string }
+	return boostOrder
 end
 
 function ItemLogic.titleOrder(): { string }

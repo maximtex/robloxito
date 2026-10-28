@@ -21,16 +21,16 @@ local TutorialConfig = {
 			-- Primer paso: la mecánica principal. El altar le da una partida corta de práctica
 			-- (WaveConfig.Arenas.Tutorial) con consejos en pantalla.
 			Id = "Waves",
-			Title = "Juega tu primera oleada",
-			Text = "Ve al círculo brillante delante de ti y pulsa E en el altar. Dentro apunta con el ratón y haz clic (o mantén) para atacar: aguanta 3 oleadas cortas.",
+			Title = "Tu primera oleada",
+			Text = "1) Sigue la flecha hasta el círculo brillante.  2) Pulsa E en el altar.  3) Apunta con el ratón y haz clic para atacar. Shift = dash para esquivar.",
 			Goal = { Source = "Stat", Key = "WaveWins" },
 			Target = 1,
 			Guide = "Waves",
 		},
 		{
 			Id = "Weapon",
-			Title = "Mejora tu equipo",
-			Text = "Abre la tienda de tu estilo (tecla L o el puesto del pueblo) y mejora tu arma, tus guantes o tu bastón con 💰.",
+			Title = "Mejora tu arma",
+			Text = "Pulsa L (o el botón Armas, abajo) y dale a MEJORAR con el 💰 que soltaron los enemigos. Más nivel = más daño.",
 			Goal = { Source = "State", Key = "WeaponLevel" },
 			Target = 1,
 			Guide = "ArmoryButton",
@@ -38,29 +38,32 @@ local TutorialConfig = {
 		{
 			Id = "Pet",
 			Title = "Consigue una mascota",
-			Text = "Ve al 🥚 Jardín de los Huevos (a la derecha del spawn) y abre el Huevo del Bosque (250 💰).",
+			Text = "Sigue la flecha al 🥚 Jardín de los Huevos y abre el Huevo del Bosque (250 💰). Cada mascota ayuda a su manera: ⚔️ daño, 🛡️ defensa, 💚 cura o 💰 dinero.",
 			Goal = { Source = "State", Key = "PetsOwned" },
 			Target = 2, -- la inicial y una más
 			Guide = "Egg:ForestEgg",
 		},
 		{
 			Id = "Boss",
-			Title = "Vence al Guardián en la cueva",
-			Text = "Entra en la 🦇 Cueva de los Espinillos (camino de piedra al oeste de la plaza), cruza la sala de los pequeños y la de los medianos y, en el altar, aguanta las 10 oleadas: en la última sale el Guardián. Apártate de los círculos rojos. Regala un arma.",
+			Title = "Vence al Guardián",
+			Text = "Sigue la flecha a la 🦇 Cueva de los Espinillos y gana las 10 oleadas de su altar: en la última sale el Guardián. Sal de los círculos rojos y, con poca vida, toma una ❤️ poción (Y).",
 			Goal = { Source = "Stat", Key = "BossKills" },
 			Target = 1,
 			Guide = "Cave",
 		},
 		{
 			Id = "Valley",
-			Title = "Desbloquea el Valle Morado",
-			Text = "Con el Guardián derrotado y 💰 suficiente, abre el portal al final del camino.",
+			Title = "Abre el Valle Morado",
+			Text = "Junta el 💰 que pide el portal (sigue la flecha) y ábrelo: allí siguen las aventuras.",
 			Goal = { Source = "Zone", Zone = "CrystalValley" },
 			Target = 1,
 			Guide = "Portal:ForestPortal",
 		},
 	},
 	SkipRateLimit = { Cooldown = 1, WindowSeconds = 5, MaxPerWindow = 4 },
+	-- Pasos que hay que hacer antes de poder omitirlo (pruebas con amigos: "se lo saltan sin
+	-- saber jugar"): la primera oleada y mejorar el arma son obligatorios.
+	MinSkipStep = 2,
 	GuideHideDistance = 14, -- la guía en el mundo desaparece al llegar cerca
 }
 

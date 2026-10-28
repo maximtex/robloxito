@@ -41,6 +41,13 @@ export type Enemy = {
 	Generation: number, -- cambia en cada muerte/reaparición: invalida tareas pendientes
 	StuckSince: number?,
 	LastHomeDistance: number,
+	SpeedBoost: number?, -- jefes: más rápidos tras un rato sin alcanzar a su objetivo (Pursuit)
+	-- Atascos al perseguir (bichos normales): dónde estaba y desde cuándo casi no se mueve, y el
+	-- rodeo que intenta (punto y hasta cuándo)
+	ChaseCheck: Vector3?,
+	ChaseStillSince: number?,
+	DetourPoint: Vector3?,
+	DetourUntil: number?,
 	Brain: any?, -- solo jefes con Def.Brain: su máquina de estados (updateBoss)
 	-- Oleadas (WaveService)
 	Pooled: boolean, -- de la reserva: no reaparece solo, vuelve a la reserva al morir
@@ -74,6 +81,8 @@ export type Brain = {
 	LastPosition: Vector3,
 	StillSince: number,
 	Dash: { Hit: { [Player]: boolean }, Until: number, Damage: number, Width: number }?,
+	FarSince: number?, -- desde cuándo su objetivo está fuera de su alcance (Pursuit)
+	NextHazard: number?, -- próximo peligro de la arena (Def.Hazard)
 }
 
 export type WaveSpawnOptions = {

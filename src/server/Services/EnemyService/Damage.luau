@@ -47,7 +47,10 @@ local function syncHealth(...) return ctx.syncHealth(...) end
 -- bonificación) y la Poción de Riqueza (inventario) mientras dura.
 local function lootMultiplier(profile): number
 	local pets = 1 + math.max(0, (profile.PetMultiplier or 1) - 1) * CombatConfig.PetMoneyShare
+	-- Mascotas Recolectoras (PetClassLogic)
+	local collectors = if profile.PetBonuses then profile.PetBonuses.Money else 1
 	return RebirthLogic.lootMultiplier(RebirthLogic.ofProfile(profile))
+		* collectors
 		* AdventureLogic.lootMultiplier(AdventureLogic.ofProfile(profile), os.time())
 		* pets
 		* ItemLogic.multiplier(ItemLogic.ofProfile(profile), "Money", os.time())

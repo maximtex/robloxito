@@ -114,11 +114,22 @@ local function setStyle(player: Player, styleId: any, pick: boolean?)
 		return
 	end
 	local skills = skillsOf(profile)
+	-- Personajes (ProfileLogic): la clase es fija; para jugar otra se crea otro personaje.
+	-- El personaje de antes de los personajes (sin FixedStyle y ya elegido) cambia como siempre.
+	local fixed = profile.PetData.FixedStyle
+	if fixed and fixed ~= styleId then
+		result(player, { Success = false, Code = "Locked", Action = if pick then "Pick" else "Set", Style = profile.PetData.Style })
+		return
+	end
 	if pick then
 		if skills.Picked then
 			return -- ya eligió: se cambia con "Set"
 		end
 		skills.Picked = true
+		-- Primera elección de un personaje nuevo: esa es su clase
+		if not fixed and not profile.Sandbox then
+			profile.PetData.FixedStyle = styleId
+		end
 		PlayerDataService.markDirty(player)
 	end
 	local now = os.clock()
@@ -207,13 +218,12 @@ function Api.classAction(player: Player, action: string, classId: any): (string,
 	return Codes[code] or code, cost
 end
 
--- Dash de Puños ---------------------------------------------------------------------------
+-- Dash (todos los estilos menos Magia; el de Puños es mejor) ----------------------------------
 
 local function dash(player: Player)
 	local style = styleOf(player)
 	local root = rootOf(player)
-	local def = StyleLogic.definition(style)
-	local spec = def and def.Dash
+	local spec = StyleLogic.dashSpec(style)
 	if not (root and spec) then
 		return
 	end

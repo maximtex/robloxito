@@ -205,4 +205,31 @@ check("datos sucios: niveles al tope, sin armas que no tiene, la equipada vuelve
 check("las armas que ya no existen se archivan, no se borran", messy.Archived ~= nil and messy.Archived.OldGun == true and WeaponLogic.serialize(messy).Archived.OldGun == true)
 check("nada guardado o basura: datos iniciales", WeaponLogic.sanitize(nil).Equipped == "Laser" and WeaponLogic.sanitize("x").Owned.Laser == true)
 
+-- Arquero (pruebas con amigos: las armas de fuego no pegaban con el tema medieval): mismos
+-- números, pero ballestas y arcos
+do
+	local modern = { "Pistola", "Rifle", "Escopeta", "Francotirador", "Bazuca", "Cañón", "Láser", "Bláster", "Aniquilador", "bala", "🔫" }
+	local function isModern(text: string?): boolean
+		for _, word in modern do
+			if text and string.find(text, word, 1, true) then
+				return true
+			end
+		end
+		return false
+	end
+	local themeOK = not isModern(WeaponConfig.Categories.Weapons.ItemIcon)
+	for gunId, gun in WeaponConfig.Guns do
+		if isModern(gun.Name) or isModern(gun.Text) or isModern(gun.Icon) then
+			themeOK = false
+			print("   tipo", gunId)
+		end
+	end
+	for weaponId, def in WeaponConfig.Weapons do
+		if def.Gun and (isModern(def.DisplayName) or isModern(def.Description) or isModern(def.Icon)) then
+			themeOK = false
+			print("   arma", weaponId)
+		end
+	end
+	check("el Arquero: ballestas y arcos, sin armas de fuego en los nombres ni en los textos", themeOK)
+end
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

@@ -71,11 +71,11 @@ local ClassConfig = {
 	},
 
 	Classes = {
-		-- 🔫 Armas -------------------------------------------------------------------------
+		-- 🏹 Arquero ------------------------------------------------------------------------
 		Soldier = {
 			Style = "Weapons",
-			Name = "Soldado",
-			Icon = "🎖️",
+			Name = "Guardabosques",
+			Icon = "🌲",
 			Text = "Equilibrado: más daño y disparas un poco más rápido.",
 			Price = 0,
 			UpgradeScale = 0.5,
@@ -83,7 +83,7 @@ local ClassConfig = {
 		},
 		Sniper = {
 			Style = "Weapons",
-			Name = "Francotirador",
+			Name = "Tirador certero",
 			Icon = "🎯",
 			Text = "Pegas desde mucho más lejos y con muchos más críticos.",
 			Price = 200,
@@ -92,8 +92,8 @@ local ClassConfig = {
 		},
 		Gunner = {
 			Style = "Weapons",
-			Name = "Ametrallador",
-			Icon = "🔥",
+			Name = "Ballestero",
+			Icon = "⚙️",
 			Text = "Disparas muchísimo más rápido y te mueves más.",
 			Price = 500,
 			UpgradeScale = 1.3,
@@ -101,16 +101,16 @@ local ClassConfig = {
 		},
 		Demolisher = {
 			Style = "Weapons",
-			Name = "Demoledor",
+			Name = "Artificiero",
 			Icon = "💥",
-			Text = "Tus disparos explotan y dañan a los de alrededor; tus habilidades pegan más.",
+			Text = "Tus flechas explotan y dañan a los de alrededor; tus habilidades pegan más.",
 			Price = 1200,
 			UpgradeScale = 1.7,
 			Bonuses = { SplashRadius = { 5, 9 }, SplashFraction = { 0.3, 0.5 }, SkillDamage = { 0.1, 0.3 } },
 		},
 		Commando = {
 			Style = "Weapons",
-			Name = "Comando Élite",
+			Name = "Maestro arquero",
 			Icon = "👑",
 			Text = "La definitiva: más daño, críticos brutales y destrozas a los jefes.",
 			Price = 3000,

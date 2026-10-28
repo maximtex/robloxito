@@ -22,12 +22,15 @@ local SECONDS = ItemConfig.Potions.Diamonds.Seconds
 print("-- 1. Configuración")
 local potionsOk = true
 for id, def in ItemConfig.Potions do
-	if not (def.Seconds > 0 and def.Seconds <= ItemConfig.MaxBoostSeconds and def.Multiplier >= 1 and def.Icon and def.DisplayName) then
+	-- La Poción de Vida (Heal) cura al momento: no dura ni multiplica
+	local ok = if def.Heal then def.Heal > 0 and def.Heal <= 1 and def.Icon ~= nil and def.DisplayName ~= nil
+		else def.Seconds > 0 and def.Seconds <= ItemConfig.MaxBoostSeconds and def.Multiplier >= 1 and def.Icon and def.DisplayName
+	if not ok then
 		potionsOk = false
 		print("   ", id)
 	end
 end
-check("cada poción dura menos que el máximo acumulado y multiplica", potionsOk)
+check("cada poción dura menos que el máximo acumulado y multiplica (la de Vida cura al momento)", potionsOk)
 local dropsOk = true
 for id, drop in ItemConfig.BossDrops do
 	if id ~= "Default" and not (EnemyConfig.Types[id] and EnemyConfig.Types[id].Kind == "Boss") then
@@ -52,7 +55,8 @@ for id, def in ItemConfig.Titles do
 	end
 end
 check("los títulos piden jefes que existen o una meta", titlesOk)
-check("orden de las pociones y los títulos", ItemLogic.potionOrder()[1] == "Diamonds" and #ItemLogic.potionOrder() == 4 and ItemLogic.titleOrder()[1] == "Novato")
+check("orden de las pociones y los títulos", ItemLogic.potionOrder()[1] == "Health" and #ItemLogic.potionOrder() == 5 and ItemLogic.titleOrder()[1] == "Novato")
+check("los impulsos (con tiempo) no incluyen la de Vida", ItemLogic.boostOrder()[1] == "Diamonds" and #ItemLogic.boostOrder() == 4 and table.find(ItemLogic.boostOrder(), "Health") == nil and ItemLogic.healPotion() == "Health")
 
 print("-- 2. Datos guardados")
 local fresh = ItemLogic.sanitize(nil, NOW)
@@ -102,12 +106,22 @@ check("sin huevo no se abre", not ItemLogic.hasEgg(eggs, "AncientEgg") and not I
 ItemLogic.addEgg(eggs, "AncientEgg", 2)
 check("dos huevos: se abren de uno en uno y desaparece al acabarse", ItemLogic.takeEgg(eggs, "AncientEgg") and eggs.Eggs.AncientEgg == 1 and ItemLogic.takeEgg(eggs, "AncientEgg") and eggs.Eggs.AncientEgg == nil)
 
+print("-- 4b. Poción de Vida")
+local healData = ItemLogic.empty()
+ItemLogic.addPotion(healData, "Health", 2)
+local healCode, healLeft = ItemLogic.usePotion(healData, "Health", NOW, Codes)
+check("la de Vida se gasta al momento y no deja impulso", healCode == Codes.Success and healLeft == 0 and healData.Potions.Health == 1 and healData.Boosts.Health == nil and healData.PotionsUsed == 1)
+check("sin ninguna no se toma", ItemLogic.usePotion(ItemLogic.empty(), "Health", NOW, Codes) == Codes.NotOwned)
+check("los enemigos la sueltan más que las otras y los jefes siempre", ItemConfig.HealthDrops.Normal > ItemConfig.EnemyDrops.Normal and ItemConfig.HealthDrops.Strong > ItemConfig.EnemyDrops.Strong
+	and ItemLogic.rollHealthDrop("Boss", sequence({ 0.99 })) and ItemLogic.rollHealthDrop("Normal", sequence({ 0 })) and not ItemLogic.rollHealthDrop("Normal", sequence({ 0.5 })) and not ItemLogic.rollHealthDrop("Nada", sequence({ 0 })))
+check("entre dos, una pequeña espera", ItemConfig.HealCooldown > 0)
+
 print("-- 5. Botín de los jefes")
-local first = ItemLogic.potionOrder()[1]
+local first = ItemLogic.boostOrder()[1]
 local drop = ItemLogic.rollBossDrop("ForestWarden", sequence({ 0, 0 }), EggConfig.Eggs)
 check("Guardián: una poción y, con suerte, su huevo", #drop.Potions == 1 and drop.Potions[1] == first and drop.Egg == ItemConfig.BossDrops.ForestWarden.Egg)
 drop = ItemLogic.rollBossDrop("ForestWarden", sequence({ 0.99, 0.99 }), EggConfig.Eggs)
-check("sin suerte: solo la poción (la última del sorteo)", #drop.Potions == 1 and drop.Potions[1] == ItemLogic.potionOrder()[#ItemLogic.potionOrder()] and drop.Egg == nil)
+check("sin suerte: solo la poción (la última del sorteo)", #drop.Potions == 1 and drop.Potions[1] == ItemLogic.boostOrder()[#ItemLogic.boostOrder()] and drop.Egg == nil)
 check("si el huevo no existe no se suelta", ItemLogic.rollBossDrop("ForestWarden", sequence({ 0 }), {}).Egg == nil)
 drop = ItemLogic.rollBossDrop("JefeNuevo", sequence({ 0 }), EggConfig.Eggs)
 check("un jefe sin botín propio usa Default (sin huevo)", #drop.Potions == ItemConfig.BossDrops.Default.Potions and drop.Egg == nil)

@@ -137,8 +137,14 @@ end
 local playersList = {}
 local closeCallbacks = {}
 local PlayersService = { PlayerAdded = signal(), PlayerRemoving = signal(), GetPlayers = function() return playersList end }
+-- Cambiar de personaje (ProfileService): se apunta cada viaje al mismo juego
+local teleports = {}
 local services = {
 	DataStoreService = { GetDataStore = function() return DataStoreStub end },
+	TeleportService = {
+		TeleportAsync = function(_, placeId, players) table.insert(teleports, { PlaceId = placeId, Players = players }) end,
+		TeleportInitFailed = signal(),
+	},
 	Players = PlayersService,
 	ReplicatedStorage = { WaitForChild = function() return {} end },
 	-- Como un servidor publicado: el modo prueba (DevConfig) se ignora aunque esté en true.

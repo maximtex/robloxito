@@ -162,4 +162,15 @@ local function cost(n)
 end
 check(("Guardián (1200) <= mejora 13 (%d): no se salta la progresión"):format(cost(13)), EnemyConfig.Types.ForestWarden.Reward <= cost(13))
 check(("Coloso (4000) <= mejora 16 (%d)"):format(cost(16)), EnemyConfig.Types.AmethystColossus.Reward <= cost(16))
+
+print("-- Persecución de los jefes (anti kiteo)")
+local pursuit = EnemyConfig.Pursuit
+check("hay persecución configurada", type(pursuit) == "table" and pursuit.Max > 1 and pursuit.Ramp > 0)
+check("al principio no acelera (aún puede alcanzarte andando)", EnemyLogic.pursuitBoost(pursuit.Delay, pursuit, 10, 26) == 1 and EnemyLogic.pursuitBoost(0, pursuit, 10, 26) == 1)
+local midBoost = EnemyLogic.pursuitBoost(pursuit.Delay + 1, pursuit, 10, 26)
+check("si sigues huyendo, acelera poco a poco", midBoost > 1 and midBoost < EnemyLogic.pursuitBoost(pursuit.Delay + 2, pursuit, 10, 26))
+check("como mucho Max × su velocidad", math.abs(EnemyLogic.pursuitBoost(60, pursuit, 10, 1000) - pursuit.Max) < 1e-9)
+check("y nunca más rápido que CatchUp × tu velocidad", EnemyLogic.pursuitBoost(60, pursuit, 10, 16) * 10 <= 16 * pursuit.CatchUp + 1e-9)
+check("si ya es más rápido que tú, no acelera", EnemyLogic.pursuitBoost(60, pursuit, 30, 16) == 1)
+check("sin datos raros", EnemyLogic.pursuitBoost(0 / 0, pursuit, 10, 16) == 1 and EnemyLogic.pursuitBoost(5, nil, 10, 16) == 1)
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

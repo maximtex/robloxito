@@ -19,20 +19,29 @@ local runs: any
 
 -- Funciones de las otras partes
 local function broadcast(...) return ctx.broadcast(...) end
+local function despawnAll(...) return ctx.despawnAll(...) end
 local function enterChoice(...) return ctx.enterChoice(...) end
 local function finish(...) return ctx.finish(...) end
 local function fxTo(...) return ctx.fxTo(...) end
 local function hint(...) return ctx.hint(...) end
 local function insideCount(...) return ctx.insideCount(...) end
 local function recordCleared(...) return ctx.recordCleared(...) end
+local function waveCleared(...) return ctx.waveCleared(...) end
 local function serverTime(...) return ctx.serverTime(...) end
 
 -- Fases ---------------------------------------------------------------------------------
 
 local enterBreak: (Run, number) -> ()
 
--- Cayó el último jefe: victoria (con modo infinito, se cobra y cada uno elige si sigue)
+-- Cayó el último jefe: victoria (con modo infinito, se cobra y cada uno elige si sigue). Si
+-- era el jefe que vuelve en el modo infinito, es una oleada superada más: la escolta se
+-- retira y se sigue.
 local function bossesDefeated(run: Run)
+	if run.Endless then
+		despawnAll(run)
+		waveCleared(run)
+		return
+	end
 	recordCleared(run, run.Wave)
 	if WaveLogic.hasEndless(run.ArenaId) then
 		enterChoice(run)
@@ -53,7 +62,7 @@ local function spawnOneBoss(run: Run, typeId: string, position: Vector3, onSplit
 	boss = EnemyService.spawnPooled(run.ZoneId, typeId, Vector3.new(position.X, run.Center.Y, position.Z), {
 		LeashCenter = run.Center,
 		LeashRadius = area + INSIDE_SLACK + 2,
-		HealthMultiplier = WaveLogic.bossHealthMultiplier(run.Players),
+		HealthMultiplier = WaveLogic.bossHealthMultiplier(run.Players) * WaveLogic.endlessBossHealth(run.ArenaId, run.Wave),
 		RewardMultiplier = 1,
 		PoolLimit = (arena.Pool and arena.Pool[typeId]) or 4,
 		Run = id,
@@ -146,12 +155,18 @@ local function startWave(run: Run, wave: number)
 	run.Players = insideCount(run)
 	run.Killed = 0
 	run.NextSpawnAt = os.clock()
-	if WaveLogic.isBossWave(run.ArenaId, wave) then
+	if WaveLogic.isBossWave(run.ArenaId, wave) or (run.Endless and WaveLogic.isEndlessBossWave(run.ArenaId, wave)) then
 		run.Phase = "Boss"
 		run.Queue = {}
 		run.Total = 1
 		run.NextEscortAt = os.clock() + 4
 		if not spawnBoss(run) then
+			if run.Endless then
+				-- Modo infinito: sin jefe esta vez, se sigue con la siguiente
+				warn("[WaveService] No hay sitio en la reserva para el jefe " .. tostring(run.Arena.Boss) .. " del modo infinito: se salta.")
+				waveCleared(run)
+				return
+			end
 			warn("[WaveService] No hay sitio en la reserva para el jefe " .. tostring(run.Arena.Boss) .. ": la partida se da por ganada.")
 			finish(run, true)
 			return

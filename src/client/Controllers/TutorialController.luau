@@ -478,7 +478,8 @@ function TutorialController.start()
 			return
 		end
 		wasActive = true
-		ui.Skip.Visible = true
+		-- Omitir solo cuando ya hizo los primeros pasos (TutorialConfig.MinSkipStep)
+		ui.Skip.Visible = index > (TutorialConfig.MinSkipStep or 0)
 		ui.Collapse.Visible = false
 		ui.Header.Text = "Tutorial"
 		local ratio, label = progressFor(step)

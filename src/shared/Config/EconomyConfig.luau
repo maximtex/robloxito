@@ -77,6 +77,28 @@ local EconomyConfig = {
 			CostMultiplier = 1.55,
 			MaxLevel = 30,
 		},
+		-- Defensa (pruebas con amigos: "faltan mejoras defensivas"). Con 💰, en el panel ⚡ Mejoras.
+		-- Vitalidad: +HealthPerLevel de vida máxima por nivel (PlayerDataService.applyBody).
+		Vitality = {
+			DisplayName = "Vitalidad",
+			Description = "Más vida máxima: +6 % por nivel.",
+			Currency = "Money",
+			BaseCost = 300,
+			CostMultiplier = 1.7,
+			HealthPerLevel = 0.06,
+			MaxLevel = 10,
+		},
+		-- Armadura: -ReductionPerLevel del daño que recibes por nivel (StyleService, con el del
+		-- estilo y la clase).
+		Armor = {
+			DisplayName = "Armadura",
+			Description = "Recibes menos daño: -3 % por nivel.",
+			Currency = "Money",
+			BaseCost = 400,
+			CostMultiplier = 1.7,
+			ReductionPerLevel = 0.03,
+			MaxLevel = 10,
+		},
 		LaserSpeed = {
 			DisplayName = "Cadencia",
 			Description = "Todas tus armas disparan más rápido (-2.5 % de tiempo entre disparos por nivel).",

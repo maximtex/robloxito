@@ -262,35 +262,6 @@ local function beamEffect(from: Vector3, to: Vector3, color: Color3, thickness: 
 	end
 end
 
--- Bola de luz con estela que viaja de `from` a `to` y llama a `onArrive` al llegar
-local function travelBall(from: Vector3, to: Vector3, color: Color3, size: number, speed: number, onArrive: () -> ())
-	local travel = math.clamp((to - from).Magnitude / speed, 0.1, 0.45)
-	local ball = fxPart(Vector3.one * size, CFrame.new(from), color)
-	ball.Shape = Enum.PartType.Ball
-	local tail = Instance.new("Attachment")
-	tail.Position = Vector3.new(0, size * 0.35, 0)
-	tail.Parent = ball
-	local head = Instance.new("Attachment")
-	head.Position = Vector3.new(0, -size * 0.35, 0)
-	head.Parent = ball
-	local trail = Instance.new("Trail")
-	trail.Attachment0 = tail
-	trail.Attachment1 = head
-	trail.Lifetime = 0.16
-	trail.LightEmission = 1
-	trail.FaceCamera = true
-	trail.Color = ColorSequence.new(Color3.new(1, 1, 1), color)
-	trail.Transparency = NumberSequence.new(0.1, 1)
-	trail.Parent = ball
-	local tween = TweenService:Create(ball, TweenInfo.new(travel, Enum.EasingStyle.Sine, Enum.EasingDirection.In), { CFrame = CFrame.new(to) })
-	tween.Completed:Once(function()
-		ball:Destroy()
-		onArrive()
-	end)
-	tween:Play()
-	Debris:AddItem(ball, travel + 0.3)
-end
-
 -- Destello redondo que crece y se apaga (golpes de puño y explosiones de magia)
 local function flashBall(center: Vector3, color: Color3, from: number, to: number, seconds: number)
 	local ball = fxPart(Vector3.one * from, CFrame.new(center), color)
@@ -602,38 +573,57 @@ local function impactRing(center: Vector3, radius: number, color: Color3)
 	Debris:AddItem(wave, 0.4)
 end
 
--- Fogonazo en la boca del arma (y una luz breve)
-local function muzzleFlash(at: Vector3, color: Color3, size: number)
-	local flash = fxPart(Vector3.one * 0.4 * size, CFrame.new(at), Color3.fromRGB(255, 240, 190))
-	flash.Shape = Enum.PartType.Ball
-	flash.Transparency = 0.05
-	local light = Instance.new("PointLight")
-	light.Color = color:Lerp(Color3.fromRGB(255, 220, 150), 0.5)
-	light.Range = 9 * size
-	light.Brightness = 3
-	light.Parent = flash
-	TweenService:Create(flash, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.one * 1.2 * size, Transparency = 1 }):Play()
-	Debris:AddItem(flash, 0.1)
-	emitAt("Spark", at, color, math.floor(3 * size + 0.5))
-end
-
--- Trazo de una bala: línea fina y brillante que se apaga enseguida
-local function tracer(from: Vector3, to: Vector3, color: Color3, thickness: number)
-	local dist = (to - from).Magnitude
-	if dist < 0.3 then
+-- Flecha o virote del Arquero (antes el trazo de una bala): asta de madera con la punta del
+-- color del arma y una estela, que vuela de `from` a `to` muy rápido y se queda clavada un
+-- momento. `scale`: tamaño (la arbalesta, más grande; los virotes de abanico, más pequeños).
+local ARROW_SPEED = 230
+local ARROW_WOOD = Color3.fromRGB(150, 108, 66)
+local function arrowFx(from: Vector3, to: Vector3, color: Color3, scale: number?)
+	local s = scale or 1
+	local distance = (to - from).Magnitude
+	if distance < 0.5 then
 		return
 	end
-	local line = fxPart(Vector3.new(dist, thickness, thickness), CFrame.lookAt((from + to) / 2, to) * CFrame.Angles(0, math.rad(90), 0), color:Lerp(Color3.new(1, 1, 1), 0.45))
-	line.Shape = Enum.PartType.Cylinder
-	line.Transparency = 0.1
-	TweenService:Create(line, TweenInfo.new(0.09, Enum.EasingStyle.Linear), { Transparency = 1, Size = Vector3.new(dist, thickness * 0.3, thickness * 0.3) }):Play()
-	Debris:AddItem(line, 0.12)
+	local direction = (to - from).Unit
+	local length = 1.8 * s
+	local shaft = fxPart(Vector3.new(0.08 * s, 0.08 * s, length), CFrame.lookAt(from, from + direction), ARROW_WOOD)
+	shaft.Material = Enum.Material.Wood
+	local head = fxPart(Vector3.new(0.16, 0.16, 0.32) * s, CFrame.lookAt(from + direction * (length / 2), from + direction * (length / 2 + 1)), color)
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0, 0.07 * s, length / 2)
+	a0.Parent = shaft
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, -0.07 * s, length / 2)
+	a1.Parent = shaft
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.4))
+	trail.Transparency = NumberSequence.new(0.35, 1)
+	trail.Lifetime = 0.12
+	trail.LightEmission = 0.8
+	trail.FaceCamera = true
+	trail.Parent = shaft
+	local seconds = math.clamp(distance / ARROW_SPEED, 0.04, 0.5)
+	local info = TweenInfo.new(seconds, Enum.EasingStyle.Linear)
+	local stuckAt = to - direction * (length * 0.35)
+	TweenService:Create(shaft, info, { CFrame = CFrame.lookAt(stuckAt, stuckAt + direction) }):Play()
+	TweenService:Create(head, info, { CFrame = CFrame.lookAt(stuckAt + direction * (length / 2), stuckAt + direction * (length / 2 + 1)) }):Play()
+	task.delay(seconds + 0.25, function()
+		for _, part in { shaft, head } do
+			if part.Parent then
+				TweenService:Create(part, TweenInfo.new(0.2), { Transparency = 1 }):Play()
+			end
+		end
+	end)
+	Debris:AddItem(shaft, seconds + 0.5)
+	Debris:AddItem(head, seconds + 0.5)
 end
 
--- Cohete de la bazuca: viaja de `from` a `to` en `seconds` dejando humo (la explosión la
--- dibuja el aviso "ShotImpact")
+-- Virote con bomba de brea de la balista (antes el cohete de la bazuca): viaja de `from` a `to`
+-- en `seconds` dejando humo (la explosión la dibuja el aviso "ShotImpact")
 local function rocketFx(from: Vector3, to: Vector3, color: Color3, seconds: number)
-	local rocket = fxPart(Vector3.new(0.5, 0.5, 1.4), CFrame.lookAt(from, to), color)
+	local rocket = fxPart(Vector3.new(0.45, 0.45, 2.2), CFrame.lookAt(from, to), color)
 	rocket.Material = Enum.Material.Neon
 	local tail = Instance.new("Attachment")
 	tail.Position = Vector3.new(0, 0, 0.7)
@@ -862,6 +852,12 @@ end
 CombatController.beam = function(from: Vector3, to: Vector3, color: Color3, thickness: number)
 	if fxFolder then
 		beamEffect(from, to, color, thickness)
+	end
+end
+-- Flecha del Arquero (la balista de la habilidad también las dispara)
+CombatController.arrow = function(from: Vector3, to: Vector3, color: Color3, scale: number?)
+	if fxFolder then
+		arrowFx(from, to, color, scale)
 	end
 end
 
@@ -2031,9 +2027,9 @@ function CombatController.start()
 					impact()
 				end, scale)
 			else
-				-- Armas: fogonazo en la boca del arma, retroceso, trazo de cada bala (los
-				-- perdigones de la escopeta, la bala que atraviesa del francotirador), flecha con
-				-- el arco y un cohete con la bazuca (su explosión llega luego en "ShotImpact")
+				-- Arquero: retroceso y una flecha por disparo (los virotes en abanico de la ballesta
+				-- de abanico, el que atraviesa de la arbalesta) y el virote con bomba de la
+				-- balista (su explosión llega luego en "ShotImpact"). Sin fogonazo: no hay pólvora.
 				local gun = if typeof(event.Gun) == "string" then event.Gun else GunLogic.kind(event.WeaponId)
 				local feel = GUN_FEEL[gun] or GUN_FEEL.Pistol
 				local isBow = def.Model == "Bow"
@@ -2042,9 +2038,6 @@ function CombatController.start()
 					CharacterPose.recoil(character, feel.Recoil)
 				elseif isOwner then
 					StyleAnimations.shot()
-				end
-				if not isBow then
-					muzzleFlash(muzzle, color, feel.Flash)
 				end
 				playStyleSound(if isBow then "GunBow" else "Gun" .. gun, soundAt)
 				if isOwner then
@@ -2058,12 +2051,9 @@ function CombatController.start()
 					for _, line in tracers do
 						if typeof(line) == "table" and typeof(line.To) == "Vector3" then
 							local to = line.To :: Vector3
+							arrowFx(muzzle, to, color, if gun == "Sniper" then 1.3 elseif gun == "Shotgun" then 0.75 else 1)
 							if isBow and first then
-								travelBall(muzzle, to, color, 0.5, 140, function()
-									emitAt("Glint", to, color, 4)
-								end)
-							else
-								tracer(muzzle, to, color, feel.Tracer)
+								emitAt("Glint", to, color, 4)
 							end
 							if line.Hit == true then
 								emitAt("Spark", to, color, if gun == "Shotgun" then 2 else 5)

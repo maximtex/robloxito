@@ -53,6 +53,11 @@ local Constants = {
 		-- Cliente -> servidor: (key: "HudScale", value: number) cambia un ajuste del jugador
 		-- (⚙️ Ajustes; SettingsService lo valida con SettingsLogic y lo guarda).
 		SetSetting = "SetSetting",
+		-- Personajes (ProfileService). Cliente -> servidor: ("Create", styleId) crea un personaje
+		-- con esa clase o ("Select", hueco) elige otro; en los dos casos se guarda y el jugador
+		-- vuelve a entrar con ese personaje. Servidor -> cliente: (success, code, action).
+		ProfileAction = "ProfileAction",
+		ProfileResult = "ProfileResult",
 		-- Servidor -> cliente: (amount, enemyName, isBoss, position, isKill, extra?) dinero
 		-- ganado; al derrotarlo extra = { Diamonds, Golden, Streak } (⚡, orbe dorado y racha).
 		CombatReward = "CombatReward",
@@ -212,6 +217,11 @@ local Constants = {
 		SaveError = "SaveError",
 		-- Tamaño de la interfaz elegido en ⚙️ Ajustes (uno de SettingsLogic.HudScales).
 		HudScale = "HudScale",
+		-- Personajes de la cuenta (ProfileLogic.encode), hueco con el que juega y su clase fija
+		-- ("" = puede cambiar de estilo, el personaje de antes de los personajes).
+		Profiles = "Profiles",
+		ProfileSlot = "ProfileSlot",
+		FixedStyle = "FixedStyle",
 		-- Tutorial: "Active" | "Completed" | "Skipped" (sin atributo = datos no listos).
 		TutorialStatus = "TutorialStatus",
 		-- Pasos ya hechos (0..número de pasos); el paso actual es TutorialStep + 1.
@@ -323,6 +333,7 @@ local Constants = {
 		AlreadySelected = "AlreadySelected",
 		-- Habilidades elementales
 		Cooldown = "Cooldown", -- aún recargando
+		FullHealth = "FullHealth", -- Poción de Vida con la vida llena
 		NoTarget = "NoTarget", -- habilidad con objetivo sin ningún enemigo delante (no se gasta)
 		-- Renacimiento
 		ComingSoon = "ComingSoon", -- aún no disponible (renacer con RebirthConfig.Enabled = false)

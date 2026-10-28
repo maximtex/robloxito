@@ -85,6 +85,10 @@ advance(0)
 profile = PlayerDataService.get(me)
 check("al volver a entrar: perfil nuevo otra vez (💰 15000, tutorial en el paso 1)", profile.Money == DevConfig.SandboxStartingMoney and me:GetAttribute("TutorialStatus") == "Active" and me:GetAttribute("TutorialStep") == 0)
 fireServer("SkipTutorial", me)
+check("en el modo prueba tampoco se omite antes de los primeros pasos", me:GetAttribute("TutorialStatus") == "Active")
+PlayerDataService.get(me).PetData.Tutorial.Step = TutorialConfig.MinSkipStep
+advance(1.1)
+fireServer("SkipTutorial", me)
 check("omitir funciona en el modo prueba", me:GetAttribute("TutorialStatus") == "Skipped")
 
 print("-- 4. Cierre del servidor con un perfil de prueba")

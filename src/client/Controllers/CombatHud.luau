@@ -229,7 +229,7 @@ local function render(dt: number)
 		else
 			ui.Fill.BackgroundColor3 = AMMO_COLOR
 			ui.Fill.Size = UDim2.fromScale(ammo / magazine, 1)
-			ui.ResourceLabel.Text = ("🔫 %d / %d"):format(ammo, magazine) .. (if ammo < magazine then "  · R" else "")
+			ui.ResourceLabel.Text = ("🏹 %d / %d"):format(ammo, magazine) .. (if ammo < magazine then "  · R" else "")
 		end
 	elseif currentStyle == "Magic" then
 		local mana = player:GetAttribute(attributes.Mana)

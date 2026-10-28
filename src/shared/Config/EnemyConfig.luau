@@ -23,6 +23,10 @@ local EnemyConfig = {
 	-- (Color) y tienen más vida, pegan más y dan más botín. Su nombre lleva Prefix.
 	Elite = { Health = 3, Damage = 1.3, Reward = 3, Scale = 1.3, Color = Color3.fromRGB(255, 214, 90), Prefix = "⭐ " },
 	StuckSeconds = 6,
+	-- Persecución de los jefes (anti "kiteo", pruebas con amigos; EnemyLogic.pursuitBoost): si su
+	-- objetivo lleva Delay s a más de Gap studs de su alcance, acelera Ramp por segundo hasta Max ×
+	-- su velocidad, sin pasar de CatchUp × la velocidad de su objetivo. Se le pasa al alcanzarlo.
+	Pursuit = { Delay = 1.5, Ramp = 0.6, Max = 2.2, CatchUp = 0.95, Gap = 4 },
 
 	Types = {
 		-- Bosque --------------------------------------------------------------------
@@ -74,6 +78,25 @@ local EnemyConfig = {
 			-- Modelo 3D: arbol_guardian.glb (Server.Util.ModelosZona1)
 			Look = { Style = "ArbolGuardian", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(127, 209, 59), Eyes = Color3.fromRGB(255, 243, 160) },
 		},
+		-- Lanzador del Bosque (oleadas): lanza semillas de espinas
+		ThornCaster = {
+			DisplayName = "Brujo Espinoso",
+			Kind = "Normal",
+			MaxHealth = 30,
+			Damage = 3,
+			AttackRange = 4,
+			AttackCooldown = 1.6,
+			AttackWindup = 0.6,
+			WalkSpeed = 11,
+			DetectRange = 16,
+			LeashRange = 22,
+			Reward = 35,
+			RespawnSeconds = 4,
+			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
+			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
+			Ranged = { Range = 24, Keep = 12, Damage = 5, Cooldown = 2.8, Windup = 0.75, Speed = 32, Radius = 2, Size = 1.1 },
+			Look = { Style = "Caster", Primary = Color3.fromRGB(96, 70, 44), Secondary = Color3.fromRGB(150, 255, 80), Eyes = Color3.fromRGB(190, 255, 120) },
+		},
 		ForestWarden = {
 			DisplayName = "Guardián del Bosque",
 			Kind = "Boss",
@@ -97,6 +120,8 @@ local EnemyConfig = {
 			Slam = { Interval = 9, Telegraph = 1.4, Radius = 10, Damage = 22 },
 			-- Furia bajo la mitad de vida: más rápido y golpes de área más seguidos
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
+			-- Peligro de su arena (BossAttacks): espinas que salen del suelo (y ralentizan), avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Spikes", Interval = 8, Telegraph = 1.3, Radius = 5, Damage = 10, Count = 2, SlowFactor = 0.6, SlowSeconds = 1.5, Color = Color3.fromRGB(140, 255, 58) },
 			-- Modelo 3D: gigante_del_bosque.glb (Server.Util.ModelosZona1)
 			Look = { Style = "GiganteDelBosque", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(140, 255, 58), Eyes = Color3.fromRGB(140, 255, 58) },
 		},
@@ -132,6 +157,25 @@ local EnemyConfig = {
 			RespawnSeconds = 6,
 			Look = { Style = "Golem", Primary = Color3.fromRGB(98, 102, 126), Secondary = Color3.fromRGB(96, 220, 210), Eyes = Color3.fromRGB(110, 170, 255) },
 		},
+		-- Lanzador del Valle (oleadas): dispara esquirlas de cristal
+		CrystalCaster = {
+			DisplayName = "Hechicero de Cristal",
+			Kind = "Normal",
+			MaxHealth = 110,
+			Damage = 6,
+			AttackRange = 4,
+			AttackCooldown = 1.6,
+			AttackWindup = 0.6,
+			WalkSpeed = 12,
+			DetectRange = 16,
+			LeashRange = 22,
+			Reward = 110,
+			RespawnSeconds = 4,
+			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
+			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
+			Ranged = { Range = 26, Keep = 12, Damage = 9, Cooldown = 2.6, Windup = 0.7, Speed = 36, Radius = 2, Size = 1.1 },
+			Look = { Style = "Caster", Primary = Color3.fromRGB(92, 62, 150), Secondary = Color3.fromRGB(110, 226, 255), Eyes = Color3.fromRGB(230, 200, 255) },
+		},
 		AmethystColossus = {
 			DisplayName = "Coloso de Amatista",
 			Kind = "Boss",
@@ -153,6 +197,8 @@ local EnemyConfig = {
 			Slam = { Interval = 8, Telegraph = 1.3, Radius = 12, Damage = 30 },
 			-- Furia bajo la mitad de vida: más rápido y golpes de área más seguidos
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
+			-- Peligro de su arena (BossAttacks): cristales que caen del techo, avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Crystal", Interval = 7, Telegraph = 1.2, Radius = 5, Damage = 16, Count = 3, Color = Color3.fromRGB(200, 140, 255) },
 			Look = { Style = "Colossus", Primary = Color3.fromRGB(86, 84, 108), Secondary = Color3.fromRGB(176, 120, 236), Eyes = Color3.fromRGB(230, 180, 255) },
 		},
 
@@ -187,6 +233,25 @@ local EnemyConfig = {
 			RespawnSeconds = 6,
 			Look = { Style = "Golem", Primary = Color3.fromRGB(74, 60, 58), Secondary = Color3.fromRGB(255, 118, 36), Eyes = Color3.fromRGB(255, 200, 90) },
 		},
+		-- Lanzador de la Caldera (oleadas): bolas de fuego
+		EmberCaster = {
+			DisplayName = "Piromante",
+			Kind = "Normal",
+			MaxHealth = 380,
+			Damage = 8,
+			AttackRange = 4,
+			AttackCooldown = 1.6,
+			AttackWindup = 0.6,
+			WalkSpeed = 13,
+			DetectRange = 16,
+			LeashRange = 22,
+			Reward = 320,
+			RespawnSeconds = 4,
+			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
+			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
+			Ranged = { Range = 26, Keep = 12, Damage = 12, Cooldown = 2.4, Windup = 0.65, Speed = 40, Radius = 2.2, Size = 1.3 },
+			Look = { Style = "Caster", Primary = Color3.fromRGB(120, 36, 28), Secondary = Color3.fromRGB(255, 150, 40), Eyes = Color3.fromRGB(255, 220, 120) },
+		},
 		CalderaTitan = {
 			DisplayName = "Titán de la Caldera",
 			Kind = "Boss",
@@ -209,6 +274,8 @@ local EnemyConfig = {
 			Slam = { Interval = 8, Telegraph = 1.3, Radius = 13, Damage = 35 },
 			-- Furia bajo la mitad de vida: más rápido y golpes de área más seguidos
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
+			-- Peligro de su arena (BossAttacks): erupciones de lava, avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Lava", Interval = 7, Telegraph = 1.3, Radius = 6, Damage = 20, Count = 3, Color = Color3.fromRGB(255, 110, 30) },
 			Look = { Style = "Colossus", Primary = Color3.fromRGB(64, 52, 52), Secondary = Color3.fromRGB(255, 118, 36), Eyes = Color3.fromRGB(255, 232, 150) },
 		},
 
@@ -243,6 +310,25 @@ local EnemyConfig = {
 			RespawnSeconds = 6,
 			Look = { Style = "Yeti", Primary = Color3.fromRGB(240, 246, 255), Secondary = Color3.fromRGB(110, 150, 200), Eyes = Color3.fromRGB(70, 170, 255) },
 		},
+		-- Lanzador de la Tundra (oleadas): carámbanos
+		FrostCaster = {
+			DisplayName = "Chamán de Escarcha",
+			Kind = "Normal",
+			MaxHealth = 1200,
+			Damage = 10,
+			AttackRange = 4,
+			AttackCooldown = 1.6,
+			AttackWindup = 0.6,
+			WalkSpeed = 14,
+			DetectRange = 16,
+			LeashRange = 22,
+			Reward = 1000,
+			RespawnSeconds = 4,
+			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
+			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
+			Ranged = { Range = 28, Keep = 14, Damage = 14, Cooldown = 2.4, Windup = 0.65, Speed = 44, Radius = 2.2, Size = 1.3 },
+			Look = { Style = "Caster", Primary = Color3.fromRGB(70, 110, 170), Secondary = Color3.fromRGB(170, 235, 255), Eyes = Color3.fromRGB(200, 245, 255) },
+		},
 		IceGolem = {
 			DisplayName = "Gólem de Hielo",
 			Kind = "Boss",
@@ -264,6 +350,8 @@ local EnemyConfig = {
 			-- Golpe de área anunciado con un círculo en el suelo
 			Slam = { Interval = 7, Telegraph = 1.2, Radius = 14, Damage = 38 },
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.35, SlamIntervalMultiplier = 0.6 },
+			-- Peligro de su arena (BossAttacks): carámbanos que congelan (ralentizan), avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Ice", Interval = 7, Telegraph = 1.3, Radius = 6, Damage = 16, Count = 3, SlowFactor = 0.5, SlowSeconds = 2.5, Color = Color3.fromRGB(140, 220, 255) },
 			Look = { Style = "Colossus", Material = "Glacier", Primary = Color3.fromRGB(170, 212, 240), Secondary = Color3.fromRGB(120, 230, 255), Eyes = Color3.fromRGB(230, 250, 255) },
 		},
 
@@ -322,6 +410,8 @@ local EnemyConfig = {
 			Slam = { Interval = 6, Telegraph = 0.9, Radius = 15, Damage = 48 },
 			-- Furia bajo la mitad de vida: todavía más rápido y ataques mucho más seguidos
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.35, SlamIntervalMultiplier = 0.55 },
+			-- Peligro de su arena (BossAttacks): rocas que tiran desde las murallas, avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Rock", Interval = 6.5, Telegraph = 1.1, Radius = 6, Damage = 26, Count = 3, Color = Color3.fromRGB(130, 110, 90) },
 			Scale = 1.45, -- enorme: casi 30 studs de alto (EnemyService lo agranda al crearlo)
 			Look = { Style = "GoblinKing", Primary = Color3.fromRGB(104, 172, 64), Secondary = Color3.fromRGB(150, 40, 60), Eyes = Color3.fromRGB(255, 70, 50) },
 		},
@@ -356,6 +446,8 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 8000,
 			RespawnSeconds = 4,
+			-- Lanza esquirlas de hielo a distancia (EnemyService.Ai; los de fuego siguen cuerpo a cuerpo)
+			Ranged = { Range = 26, Keep = 12, Damage = 20, Cooldown = 2.2, Windup = 0.6, Speed = 46, Radius = 2.2, Size = 1.3 },
 			Look = { Style = "Shard", Primary = Color3.fromRGB(110, 200, 255), Secondary = Color3.fromRGB(235, 250, 255), Eyes = Color3.fromRGB(20, 60, 140) },
 		},
 		LavaBrute = {
@@ -412,6 +504,8 @@ local EnemyConfig = {
 			Volley = { Interval = 6, Count = 6, Damage = 18, Speed = 55, Telegraph = 0.6, Range = 46, Radius = 3.4 },
 			Slam = { Interval = 7, Telegraph = 1.2, Radius = 17, Damage = 50 },
 			Enrage = { HealthFraction = 0.75, SpeedMultiplier = 1.2, SlamIntervalMultiplier = 0.8 },
+			-- Peligro de su arena (BossAttacks): erupciones de lava, avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Lava", Interval = 7, Telegraph = 1.2, Radius = 6, Damage = 22, Count = 3, Color = Color3.fromRGB(255, 150, 60) },
 			-- Al llegar a esta parte de la vida se parte en estos dos, a Spread studs a cada lado
 			Split = { HealthFraction = 0.5, Into = { "IgnisColossus", "GlaciusColossus" }, Spread = 10 },
 			Scale = 1.7, -- enorme: más de 30 studs de alto
@@ -445,6 +539,8 @@ local EnemyConfig = {
 			Volley = { Interval = 5, Count = 5, Damage = 18, Speed = 55, Telegraph = 0.5, Range = 44, Radius = 3 },
 			Slam = { Interval = 7, Telegraph = 1.1, Radius = 14, Damage = 46 },
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
+			-- Peligro de su arena (BossAttacks): erupciones de lava, avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Lava", Interval = 7.5, Telegraph = 1.2, Radius = 6, Damage = 22, Count = 2, Color = Color3.fromRGB(255, 110, 30) },
 			Scale = 1.2,
 			Look = { Style = "Colossus", Material = "CrackedLava", Primary = Color3.fromRGB(150, 46, 26), Secondary = Color3.fromRGB(255, 140, 40), Eyes = Color3.fromRGB(255, 236, 160) },
 		},
@@ -467,6 +563,8 @@ local EnemyConfig = {
 			Volley = { Interval = 5, Count = 5, Damage = 18, Speed = 58, Telegraph = 0.5, Range = 44, Radius = 3 },
 			Slam = { Interval = 7, Telegraph = 1.1, Radius = 14, Damage = 46 },
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
+			-- Peligro de su arena (BossAttacks): carámbanos que congelan, avisado en el suelo cerca de cada jugador
+			Hazard = { Style = "Ice", Interval = 7.5, Telegraph = 1.2, Radius = 6, Damage = 18, Count = 2, SlowFactor = 0.5, SlowSeconds = 2, Color = Color3.fromRGB(140, 220, 255) },
 			Scale = 1.2,
 			Look = { Style = "Colossus", Material = "Ice", Primary = Color3.fromRGB(196, 228, 255), Secondary = Color3.fromRGB(90, 200, 255), Eyes = Color3.fromRGB(225, 250, 255) },
 		},
@@ -538,16 +636,19 @@ local EnemyConfig = {
 				-- Pradera derecha (al este de las parcelas y los huevos)
 				{ Type = "Thornling", Offset = Vector2.new(88, 105) },
 				{ Type = "Thornling", Offset = Vector2.new(68, 118) },
+				{ Type = "ThornCaster", Offset = Vector2.new(71, 118) }, -- lanzador (dispara de lejos)
 				{ Type = "Thornling", Offset = Vector2.new(68, 115) },
 				{ Type = "Thornling", Offset = Vector2.new(72, 96) }, -- (lejos del Jardín de los Huevos)
 				{ Type = "Thornling", Offset = Vector2.new(76, 84) },
 				{ Type = "Thornling", Offset = Vector2.new(68, 48) },
+				{ Type = "ThornCaster", Offset = Vector2.new(71, 48) }, -- lanzador (dispara de lejos)
 				{ Type = "Thornling", Offset = Vector2.new(68, 12) },
 
 				-- Pradera norte (pasando el letrero de ZONA SEGURA)
 				{ Type = "Thornling", Offset = Vector2.new(-68, -28) },
 				{ Type = "Thornling", Offset = Vector2.new(-48, -28) },
 				{ Type = "Thornling", Offset = Vector2.new(0, -30) },
+				{ Type = "ThornCaster", Offset = Vector2.new(3, -30) }, -- lanzador (dispara de lejos)
 				{ Type = "Thornling", Offset = Vector2.new(48, -28) },
 				{ Type = "Thornling", Offset = Vector2.new(68, -28) },
 				{ Type = "Thornling", Offset = Vector2.new(-68, -36) },
@@ -595,12 +696,15 @@ local EnemyConfig = {
 
 				{ Type = "Shardling", Offset = Vector2.new(-55, -85) },
 				{ Type = "Shardling", Offset = Vector2.new(-35, -60) },
+				{ Type = "CrystalCaster", Offset = Vector2.new(-32, -60) }, -- lanzador (dispara de lejos)
 				{ Type = "Shardling", Offset = Vector2.new(-82, -48) },
 				{ Type = "Shardling", Offset = Vector2.new(52, -82) },
 				{ Type = "Shardling", Offset = Vector2.new(85, -48) },
+				{ Type = "CrystalCaster", Offset = Vector2.new(88, -48) }, -- lanzador (dispara de lejos)
 				{ Type = "Shardling", Offset = Vector2.new(-62, 24) },
 				{ Type = "Shardling", Offset = Vector2.new(-92, 54) },
 				{ Type = "Shardling", Offset = Vector2.new(-44, 82) },
+				{ Type = "CrystalCaster", Offset = Vector2.new(-41, 82) }, -- lanzador (dispara de lejos)
 				{ Type = "Shardling", Offset = Vector2.new(62, 54) },
 				{ Type = "Shardling", Offset = Vector2.new(92, 74) },
 				{ Type = "GeodeGolem", Offset = Vector2.new(-85, -5) },
@@ -646,10 +750,13 @@ local EnemyConfig = {
 				{ Type = "MagmaGolem", Offset = Vector2.new(-1076, 3) },
 
 				{ Type = "Cinderling", Offset = Vector2.new(-60, -72) },
+				{ Type = "EmberCaster", Offset = Vector2.new(-57, -72) }, -- lanzador (dispara de lejos)
 				{ Type = "Cinderling", Offset = Vector2.new(-36, -56) },
 				{ Type = "Cinderling", Offset = Vector2.new(46, -60) },
+				{ Type = "EmberCaster", Offset = Vector2.new(49, -60) }, -- lanzador (dispara de lejos)
 				{ Type = "Cinderling", Offset = Vector2.new(82, -75) },
 				{ Type = "Cinderling", Offset = Vector2.new(60, 34) },
+				{ Type = "EmberCaster", Offset = Vector2.new(63, 34) }, -- lanzador (dispara de lejos)
 				{ Type = "Cinderling", Offset = Vector2.new(92, 65) },
 				{ Type = "Cinderling", Offset = Vector2.new(-74, 34) },
 				{ Type = "Cinderling", Offset = Vector2.new(-95, 72) },
@@ -696,12 +803,15 @@ local EnemyConfig = {
 
 				{ Type = "FrostWolf", Offset = Vector2.new(-60, -72) },
 				{ Type = "FrostWolf", Offset = Vector2.new(-36, -56) },
+				{ Type = "FrostCaster", Offset = Vector2.new(-33, -56) }, -- lanzador (dispara de lejos)
 				{ Type = "FrostWolf", Offset = Vector2.new(46, -60) },
 				{ Type = "FrostWolf", Offset = Vector2.new(82, -75) },
 				{ Type = "FrostWolf", Offset = Vector2.new(70, 40) },
+				{ Type = "FrostCaster", Offset = Vector2.new(73, 40) }, -- lanzador (dispara de lejos)
 				{ Type = "FrostWolf", Offset = Vector2.new(92, 65) },
 				{ Type = "FrostWolf", Offset = Vector2.new(-80, 40) },
 				{ Type = "FrostWolf", Offset = Vector2.new(-95, 72) },
+				{ Type = "FrostCaster", Offset = Vector2.new(-92, 72) }, -- lanzador (dispara de lejos)
 				{ Type = "FrostWolf", Offset = Vector2.new(-30, 60) },
 				{ Type = "FrostWolf", Offset = Vector2.new(30, 60) },
 				{ Type = "Yeti", Offset = Vector2.new(-96, -14) },

@@ -29,8 +29,9 @@
 --   en StyleReadyAt (Z) y StyleReadyAt2 (X).
 -- - StyleAction("BuySkill" | "UpgradeSkill", skillId) y ("EquipSkill", skillId, slot):
 --   comprar y subir con 💎 (profile.Diamonds) y ponerla en la Z o la X (SkillLogic valida).
--- - StyleAction("Dash"): el dash de Puños (StyleConfig.Styles.Fists.Dash): un salto corto
---   hacia donde te mueves, sin cruzar paredes ni puertas cerradas; DashReadyAt.
+-- - StyleAction("Dash"): el dash (StyleLogic.dashSpec: el de todos, StyleConfig.Dash, o el de
+--   Puños, más largo y seguido): un salto corto hacia donde te mueves, sin cruzar paredes ni
+--   puertas cerradas; DashReadyAt.
 -- - StyleAction("Blink", aimPoint): el teletransporte de Magia (StyleConfig.Styles.Magic.Blink)
 --   hacia el punto (o hacia donde te mueves), gasta maná y comparte DashReadyAt.
 -- - Combos de habilidades (COMBO): una habilidad que da a un enemigo aturdido o congelado

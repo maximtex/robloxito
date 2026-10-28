@@ -163,7 +163,13 @@ AbilityService.start()
 local SERVER = 5000 -- desplazamiento del reloj del servidor simulado
 
 -- Naturaleza (por defecto) ------------------------------------------------------------
-cores.Selected = "Water" -- seleccionado pero NO despierto: se usa Naturaleza
+cores.Selected = "Water" -- seleccionado pero NO despierto: se usaría Naturaleza
+-- Pruebas con amigos: Raíces (la Q de Naturaleza) la tenía todo el mundo y no se podía
+-- mejorar: ya no es una habilidad (Skill = false) y todos tienen el dash (StyleConfig.Dash).
+check("Naturaleza ya no da habilidad: sin Q (todos tienen el dash)", AbilityConfig.Abilities.Nature.Skill == false and AbilityLogic.castable("Nature") == nil and AbilityLogic.get("Nature") ~= nil
+	and AbilityService.elementOf(profiles[alice]) == nil and (AbilityService.perform(alice)) == "Locked")
+-- El efecto de las Raíces se sigue probando (sus datos quedan para las marcas y los combos)
+AbilityConfig.Abilities.Nature.Skill = nil
 check("elemento no despierto -> habilidad de Naturaleza", AbilityService.elementOf(profiles[alice]) == "Nature")
 local e1 = newEnemy(1, 0, -6, 500)
 local e2 = newEnemy(2, 8, 0, 500)

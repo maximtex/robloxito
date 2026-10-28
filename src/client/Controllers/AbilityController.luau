@@ -27,6 +27,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local CoreConfig = require(Shared.Config.CoreConfig)
 local AbilityConfig = require(Shared.Config.AbilityConfig)
+local AbilityLogic = require(Shared.AbilityLogic)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local CombatController = require(script.Parent.CombatController)
@@ -955,18 +956,32 @@ local function slotElement(slot: string): string?
 	for _, id in unlockedList() do
 		unlocked[id] = true
 	end
+	-- Como AbilityService.elementOf: Naturaleza ya no da habilidad (era Raíces; ahora todos
+	-- tienen el dash), así que con ella de principal el secundario pasa a la Q.
 	local selected = player:GetAttribute(Constants.Attributes.SelectedCore)
+	local secondary = player:GetAttribute(Constants.Attributes.SecondaryCore)
+	local primaryOk = typeof(selected) == "string" and unlocked[selected] and AbilityLogic.castable(selected) ~= nil
+	local secondaryOk = typeof(secondary) == "string" and unlocked[secondary] and secondary ~= selected and AbilityLogic.castable(secondary) ~= nil
 	if slot == "Secondary" then
-		local secondary = player:GetAttribute(Constants.Attributes.SecondaryCore)
-		if typeof(secondary) == "string" and unlocked[secondary] and secondary ~= selected and AbilityConfig.Abilities[secondary] then
-			return secondary
-		end
-		return nil
+		return if primaryOk and secondaryOk then secondary else nil
 	end
-	if typeof(selected) == "string" and unlocked[selected] and AbilityConfig.Abilities[selected] then
+	if primaryOk then
 		return selected
+	elseif secondaryOk then
+		return secondary
 	end
-	return CoreConfig.DefaultElement
+	return if AbilityLogic.castable(CoreConfig.DefaultElement) then CoreConfig.DefaultElement else nil
+end
+
+-- Núcleos despiertos que dan habilidad (Naturaleza no)
+local function castableCount(): number
+	local count = 0
+	for _, id in unlockedList() do
+		if AbilityLogic.castable(id) then
+			count += 1
+		end
+	end
+	return count
 end
 
 type SlotUi = {
@@ -1191,7 +1206,7 @@ function AbilityController.start()
 		for _, slot in SLOT_ORDER do
 			local slotUi = slots[slot]
 			local elementId = slotElement(slot)
-			local ability = elementId and AbilityConfig.Abilities[elementId]
+			local ability = elementId and AbilityLogic.castable(elementId)
 			if ability then
 				slotUi.Frame.Visible = true
 				slotUi.Button.Text = ability.Icon
@@ -1206,7 +1221,7 @@ function AbilityController.start()
 				})
 				slotUi.Stroke.Color = INK
 				slotUi.Stroke.Transparency = 0
-			elseif slot == "Secondary" and #unlockedList() >= 2 then
+			elseif slot == "Secondary" and castableCount() >= 2 then
 				slotUi.Frame.Visible = true
 				slotUi.Button.Text = "+"
 				slotUi.Button.TextTransparency = 0.3
@@ -1290,7 +1305,7 @@ function AbilityController.start()
 		end
 		local elementId = slotElement(slot)
 		if not elementId then
-			if slot == "Secondary" and #unlockedList() >= 2 and CoreController.open then
+			if slot == "Secondary" and castableCount() >= 2 and CoreController.open then
 				CoreController.open(nil) -- elegir el secundario en el panel
 			end
 			return

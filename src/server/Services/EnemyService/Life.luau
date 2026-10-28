@@ -108,6 +108,8 @@ local function refreshSpeed(enemy: Enemy, now: number)
 	if enemy.Enraged and enemy.Def.Enrage then
 		base *= enemy.Def.Enrage.SpeedMultiplier
 	end
+	-- Jefes persiguiendo a quien huye (EnemyConfig.Pursuit; BossAttacks.updateBoss)
+	base *= enemy.SpeedBoost or 1
 	local speed = EnemyLogic.speed(base, enemy.Control, now)
 	if enemy.Humanoid.WalkSpeed ~= speed then
 		enemy.Humanoid.WalkSpeed = speed

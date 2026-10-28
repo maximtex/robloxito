@@ -37,6 +37,8 @@
 --   Style: string                       estilo de pelea elegido (StyleLogic; StyleService).
 --   Cave: { number }                    bichos derrotados para cada puerta de la Cueva de los
 --                                       Espinillos (CaveLogic; CaveService).
+--   FixedStyle: string?                 clase fija del personaje (los creados desde que hay
+--                                       personajes; nil = puede cambiar de estilo, como antes).
 --   Settings: { HudScale }              ajustes del jugador (⚙️ Ajustes: tamaño de la
 --                                       interfaz; SettingsLogic; SettingsService). Campo
 --                                       opcional: sin él, los ajustes por defecto (no cambia
@@ -82,6 +84,8 @@ local CaveLogic = require(ReplicatedStorage:WaitForChild("Shared").CaveLogic)
 local SkillLogic = require(ReplicatedStorage:WaitForChild("Shared").SkillLogic)
 local ClassLogic = require(ReplicatedStorage:WaitForChild("Shared").ClassLogic)
 local SettingsLogic = require(ReplicatedStorage:WaitForChild("Shared").SettingsLogic)
+local ProfileLogic = require(ReplicatedStorage:WaitForChild("Shared").ProfileLogic)
+local StyleConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.StyleConfig)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 2: añade Diamonds y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
@@ -157,6 +161,7 @@ export type PetData = {
 	Classes: ClassLogic.ClassData, -- clases de cada estilo, niveles y la activa (StyleService)
 	World: number, -- mundo en el que estabas (1 o 2; ZoneService: apareces allí)
 	Settings: SettingsLogic.Settings, -- ajustes del jugador: tamaño de la interfaz (SettingsService)
+	FixedStyle: string?, -- clase fija de este personaje (nil: puede cambiar de estilo)
 	-- Solo en memoria (no se guarda): lo convertido al cargar, para avisar al jugador.
 	EconomyConverted: { Energy: number, Money: number }?, -- ⚡ de la economía 1 convertida en 💰
 	-- Devolución de la Resonancia y de las ventajas de renacer quitadas (guardado v16), una vez.
@@ -193,9 +198,15 @@ local function getStore(): (DataStore?, string?)
 	return nil, tostring(result)
 end
 
-local function keyFor(userId: number): string
+-- Entrada de un personaje: el 1 es la de siempre (las partidas de antes siguen ahí); los
+-- demás, "player_<id>_s<hueco>" (ProfileLogic).
+local function keyFor(userId: number, slot: number?): string
+	if slot and slot > 1 then
+		return ("player_%d_s%d"):format(userId, slot)
+	end
 	return "player_" .. userId
 end
+SaveService.keyFor = keyFor
 
 local function isLockedByOtherSession(data: { [string]: any }): boolean
 	local session = data.Session
@@ -523,11 +534,15 @@ local function sanitize(raw: any): PetData
 	result.World = if raw.World == 2 then 2 else 1
 	-- Ajustes: sin el campo (guardados de antes de los ajustes), los de por defecto.
 	result.Settings = SettingsLogic.sanitize(raw.Settings)
+	-- Clase fija del personaje: sin el campo (o una que no existe), sin clase fija.
+	result.FixedStyle = if type(raw.FixedStyle) == "string" and StyleConfig.Styles[raw.FixedStyle] then raw.FixedStyle else nil
 
 	return result
 end
 
-function SaveService.load(userId: number): (LoadStatus, PetData?)
+-- Carga (y bloquea) un personaje (`slot`, por defecto el 1). El tercer valor dice si la
+-- entrada era nueva (sin mascotas guardadas): un personaje recién creado.
+function SaveService.load(userId: number, slot: number?): (LoadStatus, PetData?, boolean)
 	local dataStore, storeError = getStore()
 	if not dataStore then
 		if storeError and isUnavailableError(storeError) then
@@ -537,7 +552,7 @@ function SaveService.load(userId: number): (LoadStatus, PetData?)
 		return "Failed", nil
 	end
 
-	local key = keyFor(userId)
+	local key = keyFor(userId, slot)
 	for attempt = 1, LOAD_ATTEMPTS do
 		-- En el último intento se toma el bloqueo aunque otra sesión lo tenga
 		-- (la otra sesión probablemente se cerró sin liberarlo).
@@ -560,7 +575,9 @@ function SaveService.load(userId: number): (LoadStatus, PetData?)
 		end)
 
 		if ok and not lockedElsewhere then
-			return "Loaded", sanitize(loaded or result)
+			local raw = loaded or result
+			local isNew = not (type(raw) == "table" and type(raw.Pets) == "table")
+			return "Loaded", sanitize(raw), isNew
 		elseif not ok then
 			local message = tostring(result)
 			if isUnavailableError(message) then
@@ -578,7 +595,8 @@ function SaveService.load(userId: number): (LoadStatus, PetData?)
 end
 
 -- Guarda las mascotas. `release` libera el bloqueo de sesión (al salir el jugador).
-function SaveService.save(userId: number, data: PetData, release: boolean): boolean
+-- `slot`: el personaje (por defecto el 1).
+function SaveService.save(userId: number, data: PetData, release: boolean, slot: number?): boolean
 	local dataStore = getStore()
 	if not dataStore then
 		return false
@@ -618,7 +636,8 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local classes = ClassLogic.serialize(data.Classes or ClassLogic.empty())
 	local world = if data.World == 2 then 2 else 1
 	local settings = SettingsLogic.serialize(data.Settings)
-	local key = keyFor(userId)
+	local fixedStyle = if type(data.FixedStyle) == "string" and StyleConfig.Styles[data.FixedStyle] then data.FixedStyle else nil
+	local key = keyFor(userId, slot)
 
 	for attempt = 1, SAVE_ATTEMPTS do
 		local lostLock = false
@@ -667,6 +686,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.Classes = classes
 				stored.World = world
 				stored.Settings = settings
+				stored.FixedStyle = fixedStyle
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)
@@ -685,6 +705,56 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 		end
 	end
 	return false
+end
+
+-- Cuentas (personajes: ProfileLogic) ----------------------------------------------------------
+-- DataStore aparte, una entrada por jugador ("account_<id>"). Se lee sin bloqueo: solo la
+-- cambia el propio jugador (crear o elegir personaje) y al salir (resumen de la lista).
+local ACCOUNT_STORE = "RebirthCity_Accounts_v1"
+local accountStore: DataStore? = nil
+
+local function getAccountStore(): DataStore?
+	if accountStore then
+		return accountStore
+	end
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(ACCOUNT_STORE)
+	end)
+	if ok then
+		accountStore = result
+		return result
+	end
+	return nil
+end
+
+-- "Loaded" con la cuenta (vacía si es nueva) o "Failed" (sin personajes esta sesión: se
+-- juega con el 1, como antes).
+function SaveService.loadAccount(userId: number): (string, ProfileLogic.Account?)
+	local dataStore = getAccountStore()
+	if not dataStore then
+		return "Failed", nil
+	end
+	local ok, raw = pcall(function()
+		return (dataStore :: any):GetAsync("account_" .. userId)
+	end)
+	if not ok then
+		return "Failed", nil
+	end
+	return "Loaded", ProfileLogic.sanitize(raw, StyleConfig.Styles)
+end
+
+function SaveService.saveAccount(userId: number, account: ProfileLogic.Account): boolean
+	local dataStore = getAccountStore()
+	if not dataStore then
+		return false
+	end
+	local ok = pcall(function()
+		dataStore:UpdateAsync("account_" .. userId, function(old: any)
+			ProfileLogic.merge(account, ProfileLogic.sanitize(old, StyleConfig.Styles))
+			return ProfileLogic.serialize(account)
+		end)
+	end)
+	return ok
 end
 
 return SaveService

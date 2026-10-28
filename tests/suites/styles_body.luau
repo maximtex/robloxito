@@ -218,4 +218,22 @@ end
 check("meteoros: 6 puntos, el primero en el objetivo y todos a 9 o menos", inside)
 check("meteoros: cantidades raras no rompen", #StyleLogic.meteorOffsets(0 / 0, 9) == 0 and #StyleLogic.meteorOffsets(99, 9) == 20)
 
+-- Dash para todos (pruebas con amigos: sustituye a las Raíces de la Q)
+check("dash: Armas y Guerrero usan el de todos", StyleLogic.dashSpec("Weapons") == StyleConfig.Dash and StyleLogic.dashSpec("Warrior") == StyleConfig.Dash and StyleConfig.Dash.Distance > 0 and StyleConfig.Dash.Cooldown > 0)
+check("dash: el de Puños es mejor (más largo y seguido)", StyleLogic.dashSpec("Fists") == StyleConfig.Styles.Fists.Dash and StyleConfig.Styles.Fists.Dash.Cooldown < StyleConfig.Dash.Cooldown and StyleConfig.Styles.Fists.Dash.Distance >= StyleConfig.Dash.Distance)
+check("dash: Magia usa su teletransporte", StyleLogic.dashSpec("Magic") == nil and StyleConfig.Styles.Magic.Blink ~= nil)
+
+-- Equipo visible (OutfitLogic): pieza de cada clase y armadura por grados
+local allPieces = true
+for _, styleId in StyleConfig.Order do
+	allPieces = allPieces and OutfitLogic.piece(styleId) ~= nil
+end
+check("equipo: cada clase lleva su pieza", allPieces and OutfitLogic.piece("Nope") == nil and OutfitLogic.piece(nil) == nil)
+check("equipo: sin Armadura no hay armadura", OutfitLogic.armorTier(0) == 0 and OutfitLogic.armorTier(nil) == 0 and OutfitLogic.armorTier(0 / 0) == 0 and OutfitLogic.armor(0).Shoulders == nil)
+check("equipo: grados 1, 4, 7 y 10", OutfitLogic.armorTier(1) == 1 and OutfitLogic.armorTier(3) == 1 and OutfitLogic.armorTier(4) == 2 and OutfitLogic.armorTier(7) == 3 and OutfitLogic.armorTier(10) == 4 and OutfitLogic.armorTier(99) == 4)
+check("equipo: el máximo de los grados es el máximo de la Armadura", OutfitLogic.ArmorTiers[#OutfitLogic.ArmorTiers] == 10)
+local leather, iron, steel, gold = OutfitLogic.armor(1), OutfitLogic.armor(2), OutfitLogic.armor(3), OutfitLogic.armor(4)
+check("equipo: cuero, hierro, peto de acero y oro brillante", leather.Shoulders == "Cuero" and not leather.Chest and iron.Shoulders == "Hierro" and not iron.Chest
+	and steel.Shoulders == "Acero" and steel.Chest and not steel.Trim and gold.Shoulders == "Oro" and gold.Chest and gold.Trim)
+check("equipo: la clave solo cambia si cambia lo que se ve", OutfitLogic.key("Magic", 4) == OutfitLogic.key("Magic", 6) and OutfitLogic.key("Magic", 3) ~= OutfitLogic.key("Magic", 4) and OutfitLogic.key("Magic", 4) ~= OutfitLogic.key("Fists", 4))
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

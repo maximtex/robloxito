@@ -55,6 +55,8 @@ local MESSAGES = {
 	NotOwned = "Ya no lo tienes.",
 	InventoryFull = "Tu inventario de mascotas está lleno.",
 	Full = "Ya tienes el máximo de tiempo de esa poción (2 h).",
+	FullHealth = "Tienes la vida llena.",
+	Cooldown = "Espera un momento para tomar otra.",
 	TooFast = "Más despacio.",
 }
 
@@ -513,7 +515,7 @@ local function buildGui()
 	}, boostStack)
 	local boostScale = UiKit.create("UIScale", {}, boostStack)
 	local chips = {}
-	for order, potionId in ItemLogic.potionOrder() do
+	for order, potionId in ItemLogic.boostOrder() do
 		local def = ItemConfig.Potions[potionId]
 		local chip = UiKit.create("Frame", {
 			Name = potionId,
@@ -1041,6 +1043,19 @@ function InventoryController.start()
 
 	resultRemote.OnClientEvent:Connect(function(success: boolean, code: string, action: string, detail: any)
 		if action == "Drop" and typeof(detail) == "table" then
+			-- Solo Pociones de Vida (salen a menudo): un aviso pequeño, sin el cartel de botín
+			local onlyHeal = detail.Egg == nil and #(detail.Potions or {}) > 0
+			for _, potionId in detail.Potions or {} do
+				local def = ItemConfig.Potions[potionId]
+				if not (def and def.Heal) then
+					onlyHeal = false
+				end
+			end
+			if onlyHeal then
+				local def = ItemConfig.Potions[detail.Potions[1]]
+				Toasts.show(("%s +%d %s"):format(def.Icon, #detail.Potions, def.DisplayName), { Color = def.Color, Style = "Line", Key = "HealDrop" })
+				return
+			end
 			local names = {}
 			local potionCount = 0
 			for _, potionId in detail.Potions or {} do
@@ -1082,7 +1097,10 @@ function InventoryController.start()
 		elseif action == "UsePotion" then
 			if success and typeof(detail) == "table" then
 				local def = ItemConfig.Potions[detail.PotionId]
-				if def then
+				if def and def.Heal then
+					Toasts.show(("%s +%d de vida"):format(def.Icon, tonumber(detail.Healed) or 0), { Color = def.Color, Style = "Line", Key = "HealPotion" })
+					Juice.sound(Juice.Sounds.Upgrade, 1.4)
+				elseif def then
 					Toasts.show(("%s %s activa: %s"):format(def.Icon, def.Short, clockText(detail.Seconds or 0)), { Color = def.Color })
 					Juice.sound(Juice.Sounds.Upgrade, 1.2)
 				end

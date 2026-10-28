@@ -24,6 +24,7 @@ local PetConfig = require(Shared.Config.PetConfig)
 local EggConfig = require(Shared.Config.EggConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local PetMath = require(Shared.PetMath)
+local PetClassLogic = require(Shared.PetClassLogic)
 local MonetizationLogic = require(Shared.MonetizationLogic)
 local MonetizationConfig = require(Shared.Config.MonetizationConfig)
 local formatNumber = require(Shared.Util.FormatNumber)
@@ -534,8 +535,11 @@ function PetController.start()
 		-- Las equipadas suben el daño y el dinero (la mitad de su bonificación:
 		-- CombatConfig.PetDamageShare y PetMoneyShare)
 		local half = 1 + (multiplier - 1) * 0.5
-		ui.InventorySubtitle.Text = ("💥 y 💰 ×%s  ·  %d/%d en total%s%s"):format(
+		-- Y lo que dan sus clases (Atacante, Tanque, Sanadora, Recolectora)
+		local classes = PetClassLogic.summary(PetClassLogic.bonuses(equippedIds))
+		ui.InventorySubtitle.Text = ("💥 y 💰 ×%s%s  ·  %d/%d en total%s%s"):format(
 			formatNumber(half, 2),
+			if classes ~= "" then "  ·  " .. classes else "",
 			#snapshot.Pets,
 			snapshot.MaxInventory,
 			status,
@@ -649,20 +653,25 @@ function PetController.start()
 				TextYAlignment = Enum.TextYAlignment.Top,
 				Text = pet.DisplayName,
 			})
+			-- Rareza y clase (Atacante, Tanque, Sanadora o Recolectora) con lo que da
+			local classId, classValue = PetClassLogic.bonusOf(entry.PetId)
+			local classDef = PetConfig.Classes[classId]
 			UiKit.text(card, "Rarity", {
 				Position = UDim2.fromOffset(10, 46),
-				Size = UDim2.new(1, -20, 0, 16),
+				Size = UDim2.new(1, -30, 0, 16),
 				TextSize = 13,
 				TextColor3 = rarity.Color,
-				Text = rarity.DisplayName,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Text = rarity.DisplayName .. " · " .. classDef.Icon .. " " .. classDef.Name,
 			})
 			UiKit.text(card, "Bonus", {
 				Position = UDim2.fromOffset(10, 63),
 				Size = UDim2.new(1, -20, 0, 16),
 				Font = FONTS.Light,
-				TextSize = 13,
+				TextSize = 12,
 				TextColor3 = THEME.Accent,
-				Text = bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " poder",
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Text = bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " · " .. PetClassLogic.amountText(classId, classValue),
 			})
 			if equipped then
 				UiKit.text(card, "Equipped", {
@@ -970,7 +979,7 @@ function PetController.start()
 				Font = FONTS.Light,
 				TextSize = 14,
 				TextColor3 = THEME.Muted,
-				Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " de poder",
+				Text = rarity.DisplayName .. "  ·  " .. PetConfig.Classes[PetClassLogic.classOf(entry.PetId)].Icon .. "  ·  " .. bonusText(PetMath.getPetMultiplier(entry.PetId)) .. " de poder",
 			})
 			UiKit.text(row, "Chance", {
 				AnchorPoint = Vector2.new(1, 0.5),
@@ -1149,7 +1158,7 @@ function PetController.start()
 		ui.HatchStatus.TextColor3 = THEME.Gold
 		ui.RevealName.Text = if pet then pet.DisplayName else petId
 		ui.RevealName.TextColor3 = rarity.Color
-		ui.RevealDetails.Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(petId)) .. " de poder"
+		ui.RevealDetails.Text = rarity.DisplayName .. "  ·  " .. bonusText(PetMath.getPetMultiplier(petId)) .. " de poder  ·  " .. PetClassLogic.describe(petId)
 		ui.RevealEquip.Text = if autoEquipped then "✓ Equipada automáticamente" else "Guardada en tu inventario (ya tienes el máximo equipado)"
 		-- Apertura ×3: las otras dos mascotas, con el color de su rareza, debajo.
 		if #extras > 0 then

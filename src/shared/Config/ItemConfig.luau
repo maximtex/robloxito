@@ -1,6 +1,10 @@
 -- Artículos del inventario (🎒 Inventario: InventoryController; los concede ItemService):
 -- - Pociones (impulsos): duplican algo durante un rato. Tomar otra igual suma su tiempo al
 --   que quede (hasta MaxBoostSeconds). El tiempo solo corre mientras se juega.
+-- - Poción de Vida (Heal): cura al momento (pruebas con amigos: con la vida volviendo sola
+--   las pociones no servían; ahora la vida casi no vuelve sola). Se toma con la tecla Y o su
+--   botón ❤️ (QuickPotionController) o desde el inventario; HealCooldown entre dos. La sueltan
+--   los enemigos más a menudo que las otras (HealthDrops).
 -- - Huevos guardados: los sueltan los jefes y se abren desde el inventario, sin coste.
 -- - Títulos: se ganan con logros y el equipado se ve encima de la cabeza (lo ven todos).
 -- - Botín de los jefes (BossDrops): a cada jugador que recibe parte de la recompensa. Los
@@ -14,6 +18,15 @@ local ItemConfig = {
 	--   Money   dinero de los enemigos (EnemyService: lootMultiplier)
 	--   Luck    sorteo de los huevos: se tira LuckRolls veces y se queda el mejor (PetService)
 	Potions = {
+		Health = {
+			DisplayName = "Poción de Vida",
+			Short = "Vida",
+			Description = "Cura al momento la mitad de tu vida máxima (tecla Y).",
+			Icon = "❤️",
+			Color = Color3.fromRGB(236, 72, 104),
+			Heal = 0.5, -- parte de la vida máxima (sin tiempo: no es un impulso)
+			Order = 0,
+		},
 		Diamonds = {
 			DisplayName = "Poción de Diamantes",
 			Short = "x2 Diamantes",
@@ -56,6 +69,9 @@ local ItemConfig = {
 		},
 	},
 	MaxBoostSeconds = 2 * 60 * 60, -- tiempo acumulado como máximo por poción
+	HealCooldown = 6, -- segundos entre dos Pociones de Vida
+	-- Poción de Vida al derrotar a un enemigo (probabilidad según su Kind; los jefes, siempre)
+	HealthDrops = { Normal = 0.03, Strong = 0.12, Boss = 1 },
 	MaxStack = 999, -- pociones o huevos de un mismo tipo como máximo
 	-- Suerte: el sorteo del huevo se repite estas veces y se queda el número más alto (en
 	-- EggConfig.Chances las mascotas raras van al final, así que salen más).

@@ -117,6 +117,15 @@ print("-- 5. El cliente no puede declarar pasos")
 local dan = newPlayer("Dan", 4)
 join(dan)
 advance(0.5)
+-- Pruebas con amigos: al principio no se puede omitir (TutorialConfig.MinSkipStep)
+fireServer("SkipTutorial", dan, { Status = "Completed", Step = 5 })
+check("al principio no se puede omitir: hay que hacer los primeros pasos", status(dan) == "Active" and step(dan) == 0 and TutorialConfig.MinSkipStep >= 1)
+check("TutorialLogic.canSkip: solo con los primeros pasos hechos", not TutorialLogic.canSkip({ Status = "Active", Step = 0 }) and TutorialLogic.canSkip({ Status = "Active", Step = TutorialConfig.MinSkipStep })
+	and not TutorialLogic.canSkip({ Status = "Skipped", Step = 5 }))
+-- (las comprobaciones de omitir de aquí abajo, sin esa espera)
+local minSkip = TutorialConfig.MinSkipStep
+TutorialConfig.MinSkipStep = 0
+advance(1.1)
 fireServer("SkipTutorial", dan, { Status = "Completed", Step = 5 })
 check("argumentos extra se ignoran: solo puede omitir (Skipped, no Completed)", status(dan) == "Skipped" and step(dan) == 0)
 fireServer("SkipTutorial", alice)
@@ -171,4 +180,5 @@ leave(h2)
 advance(0)
 check("cada uno guarda su propio estado", record(8).Tutorial.Status == "Active" and record(8).Tutorial.Step == 2 and record(9).Tutorial.Status == "Skipped")
 
+TutorialConfig.MinSkipStep = minSkip
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

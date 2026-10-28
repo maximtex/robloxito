@@ -10,6 +10,33 @@
 
 local PetConfig = {
 	MaxEquipped = 3,
+
+	-- Clases de mascota (pruebas con amigos: "no se entiende para qué sirven"). Cada mascota
+	-- tiene una (según su forma: StyleClasses, o ClassById) y, además de su multiplicador de
+	-- siempre, da su bonificación: Base × ClassPower de su rareza, sumando las equipadas y
+	-- con tope (Max). PetClassLogic lo calcula; lo aplican PlayerDataService (daño),
+	-- StyleService (daño recibido), HealthService (curación) y EnemyService (💰).
+	Classes = {
+		Attacker = { Name = "Atacante", Icon = "⚔️", Text = "Más daño", Base = 0.03, Max = 0.6, Order = 1 },
+		Tank = { Name = "Tanque", Icon = "🛡️", Text = "Recibes menos daño", Base = 0.03, Max = 0.35, Order = 2 },
+		Healer = { Name = "Sanadora", Icon = "💚", Text = "Te cura poco a poco, también peleando", Base = 0.0015, Max = 0.015, Order = 3 },
+		Collector = { Name = "Recolectora", Icon = "💰", Text = "Más 💰 de los enemigos", Base = 0.05, Max = 1, Order = 4 },
+	},
+	ClassPower = { Common = 1, Uncommon = 1.5, Rare = 2, Epic = 3, Legendary = 4, Mythic = 5, Exclusive = 5 },
+	StyleClasses = {
+		Ember = "Attacker",
+		Quartz = "Attacker",
+		Dragon = "Attacker",
+		ClassicFly = "Attacker",
+		Turtle = "Tank",
+		Mushroom = "Healer",
+		Owl = "Healer",
+		Fawn = "Healer",
+		Sprout = "Collector",
+		Fox = "Collector",
+	},
+	-- Las clásicas comparten forma: cada una la suya (las ★ Evo, como su mascota base)
+	ClassById = { ClassicDog = "Attacker", ClassicBunny = "Collector", ClassicBear = "Tank", ClassicDragon = "Attacker" },
 	MaxInventory = 60,
 	EvolutionCopiesRequired = 3,
 

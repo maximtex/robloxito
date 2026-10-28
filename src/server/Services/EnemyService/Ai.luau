@@ -5,6 +5,7 @@
 local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -122,6 +123,7 @@ local function attack(enemy: Enemy, target: Player)
 	enemy.WindupUntil = os.clock() + windup
 	enemy.Humanoid:MoveTo(origin)
 	setEyes(enemy, WINDUP_EYES) -- aviso del golpe
+	enemy.Model:SetAttribute("AttackKind", nil) -- golpe (no disparo): media luna en el suelo
 	enemy.Model:SetAttribute("AttackTarget", target.UserId)
 	enemy.Model:SetAttribute("AttackDir", forward)
 	enemy.Model:SetAttribute("AttackReach", reach)
@@ -147,6 +149,156 @@ local function attack(enemy: Enemy, target: Player)
 			damagePlayer(enemy, target, humanoid, enemy.Def.Damage)
 		end
 	end)
+end
+
+-- Disparo de los bichos a distancia (Def.Ranged; pruebas con amigos: "todos son cuerpo a
+-- cuerpo"). Se avisa igual que un golpe (ojos y ¡! sobre su objetivo, AttackKind = "Shot")
+-- y al soltarlo sale una bola hacia donde estaba el jugador EN ESE MOMENTO: moverse durante
+-- el vuelo la esquiva. Daña al primer jugador de su mundo que toque.
+local SHOT_HEIGHT = 1.5 -- sobre la raíz
+
+local function launchShot(enemy: Enemy, from: Vector3, aim: Vector3, settings)
+	local direction = aim - from
+	if direction.Magnitude < 0.5 then
+		return
+	end
+	-- Sigue un poco más allá del punto (no se para justo donde estabas)
+	local range = math.max(direction.Magnitude + 6, 8)
+	local finish = from + direction.Unit * range
+	local travel = range / math.max(settings.Speed or 36, 1)
+	local color = settings.Color or enemy.Def.Look.Secondary
+	local ball = PartFactory.ball(nil :: any, "EnemyShot", from, settings.Size or 1.2, color, Enum.Material.Neon, false)
+	placeFx(ball, enemy.Run)
+	local radius = settings.Radius or 2
+	task.spawn(function()
+		local began = os.clock()
+		while ball.Parent do
+			local t = (os.clock() - began) / travel
+			if t >= 1 then
+				break
+			end
+			local position = from:Lerp(finish, t)
+			ball.Position = position
+			for _, player in Players:GetPlayers() do
+				local root, humanoid = characterOf(player)
+				if root and humanoid and sameWorld(enemy, player) and (root.Position - position).Magnitude <= radius then
+					damagePlayer(enemy, player, humanoid, settings.Damage)
+					burst(position, color, 8, false, enemy.Run)
+					ball:Destroy()
+					return
+				end
+			end
+			RunService.Heartbeat:Wait()
+		end
+		if ball.Parent then
+			ball:Destroy()
+		end
+	end)
+end
+
+local function shoot(enemy: Enemy, target: Player)
+	local settings = enemy.Def.Ranged
+	local generation = enemy.Generation
+	local origin = enemy.Root.Position
+	local targetRoot = characterOf(target)
+	if not targetRoot then
+		return
+	end
+	local forward = Vector3.new(targetRoot.Position.X - origin.X, 0, targetRoot.Position.Z - origin.Z)
+	forward = if forward.Magnitude > 0.05 then forward.Unit else Vector3.new(0, 0, -1)
+	enemy.Root.CFrame = CFrame.lookAt(origin, origin + forward)
+	local windup = settings.Windup or 0.7
+	enemy.WindupUntil = os.clock() + windup
+	enemy.Humanoid:MoveTo(origin)
+	setEyes(enemy, WINDUP_EYES)
+	enemy.Model:SetAttribute("AttackKind", "Shot")
+	enemy.Model:SetAttribute("AttackTarget", target.UserId)
+	enemy.Model:SetAttribute("AttackDir", forward)
+	enemy.Model:SetAttribute("AttackReach", settings.Range)
+	enemy.Model:SetAttribute("AttackAt", Workspace:GetServerTimeNow() + windup)
+	task.delay(windup, function()
+		if enemy.Generation ~= generation or enemy.Status.State == "Dead" then
+			return
+		end
+		enemy.WindupUntil = nil
+		setEyes(enemy, restingEyes(enemy))
+		if EnemyLogic.isStunned(enemy.Control, os.clock()) then
+			return
+		end
+		local root = characterOf(target)
+		if not root then
+			return
+		end
+		local from = enemy.Root.Position + Vector3.new(0, SHOT_HEIGHT, 0)
+		launchShot(enemy, from, root.Position, settings)
+	end)
+end
+
+-- ¿Ve a su objetivo? (sin paredes en medio; no cuentan enemigos ni personajes)
+local function canSee(enemy: Enemy, point: Vector3): boolean
+	local origin = enemy.Root.Position + Vector3.new(0, SHOT_HEIGHT, 0)
+	local direction = point - origin
+	if direction.Magnitude < 1 then
+		return true
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local ignore: { Instance } = { ctx.folder, ctx.fxFolder }
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(ignore, player.Character)
+		end
+	end
+	params.FilterDescendantsInstances = ignore
+	local hit = Workspace:Raycast(origin, direction, params)
+	return hit == nil or not hit.Instance.CanCollide
+end
+
+-- Atascos al perseguir (pruebas con amigos: "se quedan pegados al terreno"): si casi no se
+-- mueve en STUCK_JUMP s salta; si sigue, rodea por un lado DETOUR_SECONDS; y si lleva
+-- EnemyConfig.StuckSeconds atascado, vuelve a su sitio (place). true si está rodeando (el
+-- que llama no le da otra orden de moverse).
+local STUCK_MOVE = 0.6 -- studs que cuentan como moverse
+local STUCK_JUMP = 0.9
+local STUCK_DETOUR = 1.8
+local DETOUR_SECONDS = 0.9
+
+local function handleStuck(enemy: Enemy, now: number, goal: Vector3): boolean
+	local position = enemy.Root.Position
+	if enemy.DetourUntil and now < enemy.DetourUntil and enemy.DetourPoint then
+		enemy.Humanoid:MoveTo(enemy.DetourPoint)
+		return true
+	end
+	enemy.DetourUntil = nil
+	local last = enemy.ChaseCheck
+	if not last or flat(position - last) > STUCK_MOVE then
+		enemy.ChaseCheck = position
+		enemy.ChaseStillSince = now
+		return false
+	end
+	local still = now - (enemy.ChaseStillSince or now)
+	if still > EnemyConfig.StuckSeconds then
+		place(enemy) -- de vuelta a su sitio (sigue persiguiendo desde allí)
+		enemy.ChaseCheck = nil
+		enemy.ChaseStillSince = nil
+		return true
+	end
+	if still > STUCK_DETOUR then
+		-- Rodeo: a un lado (al azar) de la línea hacia su objetivo
+		local toward = Vector3.new(goal.X - position.X, 0, goal.Z - position.Z)
+		toward = if toward.Magnitude > 0.05 then toward.Unit else Vector3.new(0, 0, -1)
+		local side = Vector3.new(-toward.Z, 0, toward.X) * (if math.random() < 0.5 then -1 else 1)
+		enemy.DetourPoint = position + side * 7 + toward * 2
+		enemy.DetourUntil = now + DETOUR_SECONDS
+		enemy.ChaseStillSince = now - STUCK_JUMP -- si el rodeo no sirve, vuelve a probar
+		enemy.Humanoid.Jump = true
+		enemy.Humanoid:MoveTo(enemy.DetourPoint)
+		return true
+	end
+	if still > STUCK_JUMP then
+		enemy.Humanoid.Jump = true
+	end
+	return false
 end
 
 -- Golpe en área del jefe: círculo de aviso en el suelo y daño al terminar.
@@ -276,8 +428,29 @@ local function updateEnemy(enemy: Enemy, now: number)
 
 	local offset = targetRoot.Position - position
 	local distance = flat(offset)
+	-- A distancia (Def.Ranged): se para a tiro y dispara; si te acercas mientras recarga,
+	-- retrocede un poco (sin salir de su zona). Pegado a él, golpea como los demás.
+	local ranged = enemy.Def.Ranged
+	if ranged and distance > enemy.Def.AttackRange + enemy.Radius and distance <= ranged.Range and canSee(enemy, targetRoot.Position) then
+		status.State = "Attack"
+		enemy.ChaseCheck = nil
+		local flatOffset = Vector3.new(offset.X, 0, offset.Z)
+		local away = if distance > 0.05 then -flatOffset.Unit else Vector3.zero
+		local backTo = position + away * 6
+		if distance < (ranged.Keep or 0) and now < enemy.NextAttack and flat(backTo - enemy.LeashCenter) <= enemy.LeashRadius - 2 then
+			enemy.Humanoid:MoveTo(backTo)
+		else
+			enemy.Humanoid:MoveTo(if distance > 0.05 then position - away * 0.1 else position)
+		end
+		if now >= enemy.NextAttack and not stunned then
+			enemy.NextAttack = now + EnemyLogic.attackCooldown(ranged.Cooldown or 2.5, enemy.Control, now)
+			shoot(enemy, target)
+		end
+		return
+	end
 	if distance <= enemy.Def.AttackRange + enemy.Radius then
 		status.State = "Attack"
+		enemy.ChaseCheck = nil -- quieto a propósito: no cuenta como atasco
 		-- Detenerse mirando al objetivo (si están superpuestos no hay dirección: solo parar)
 		local flatOffset = Vector3.new(offset.X, 0, offset.Z)
 		enemy.Humanoid:MoveTo(if distance > 0.05 then position + flatOffset.Unit * 0.1 else position)
@@ -288,7 +461,9 @@ local function updateEnemy(enemy: Enemy, now: number)
 		end
 	else
 		status.State = "Chase"
-		enemy.Humanoid:MoveTo(targetRoot.Position)
+		if not handleStuck(enemy, now, targetRoot.Position) then
+			enemy.Humanoid:MoveTo(targetRoot.Position)
+		end
 	end
 end
 
@@ -301,6 +476,7 @@ function Part.install(context: any)
 	context.inSafeArea = inSafeArea
 	context.inSafeZone = inSafeZone
 	context.safeAreasOf = safeAreasOf
+	context.launchShot = launchShot
 	context.slam = slam
 	context.updateEnemy = updateEnemy
 end

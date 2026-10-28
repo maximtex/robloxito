@@ -15,6 +15,16 @@ function AbilityLogic.get(elementId: any): any
 	return AbilityConfig.Abilities[elementId]
 end
 
+-- La habilidad que da un elemento en la Q / R (nil si no da ninguna: Naturaleza, Skill =
+-- false). get() sigue devolviendo sus datos para las marcas y los combos.
+function AbilityLogic.castable(elementId: any): any
+	local ability = AbilityLogic.get(elementId)
+	if ability and ability.Skill == false then
+		return nil
+	end
+	return ability
+end
+
 local function round2(value: number): number
 	return math.floor(value * 100 + 0.5) / 100
 end

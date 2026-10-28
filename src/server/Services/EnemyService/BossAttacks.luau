@@ -6,6 +6,7 @@ local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local StudFloor = require(Shared.Util.StudFloor)
@@ -225,6 +226,110 @@ local function bossVolley(enemy: Enemy, target: Player)
 	end)
 end
 
+-- Peligros de la arena (Def.Hazard) ----------------------------------------------------
+-- Cada Interval (más seguido con furia) caen Count avisos en el suelo: uno donde está cada
+-- jugador de la pelea (con un poco de azar, para que haya que moverse) y el resto por el
+-- territorio. Tras Telegraph, el efecto de su Style y el daño (y ralentizar, si SlowFactor) a
+-- quien siga dentro. No dependen de lo que haga el jefe: también caen mientras ataca.
+
+local HAZARD_SPOKES = 5
+
+local function hazardEffect(enemy: Enemy, center: Vector3, settings)
+	local style = settings.Style
+	local color = settings.Color or enemy.Def.Look.Secondary
+	local radius = settings.Radius
+	if style == "Crystal" or style == "Rock" then
+		-- Cae desde arriba y se rompe al tocar el suelo
+		local size = if style == "Rock" then Vector3.new(radius * 0.7, radius * 0.7, radius * 0.7) else Vector3.new(radius * 0.45, radius * 1.1, radius * 0.45)
+		local shard = PartFactory.part(nil :: any, "HazardDrop", {
+			Size = size,
+			CFrame = CFrame.new(center + Vector3.new(0, 20, 0)) * CFrame.Angles(0, math.rad(math.random(0, 90)), math.rad(12)),
+			Color = color,
+			Material = if style == "Rock" then Enum.Material.Basalt else Enum.Material.Neon,
+			Solid = false,
+		})
+		placeFx(shard, enemy.Run)
+		TweenService:Create(shard, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = CFrame.new(center + Vector3.new(0, size.Y / 2, 0)) }):Play()
+		Debris:AddItem(shard, 0.9)
+	elseif style == "Lava" then
+		-- Columna de lava que sube y se apaga
+		local column = PartFactory.verticalCylinder(nil :: any, "HazardColumn", center + Vector3.new(0, 4, 0), 8, radius * 1.4, color, Enum.Material.Neon, false)
+		column.Transparency = 0.2
+		placeFx(column, enemy.Run)
+		TweenService:Create(column, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1, Size = Vector3.new(12, radius * 0.4, radius * 0.4) }):Play()
+		Debris:AddItem(column, 0.7)
+	else
+		-- "Spikes" (espinas) e "Ice" (carámbanos): pinchos que salen del suelo en círculo
+		local material = if style == "Ice" then Enum.Material.Glass else Enum.Material.Wood
+		for index = 1, HAZARD_SPOKES do
+			local angle = index / HAZARD_SPOKES * math.pi * 2
+			local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * radius * 0.55
+			local spike = PartFactory.part(nil :: any, "HazardSpike", {
+				Size = Vector3.new(0.9, 4.5, 0.9),
+				CFrame = CFrame.new(center + offset + Vector3.new(0, 1.8, 0)) * CFrame.Angles(math.rad(14), angle, 0),
+				Color = color,
+				Material = material,
+				Solid = false,
+			})
+			placeFx(spike, enemy.Run)
+			Debris:AddItem(spike, 1.1)
+		end
+	end
+	burst(center + Vector3.new(0, 1, 0), color, 18, false, enemy.Run)
+end
+
+local function dropHazard(enemy: Enemy, center: Vector3, settings)
+	local generation = enemy.Generation
+	telegraphDisc(center, settings.Radius, settings.Color or enemy.Def.Look.Secondary, settings.Telegraph, enemy.Run)
+	task.delay(settings.Telegraph, function()
+		if enemy.Generation ~= generation or enemy.Status.State == "Dead" then
+			return
+		end
+		hazardEffect(enemy, center, settings)
+		local slowFactor, slowSeconds = settings.SlowFactor, settings.SlowSeconds
+		damageInRadius(enemy, center, settings.Radius, settings.Damage, if slowFactor and slowSeconds then function(_player, humanoid)
+			slowPlayer(humanoid, slowFactor, slowSeconds)
+		end else nil)
+	end)
+end
+
+local function updateHazards(enemy: Enemy, now: number)
+	local settings = enemy.Def.Hazard
+	local brain = enemy.Brain :: Brain
+	if not settings or not enemy.Target or enemy.Status.State == "Return" then
+		return
+	end
+	if brain.NextHazard == nil then
+		brain.NextHazard = now + (settings.Interval or 8) * 0.6
+		return
+	end
+	if now < brain.NextHazard then
+		return
+	end
+	brain.NextHazard = now + intervalOf(enemy, settings)
+	local points = {}
+	local spread = settings.Spread or settings.Radius
+	for _, player in Players:GetPlayers() do
+		local root = characterOf(player)
+		if root and sameWorld(enemy, player) and bossCanTarget(enemy, root.Position) then
+			local angle = math.random() * math.pi * 2
+			local jitter = Vector3.new(math.cos(angle), 0, math.sin(angle)) * math.random() * spread * 0.4
+			table.insert(points, clampToTerritory(enemy, Vector3.new(root.Position.X, GROUND, root.Position.Z) + jitter))
+		end
+	end
+	local count = math.max(settings.Count or 1, #points)
+	local territory = (enemy.Territory or enemy.Def.Brain.Territory) - settings.Radius
+	while #points < count do
+		local angle = math.random() * math.pi * 2
+		local distance = math.sqrt(math.random()) * math.max(territory, 4)
+		table.insert(points, Vector3.new(enemy.LeashCenter.X + math.cos(angle) * distance, GROUND, enemy.LeashCenter.Z + math.sin(angle) * distance))
+	end
+	for index, point in points do
+		-- Escalonados un poco: no todos a la vez
+		task.delay((index - 1) * 0.15, dropHazard, enemy, point, settings)
+	end
+end
+
 -- Elige y lanza un ataque si hay alguno listo (true si ha atacado)
 local function bossTryAttack(enemy: Enemy, target: Player, targetRoot: BasePart, now: number): boolean
 	local brain = enemy.Brain :: Brain
@@ -285,11 +390,14 @@ local function updateBoss(enemy: Enemy, now: number)
 	if not brain.Dash then
 		refreshSpeed(enemy, now)
 	end
+	updateHazards(enemy, now)
 
 	-- Vuelta a la arena (invulnerable) y curación al llegar
 	if status.State == "Return" then
 		setBossState(enemy, "Return")
 		enemy.Model:SetAttribute("TargetUserId", nil)
+		brain.FarSince = nil
+		enemy.SpeedBoost = 1
 		if flat(position - enemy.Home) < 4 then
 			EnemyLogic.reset(status)
 			syncHealth(enemy)
@@ -343,6 +451,27 @@ local function updateBoss(enemy: Enemy, now: number)
 	end
 	enemy.Target = target
 	enemy.Model:SetAttribute("TargetUserId", if target then target.UserId else nil)
+
+	-- Persecución (anti "kiteo"): si su objetivo sigue fuera de su alcance, acelera poco a poco
+	-- (EnemyConfig.Pursuit; EnemyLogic.pursuitBoost) hasta casi su velocidad.
+	local pursuit = EnemyConfig.Pursuit
+	if target and targetRoot and pursuit then
+		local reach = def.AttackRange + enemy.Radius
+		if flat(targetRoot.Position - position) > reach + (pursuit.Gap or 4) then
+			brain.FarSince = brain.FarSince or now
+		else
+			brain.FarSince = nil
+		end
+		local base = def.WalkSpeed * (if enemy.Enraged and def.Enrage then def.Enrage.SpeedMultiplier else 1)
+		local _, targetHumanoid = characterOf(target)
+		enemy.SpeedBoost = if brain.FarSince then EnemyLogic.pursuitBoost(now - brain.FarSince, pursuit, base, if targetHumanoid then targetHumanoid.WalkSpeed else nil) else 1
+	else
+		brain.FarSince = nil
+		enemy.SpeedBoost = 1
+	end
+	if not brain.Dash then
+		refreshSpeed(enemy, now)
+	end
 
 	if not (target and targetRoot) then
 		-- Sin nadie: si se alejó de la arena vuelve; si no, patrulla

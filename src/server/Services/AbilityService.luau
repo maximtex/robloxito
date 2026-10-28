@@ -107,22 +107,26 @@ local function serverTime(clockTime: number): number
 	return Workspace:GetServerTimeNow() + (clockTime - os.clock())
 end
 
--- Elemento de un hueco. Principal: el seleccionado si está despierto; si no, Naturaleza.
--- Secundario: el elegido si es válido (desbloqueado y distinto del principal); si no, nil.
+-- Elemento de un hueco. Principal: el seleccionado si está despierto y da habilidad; si no
+-- (Naturaleza: su Q era Raíces y ahora todos tienen el dash), el secundario pasa a la Q; si
+-- tampoco, nil. Secundario: el elegido si es válido (desbloqueado, distinto del principal y
+-- con habilidad) y el principal también da habilidad; si no, nil.
 function AbilityService.elementOf(profile: any, slot: string?): string?
 	local cores = profile.PetData and profile.PetData.Cores
 	local ready = cores ~= nil and PlayerDataService.isPetDataReady(profile)
+	local selected = if ready then cores.Selected else nil
+	local primaryOk = selected ~= nil and AbilityLogic.castable(selected) ~= nil and CoreLogic.isUnlocked(cores, selected)
+	local secondary = if ready then CoreLogic.secondaryOf(cores) else nil
+	local secondaryOk = secondary ~= nil and AbilityLogic.castable(secondary) ~= nil
 	if slot == "Secondary" then
-		local secondary = if ready then CoreLogic.secondaryOf(cores) else nil
-		return if secondary and AbilityLogic.get(secondary) then secondary else nil
+		return if primaryOk and secondaryOk then secondary else nil
 	end
-	if ready then
-		local selected = cores.Selected
-		if AbilityLogic.get(selected) and CoreLogic.isUnlocked(cores, selected) then
-			return selected
-		end
+	if primaryOk then
+		return selected
+	elseif secondaryOk then
+		return secondary
 	end
-	return CoreConfig.DefaultElement
+	return if AbilityLogic.castable(CoreConfig.DefaultElement) then CoreConfig.DefaultElement else nil
 end
 
 -- Efectos: al dueño y a los jugadores cercanos.
@@ -535,7 +539,7 @@ function AbilityService.perform(player: Player, slot: any): (string, string?, nu
 	local state = stateOf(player)
 	local elementId = AbilityService.elementOf(profile, slot)
 	if not elementId then
-		return Codes.Locked, nil, nil -- sin elemento secundario
+		return Codes.Locked, nil, nil -- sin elemento (secundario, o solo Naturaleza)
 	end
 	local now = os.clock()
 	local readyAt = state.ReadyAt[elementId] or 0
@@ -545,7 +549,7 @@ function AbilityService.perform(player: Player, slot: any): (string, string?, nu
 	if now - state.LastCastAt < AbilityConfig.GlobalCooldown then
 		return Codes.TooFast, elementId, serverTime(readyAt)
 	end
-	local ability = AbilityLogic.get(elementId :: string)
+	local ability = AbilityLogic.castable(elementId :: string)
 	local execute = ability and EXECUTE[ability.Type]
 	if not execute then
 		return Codes.InvalidRequest, elementId, nil

@@ -213,6 +213,28 @@ function EnemyLogic.damageTaken(amount: number, control: Control, now: number): 
 	return amount
 end
 
+-- Persecución de los jefes (anti "kiteo"; EnemyConfig.Pursuit): tras `farFor` segundos con su
+-- objetivo fuera del alcance de sus golpes, a partir de Delay acelera Ramp por segundo hasta
+-- Max × su velocidad, pero sin pasar de CatchUp × la velocidad de su objetivo (así se le acerca
+-- al que corre en círculos sin ser imposible de esquivar). Devuelve el multiplicador (>= 1).
+function EnemyLogic.pursuitBoost(farFor: number, settings: any, baseSpeed: number, targetSpeed: number?): number
+	if type(settings) ~= "table" or type(farFor) ~= "number" or farFor ~= farFor then
+		return 1
+	end
+	local delay = if type(settings.Delay) == "number" then settings.Delay else 1.5
+	local ramp = if type(settings.Ramp) == "number" then math.max(0, settings.Ramp) else 0
+	local max = if type(settings.Max) == "number" then math.max(1, settings.Max) else 1
+	if farFor <= delay or ramp <= 0 then
+		return 1
+	end
+	local cap = max
+	local catchUp = if type(settings.CatchUp) == "number" then settings.CatchUp else 1
+	if type(targetSpeed) == "number" and targetSpeed == targetSpeed and targetSpeed > 0 and baseSpeed > 0 then
+		cap = math.clamp(targetSpeed * catchUp / baseSpeed, 1, max)
+	end
+	return math.clamp(1 + (farFor - delay) * ramp, 1, cap)
+end
+
 -- Objetivos de un área: vivos, con su borde dentro del radio alrededor del centro, sin
 -- repetidos, ordenados por cercanía y como mucho `maxTargets`.
 function EnemyLogic.selectInRadius(centerX: number, centerZ: number, candidates: { Candidate }, radius: number, maxTargets: number): { any }

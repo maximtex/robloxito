@@ -7,7 +7,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local StyleLogic = require(Shared.StyleLogic)
+local Economy = require(Shared.Economy)
 local RemoteService = require(script.Parent.Parent.RemoteService)
+local PlayerDataService = require(script.Parent.Parent.PlayerDataService)
 local EnemyService = require(script.Parent.Parent.EnemyService)
 local PetCombatService = require(script.Parent.Parent.PetCombatService)
 
@@ -95,7 +97,12 @@ function Api.start()
 		if style == "Warrior" then
 			taken *= PetCombatService.blockIncoming(player, enemy)
 		end
-		return taken * classModsOf(player).DamageTaken
+		-- Armadura (mejora con 💰): -3 % por nivel
+		local profile = PlayerDataService.get(player)
+		local armor = if profile then Economy.armorMultiplier(profile.UpgradeLevels.Armor) else 1
+		-- Mascotas Tanque (PetClassLogic)
+		local pets = if profile and profile.PetBonuses then profile.PetBonuses.DamageTaken else 1
+		return taken * classModsOf(player).DamageTaken * armor * pets
 	end)
 	-- Daño a los jefes según el estilo (Puños más, Guerrero menos: StyleConfig BossDamage) y
 	-- la clase (Comando Élite)

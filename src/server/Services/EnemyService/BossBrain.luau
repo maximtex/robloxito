@@ -43,6 +43,10 @@ local function sameWorld(...) return ctx.sameWorld(...) end
 -- Ataques: golpe cuerpo a cuerpo (Damage) y los especiales de su tipo: Slam (área a su
 -- alrededor), Roots (atrapa y ralentiza donde estás), Charge (embestida en línea), Leap
 -- (salta y cae donde estabas) y Volley (bolas de fuego que se pueden esquivar).
+-- Además (pruebas con amigos: "se les hace kite fácil" y "las arenas no tienen nada"):
+-- - Persecución (EnemyConfig.Pursuit): si su objetivo se le escapa, acelera poco a poco.
+-- - Peligros de la arena (Def.Hazard): mientras pelea caen cosas avisadas en el suelo cerca
+--   de los jugadores (espinas, cristales, lava, hielo...), cada jefe las suyas.
 
 local PATH_REFRESH = 1.5 -- segundos mínimos entre rutas para el mismo objetivo quieto
 local PATH_GOAL_MOVED = 6 -- studs que debe moverse el objetivo para recalcular la ruta
@@ -68,6 +72,8 @@ local function newBrain(): Brain
 		LastPosition = Vector3.zero,
 		StillSince = 0,
 		Dash = nil,
+		FarSince = nil,
+		NextHazard = nil,
 	}
 end
 
@@ -80,6 +86,10 @@ function resetBrain(enemy: Enemy, now: number)
 	brain.Path = nil
 	brain.PathGoal = nil
 	brain.Dash = nil
+	brain.FarSince = nil
+	enemy.SpeedBoost = 1
+	local hazard = enemy.Def.Hazard
+	brain.NextHazard = if hazard then now + (hazard.Interval or 8) * 0.6 else nil
 	for index, name in SPECIALS do
 		local settings = enemy.Def[name]
 		if settings then

@@ -1,11 +1,12 @@
 -- ⚡ Mejoras (panel "Skills"): las habilidades de cada estilo (StyleConfig.Styles[x].Skills,
--- SkillLogic) y la Velocidad de Correr (EconomyConfig.Upgrades.WalkSpeed), todo con 💎.
+-- SkillLogic) con 💎 y, abajo, las mejoras del personaje (EconomyConfig.Upgrades): Velocidad
+-- de Correr (💎), y Vitalidad y Armadura (💰; pruebas con amigos: "faltan mejoras defensivas").
 -- Solo muestra y pide; StyleService (habilidades) y UpgradeService (velocidad) validan y
 -- cobran:
 -- - Pestañas Armas / Puños / Magia (se abre en la de tu estilo).
 -- - Una tarjeta por habilidad: icono, nombre, qué hace, nivel, daño y recarga a su nivel, y
 --   sus botones: Comprar (💎), Mejorar (💎, hasta el nivel máximo) y ponerla en la Z o la X.
--- - Abajo, la Velocidad de Correr: su nivel, lo que suma y el botón para subirla.
+-- - Abajo, Velocidad, Vitalidad y Armadura: su nivel, lo que suman y el botón para subirlas.
 -- - Se abre en el puesto ⚡ Mejoras del pueblo (pisando su círculo), con el botón ⚡ MEJORAS de
 --   la tienda de tu estilo, la insignia ⚡ del botón de la X o la tecla B.
 -- Datos de los atributos del jugador: Skills ("Burst:1,Pierce:2"), SkillSlots y Diamonds (💎).
@@ -37,11 +38,18 @@ local DIAMOND = Color3.fromRGB(120, 210, 255)
 local PANEL_NAME = "Skills"
 local PANEL_SIZE = Vector2.new(820, 616)
 local SPEED_ID = "WalkSpeed"
+-- Mejoras del personaje (abajo): id, icono, nombre corto y qué suma por nivel (texto)
+local BODY_UPGRADES = {
+	{ Id = "WalkSpeed", Icon = "🏃", Name = "Velocidad" },
+	{ Id = "Vitality", Icon = "❤️", Name = "Vitalidad" },
+	{ Id = "Armor", Icon = "🛡️", Name = "Armadura" },
+}
 local CARD_SIZE = Vector2.new(186, 404)
 local Codes = Constants.PurchaseCodes
 
 local MESSAGES = {
 	[Codes.InsufficientDiamonds] = "Te faltan 💎: derrota enemigos, gana oleadas y haz misiones",
+	[Codes.InsufficientMoney] = "Te falta 💰: derrota enemigos y gana oleadas",
 	[Codes.AlreadyOwned] = "Ya la tienes",
 	[Codes.NotOwned] = "Primero cómprala",
 	[Codes.MaxLevel] = "Ya está al nivel máximo",
@@ -243,31 +251,47 @@ local function buildGui()
 		cards[index] = { Frame = card, Stroke = stroke, Icon = icon, Name = name, Level = level, Text = text, Stats = stats, Main = main, Slots = { slotZ, slotX } }
 	end
 
-	-- Velocidad de Correr (abajo, con 💎)
-	local speedRow = UiKit.create("Frame", {
-		Name = "Speed",
-		Position = UDim2.fromOffset(18, 538),
-		Size = UDim2.new(1, -36, 0, 48),
-		BackgroundColor3 = THEME.Inset,
+	-- Mejoras del personaje (abajo): Velocidad (💎), Vitalidad y Armadura (💰), una al lado de otra
+	local bodyRow = UiKit.create("Frame", {
+		Name = "Body",
+		Position = UDim2.fromOffset(18, 532),
+		Size = UDim2.new(1, -36, 0, 52),
+		BackgroundTransparency = 1,
 	}, panel)
-	UiKit.corner(speedRow, 12)
-	UiKit.stroke(speedRow, Color3.fromRGB(120, 230, 160), 2, 0.3)
-	local speedText = UiKit.text(speedRow, "Text", {
-		Position = UDim2.fromOffset(14, 0),
-		Size = UDim2.new(1, -240, 1, 0),
-		Font = FONTS.Display,
-		TextSize = 18,
-		RichText = true,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Text = "🏃 Velocidad al correr",
-	})
-	local speedButton = UiKit.button(speedRow, "Upgrade", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -6, 0.5, 0),
-		Size = UDim2.fromOffset(210, 38),
-		TextSize = 17,
-		Text = "⬆ Mejorar",
-	})
+	UiKit.create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}, bodyRow)
+	local bodyChips = {}
+	for order, spec in BODY_UPGRADES do
+		local chip = UiKit.create("Frame", {
+			Name = spec.Id,
+			Size = UDim2.new(1 / #BODY_UPGRADES, -7, 1, 0),
+			BackgroundColor3 = THEME.Inset,
+			LayoutOrder = order,
+		}, bodyRow)
+		UiKit.corner(chip, 12)
+		UiKit.stroke(chip, if spec.Id == SPEED_ID then Color3.fromRGB(120, 230, 160) else Color3.fromRGB(255, 206, 84), 2, 0.3)
+		local text = UiKit.text(chip, "Text", {
+			Position = UDim2.fromOffset(10, 4),
+			Size = UDim2.new(1, -128, 1, -8),
+			Font = FONTS.Display,
+			TextSize = 15,
+			RichText = true,
+			TextWrapped = true,
+			TextYAlignment = Enum.TextYAlignment.Center,
+			Text = spec.Icon .. " " .. spec.Name,
+		})
+		local button = UiKit.button(chip, "Upgrade", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -6, 0.5, 0),
+			Size = UDim2.fromOffset(112, 40),
+			TextSize = 15,
+			Text = "⬆",
+		})
+		bodyChips[spec.Id] = { Text = text, Button = button, Spec = spec }
+	end
 
 	local feedback = UiKit.text(panel, "Feedback", {
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -290,8 +314,7 @@ local function buildGui()
 		Close = close,
 		Tabs = tabs,
 		Cards = cards,
-		SpeedText = speedText,
-		SpeedButton = speedButton,
+		BodyChips = bodyChips,
 		Feedback = feedback,
 	}
 end
@@ -320,27 +343,46 @@ function SkillsController.start()
 		end)
 	end
 
-	local function renderSpeed(money: number)
-		local def = EconomyConfig.Upgrades[SPEED_ID]
-		local raw = player:GetAttribute(Constants.Attributes.UpgradeLevelPrefix .. SPEED_ID)
-		-- (los niveles de antes por encima del máximo cuentan como el máximo)
-		local level = math.min(if typeof(raw) == "number" then raw else 0, def.MaxLevel)
-		local per = def.SpeedPerLevel or 1
-		ui.SpeedText.Text = ("🏃 Velocidad al correr · <font color=\"#FFCE54\">Nivel %d/%d</font> · +%s"):format(level, def.MaxLevel, formatNumber(level * per, 1))
-		if level >= def.MaxLevel then
-			ui.SpeedButton.Text = "★ MÁX"
-			ui.SpeedButton.BackgroundColor3 = THEME.Gold
-		else
-			local cost = Economy.getUpgradeCost(SPEED_ID, level) or 0
-			ui.SpeedButton.Text = ("⬆ +%s  💎%s"):format(formatNumber(per, 1), formatNumber(cost))
-			ui.SpeedButton.BackgroundColor3 = if money >= cost then THEME.Buy else THEME.Disabled
+	-- Lo que suma una mejora del personaje a su nivel (texto corto)
+	local function bodyEffect(upgradeId: string, def: any, level: number): string
+		if upgradeId == "Vitality" then
+			return ("+%d %% vida"):format(math.floor((def.HealthPerLevel or 0) * level * 100 + 0.5))
+		elseif upgradeId == "Armor" then
+			return ("-%d %% daño"):format(math.floor((def.ReductionPerLevel or 0) * level * 100 + 0.5))
+		end
+		return "+" .. formatNumber(level * (def.SpeedPerLevel or 1), 1)
+	end
+
+	local function renderBody(diamondsHave: number)
+		local moneyRaw = player:GetAttribute(Constants.Attributes.Money)
+		local moneyHave = if typeof(moneyRaw) == "number" then moneyRaw else 0
+		for upgradeId, chip in ui.BodyChips do
+			local def = EconomyConfig.Upgrades[upgradeId]
+			if not def then
+				chip.Text.Parent.Visible = false
+				continue
+			end
+			local raw = player:GetAttribute(Constants.Attributes.UpgradeLevelPrefix .. upgradeId)
+			-- (los niveles de antes por encima del máximo cuentan como el máximo)
+			local level = Economy.cappedLevel(upgradeId, raw)
+			chip.Text.Text = ("%s %s <font color=\"#FFCE54\">%d/%d</font>\n<font size=\"13\">%s</font>"):format(chip.Spec.Icon, chip.Spec.Name, level, def.MaxLevel, bodyEffect(upgradeId, def, level))
+			if level >= def.MaxLevel then
+				chip.Button.Text = "★ MÁX"
+				chip.Button.BackgroundColor3 = THEME.Gold
+			else
+				local cost = Economy.getUpgradeCost(upgradeId, level) or 0
+				local paysMoney = Economy.getUpgradeCurrency(upgradeId) == "Money"
+				local have = if paysMoney then moneyHave else diamondsHave
+				chip.Button.Text = ("⬆ %s%s"):format(if paysMoney then "💰" else "💎", formatNumber(cost))
+				chip.Button.BackgroundColor3 = if have >= cost then THEME.Buy else THEME.Disabled
+			end
 		end
 	end
 
 	local function render()
 		local style = StyleConfig.Styles[shown]
 		local money = diamonds()
-		renderSpeed(money)
+		renderBody(money)
 		ui.Diamonds.Text = "💎 " .. formatNumber(money)
 		local world = currentWorld()
 		ui.Title.Text = ("⚡ Mejoras%s · %s %s"):format(if world == 2 then " del Mundo 2" else "", style.Icon, style.DisplayName)
@@ -450,15 +492,18 @@ function SkillsController.start()
 			render()
 		end)
 	end
-	ui.SpeedButton.Activated:Connect(function()
-		purchaseRemote:FireServer(SPEED_ID)
-	end)
+	for upgradeId, chip in ui.BodyChips do
+		chip.Button.Activated:Connect(function()
+			purchaseRemote:FireServer(upgradeId)
+		end)
+	end
+	local BODY_DONE = { WalkSpeed = "🏃 ¡Corres más rápido!", Vitality = "❤️ ¡Más vida!", Armor = "🛡️ ¡Recibes menos daño!" }
 	purchaseResult.OnClientEvent:Connect(function(success: boolean, code: string, upgradeId: string?)
-		if upgradeId ~= SPEED_ID then
+		if not (upgradeId and ui.BodyChips[upgradeId]) then
 			return
 		end
 		if success then
-			say("🏃 ¡Corres más rápido!", true)
+			say(BODY_DONE[upgradeId] or "¡Mejorado!", true)
 			Juice.sound(Juice.Sounds.Upgrade, 1.1)
 		else
 			say(MESSAGES[code] or tostring(code), false)
@@ -512,7 +557,11 @@ function SkillsController.start()
 		end
 	end)
 
-	for _, attribute in { Constants.Attributes.Diamonds, Constants.Attributes.Skills, Constants.Attributes.SkillSlots, Constants.Attributes.CombatStyle, Constants.Attributes.CurrentZone, Constants.Attributes.UpgradeLevelPrefix .. SPEED_ID } do
+	local watchedAttributes = { Constants.Attributes.Diamonds, Constants.Attributes.Money, Constants.Attributes.Skills, Constants.Attributes.SkillSlots, Constants.Attributes.CombatStyle, Constants.Attributes.CurrentZone }
+	for _, spec in BODY_UPGRADES do
+		table.insert(watchedAttributes, Constants.Attributes.UpgradeLevelPrefix .. spec.Id)
+	end
+	for _, attribute in watchedAttributes do
 		player:GetAttributeChangedSignal(attribute):Connect(function()
 			if PanelManager.isOpen(PANEL_NAME) then
 				render()

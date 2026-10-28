@@ -6,12 +6,15 @@
 -- - Más despacio: Rate de la vida máxima por segundo.
 -- - Las curas de siempre siguen igual: al limpiar una oleada (WaveConfig.ClearHeal), el robo
 --   de vida de la Magia y las clases, los elementos que curan y las habilidades.
+-- - Mascotas Sanadoras (PetClassLogic): curan su parte de la vida máxima por segundo SIEMPRE,
+--   también peleando (profile.PetBonuses.Heal).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local CombatConfig = require(ReplicatedStorage:WaitForChild("Shared").Config.CombatConfig)
+local PlayerDataService = require(script.Parent.PlayerDataService)
 
 local HealthService = {}
 
@@ -57,15 +60,21 @@ end
 
 local function heal(dt: number)
 	local rate, delay = settings()
-	if rate <= 0 then
-		return
-	end
 	local now = os.clock()
 	for humanoid, hurtAt in lastHurt do
 		if humanoid.Parent == nil then
 			lastHurt[humanoid] = nil
-		elseif humanoid.Health > 0 and humanoid.Health < humanoid.MaxHealth and now - hurtAt >= delay then
-			humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + humanoid.MaxHealth * rate * dt)
+		elseif humanoid.Health > 0 and humanoid.Health < humanoid.MaxHealth then
+			local perSecond = if now - hurtAt >= delay then rate else 0
+			-- Mascotas Sanadoras: curan siempre
+			local player = Players:GetPlayerFromCharacter(humanoid.Parent)
+			local profile = player and PlayerDataService.get(player)
+			if profile and profile.PetBonuses then
+				perSecond += profile.PetBonuses.Heal
+			end
+			if perSecond > 0 then
+				humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + humanoid.MaxHealth * perSecond * dt)
+			end
 		end
 	end
 end

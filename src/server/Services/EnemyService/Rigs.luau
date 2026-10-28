@@ -325,6 +325,28 @@ function BUILDERS.Goblin(rig: Rig, look)
 	box(rig, "Hand1", Vector3.new(0.12, 0.3, 1.2), CFrame.new(1.3, 1.95, -1.6), STEEL, Enum.Material.Metal)
 end
 
+-- Lanzador (bichos a distancia, Def.Ranged): brujito con túnica y capucha (look.Primary), la
+-- cara en sombra con ojos que brillan y un bastón con una bola de luz (look.Secondary) en la
+-- mano derecha. Silueta distinta a la de los de cuerpo a cuerpo: se ve de lejos quién dispara.
+function BUILDERS.Caster(rig: Rig, look)
+	local robe, glow = look.Primary, look.Secondary
+	box(rig, "Robe", Vector3.new(2, 2.2, 1.6), CFrame.new(0, 2.2, 0), robe, Enum.Material.SmoothPlastic)
+	box(rig, "Hem", Vector3.new(2.3, 0.5, 1.9), CFrame.new(0, 1.15, 0), darker(robe, 0.25), Enum.Material.SmoothPlastic)
+	box(rig, "Sash", Vector3.new(2.05, 0.28, 1.65), CFrame.new(0, 2.35, 0), glow, Enum.Material.Neon)
+	box(rig, "Hood", Vector3.new(1.8, 1.6, 1.7), CFrame.new(0, 4, 0.05), darker(robe, 0.15), Enum.Material.SmoothPlastic)
+	box(rig, "HoodTip", Vector3.new(0.9, 0.9, 0.9), CFrame.new(0, 4.75, 0.55) * CFrame.Angles(math.rad(35), 0, math.rad(45)), darker(robe, 0.15), Enum.Material.SmoothPlastic)
+	box(rig, "Face", Vector3.new(1.25, 1, 0.12), CFrame.new(0, 3.9, -0.82), Color3.fromRGB(22, 16, 30), Enum.Material.SmoothPlastic)
+	for side = -1, 1, 2 do
+		eye(rig, "Eye" .. side, 0.32, Vector3.new(side * 0.3, 3.95, -0.9), look.Eyes)
+		limb(rig, "Arm" .. side, Vector3.new(side * 1.05, 3, 0), Vector3.new(side * 1.3, 2.05, -0.6), 0.5, robe, Enum.Material.SmoothPlastic)
+		orb(rig, "Fist" .. side, 0.55, Vector3.new(side * 1.3, 2, -0.6), darker(robe, 0.4), Enum.Material.SmoothPlastic)
+		box(rig, "Leg" .. side, Vector3.new(0.5, 0.9, 0.5), CFrame.new(side * 0.45, 0.45, 0), darker(robe, 0.45), Enum.Material.SmoothPlastic)
+	end
+	-- Bastón con la bola de luz (va con el brazo derecho: grupo Arm)
+	limb(rig, "Hand1", Vector3.new(1.3, 0.4, -0.6), Vector3.new(1.3, 4.4, -0.6), 0.22, WOOD_DARK, Enum.Material.Wood)
+	orb(rig, "Hand1", 0.95, Vector3.new(1.3, 4.75, -0.6), glow, Enum.Material.Neon)
+end
+
 -- Goblin Bruto: un goblin enorme con casco con cuernos, peto de hierro, colmillos y un garrote.
 function BUILDERS.GoblinBrute(rig: Rig, look)
 	local skin, iron = look.Primary, look.Secondary
@@ -403,6 +425,7 @@ local SHAPES = {
 	Wolf = { Root = Vector3.new(2.6, 2.4, 4), Hip = 1.4, Radius = 2, BarHeight = 5.8, Pivots = { Body = Vector3.new(0, 2.4, 0), Leg = Vector3.new(0.72, 2.1, -1.25), Hind = Vector3.new(0.72, 2.1, 1.45) } },
 	Yeti = { Root = Vector3.new(3.6, 4, 3), Hip = 2.2, Radius = 2.5, BarHeight = 10.6, Pivots = { Body = Vector3.new(0, 2.3, 0), Arm = Vector3.new(2.6, 5.9, 0), Leg = Vector3.new(1.05, 2.3, 0) } },
 	Goblin = { Root = Vector3.new(2.2, 2.6, 2), Hip = 1.3, Radius = 1.6, BarHeight = 6.2, Pivots = { Body = Vector3.new(0, 1.3, 0), Arm = Vector3.new(1.1, 3.2, 0), Leg = Vector3.new(0.45, 1.3, 0) } },
+	Caster = { Root = Vector3.new(2.2, 2.6, 2), Hip = 1, Radius = 1.6, BarHeight = 6.6, Pivots = { Body = Vector3.new(0, 1, 0), Arm = Vector3.new(1.05, 3, 0), Leg = Vector3.new(0.45, 0.9, 0) } },
 	GoblinBrute = { Root = Vector3.new(3.4, 4, 3), Hip = 2, Radius = 2.4, BarHeight = 10.8, Pivots = { Body = Vector3.new(0, 2, 0), Arm = Vector3.new(2.05, 5.6, 0), Leg = Vector3.new(0.8, 2, 0) } },
 	GoblinKing = { Root = Vector3.new(7, 9, 5), Hip = 4.2, Radius = 4.8, BarHeight = 22, Pivots = { Body = Vector3.new(0, 4.2, 0), Arm = Vector3.new(4.6, 12.2, 0), Leg = Vector3.new(1.75, 4.2, 0) } },
 }

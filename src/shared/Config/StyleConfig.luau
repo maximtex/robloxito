@@ -3,9 +3,11 @@
 -- Todos salen del daño por segundo (DPS) de tu arma (nivel, cadencia, mascotas, renacimiento
 -- y aventuras), así que mejorar o comprar armas sirve con cualquier estilo. Cada uno juega
 -- distinto, con su ventaja y su desventaja (Pros / Cons, para el panel):
--- - Armas: apuntas con la mira y disparas tu arma de fuego (pistola, rifle, escopeta,
---   francotirador o bazuca: WeaponConfig.Guns) con su cargador y su recarga; clic derecho
---   para apuntar. De lejos y con críticos, pero recibes más daño.
+-- - Arquero (id "Weapons"; antes "Armas" con armas de fuego, que no pegaban con el tema
+--   medieval: pruebas con amigos): apuntas con la mira y disparas tu ballesta o tu arco
+--   (ballesta de mano, de repetición, de abanico, arbalesta o balista: WeaponConfig.Guns) con
+--   su carcaj y su recarga; clic derecho para apuntar. De lejos y con críticos, pero recibes
+--   más daño. Los números son los de antes; cambian los nombres, los modelos y las flechas.
 -- - Guerrero: espada. Combo de 3 tajos (el 3.º gira y pega a todos), bloquea con clic
 --   derecho y, si bloquea justo a tiempo, para el golpe, aturde y contraataca (Block).
 -- - Puños: cuerpo a cuerpo y rapidísimos, corres más y aguantas más, pero hay que pegarse.
@@ -24,7 +26,7 @@
 -- Y otras CUATRO del Mundo 2 (World = 2), más fuertes: solo se ven, se compran y se suben en el
 -- puesto ⚡ Mejoras del Mundo 2 (SkillsController enseña las del mundo en el que estás) y piden
 -- haber llegado allí (Requires). Usan el efecto de una del Mundo 1 (Base), más grande, con su
--- propio color (Color) y algo más: Bombardeo (varias granadas: Count), Rayo triple (Beams),
+-- propio color (Color) y algo más: Lluvia de bombas (varias bombas: Count), Triple flecha (Beams),
 -- Cometa (explota al llegar: EndRadius) y Terremoto titán (varios golpes: Waves). Las del
 -- Guerrero también usan el efecto de otra (Base) con su aspecto (Color, Visual): Giro de acero
 -- (Torbellino), Grito de guerra (Furia, con DamageBoost) y Onda cortante (Rayo perforante).
@@ -46,6 +48,12 @@ local StyleConfig = {
 	Default = "Weapons",
 	Order = { "Weapons", "Warrior", "Fists", "Magic" },
 	SwitchCooldown = 1.5, -- segundos entre dos cambios de estilo
+	-- Dash para todos (tecla Shift, el stick izquierdo pulsado o el botón 💨): un salto corto
+	-- hacia donde te mueves, sin daño, que no cruza paredes ni puertas cerradas. Sustituye a las
+	-- Raíces de la Q, que tenía todo el mundo y no se podían mejorar (pruebas con amigos). Puños
+	-- lleva el suyo (Styles.Fists.Dash: más largo y más seguido) y Magia su teletransporte
+	-- (Styles.Magic.Blink). Las clases pueden acortar la recarga (DashHaste).
+	Dash = { Distance = 14, Cooldown = 3.5 },
 
 	-- Niveles de las habilidades (SkillLogic): del 1 al Max. Cada nivel por encima del 1:
 	-- +Damage de daño, -Cooldown de recarga (como mucho hasta MinCooldown) y +Duration de
@@ -87,11 +95,12 @@ local StyleConfig = {
 		Ready = { Id = "rbxasset://sounds/electronicpingshort.wav", Volume = 0.3, Pitch = 1.4 },
 		-- Golpes de cada estilo (CombatController): disparo de cada tipo de arma, recarga,
 		-- tajos de espada, parada perfecta, bola mágica y teletransporte
-		GunPistol = { Id = "rbxassetid://132539859090895", Volume = 0.45, Pitch = 1 },
-		GunRifle = { Id = "rbxassetid://86298841850357", Volume = 0.35, Pitch = 1 },
-		GunShotgun = { Id = "rbxassetid://132255180302885", Volume = 0.5, Pitch = 1 },
-		GunSniper = { Id = "rbxassetid://130570662564570", Volume = 0.5, Pitch = 1 },
-		GunLauncher = { Id = "rbxassetid://2853035419", Volume = 0.5, Pitch = 1 },
+		-- (arquero: zumbido de la flecha al salir, más grave cuanto más pesada la ballesta)
+		GunPistol = { Id = "rbxassetid://9126229267", Volume = 0.4, Pitch = 1.8 },
+		GunRifle = { Id = "rbxassetid://9126229267", Volume = 0.3, Pitch = 2 },
+		GunShotgun = { Id = "rbxassetid://9126229267", Volume = 0.5, Pitch = 1.4 },
+		GunSniper = { Id = "rbxassetid://9126229267", Volume = 0.55, Pitch = 1.1 },
+		GunLauncher = { Id = "rbxassetid://9126229267", Volume = 0.6, Pitch = 0.8 },
 		GunBow = { Id = "rbxassetid://9126229267", Volume = 0.45, Pitch = 1.6 },
 		Explosion = { Id = "rbxasset://sounds/impact_explosion_03.mp3", Volume = 0.55, Pitch = 0.9 },
 		Reload = { Id = "rbxassetid://117963160131194", Volume = 0.45, Pitch = 1 },
@@ -108,12 +117,12 @@ local StyleConfig = {
 
 	Styles = {
 		Weapons = {
-			DisplayName = "Armas",
-			Icon = "🔫",
+			DisplayName = "Arquero",
+			Icon = "🏹",
 			Color = RGB(90, 200, 255),
-			Attack = "Apuntas con la mira y disparas: pistola, rifle, escopeta, francotirador o bazuca, cada una con su cargador. Clic derecho: apuntar.",
+			Attack = "Apuntas con la mira y disparas flechas: ballestas de mano, de repetición y de abanico, arbalestas y balistas, cada una con su carcaj. Clic derecho: apuntar.",
 			Pros = "Pegas de lejos, con críticos y apuntando con clic derecho",
-			Cons = "Recibes un 15 % más de daño y tienes que recargar (R)",
+			Cons = "Recibes un 15 % más de daño y tienes que recargar el carcaj (R)",
 			DamageTaken = 1.15,
 			-- Combo de golpes: cada Every disparos seguidos (sin parar más de Window s), uno
 			-- cargado que hace ×Multiplier (PetCombatService).
@@ -123,7 +132,7 @@ local StyleConfig = {
 				Guard = "rbxassetid://97145337559173", -- el arma medio levantada (se repite)
 				Aim = "rbxassetid://88074758199655", -- las dos manos en el arma, al frente
 				Shot = "rbxassetid://111940463532578", -- retroceso del disparo
-				Reload = "rbxassetid://74064624724049", -- cambiar el cargador
+				Reload = "rbxassetid://74064624724049", -- recargar (sacar flechas del carcaj)
 			},
 			Passive = {
 				Name = "Puntería",
@@ -136,9 +145,9 @@ local StyleConfig = {
 			Skills = {
 				Burst = {
 					Order = 1,
-					Name = "Ráfaga",
-					Icon = "💨",
-					Text = "Durante 4 s disparas el doble de rápido y sin gastar balas.",
+					Name = "Tiro rápido",
+					Icon = "🏹",
+					Text = "Durante 4 s disparas el doble de rápido y sin gastar flechas.",
 					Cooldown = 16,
 					Duration = 4,
 					CooldownScale = 0.5, -- tiempo entre disparos mientras dura
@@ -146,9 +155,9 @@ local StyleConfig = {
 				},
 				Grenade = {
 					Order = 2,
-					Name = "Granada",
-					Icon = "💣",
-					Text = "Lanzas una granada donde apuntas: explota en área y los empuja.",
+					Name = "Bomba de brea",
+					Icon = "🏺",
+					Text = "Lanzas una bomba de brea donde apuntas: explota en área y los empuja.",
 					Cooldown = 10,
 					Range = 45, -- llega como mucho a esta distancia (donde apuntas)
 					Delay = 0.7, -- lo que tarda en llegar y explotar
@@ -160,9 +169,9 @@ local StyleConfig = {
 				},
 				Pierce = {
 					Order = 3,
-					Name = "Rayo perforante",
+					Name = "Flecha perforante",
 					Icon = "🎯",
-					Text = "Un rayo recto hacia donde apuntas que atraviesa a todos los que pilla.",
+					Text = "Una flecha enorme hacia donde apuntas que atraviesa a todos los que pilla.",
 					Cooldown = 9,
 					Length = 55, -- largo del rayo
 					Width = 5,
@@ -173,9 +182,9 @@ local StyleConfig = {
 				},
 				Turret = {
 					Order = 4,
-					Name = "Torreta",
-					Icon = "🛰️",
-					Text = "Pones una torreta que dispara sola al enemigo más cercano durante 8 s.",
+					Name = "Balista",
+					Icon = "🏰",
+					Text = "Pones una balista que dispara sola al enemigo más cercano durante 8 s.",
 					Cooldown = 24,
 					Duration = 8,
 					Interval = 0.5, -- entre disparos
@@ -193,11 +202,11 @@ local StyleConfig = {
 					Requires = "World2",
 					Base = "Grenade",
 					Color = RGB(255, 110, 60),
-					Name = "Bombardeo",
+					Name = "Lluvia de bombas",
 					Icon = "🧨",
-					Text = "Lanzas 4 granadas donde apuntas (una en el centro y tres alrededor): explotan en área grande.",
+					Text = "Lanzas 4 bombas de brea donde apuntas (una en el centro y tres alrededor): explotan en área grande.",
 					Cooldown = 12,
-					Count = 4, -- granadas (una donde apuntas y las demás alrededor)
+					Count = 4, -- bombas (una donde apuntas y las demás alrededor)
 					Range = 55,
 					Delay = 0.8,
 					Radius = 13,
@@ -213,9 +222,9 @@ local StyleConfig = {
 					Requires = "World2",
 					Base = "Pierce",
 					Color = RGB(255, 214, 80),
-					Name = "Rayo triple",
-					Icon = "🔱",
-					Text = "Tres rayos dorados en abanico hacia donde apuntas que atraviesan a todos.",
+					Name = "Triple flecha",
+					Icon = "🪶",
+					Text = "Tres flechas doradas en abanico hacia donde apuntas que atraviesan a todos.",
 					Cooldown = 10,
 					Beams = 3,
 					Spread = 22, -- grados entre rayos
@@ -232,9 +241,9 @@ local StyleConfig = {
 					Requires = "World2",
 					Base = "Burst",
 					Color = RGB(255, 80, 80),
-					Name = "Sobrecarga",
+					Name = "Furia del arquero",
 					Icon = "🔥",
-					Text = "Durante 6 s disparas casi el triple de rápido y sin gastar balas.",
+					Text = "Durante 6 s disparas casi el triple de rápido y sin gastar flechas.",
 					Cooldown = 20,
 					Duration = 6,
 					CooldownScale = 0.35,
@@ -247,9 +256,9 @@ local StyleConfig = {
 					Requires = "World2",
 					Base = "Turret",
 					Color = RGB(110, 255, 150),
-					Name = "Dron de asalto",
-					Icon = "🤖",
-					Text = "Un dron dispara solo y muy rápido al enemigo más cercano durante 12 s.",
+					Name = "Balista de asedio",
+					Icon = "🏯",
+					Text = "Una balista grande dispara sola y muy rápido al enemigo más cercano durante 12 s.",
 					Cooldown = 26,
 					Duration = 12,
 					Interval = 0.3,
@@ -458,7 +467,7 @@ local StyleConfig = {
 			Icon = "👊",
 			Color = RGB(255, 150, 70),
 			Attack = "Golpes cuerpo a cuerpo muy rápidos: hay que acercarse, pero pegan mucho más.",
-			Pros = "+35 % de daño a los jefes, corres más, +50 % de vida, recibes menos daño y tienes dash (Shift)",
+			Pros = "+35 % de daño a los jefes, corres más, +50 % de vida, recibes menos daño y tu dash (Shift) es más largo y seguido",
 			Cons = "Pegas a uno solo y tienes que estar pegado al enemigo",
 			Range = 9, -- hasta el borde del enemigo
 			Cooldown = 0.35, -- entre golpes (la mejora "Cadencia" también lo acorta)

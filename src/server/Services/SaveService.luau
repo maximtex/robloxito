@@ -37,6 +37,10 @@
 --   Style: string                       estilo de pelea elegido (StyleLogic; StyleService).
 --   Cave: { number }                    bichos derrotados para cada puerta de la Cueva de los
 --                                       Espinillos (CaveLogic; CaveService).
+--   Settings: { HudScale }              ajustes del jugador (⚙️ Ajustes: tamaño de la
+--                                       interfaz; SettingsLogic; SettingsService). Campo
+--                                       opcional: sin él, los ajustes por defecto (no cambia
+--                                       la versión del registro).
 -- Los registros antiguos sin Diamonds/UpgradeLevels cargan con los valores iniciales, los
 -- que no tienen Cores (v2) empiezan con Naturaleza desbloqueada y seleccionada, y los que
 -- no tienen Rebirth (v3) empiezan sin renacimientos, los que no tienen Adventure (v4)
@@ -77,6 +81,7 @@ local StyleLogic = require(ReplicatedStorage:WaitForChild("Shared").StyleLogic)
 local CaveLogic = require(ReplicatedStorage:WaitForChild("Shared").CaveLogic)
 local SkillLogic = require(ReplicatedStorage:WaitForChild("Shared").SkillLogic)
 local ClassLogic = require(ReplicatedStorage:WaitForChild("Shared").ClassLogic)
+local SettingsLogic = require(ReplicatedStorage:WaitForChild("Shared").SettingsLogic)
 
 local STORE_NAME = "RebirthCity_PlayerData_v1"
 -- 2: añade Diamonds y UpgradeLevels. 3: añade Cores, CoresArchive y LastSeen. 4: añade Rebirth.
@@ -151,6 +156,7 @@ export type PetData = {
 	Skills: SkillLogic.SkillData, -- habilidades de cada estilo, niveles y las puestas (StyleService)
 	Classes: ClassLogic.ClassData, -- clases de cada estilo, niveles y la activa (StyleService)
 	World: number, -- mundo en el que estabas (1 o 2; ZoneService: apareces allí)
+	Settings: SettingsLogic.Settings, -- ajustes del jugador: tamaño de la interfaz (SettingsService)
 	-- Solo en memoria (no se guarda): lo convertido al cargar, para avisar al jugador.
 	EconomyConverted: { Energy: number, Money: number }?, -- ⚡ de la economía 1 convertida en 💰
 	-- Devolución de la Resonancia y de las ventajas de renacer quitadas (guardado v16), una vez.
@@ -238,6 +244,7 @@ function SaveService.emptyData(): PetData
 		Skills = SkillLogic.empty(),
 		Classes = ClassLogic.empty(),
 		World = 1,
+		Settings = SettingsLogic.empty(),
 	}
 end
 
@@ -514,6 +521,8 @@ local function sanitize(raw: any): PetData
 	result.Classes = ClassLogic.sanitize(raw.Classes)
 	-- Mundo: sin el campo (v14 o anteriores) o uno que no existe, el 1.
 	result.World = if raw.World == 2 then 2 else 1
+	-- Ajustes: sin el campo (guardados de antes de los ajustes), los de por defecto.
+	result.Settings = SettingsLogic.sanitize(raw.Settings)
 
 	return result
 end
@@ -608,6 +617,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 	local skills = SkillLogic.serialize(data.Skills or SkillLogic.empty())
 	local classes = ClassLogic.serialize(data.Classes or ClassLogic.empty())
 	local world = if data.World == 2 then 2 else 1
+	local settings = SettingsLogic.serialize(data.Settings)
 	local key = keyFor(userId)
 
 	for attempt = 1, SAVE_ATTEMPTS do
@@ -656,6 +666,7 @@ function SaveService.save(userId: number, data: PetData, release: boolean): bool
 				stored.Skills = skills
 				stored.Classes = classes
 				stored.World = world
+				stored.Settings = settings
 				stored.Session = if release then nil else { JobId = game.JobId, Time = os.time() }
 				return stored
 			end)

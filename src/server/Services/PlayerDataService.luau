@@ -169,9 +169,11 @@ end
 -- máxima se conserva la parte de vida que tenía.
 local BASE_HEALTH = 100
 local function applyBody(humanoid: Humanoid, profile: Profile)
-	local speedLevel = profile.UpgradeLevels.WalkSpeed or 0
 	local speedDef = EconomyConfig.Upgrades.WalkSpeed
-	local perLevel = if speedDef and type(speedDef.SpeedPerLevel) == "number" then speedDef.SpeedPerLevel else 2.5
+	-- Los niveles guardados por encima del máximo (antes llegaba al 20) cuentan como el máximo
+	local maxSpeedLevel = if speedDef and type(speedDef.MaxLevel) == "number" then speedDef.MaxLevel else math.huge
+	local speedLevel = math.min(profile.UpgradeLevels.WalkSpeed or 0, maxSpeedLevel)
+	local perLevel = if speedDef and type(speedDef.SpeedPerLevel) == "number" then speedDef.SpeedPerLevel else 1
 	local amuletMult = AdventureLogic.walkSpeedMultiplier(profile.PetData.Adventure)
 	local style = StyleLogic.sanitize(profile.PetData.Style)
 	local class = ClassLogic.mods(profile.PetData.Classes, style)
@@ -279,6 +281,9 @@ function PlayerDataService.replicate(player: Player)
 	setIfChanged(player, attributes.BossesDefeated, table.concat(bosses, ","))
 	setIfChanged(player, attributes.DataStatus, profile.DataState)
 	setIfChanged(player, attributes.SaveError, profile.SaveError)
+	-- Ajustes (⚙️): el cliente aplica el tamaño de la interfaz guardado
+	local settings = profile.PetData.Settings
+	setIfChanged(player, attributes.HudScale, if type(settings) == "table" and type(settings.HudScale) == "number" then settings.HudScale else 1)
 	-- Núcleos (para los altares y el panel): desbloqueados en el orden de CoreConfig.
 	local cores = profile.PetData.Cores
 	local unlocked = {}

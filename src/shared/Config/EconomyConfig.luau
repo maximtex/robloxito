@@ -29,23 +29,45 @@ local EconomyConfig = {
 	-- Cada cuántos segundos se avisa a las misiones de los 💎 conseguidos (DiamondService).
 	TickInterval = 1,
 
-	-- Los 💎 salen SOLO de pelear: cada enemigo derrotado da 💎 = Reward del enemigo ·
-	-- KillDiamondShare · multiplicador de 💎 (pase Diamantes ×2, Poción de Diamantes,
-	-- amuletos y Bendición de Abundancia: PlayerDataService.diamondMultiplier). Lo que no
-	-- llega a un diamante entero es una probabilidad: con 0.03 un Espinillo (35) da 1 💎
-	-- casi siempre; un Bruto (140), unos 4.
-	KillDiamondShare = 0.03,
+	-- Los 💎 salen SOLO de pelear y son ESCASOS (pagan clases y habilidades: si sobran, se
+	-- mejora todo en una tarde). Ya no dependen del 💰 del enemigo (antes, Reward · 3 %: en
+	-- el Mundo 2 eran cientos por bicho). Cada enemigo derrotado da:
+	--   💎 = KillDiamonds[su tipo] · DiamondTier[su zona] · (EliteDiamonds si es élite)
+	--        · multiplicador de 💎 (pase Diamantes ×2, Poción de Diamantes, amuletos y
+	--          Bendición de Abundancia: PlayerDataService.diamondMultiplier)
+	-- Lo que no llega a un diamante entero es una probabilidad: en el Bosque, 1 de cada 40
+	-- pequeños da 1 💎; un Bruto, 1 de cada 7. Los jefes dan lo suyo (DiamondReward en
+	-- EnemyConfig, BossRewardService) y las oleadas, el premio de cada oleada y el de victoria
+	-- (WaveConfig.ClearDiamonds / VictoryDiamonds, también por DiamondTier).
+	-- Ritmo buscado (jugando oleadas, sin pases): ~140 💎/h en el Bosque, ~200 en el Valle,
+	-- ~270 en la Caldera, ~380 en la Tundra y ~550 en el Mundo 2 (ver docs/REDISENO.md).
+	KillDiamonds = { Normal = 0.025, Strong = 0.15, Boss = 0 },
+	EliteDiamonds = 3, -- × para los élite
+	-- Multiplicador de los 💎 de cada zona (enemigos, oleadas y victoria). Crece despacio a
+	-- propósito: el 💰 de cada zona se multiplica por ~5, los 💎 no.
+	DiamondTier = {
+		Forest = 1,
+		CrystalValley = 1.6,
+		EmberCaldera = 2.5,
+		FrozenTundra = 3.5,
+		GoblinFortress = 4.5,
+		World2 = 5,
+		DividedLands = 5.5,
+	},
 
 	-- Coste del nivel N = floor(BaseCost * CostMultiplier ^ N), en 💰 o en 💎 (Currency).
 	Upgrades = {
 		WalkSpeed = {
 			DisplayName = "Velocidad de Correr",
-			Description = "Corres más rápido: +2.5 de velocidad por nivel.",
+			Description = "Corres un poco más rápido: +1 de velocidad por nivel.",
 			Currency = "Diamonds", -- 💎 (en el puesto ⚡ Mejoras, SkillsController)
-			BaseCost = 15,
-			CostMultiplier = 1.3,
-			SpeedPerLevel = 2.5, -- PlayerDataService: 28 + nivel · esto (antes de amuleto y estilo)
-			MaxLevel = 20,
+			-- Antes +2.5 por nivel hasta el 20 (+50: casi el doble de rápido). Ahora un extra
+			-- pequeño: como mucho +10 (28 -> 38). Los niveles guardados por encima de MaxLevel
+			-- cuentan como MaxLevel (PlayerDataService.applyBody).
+			BaseCost = 20,
+			CostMultiplier = 1.35,
+			SpeedPerLevel = 1, -- PlayerDataService: 28 + nivel · esto (antes de amuleto y estilo)
+			MaxLevel = 10,
 		},
 		PetPower = {
 			DisplayName = "Poder de Mascotas",

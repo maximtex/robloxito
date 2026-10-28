@@ -215,14 +215,21 @@ function QuestLogic.rewardFactor(ctx: Context): number
 	return best
 end
 
--- 💎 de una misión con el factor de la mejor zona: min(Min · factor, Max).
+-- 💎 de una misión con el factor de la mejor zona: min(Min · factor, Max) · RewardScale
+-- (como mínimo 1 si la misión da algo).
 function QuestLogic.reward(def: any, factor: number): number
 	local settings = def.Reward
 	if not settings then
 		return 0
 	end
 	local f = if type(factor) == "number" and factor == factor and factor > 0 and factor < math.huge then factor else 1
-	return math.floor(math.clamp(settings.Min * f, settings.Min, settings.Max))
+	local scale = QuestConfig.RewardScale
+	scale = if type(scale) == "number" and scale == scale and scale > 0 and scale < math.huge then scale else 1
+	local base = math.clamp(settings.Min * f, settings.Min, settings.Max)
+	if base <= 0 then
+		return 0
+	end
+	return math.max(1, math.floor(base * scale))
 end
 
 -- Progreso -------------------------------------------------------------------------------

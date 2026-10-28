@@ -23,10 +23,10 @@ local THEME = Theme.Colors
 local FONTS = Theme.Fonts
 local SIZES = HudLayout.Sizes
 
-local CARD_SECONDS = 2.6
-local TITLED_SECONDS = 7
+local CARD_SECONDS = 2.2
+local TITLED_SECONDS = 4.5 -- antes 7: los de título (botín, logro, arma nueva) tapaban mucho
 local LINE_SECONDS = 1.4
-local MAX_QUEUE = 6
+local MAX_QUEUE = 4
 local FADE = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 export type Options = {
@@ -239,20 +239,20 @@ local function build(text: string, options: Options): Item
 	local title: TextLabel? = nil
 	if titled then
 		title = UiKit.text(frame, "Title", {
-			Position = UDim2.fromOffset(16, 8),
-			Size = UDim2.new(1, -32, 0, 24),
+			Position = UDim2.fromOffset(14, 6),
+			Size = UDim2.new(1, -28, 0, 22),
 			Font = FONTS.Display,
-			TextSize = 19,
+			TextSize = 17,
 			TextColor3 = color,
 			TextTransparency = 1,
 			Text = options.Title,
 		})
 	end
 	local label = UiKit.text(frame, "Text", {
-		Position = if titled then UDim2.fromOffset(16, 34) else UDim2.fromOffset(12, 0),
-		Size = if titled then UDim2.new(1, -32, 1, -40) else UDim2.new(1, -24, 1, 0),
+		Position = if titled then UDim2.fromOffset(14, 29) else UDim2.fromOffset(12, 0),
+		Size = if titled then UDim2.new(1, -28, 1, -33) else UDim2.new(1, -24, 1, 0),
 		Font = if titled then FONTS.Light else FONTS.Display,
-		TextSize = if titled then 15 else (if (utf8.len(body) or #body) > 40 then 16 else 18),
+		TextSize = if titled then 14 else (if (utf8.len(body) or #body) > 40 then 15 else 17),
 		TextColor3 = if titled then THEME.Text else color,
 		TextXAlignment = if titled then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
 		TextYAlignment = if titled then Enum.TextYAlignment.Top else Enum.TextYAlignment.Center,

@@ -1116,6 +1116,7 @@ local function buildGui()
 		top.Position = UDim2.new(0.5, 0, 0, LAYOUT.Margin + LAYOUT.DiamondCardSize.Y * scale + 8)
 	end
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeTop)
+	UiKit.onScaleChanged(placeTop) -- ⚙️ tamaño de la interfaz
 	placeTop()
 
 	return {
@@ -1808,6 +1809,7 @@ function CombatController.start()
 	player:GetAttributeChangedSignal(Constants.Attributes.EquippedPets):Connect(refreshPetChips)
 	local hudGui = ui.ButtonFrame.Parent :: ScreenGui
 	hudGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshPetChips)
+	UiKit.onScaleChanged(refreshPetChips) -- ⚙️ tamaño de la interfaz
 	player.CharacterAdded:Connect(function(character)
 		character:WaitForChild("HumanoidRootPart", 5)
 		refreshPetChips()

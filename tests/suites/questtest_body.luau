@@ -83,21 +83,27 @@ check("misión del Valle sin el Valle -> Locked", code == "Locked")
 print("-- 3. Recompensa una sola vez")
 code, amount = QuestLogic.claim(data, "DefeatFive", ctx)
 local DEFEAT_REWARD = QuestLogic.reward(QuestLogic.Missions.DefeatFive, 1)
-check(("primera reclamación -> Success +%d 💎"):format(amount), code == "Success" and amount == DEFEAT_REWARD and amount == QuestLogic.Missions.DefeatFive.Reward.Min)
+-- Todas las recompensas se escalan con QuestConfig.RewardScale (como mínimo 1 💎)
+local SCALE = QuestConfig.RewardScale or 1
+local function scaled(value: number): number
+	return math.max(1, math.floor(value * SCALE))
+end
+check(("primera reclamación -> Success +%d 💎"):format(amount), code == "Success" and amount == DEFEAT_REWARD and amount == scaled(QuestLogic.Missions.DefeatFive.Reward.Min))
 local code2, amount2 = QuestLogic.claim(data, "DefeatFive", ctx)
 check("segunda reclamación -> AlreadyClaimed y 0", code2 == "AlreadyClaimed" and amount2 == 0)
 
 print("-- Recompensa según la etapa")
 local mission = QuestLogic.Missions.UnlockValley
-check(("solo el Bosque -> factor 1 y el mínimo (%d)"):format(mission.Reward.Min), QuestLogic.rewardFactor(ctxWith()) == 1 and QuestLogic.reward(mission, 1) == mission.Reward.Min)
+check(("solo el Bosque -> factor 1 y el mínimo (%d)"):format(scaled(mission.Reward.Min)), QuestLogic.rewardFactor(ctxWith()) == 1 and QuestLogic.reward(mission, 1) == scaled(mission.Reward.Min))
 -- El factor sale de QuestConfig.ZoneFactor (la mejor zona abierta), no de un número fijo.
 local valleyFactor = QuestLogic.rewardFactor(ctxWith({ UnlockedZones = { Forest = true, CrystalValley = true } }))
-local expectedValley = math.floor(math.min(mission.Reward.Min * QuestConfig.ZoneFactor.CrystalValley, mission.Reward.Max))
-check(("con el Valle -> Min · %s (%d)"):format(tostring(valleyFactor), expectedValley), valleyFactor == QuestConfig.ZoneFactor.CrystalValley and QuestLogic.reward(mission, valleyFactor) == expectedValley and expectedValley > mission.Reward.Min)
+local expectedValley = scaled(math.min(mission.Reward.Min * QuestConfig.ZoneFactor.CrystalValley, mission.Reward.Max))
+check(("con el Valle -> Min · %s (%d)"):format(tostring(valleyFactor), expectedValley), valleyFactor == QuestConfig.ZoneFactor.CrystalValley and QuestLogic.reward(mission, valleyFactor) == expectedValley and expectedValley > scaled(mission.Reward.Min))
 local bestFactor = QuestLogic.rewardFactor(ctxWith({ UnlockedZones = { Forest = true, DividedLands = true, CrystalValley = true } }))
 check("cuenta la zona con el factor más alto", bestFactor == QuestConfig.ZoneFactor.DividedLands)
-check(("factor enorme -> tope (%d)"):format(mission.Reward.Max), QuestLogic.reward(mission, 1e6) == mission.Reward.Max)
-check("factor no válido -> mínimo", QuestLogic.reward(mission, 0 / 0) == mission.Reward.Min and QuestLogic.reward(mission, -3) == mission.Reward.Min)
+check(("factor enorme -> tope (%d)"):format(scaled(mission.Reward.Max)), QuestLogic.reward(mission, 1e6) == scaled(mission.Reward.Max))
+check("factor no válido -> mínimo", QuestLogic.reward(mission, 0 / 0) == scaled(mission.Reward.Min) and QuestLogic.reward(mission, -3) == scaled(mission.Reward.Min))
+check("los 💎 de las misiones son pocos (RewardScale < 1)", SCALE > 0 and SCALE < 1)
 
 print("-- 5. Logros sin duplicados")
 local adata = QuestLogic.empty()

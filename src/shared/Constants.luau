@@ -50,6 +50,9 @@ local Constants = {
 		-- Cliente -> servidor: (enabled: boolean) enciende o apaga el disparo automático
 		-- (solo con el pase "Disparo automático"; sin él se ignora).
 		SetAutoFire = "SetAutoFire",
+		-- Cliente -> servidor: (key: "HudScale", value: number) cambia un ajuste del jugador
+		-- (⚙️ Ajustes; SettingsService lo valida con SettingsLogic y lo guarda).
+		SetSetting = "SetSetting",
 		-- Servidor -> cliente: (amount, enemyName, isBoss, position, isKill, extra?) dinero
 		-- ganado; al derrotarlo extra = { Diamonds, Golden, Streak } (⚡, orbe dorado y racha).
 		CombatReward = "CombatReward",
@@ -207,6 +210,8 @@ local Constants = {
 		DataStatus = "DataStatus",
 		-- true si el último guardado falló (se reintenta solo).
 		SaveError = "SaveError",
+		-- Tamaño de la interfaz elegido en ⚙️ Ajustes (uno de SettingsLogic.HudScales).
+		HudScale = "HudScale",
 		-- Tutorial: "Active" | "Completed" | "Skipped" (sin atributo = datos no listos).
 		TutorialStatus = "TutorialStatus",
 		-- Pasos ya hechos (0..número de pasos); el paso actual es TutorialStep + 1.

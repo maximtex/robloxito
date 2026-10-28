@@ -204,7 +204,7 @@ local StyleConfig = {
 					DamageRatio = 5,
 					Knockback = 34,
 					MaxTargets = 14,
-					Price = 1500,
+					Price = 600, -- 💎 (antes 1 500)
 					UpgradeScale = 3,
 				},
 				TriBeam = {
@@ -223,7 +223,7 @@ local StyleConfig = {
 					Width = 7,
 					DamageRatio = 5,
 					MaxTargets = 16,
-					Price = 3000,
+					Price = 1200, -- 💎 (antes 3 000)
 					UpgradeScale = 4,
 				},
 				Overdrive = {
@@ -238,7 +238,7 @@ local StyleConfig = {
 					Cooldown = 20,
 					Duration = 6,
 					CooldownScale = 0.35,
-					Price = 6000,
+					Price = 2000, -- 💎 (antes 6 000)
 					UpgradeScale = 5,
 				},
 				AssaultDrone = {
@@ -255,7 +255,7 @@ local StyleConfig = {
 					Interval = 0.3,
 					Range = 55,
 					DamageRatio = 1.2,
-					Price = 12000,
+					Price = 3500, -- 💎 (antes 12 000)
 					UpgradeScale = 6,
 				},
 			},
@@ -265,14 +265,19 @@ local StyleConfig = {
 			Icon = "🗡️",
 			Color = RGB(240, 80, 90),
 			Attack = "Combo de 3 tajos con tu espada (el 3.º gira y pega a todos). Clic derecho: bloqueas; si bloqueas justo a tiempo, contraatacas.",
-			Pros = "Pegas a varios a la vez, +30 % de vida y bloqueas los golpes",
-			Cons = "Cuerpo a cuerpo y más lento que los Puños",
+			Pros = "Pegas a varios a la vez, +25 % de vida y bloqueas los golpes",
+			Cons = "Caminas más lento, haces -15 % de daño a los jefes y es cuerpo a cuerpo",
 			Range = 11, -- hasta el borde del enemigo
 			Cooldown = 0.5, -- entre tajos
-			DpsScale = 1.35,
-			DamageTaken = 0.85,
-			WalkSpeed = 1.05,
-			MaxHealth = 1.3,
+			-- Rebalance (pruebas con amigos: "el Guerrero no tiene ninguna desventaja"): menos
+			-- daño (1.35 -> 1.2), recibe algo más (0.85 -> 0.95), más lento (1.05 -> 0.95), algo
+			-- menos de vida (1.3 -> 1.25), bloqueo menos fuerte (0.3 -> 0.45) y -15 % a jefes. Es
+			-- el de las hordas; los jefes son cosa de los Puños.
+			DpsScale = 1.2,
+			DamageTaken = 0.95,
+			WalkSpeed = 0.95,
+			MaxHealth = 1.25,
+			BossDamage = 0.85, -- × daño a los jefes (StyleLogic.bossDamage)
 			-- Combo de tajos (WarriorLogic): cada tajo seguido (sin parar más de ComboWindow s) es el
 			-- siguiente. Ratio: × el daño de un tajo; Arc: grados a cada lado (180 = alrededor);
 			-- RangeScale: × alcance; Recovery: × lo que tarda el siguiente.
@@ -286,7 +291,7 @@ local StyleConfig = {
 			-- caminas más lento. Parada perfecta: si te pegan en los primeros ParryWindow s de un
 			-- bloqueo (y no bloqueaste hace menos de ParryRearm s), no te hace nada, el bicho queda
 			-- aturdido Stun s y tu siguiente tajo en CounterSeconds s hace ×CounterMultiplier.
-			Block = { DamageTaken = 0.3, ParryWindow = 0.35, ParryRearm = 0.8, Stun = 1.5, CounterSeconds = 2, CounterMultiplier = 2.5, WalkSpeed = 0.5 },
+			Block = { DamageTaken = 0.45, ParryWindow = 0.35, ParryRearm = 0.8, Stun = 1.5, CounterSeconds = 2, CounterMultiplier = 2.5, WalkSpeed = 0.5 },
 			-- Animaciones de la espada (publicadas en Roblox; StyleAnimations las pone en tu
 			-- personaje y Roblox las enseña a los demás). Sin ellas, los movimientos hechos a
 			-- mano (CharacterPose).
@@ -386,7 +391,7 @@ local StyleConfig = {
 					DamageRatio = 1.6,
 					Pull = 8,
 					MaxTargets = 16,
-					Price = 1500,
+					Price = 600, -- 💎 (antes 1 500)
 					UpgradeScale = 3,
 				},
 				MeteorStrike = {
@@ -406,7 +411,7 @@ local StyleConfig = {
 					Stun = 1.6,
 					Knockback = 40,
 					MaxTargets = 16,
-					Price = 3000,
+					Price = 1200, -- 💎 (antes 3 000)
 					UpgradeScale = 4,
 				},
 				WarGod = {
@@ -423,7 +428,7 @@ local StyleConfig = {
 					CooldownScale = 0.5,
 					DamageBoost = 1.5,
 					DamageTaken = 0.25,
-					Price = 6000,
+					Price = 2000, -- 💎 (antes 6 000)
 					UpgradeScale = 5,
 				},
 				RiftSlash = {
@@ -443,7 +448,7 @@ local StyleConfig = {
 					Width = 8,
 					DamageRatio = 4.5,
 					MaxTargets = 16,
-					Price = 12000,
+					Price = 3500, -- 💎 (antes 12 000)
 					UpgradeScale = 6,
 				},
 			},
@@ -453,11 +458,14 @@ local StyleConfig = {
 			Icon = "👊",
 			Color = RGB(255, 150, 70),
 			Attack = "Golpes cuerpo a cuerpo muy rápidos: hay que acercarse, pero pegan mucho más.",
-			Pros = "Corres más, +50 % de vida, recibes menos daño y tienes dash (Shift)",
-			Cons = "Tienes que estar pegado al enemigo",
+			Pros = "+35 % de daño a los jefes, corres más, +50 % de vida, recibes menos daño y tienes dash (Shift)",
+			Cons = "Pegas a uno solo y tienes que estar pegado al enemigo",
 			Range = 9, -- hasta el borde del enemigo
 			Cooldown = 0.35, -- entre golpes (la mejora "Cadencia" también lo acorta)
-			DpsScale = 1.5,
+			-- Rebalance: el que más daño hace a UN enemigo (1.5 -> 1.6) y a los jefes (+35 %);
+			-- el Guerrero es el de las hordas.
+			DpsScale = 1.6,
+			BossDamage = 1.35, -- × daño a los jefes (StyleLogic.bossDamage)
 			DamageTaken = 0.7,
 			WalkSpeed = 1.2,
 			MaxHealth = 1.5, -- × la vida normal
@@ -556,7 +564,7 @@ local StyleConfig = {
 					MaxTargets = 14,
 					EndRadius = 14, -- explosión al llegar
 					EndRatio = 3,
-					Price = 1500,
+					Price = 600, -- 💎 (antes 1 500)
 					UpgradeScale = 3,
 				},
 				TitanQuake = {
@@ -576,7 +584,7 @@ local StyleConfig = {
 					Stun = 2,
 					Knockback = 40,
 					MaxTargets = 16,
-					Price = 3000,
+					Price = 1200, -- 💎 (antes 3 000)
 					UpgradeScale = 4,
 				},
 				TitanMode = {
@@ -592,7 +600,7 @@ local StyleConfig = {
 					Duration = 8,
 					CooldownScale = 0.45,
 					DamageTaken = 0.3,
-					Price = 6000,
+					Price = 2000, -- 💎 (antes 6 000)
 					UpgradeScale = 5,
 				},
 				Hurricane = {
@@ -611,7 +619,7 @@ local StyleConfig = {
 					DamageRatio = 1.4,
 					Pull = 18,
 					MaxTargets = 16,
-					Price = 12000,
+					Price = 3500, -- 💎 (antes 12 000)
 					UpgradeScale = 6,
 				},
 			},
@@ -622,11 +630,12 @@ local StyleConfig = {
 			Color = RGB(190, 120, 255),
 			Attack = "Clic: bola que persigue al bicho más cercano a tu cursor. Mantén para cargar un orbe gigante. Gastas maná. Clic derecho o Shift: teletransporte.",
 			Pros = "Hechizos que persiguen, área, el elemento de tu bastón y teletransporte",
-			Cons = "Caminas un 10 % más lento y gastas maná",
+			Cons = "Caminas un 10 % más lento, tienes un 20 % menos de vida y gastas maná",
 			Range = 45,
 			Cooldown = 0.45, -- entre bolas rápidas
 			DpsScale = 1.05,
 			WalkSpeed = 0.9,
+			MaxHealth = 0.8, -- de lejos y con área, pero frágil
 			Splash = { Radius = 4, Fraction = 0.4 }, -- la bola rápida (el orbe cargado, Charge)
 			-- Las bolas persiguen al bicho más cercano al punto apuntado (a esta distancia de él y
 			-- a tu alcance); si no hay, explotan donde apuntas.
@@ -634,7 +643,8 @@ local StyleConfig = {
 			-- Maná: cada bola gasta BoltCost y el orbe cargado Charge.Cost; se recupera Regen por
 			-- segundo (IdleRegen si llevas IdleSeconds sin gastar). Sin maná lanzas chispas
 			-- (SparkScale del daño, sin explosión ni elemento). Las habilidades gastan ManaCost.
-			Mana = { Max = 100, Regen = 14, IdleRegen = 30, IdleSeconds = 1.5, BoltCost = 8, SparkScale = 0.35 },
+			-- Rebalance: antes Regen 14 e IdleRegen 30 (casi nunca te quedabas sin maná).
+			Mana = { Max = 100, Regen = 8, IdleRegen = 18, IdleSeconds = 1.5, BoltCost = 8, SparkScale = 0.35 },
 			-- Orbe cargado: mantén el clic (desde MinHold s); a los Full s está al máximo. Daño =
 			-- DPS · (BaseSeconds + segundos cargando) · Bonus; explosión de Radius[1] a Radius[2]
 			-- y maná de Cost[1] a Cost[2] según lo cargado.
@@ -753,7 +763,7 @@ local StyleConfig = {
 					Delay = 0.5,
 					Interval = 0.12,
 					MaxTargets = 10,
-					Price = 1500,
+					Price = 600, -- 💎 (antes 1 500)
 					UpgradeScale = 3,
 				},
 				Supernova = {
@@ -772,7 +782,7 @@ local StyleConfig = {
 					DamageRatio = 3,
 					Freeze = 3,
 					MaxTargets = 18,
-					Price = 3000,
+					Price = 1200, -- 💎 (antes 3 000)
 					UpgradeScale = 4,
 				},
 				Thunderstorm = {
@@ -792,7 +802,7 @@ local StyleConfig = {
 					JumpRange = 24,
 					DamageRatio = 3.5,
 					Stun = 0.8,
-					Price = 6000,
+					Price = 2000, -- 💎 (antes 6 000)
 					UpgradeScale = 5,
 				},
 				Singularity = {
@@ -815,7 +825,7 @@ local StyleConfig = {
 					DamageRatio = 6,
 					Pull = 22,
 					MaxTargets = 16,
-					Price = 12000,
+					Price = 3500, -- 💎 (antes 12 000)
 					UpgradeScale = 6,
 				},
 			},

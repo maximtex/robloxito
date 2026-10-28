@@ -12,6 +12,10 @@ local CombatConfig = {
 	PetDamageShare = 0.5,
 	PetMoneyShare = 0.5, -- y la mitad de su bonificación al dinero de los enemigos
 
+	-- Regeneración de vida del jugador (HealthService; reemplaza la de Roblox, que curaba un
+	-- 1 %/s siempre): Rate de la vida máxima por segundo, solo tras Delay s sin recibir daño.
+	Regen = { Rate = 0.005, Delay = 6 },
+
 	-- Se apunta con el ratón o el toque (AimPoint): el disparo va hacia ese punto y da a quien
 	-- esté en el camino (PetCombatService, AimLogic), con la cadencia y el alcance de WeaponConfig.
 	AimRadius = 1, -- margen (studs) alrededor del cuerpo del enemigo para que el cursor lo apunte a él

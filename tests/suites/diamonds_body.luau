@@ -21,7 +21,7 @@ end
 
 print("-- 1. Sin energía pasiva")
 check("ya no existe la producción pasiva (ni su interruptor)", EconomyConfig.PassiveEnergy == nil and EconomyConfig.BaseProductionPerSecond == nil)
-check("cada enemigo da una parte de su recompensa en ⚡", EconomyConfig.KillDiamondShare > 0 and EconomyConfig.KillDiamondShare < 1)
+check("cada enemigo da pocos 💎 según su tipo (menos de 1 por bicho)", EconomyConfig.KillDiamondShare == nil and EconomyConfig.KillDiamonds.Normal > 0 and EconomyConfig.KillDiamonds.Normal < 1 and EconomyConfig.KillDiamonds.Strong < 1)
 local ana, profile = enter("Ana", 1)
 local before = profile.Diamonds
 advance(5)

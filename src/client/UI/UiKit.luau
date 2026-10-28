@@ -5,6 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Theme = require(script.Parent.Theme)
 local HudLayout = require(script.Parent.HudLayout)
+local UserScale = require(script.Parent.UserScale)
 
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
@@ -420,7 +421,14 @@ function UiKit.bindScale(screenGui: ScreenGui, scales: { UIScale })
 		end
 	end
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(apply)
+	UserScale.watch(apply)
 	apply()
+end
+
+-- Llama a `callback` cuando el jugador cambia el tamaño de la interfaz (⚙️ Ajustes), para
+-- volver a colocar lo que depende de la escala (además de al cambiar la pantalla).
+function UiKit.onScaleChanged(callback: () -> ()): RBXScriptConnection
+	return UserScale.watch(callback)
 end
 
 -- Diseño de un panel modal (cálculo puro): centrado en horizontal, justo DEBAJO de la
@@ -458,6 +466,7 @@ function UiKit.bindModalLayout(screenGui: ScreenGui, uiScale: UIScale, baseSize:
 		onPosition(UDim2.new(0.5, 0, 0, top))
 	end
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(apply)
+	UserScale.watch(apply)
 	apply()
 end
 

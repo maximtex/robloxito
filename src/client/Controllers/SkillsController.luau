@@ -323,8 +323,9 @@ function SkillsController.start()
 	local function renderSpeed(money: number)
 		local def = EconomyConfig.Upgrades[SPEED_ID]
 		local raw = player:GetAttribute(Constants.Attributes.UpgradeLevelPrefix .. SPEED_ID)
-		local level = if typeof(raw) == "number" then raw else 0
-		local per = def.SpeedPerLevel or 2.5
+		-- (los niveles de antes por encima del máximo cuentan como el máximo)
+		local level = math.min(if typeof(raw) == "number" then raw else 0, def.MaxLevel)
+		local per = def.SpeedPerLevel or 1
 		ui.SpeedText.Text = ("🏃 Velocidad al correr · <font color=\"#FFCE54\">Nivel %d/%d</font> · +%s"):format(level, def.MaxLevel, formatNumber(level * per, 1))
 		if level >= def.MaxLevel then
 			ui.SpeedButton.Text = "★ MÁX"

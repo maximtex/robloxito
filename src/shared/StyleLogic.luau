@@ -129,11 +129,18 @@ function StyleLogic.countHit(styleId: any, state: { [string]: any }, now: number
 	return nil
 end
 
--- Multiplicador de la vida máxima con este estilo (Puños: +50 %).
+-- Multiplicador de la vida máxima con este estilo (Puños: +50 %; Magia: menos).
 function StyleLogic.maxHealth(styleId: any): number
 	local def = StyleLogic.definition(styleId)
 	local factor = def and def.MaxHealth
 	return if finite(factor) then math.clamp(factor, 0.5, 3) else 1
+end
+
+-- Multiplicador del daño a los JEFES con este estilo (BossDamage: Puños más, Guerrero menos).
+function StyleLogic.bossDamage(styleId: any): number
+	local def = StyleLogic.definition(styleId)
+	local factor = def and def.BossDamage
+	return if finite(factor) then math.clamp(factor, 0.25, 3) else 1
 end
 
 -- Curación por un golpe que ha hecho `dealt` de daño (Magia; `extra` de la clase en

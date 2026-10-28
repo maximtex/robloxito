@@ -17,16 +17,16 @@
 -- RequiresCombatPet: solo se ofrece como diaria si el jugador tiene una mascota de combate.
 --
 -- Recompensa (💎 diamantes, en el código Diamonds; la calcula el servidor al reclamar):
---   min(Min · ZoneFactor de tu mejor zona abierta, Max)
--- Así acompaña a la etapa actual sin dispararse (Max). Referencia: un enemigo pequeño da
--- ~1 💎, un Bruto ~4, una partida de oleadas ganada ~60 y los jefes 60 / 150 / 400; las
--- habilidades nuevas cuestan unos cientos (StyleConfig.Catalog).
--- Las tres diarias juntas dan como mucho ~1 200 al día (el peor caso, con los topes).
+--   max(1, floor(min(Min · ZoneFactor de tu mejor zona abierta, Max) · RewardScale))
+-- Así acompaña a la etapa actual sin dispararse (Max). RewardScale baja todas a la vez: los
+-- 💎 son escasos (una partida de oleadas del Bosque da ~14 💎 y la clase 2 cuesta 200).
+-- Las tres diarias juntas dan como mucho ~240 al día (el peor caso, con los topes).
 -- Los logros que coinciden con una misión (primer enemigo, primer jefe, primera mascota,
 -- primera zona) no dan nada: la misma acción nunca se premia dos veces.
 
 local QuestConfig = {
 	DailyCount = 3,
+	RewardScale = 0.2, -- × a todas las recompensas en 💎 (antes 1: inflaban los 💎)
 	DailyAlways = { "DailyHunt" }, -- siempre entre las diarias del día
 	DaySeconds = 86400, -- las diarias cambian a las 00:00 UTC (hora del servidor)
 	-- Multiplicador de las recompensas según la mejor zona abierta (la más alta cuenta).

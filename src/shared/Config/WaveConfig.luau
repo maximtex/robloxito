@@ -129,8 +129,9 @@ local WaveConfig = {
 
 	-- Modos de partida. Cada altar juega el de su círculo (Places.*.Arena); el de la práctica
 	-- ("Tutorial"), solo con quien está en ese paso del tutorial (TutorialConfig, "Waves").
-	-- RewardScale multiplica los premios de limpiar oleadas y de victoria (zonas más altas,
-	-- más premio); VictoryScale, solo el de victoria.
+	-- RewardScale multiplica el 💰 de limpiar oleadas y de victoria (zonas más altas, más
+	-- premio); los 💎 van por EconomyConfig.DiamondTier de la zona del modo (crecen mucho
+	-- menos). VictoryScale escala solo el premio de victoria.
 	Arenas = {
 		Forest = {
 			Place = "Forest",
@@ -351,7 +352,7 @@ local WaveConfig = {
 	-- Ritmo de la partida (segundos)
 	StartCountdown = 3, -- durante la cuenta atrás, quien pulse E se une
 	BreakSeconds = 0.6, -- entre oleadas (casi seguidas)
-	CardSeconds = 8, -- para elegir mejora (luego se elige una al azar)
+	CardSeconds = 10, -- para elegir mejora (luego se elige una al azar); las cartas tardan ~1,3 s en voltearse
 	LeaveGrace = 6, -- sin nadie dentro (o todos caídos) durante esto: se pierde
 	-- Aparición: de BatchSize en BatchSize cada SpawnInterval, sin pasar de los vivos a la
 	-- vez de la oleada: AliveStart en la 1.ª y AliveGrowth más en cada una, hasta MaxAlive
@@ -361,8 +362,9 @@ local WaveConfig = {
 	AliveStart = 8,
 	AliveGrowth = 2,
 	MaxAlive = 20,
-	-- Al limpiar cada oleada recuperas esta parte de tu vida máxima.
-	ClearHeal = 0.35,
+	-- Al limpiar cada oleada recuperas esta parte de tu vida máxima (antes 0.35: con eso y la
+	-- regeneración de Roblox la vida casi no importaba; ahora hay que cuidarla).
+	ClearHeal = 0.2,
 	-- Daño que hacen los enemigos de la oleada w (el jefe, el suyo):
 	--   DamageStart + DamageGrowth · (w - 1), hasta DamageMax
 	-- Las primeras pegan flojo (se aprenden con el arma inicial); desde la 6 más que en el mundo.
@@ -381,17 +383,21 @@ local WaveConfig = {
 	-- Vida del jefe con varios jugadores (además de la de su configuración)
 	BossPlayerHealth = 0.6,
 	-- Dinero de los enemigos de las oleadas (golpes y derrota) frente a los del mundo: las
-	-- oleadas dan muchos 💎 pero el 💰 se queda normal.
+	-- oleadas tienen sus premios por oleada y de victoria, el 💰 de cada bicho baja.
 	MoneyMultiplier = 0.3,
 
 	-- Premio al limpiar cada oleada (para cada jugador de la partida), por el número de la
-	-- oleada:  💎 = ClearDiamonds · w · multiplicador de 💎     💰 = ClearMoney · w
+	-- oleada:
+	--   💎 = ClearDiamonds · w · DiamondTier de la zona · multiplicador de 💎
+	--   💰 = ClearMoney · w · RewardScale
 	-- (los "Diamonds" de aquí son 💎: EconomyConfig; el multiplicador es el del pase, la poción
-	-- y las aventuras: PlayerDataService.diamondMultiplier)
-	ClearDiamonds = 1,
+	-- y las aventuras: PlayerDataService.diamondMultiplier). Los 💎 con decimales se redondean
+	-- al azar (0.3 = un 30 % de las veces 1). Antes 1 · w · RewardScale: una partida de la
+	-- Caldera daba ~900 💎 solo de oleadas.
+	ClearDiamonds = 0.06,
 	ClearMoney = 15,
 	-- Premio de victoria (además del botín del jefe y su arma la primera vez):
-	VictoryDiamonds = 40, -- 💎 · multiplicador de 💎
+	VictoryDiamonds = 2, -- 💎 · DiamondTier · multiplicador de 💎 (antes 40 · RewardScale)
 	VictoryMoney = 600,
 
 	-- Modo infinito (los modos con jefe; Endless = false en un modo lo quita): al caer el

@@ -1058,7 +1058,7 @@ function InventoryController.start()
 			if potionCount > 0 then
 				markNew("Potions", potionCount)
 			end
-			Toasts.show(table.concat(names, "  ·  "), { Title = "🎁 ¡Botín de " .. tostring(detail.Boss) .. "!", Color = THEME.Gold, Duration = 6, OnClick = function()
+			Toasts.show(table.concat(names, "  ·  "), { Title = "🎁 ¡Botín de " .. tostring(detail.Boss) .. "!", Color = THEME.Gold, Duration = 4.5, OnClick = function()
 				PanelManager.open(PANEL_NAME)
 				selectTab(if detail.Egg then "Eggs" else "Potions")
 			end })
@@ -1068,7 +1068,7 @@ function InventoryController.start()
 			local def = ItemConfig.Titles[detail]
 			if def then
 				markNew("Titles", 1)
-				Toasts.show(("«%s» · %s"):format(def.DisplayName, def.Description), { Title = "🏅 ¡Nuevo título!", Color = def.Color, Duration = 6, OnClick = function()
+				Toasts.show(("«%s» · %s"):format(def.DisplayName, def.Description), { Title = "🏅 ¡Nuevo título!", Color = def.Color, Duration = 4.5, OnClick = function()
 					PanelManager.open(PANEL_NAME)
 					selectTab("Titles")
 				end })

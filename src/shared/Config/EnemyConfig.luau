@@ -86,7 +86,7 @@ local EnemyConfig = {
 			DetectRange = 0, -- los jefes usan su arena (Zones.*.Boss.Arena)
 			LeashRange = 18,
 			Reward = 1200,
-			DiamondReward = 60, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			DiamondReward = 3, -- 💎 extra para cada jugador que lo derrota (BossRewardService); antes 60
 			RespawnSeconds = 12,
 			-- IA de jefe (EnemyService.updateBoss): vigila su arena, persigue con rutas
 			-- (PathfindingService) dentro de su territorio, avisa cada ataque y descansa tras él.
@@ -144,7 +144,7 @@ local EnemyConfig = {
 			DetectRange = 0, -- los jefes usan su arena (Zones.*.Boss.Arena)
 			LeashRange = 18,
 			Reward = 4000,
-			DiamondReward = 150, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			DiamondReward = 6, -- 💎 extra para cada jugador que lo derrota (BossRewardService); antes 150
 			RespawnSeconds = 12,
 			Brain = { DetectRange = 24, Territory = 40, LockSeconds = 4, RecoverSeconds = 0.8 },
 			-- Identidad: embestidas en línea recta (se esquivan apartándose de la franja roja)
@@ -199,7 +199,7 @@ local EnemyConfig = {
 			DetectRange = 0, -- los jefes usan su arena (Zones.*.Boss.Arena)
 			LeashRange = 18,
 			Reward = 12000,
-			DiamondReward = 400, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			DiamondReward = 12, -- 💎 extra para cada jugador que lo derrota (BossRewardService); antes 400
 			RespawnSeconds = 15,
 			Brain = { DetectRange = 26, Territory = 42, LockSeconds = 4, RecoverSeconds = 0.8 },
 			-- Identidad: saltos que caen donde estabas y ráfagas de bolas de fuego
@@ -255,7 +255,7 @@ local EnemyConfig = {
 			DetectRange = 0, -- los jefes usan su arena (Zones.*.Boss.Arena)
 			LeashRange = 18,
 			Reward = 36000,
-			DiamondReward = 1000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			DiamondReward = 20, -- 💎 extra para cada jugador que lo derrota (BossRewardService); antes 1000
 			RespawnSeconds = 15,
 			Brain = { DetectRange = 28, Territory = 44, LockSeconds = 4, RecoverSeconds = 0.7 },
 			-- Identidad: embestidas sobre el hielo y ráfagas de carámbanos
@@ -313,7 +313,7 @@ local EnemyConfig = {
 			DetectRange = 0, -- usa su arena (Zones.*.Boss.Arena)
 			LeashRange = 18,
 			Reward = 120000,
-			DiamondReward = 3000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			DiamondReward = 30, -- 💎 extra para cada jugador que lo derrota (BossRewardService); antes 3000
 			RespawnSeconds = 30,
 			Brain = { DetectRange = 36, Territory = 52, LockSeconds = 3, RecoverSeconds = 0.3 },
 			Charge = { Interval = 5, Telegraph = 0.7, Distance = 36, Width = 8, Damage = 40, Speed = 85, MinRange = 8, MaxRange = 38 },
@@ -438,7 +438,7 @@ local EnemyConfig = {
 			DetectRange = 0,
 			LeashRange = 20,
 			Reward = 150000,
-			DiamondReward = 4000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			DiamondReward = 25, -- 💎 extra para cada jugador que lo derrota (BossRewardService); antes 4000 (y son dos)
 			RespawnSeconds = 30,
 			Brain = { DetectRange = 40, Territory = 56, LockSeconds = 3, RecoverSeconds = 0.5 },
 			Leap = { Interval = 7, Telegraph = 0.9, Radius = 11, Damage = 44, MinRange = 10, MaxRange = 36 },
@@ -460,7 +460,7 @@ local EnemyConfig = {
 			DetectRange = 0,
 			LeashRange = 20,
 			Reward = 150000,
-			DiamondReward = 4000, -- 💎 extra para cada jugador que lo derrota (BossRewardService)
+			DiamondReward = 25, -- 💎 extra para cada jugador que lo derrota (BossRewardService); antes 4000 (y son dos)
 			RespawnSeconds = 30,
 			Brain = { DetectRange = 40, Territory = 56, LockSeconds = 3, RecoverSeconds = 0.5 },
 			Charge = { Interval = 6, Telegraph = 0.85, Distance = 32, Width = 8, Damage = 44, Speed = 62, MinRange = 8, MaxRange = 34 },

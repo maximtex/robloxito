@@ -295,3 +295,72 @@ Elegido: **oleadas + 💰** y reiniciar solo 💰 y el nivel de las armas.
   vacío (las victorias de antes no cuentan para el próximo renacimiento).
 - Panel (`RebirthController`): requisito con ✅, barra (mitad oleadas, mitad 💰) y botón que
   dice qué falta.
+
+## 7. Correcciones de las pruebas con amigos, bloque 1: ritmo, economía y clases
+
+Lo que dijeron: "en 1 hora me pasé casi todo", "las gemas están infladas: mejoré al máximo
+todas las clases jugando solo con el Guerrero", "la regeneración de vida es muy alta", "la
+velocidad de correr es excesiva", "el Guerrero no tiene desventajas", "los Puños son
+inferiores al Guerrero" y "el mago genera maná muy rápido y tiene la misma vida".
+
+### 💎 diamantes (la causa principal)
+Los 💎 de cada bicho eran `Reward · 3 %`, y el `Reward` (💰) se multiplica por ~5 en cada
+zona: en el Mundo 2 cada bicho daba cientos de 💎. Además los jefes daban 60…4 000 y cada
+partida ganada, `40 · RewardScale` (hasta ×60). Una partida de la Caldera daba ~8 900 💎;
+una clase entera de un estilo (comprar las 4 y subirlas) cuesta ~8 600.
+
+Ahora (valores en Config, prueba "Ritmo de los 💎" en la batería `waves`):
+
+| Fuente | Antes | Ahora |
+|---|---|---|
+| Cada bicho | `Reward · 0.03` | `KillDiamonds` (pequeño 0.025, mediano 0.15) · `DiamondTier` de su zona · ×3 si es élite |
+| Cada oleada | `1 · w · RewardScale` | `0.06 · w · DiamondTier` |
+| Victoria | `40 · RewardScale` | `2 · DiamondTier` |
+| Jefes (`DiamondReward`) | 60 / 150 / 400 / 1 000 / 3 000 / 4 000 ×2 | 3 / 6 / 12 / 20 / 30 / 25 ×2 |
+| Misiones, diarias, logros | Min · factor, con tope | lo mismo · `QuestConfig.RewardScale` (0,2) |
+
+`DiamondTier`: Bosque 1, Valle 1,6, Caldera 2,5, Tundra 3,5, Fortaleza 4,5, Mundo 2 5 y
+Tierras Divididas 5,5 (el 💰 de esas zonas va ×1 … ×3 000).
+
+💎 por partida ganada (sin pases): Bosque ~13, Valle ~28, Caldera ~65, Tundra ~119, Oleadas
+del Equilibrio ~131 y Oleadas Gemelas ~171 (antes ~430, ~1 900, ~8 900, ~38 000 y
+~118 000). Con partidas de 6 a 15 min son ~130-680 💎 por hora: la 2.ª clase (200 💎) cuesta
+~1,5 h en el Bosque y una clase entera de un estilo, decenas de horas. Los pases y pociones
+de 💎 siguen multiplicando (pagar acelera, no regala). Las habilidades del Mundo 2 bajan de
+1 500 / 3 000 / 6 000 / 12 000 a 600 / 1 200 / 2 000 / 3 500 💎 para que se puedan alcanzar.
+
+### 💰 y zonas
+Precio de las puertas: Valle 25 000 (antes 12 500), Caldera 250 000 (125 000), Tundra
+1 500 000 (600 000), Fortaleza 6 000 000 (3 500 000) y Tierras Divididas 15 000 000
+(20 000 000). Con el 💰 de una partida ganada (Bosque ~5 600, Valle ~25 000, Caldera
+~110 000, Tundra ~460 000) son unas 4, 10, 13 y 13 partidas de la zona anterior.
+
+### Vida, velocidad y estilos
+- Regeneración: `HealthService` quita la de Roblox (1 %/s siempre) y cura 0,5 %/s solo tras
+  6 s sin recibir daño (`CombatConfig.Regen`). Al limpiar una oleada, 20 % (antes 35 %).
+- Velocidad de Correr: +1 por nivel hasta 10 (antes +2,5 hasta 20); los niveles guardados de
+  más cuentan como 10.
+- Guerrero (el de las hordas): ×1,2 de daño (1,35), recibe ×0,95 (0,85), camina ×0,95
+  (1,05), ×1,25 de vida (1,3), el bloqueo deja pasar el 45 % (30 %) y -15 % a los jefes.
+- Puños (el de los jefes): ×1,6 de daño (1,5) y +35 % a los jefes (`StyleConfig` BossDamage,
+  `StyleLogic.bossDamage`, aplicado en `StyleService`).
+- Magia: -20 % de vida (`MaxHealth` 0,8) y maná 8/s y 18/s sin gastar (14 y 30).
+- Armas: sin cambios por ahora (el rediseño del "pistolero" va en el bloque 4).
+
+## 8. Correcciones de las pruebas con amigos, bloque 2: interfaz
+
+- Mejoras de oleada: las 3 cartas salen boca abajo y se dan la vuelta una a una
+  (`WaveController`, ~1,3 s); hasta entonces no se pueden elegir (antes se cogía la
+  primera sin leer). Para elegir hay 10 s (`WaveConfig.CardSeconds`, antes 8).
+- Armería: cada arma lleva el icono de su categoría (🔫 Armas, 🗡️ Guerrero, 🥊 Puños,
+  🔱 Magia; `WeaponConfig.Categories[].ItemIcon`) y su elemento en una insignia pequeña:
+  las espadas ya no parecen orbes.
+- Avisos: más pequeños (360 px de ancho, antes 420), como mucho 3 a la vez (4) y duran
+  menos (2,2 s; con título 4,5 s) (`HudLayout.Sizes`, `Toasts`).
+- ⚙️ Ajustes (`SettingsController`): tamaño de la interfaz del 60 % al 100 %
+  (`SettingsLogic.HudScales`). Multiplica la escala de `HudLayout` (puede bajar de su
+  mínimo) y se aplica al momento a todo el HUD y a los paneles (`UserScale`); se guarda
+  con la partida (`SetSetting` → `SettingsService`, campo `Settings` del guardado, opcional:
+  sin él, 100 %). Botón de engranaje abajo a la izquierda (escritorio) o arriba en la
+  columna izquierda (táctil). Más grande que el 100 % no cabe en pantallas pequeñas (lo
+  comprueba la suite "hudlayout" con cada tamaño).

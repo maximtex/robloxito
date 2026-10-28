@@ -184,6 +184,7 @@ local function buildHud()
 		panel.Position = UDim2.new(0.5, 0, 0, LAYOUT.Margin + LAYOUT.DiamondCardSize.Y * scale + 8)
 	end
 	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(placePanel)
+	UiKit.onScaleChanged(placePanel) -- ⚙️ tamaño de la interfaz
 	placePanel()
 	-- El consejo se apoya sobre la fila de abajo del menú (MenuBar: "BottomDock"), con
 	-- hueco para el porcentaje de Renacer que asoma por encima; si no está, a 150 px del borde.
@@ -206,6 +207,7 @@ local function buildHud()
 		end
 	end
 	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeHint)
+	UiKit.onScaleChanged(placeHint) -- ⚙️ tamaño de la interfaz
 	playerGui.ChildAdded:Connect(function(child)
 		if child.Name == "MenuDockHud" then
 			task.defer(placeHint)
@@ -231,7 +233,7 @@ local function buildHud()
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Text = "✨ Elige una mejora",
 	})
-	UiKit.text(cardPanel, "Help", {
+	local cardHelp = UiKit.text(cardPanel, "Help", {
 		Position = UDim2.fromOffset(20, 44),
 		Size = UDim2.new(1, -40, 0, 22),
 		Font = FONTS.Body,
@@ -316,7 +318,29 @@ local function buildHud()
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Text = tostring(index),
 		})
-		table.insert(cardButtons, { Button = button, Stroke = stroke, Icon = icon, Name = name, Body = body, Level = level, Id = nil :: string? })
+		-- Tapa de la carta: se ve boca abajo hasta que se voltea (openCards). Así nadie elige
+		-- sin querer con el clic de atacar ni sin leer (pruebas con amigos).
+		local cover = UiKit.create("Frame", {
+			Name = "Cover",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = INK,
+			ZIndex = 5,
+			Visible = false,
+		}, button)
+		UiKit.corner(cover, 12)
+		UiKit.stroke(cover, THEME.Gold, 3, 0.2)
+		UiKit.text(cover, "Mark", {
+			Size = UDim2.fromScale(1, 1),
+			Font = FONTS.Display,
+			TextSize = 64,
+			TextColor3 = THEME.Gold,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Text = "?",
+			ZIndex = 6,
+		})
+		table.insert(cardButtons, { Button = button, Stroke = stroke, Icon = icon, Name = name, Body = body, Level = level, Cover = cover, Id = nil :: string? })
 	end
 
 	local resultPanel, resultScale = UiKit.panel(modal, "ResultPanel", Vector2.new(440, 320), Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5))
@@ -416,6 +440,7 @@ local function buildHud()
 		HintBox = hintBox,
 		HintText = hintText,
 		CardPanel = cardPanel,
+		CardHelp = cardHelp,
 		CardTimerFill = cardTimerFill,
 		Cards = cardButtons,
 		ResultPanel = resultPanel,
@@ -747,10 +772,21 @@ function WaveController.start()
 		ContextActionService:UnbindAction(CARD_ACTION)
 	end
 
+	-- Las cartas salen boca abajo y se voltean una a una: hasta que se ven todas no se puede
+	-- elegir (antes se elegía sin querer con el clic de atacar o las teclas, sin leerlas).
+	local CARD_REVEAL_START = 0.35 -- s hasta que se voltea la primera
+	local CARD_REVEAL_STEP = 0.3 -- s entre una y la siguiente
+	local CARD_READ = 0.35 -- s más tras la última antes de poder elegir
+	local CARD_HELP = "Haz clic o pulsa 1, 2 o 3 · dura toda la partida"
+	local cardsReadyAt = 0
+
 	local function pick(index: number)
 		local card = ui.Cards[index]
 		if not (cardData and card and card.Id) then
 			return
+		end
+		if os.clock() < cardsReadyAt then
+			return -- aún se están volteando
 		end
 		actionRemote:FireServer("Pick", card.Id)
 		pickedHere = true
@@ -786,12 +822,44 @@ function WaveController.start()
 		ui.CardPanel.Visible = true
 		pickedHere = false
 		WaveFx.sound("CardsOpen")
-		WaveFx.sound("Chime", 1, 0.15)
-		for index, card in ui.Cards do
+		-- Boca abajo; se voltean una a una (la tapa se cierra hacia el centro) y luego se elige
+		local shown = 0
+		for _, card in ui.Cards do
 			if card.Button.Visible then
-				task.delay((index - 1) * 0.07, bounce, card.Button, 0.14)
+				shown += 1
 			end
+			card.Cover.Visible = card.Button.Visible
+			card.Cover.Size = UDim2.fromScale(1, 1)
+			card.Button.AutoButtonColor = false
 		end
+		cardsReadyAt = os.clock() + CARD_REVEAL_START + CARD_REVEAL_STEP * math.max(0, shown - 1) + CARD_READ
+		ui.CardHelp.Text = "👀 Mira bien tus opciones…"
+		local order = 0
+		for _, card in ui.Cards do
+			if not card.Button.Visible then
+				continue
+			end
+			order += 1
+			task.delay(CARD_REVEAL_START + CARD_REVEAL_STEP * (order - 1), function()
+				if cardData ~= data then
+					return
+				end
+				TweenService:Create(card.Cover, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = UDim2.fromScale(0, 1) }):Play()
+				task.delay(0.18, function()
+					card.Cover.Visible = false
+				end)
+				bounce(card.Button, 0.14)
+				WaveFx.sound("Chime", 1 + order * 0.08, 0.15)
+			end)
+		end
+		task.delay(cardsReadyAt - os.clock(), function()
+			if cardData == data then
+				ui.CardHelp.Text = CARD_HELP
+				for _, card in ui.Cards do
+					card.Button.AutoButtonColor = true
+				end
+			end
+		end)
 		ContextActionService:BindAction(CARD_ACTION, function(_, inputState, input)
 			if inputState == Enum.UserInputState.Begin then
 				local index = table.find(CARD_KEYS, input.KeyCode)
@@ -1067,7 +1135,10 @@ function WaveController.start()
 		elseif kind == "Cleared" then
 			if type(data) == "table" then
 				local heal = if data.Healed == true then "  +❤️" else ""
-				Toasts.show(("✅ Oleada %d superada  +%s 💎  +%s 💰%s"):format(tonumber(data.Wave) or 0, formatNumber(tonumber(data.Diamonds) or 0), formatNumber(tonumber(data.Money) or 0), heal), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
+				-- Los 💎 de cada oleada son pocos (muchas veces 0): solo se enseñan si hay
+				local diamonds = tonumber(data.Diamonds) or 0
+				local gems = if diamonds > 0 then ("  +%s 💎"):format(formatNumber(diamonds)) else ""
+				Toasts.show(("✅ Oleada %d superada%s  +%s 💰%s"):format(tonumber(data.Wave) or 0, gems, formatNumber(tonumber(data.Money) or 0), heal), { Color = THEME.BuyHighlight, Key = "WaveCleared" })
 				clearedFx(data)
 			end
 		elseif kind == "Choice" then

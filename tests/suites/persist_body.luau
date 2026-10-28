@@ -302,4 +302,21 @@ check("el cliente ve el atributo Diamonds (ya no Energy)", lia:GetAttribute("Dia
 leave(lia)
 advance(0)
 
+print("-- 15. Ajustes (⚙️): el tamaño de la interfaz se guarda con la partida")
+check("sin el campo Settings: tamaño normal", loaded14.Settings.HudScale == 1 and r14.Settings.HudScale == 1)
+storeData.player_15 = { Version = 17, EconomyVersion = 2, Diamonds = 1, Money = 2, Settings = { HudScale = 0.8 } }
+local mia = newPlayer("Mia", 15)
+join(mia)
+advance(0)
+local mp = PlayerDataService.get(mia)
+check("al entrar: el tamaño guardado y su atributo para el cliente", mp.PetData.Settings.HudScale == 0.8 and mia:GetAttribute("HudScale") == 0.8)
+mp.PetData.Settings.HudScale = 0.6
+PlayerDataService.markDirty(mia)
+leave(mia)
+advance(0)
+check("al salir se guarda el tamaño nuevo", record(15).Settings.HudScale == 0.6)
+storeData.player_16 = { Version = 17, EconomyVersion = 2, Diamonds = 1, Money = 2, Settings = { HudScale = 7, Raro = "x" } }
+local _, loaded16 = SaveService.load(16)
+check("un tamaño raro se corrige al más cercano permitido", loaded16.Settings.HudScale == 1 and (loaded16.Settings :: any).Raro == nil)
+
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

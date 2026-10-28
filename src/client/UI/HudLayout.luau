@@ -49,13 +49,14 @@ local SIZES = {
 	TrackerWidth = 300,
 	TrackerRow = 50,
 	TrackerGap = 6,
-	-- Avisos
-	ToastWidth = 420,
-	Toast = 46,
-	ToastTitled = 84,
+	-- Avisos (más pequeños y como mucho 3 a la vez: antes, 4 tarjetas de 420 px tapaban el
+	-- centro de la pantalla al completar misiones o logros; pruebas con amigos)
+	ToastWidth = 360,
+	Toast = 40,
+	ToastTitled = 70,
 	ToastLine = 26,
 	ToastGap = 6,
-	MaxToasts = 4,
+	MaxToasts = 3,
 	ToastMinSide = 200, -- ancho mínimo para poner los avisos al lado de un panel
 	BossReserve = 62, -- barra del jefe (54) y su separación
 	-- Combate (CombatController / AbilityController: deben coincidir con estos números)
@@ -93,15 +94,33 @@ HudLayout.Reference = Vector2.new(1280, 660) -- 1280x720 reales (sin la barra su
 HudLayout.MinScaleDesktop = 0.75
 HudLayout.MinScaleTouch = 0.6
 HudLayout.MaxScale = 1.5
+-- Tamaño de la interfaz que elige el jugador en ⚙️ Ajustes (SettingsLogic.HudScales):
+-- multiplica la escala de la pantalla y puede bajar de MinScale (para eso se elige).
+HudLayout.UserScale = 1
+HudLayout.MinUserScale = 0.5
+HudLayout.MaxUserScale = 1
+HudLayout.Floor = 0.4 -- nunca más pequeño que esto (texto ilegible)
 
 local function rect(x: number, y: number, w: number, h: number): Rect
 	return { X = x, Y = y, W = w, H = h }
 end
 
-function HudLayout.scale(screen: Vector2, touch: boolean): number
+-- Escala del HUD para una pantalla. `user`: el tamaño elegido (por defecto, UserScale).
+function HudLayout.scale(screen: Vector2, touch: boolean, user: number?): number
 	local minScale = if touch then HudLayout.MinScaleTouch else HudLayout.MinScaleDesktop
 	local ref = HudLayout.Reference
-	return math.clamp(math.min(screen.X / ref.X, screen.Y / ref.Y), minScale, HudLayout.MaxScale)
+	local base = math.clamp(math.min(screen.X / ref.X, screen.Y / ref.Y), minScale, HudLayout.MaxScale)
+	local factor = math.clamp(user or HudLayout.UserScale, HudLayout.MinUserScale, HudLayout.MaxUserScale)
+	return math.clamp(base * factor, HudLayout.Floor, HudLayout.MaxScale)
+end
+
+-- Cambia el tamaño elegido (lo hace UserScale en el cliente; las pruebas lo ponen a mano).
+function HudLayout.setUserScale(value: number)
+	if type(value) == "number" and value == value then
+		HudLayout.UserScale = math.clamp(value, HudLayout.MinUserScale, HudLayout.MaxUserScale)
+	else
+		HudLayout.UserScale = 1
+	end
 end
 
 -- Tamaño del menú (sin escalar) para un número de entradas.
@@ -145,12 +164,13 @@ export type Options = {
 	StatusLines: number?,
 	BossBar: boolean?,
 	Chips: boolean?, -- indicadores de mascotas visibles sobre el botón de ataque
+	UserScale: number?, -- tamaño elegido (por defecto, HudLayout.UserScale)
 }
 
 -- Regiones del HUD para una pantalla. `touch` = solo táctil (sin teclado).
 function HudLayout.compute(screen: Vector2, touch: boolean, options: Options?): any
 	local opts: Options = options or {}
-	local s = HudLayout.scale(screen, touch)
+	local s = HudLayout.scale(screen, touch, opts.UserScale)
 	local W, H = screen.X, screen.Y
 	local layout: any = { Scale = s, Touch = touch, Screen = screen }
 

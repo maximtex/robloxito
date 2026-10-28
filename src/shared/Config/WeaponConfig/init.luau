@@ -50,11 +50,14 @@ local WeaponConfig = {
 	-- Lo que tiene cada estilo desde el principio (y lo que se equipa si no hay otra cosa)
 	Starters = { Weapons = "Laser", Warrior = "WoodenSword", Fists = "LeatherGloves", Magic = "ApprenticeWand" },
 	-- Cada tienda: título de la cabecera, icono y cómo se llama un objeto suyo
+	-- ItemIcon: el objeto de la categoría, en grande en la tarjeta de la tienda (sin Art); el
+	-- Icon de cada arma (su elemento: 🔮, 🌑, 🔥…) va de insignia en la esquina. Antes solo se
+	-- veía el Icon y una espada de amatista parecía un orbe (pruebas con amigos).
 	Categories = {
-		Weapons = { Title = "ARMERÍA", Icon = "⚔️", Item = "arma", Items = "armas", Hit = "por disparo" },
-		Warrior = { Title = "ESPADAS", Icon = "🗡️", Item = "espada", Items = "espadas", Hit = "por tajo" },
-		Fists = { Title = "GUANTES", Icon = "🥊", Item = "guantes", Items = "guantes", Hit = "por golpe" },
-		Magic = { Title = "BASTONES", Icon = "✨", Item = "bastón", Items = "bastones", Hit = "por hechizo" },
+		Weapons = { Title = "ARMERÍA", Icon = "⚔️", ItemIcon = "🔫", Item = "arma", Items = "armas", Hit = "por disparo" },
+		Warrior = { Title = "ESPADAS", Icon = "🗡️", ItemIcon = "🗡️", Item = "espada", Items = "espadas", Hit = "por tajo" },
+		Fists = { Title = "GUANTES", Icon = "🥊", ItemIcon = "🥊", Item = "guantes", Items = "guantes", Hit = "por golpe" },
+		Magic = { Title = "BASTONES", Icon = "✨", ItemIcon = "🔱", Item = "bastón", Items = "bastones", Hit = "por hechizo" },
 	},
 	MaxLevel = 25,
 	LevelDamageBonus = 0.15, -- +15 % de daño por nivel del arma

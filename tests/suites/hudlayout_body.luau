@@ -85,7 +85,7 @@ local ALLOWED = {
 local function checkSet(label, touch)
 	local overlapsFound = {}
 	local outside = {}
-	eachLayout(label == "táctil" and TOUCH or DESKTOP, touch, function(layout, name)
+	eachLayout(if touch then TOUCH else DESKTOP, touch, function(layout, name)
 		local list = pieces(layout)
 		local keys = {}
 		for key in list do table.insert(keys, key) end
@@ -111,6 +111,39 @@ end
 
 checkSet("escritorio", false)
 checkSet("táctil", true)
+
+-- ⚙️ Tamaño de la interfaz (SettingsLogic.HudScales): con cualquiera de los que se pueden
+-- elegir tampoco se encima nada ni se sale de la pantalla.
+for _, userScale in SettingsLogic.HudScales do
+	if userScale ~= 1 then
+		HudLayout.setUserScale(userScale)
+		checkSet(("escritorio al %d %%"):format(userScale * 100), false)
+		checkSet(("táctil al %d %%"):format(userScale * 100), true)
+	end
+end
+HudLayout.setUserScale(1)
+do
+	local screen = Vector2.new(1280, 660)
+	HudLayout.setUserScale(0.8)
+	local small = HudLayout.compute(screen, false, { MenuEntries = 7 })
+	HudLayout.setUserScale(1)
+	local normal = HudLayout.compute(screen, false, { MenuEntries = 7 })
+	check("tamaño 80 %: la escala del HUD es el 80 % de la normal", math.abs(small.Scale - 0.8 * normal.Scale) < 1e-9)
+	check("tamaño 80 %: la tarjeta de mejora y el botón de ataque ocupan menos", small.Upgrade.W < normal.Upgrade.W and small.Attack.W < normal.Attack.W)
+	check("compute acepta el tamaño en las opciones (UserScale)", math.abs(HudLayout.compute(screen, false, { UserScale = 0.6 }).Scale - 0.6) < 1e-9)
+	check("puede bajar del mínimo de escritorio (para eso se elige)", HudLayout.scale(Vector2.new(400, 200), false, 0.6) < HudLayout.MinScaleDesktop)
+	check("pero nunca por debajo del suelo legible", HudLayout.scale(Vector2.new(100, 50), true, 0.1) >= HudLayout.Floor)
+	HudLayout.setUserScale(0 / 0)
+	check("un tamaño no válido vuelve al normal", HudLayout.UserScale == 1)
+end
+
+-- SettingsLogic (lo que valida el servidor y muestra el panel)
+check("ajustes: por defecto al 100 %", SettingsLogic.empty().HudScale == 1 and SettingsLogic.sanitize(nil).HudScale == 1)
+check("ajustes: se queda con el tamaño permitido más cercano", SettingsLogic.sanitizeHudScale(0.84) == 0.8 and SettingsLogic.sanitizeHudScale(5) == 1 and SettingsLogic.sanitizeHudScale(-3) == 0.6)
+check("ajustes: valores raros = normal", SettingsLogic.sanitizeHudScale("0.7") == 1 and SettingsLogic.sanitizeHudScale(0 / 0) == 1 and SettingsLogic.sanitizeHudScale(math.huge) == 1)
+check("ajustes: − / + recorren la lista sin salirse", SettingsLogic.stepHudScale(1, -1) == 0.9 and SettingsLogic.stepHudScale(0.6, -1) == 0.6 and SettingsLogic.stepHudScale(1, 1) == 1 and SettingsLogic.stepHudScale(0.7, 2) == 0.9)
+check("ajustes: el texto del tamaño", SettingsLogic.hudScaleLabel(0.9) == "90 %" and SettingsLogic.hudScaleLabel(1) == "100 %")
+check("ajustes: se guarda solo lo conocido", SettingsLogic.serialize({ HudScale = 0.7, Raro = true } :: any).HudScale == 0.7 and SettingsLogic.serialize({ HudScale = 0.7, Raro = true } :: any).Raro == nil)
 
 -- Escritorio: el menú queda por debajo del chat de Roblox y la columna derecha cabe entera
 -- (aviso de datos + tutorial + al menos una fila de misiones).

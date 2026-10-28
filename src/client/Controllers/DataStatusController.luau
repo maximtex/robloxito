@@ -182,6 +182,7 @@ function DataStatusController.start()
 		zoneScale.Scale = s
 	end
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
+	UiKit.onScaleChanged(applyScale) -- ⚙️ tamaño de la interfaz
 	applyScale()
 
 	-- "" fuera de la cueva; si no, lo que dice la cabecera en la boca o en cada sala

@@ -1405,6 +1405,7 @@ function StyleController.start()
 		end
 	end
 	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	UiKit.onScaleChanged(place) -- ⚙️ tamaño de la interfaz
 	UserInputService.LastInputTypeChanged:Connect(place)
 	if secondary then
 		secondary:GetPropertyChangedSignal("Visible"):Connect(place)

@@ -111,6 +111,8 @@ BASE = [
     # Clases de los estilos (campo Classes del guardado v14).
     ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
     ("ClassLogic", "src/shared/ClassLogic.luau"),
+    # Ajustes del jugador (campo Settings del guardado).
+    ("SettingsLogic", "src/shared/SettingsLogic.luau"),
     # Puertas de la cueva (campo Cave del guardado v12).
     ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
     ("CaveLogic", "src/shared/CaveLogic.luau"),
@@ -284,6 +286,7 @@ def build_quest():
         ("StyleLogic", "src/shared/StyleLogic.luau"),
         ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
         ("ClassLogic", "src/shared/ClassLogic.luau"),
+        ("SettingsLogic", "src/shared/SettingsLogic.luau"),
         ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
         ("CaveLogic", "src/shared/CaveLogic.luau"),
     ] + CORE + [
@@ -368,6 +371,7 @@ def build_petcombat():
         ("StyleLogic", "src/shared/StyleLogic.luau"),
         ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
         ("ClassLogic", "src/shared/ClassLogic.luau"),
+        ("SettingsLogic", "src/shared/SettingsLogic.luau"),
         ("AimLogic", "src/shared/AimLogic.luau"),
         ("GunLogic", "src/shared/GunLogic.luau"),
         ("MagicLogic", "src/shared/MagicLogic.luau"),
@@ -440,6 +444,7 @@ def build_classes():
         ("StyleLogic", "src/shared/StyleLogic.luau"),
         ("ClassConfig", "src/shared/Config/ClassConfig.luau"),
         ("ClassLogic", "src/shared/ClassLogic.luau"),
+        ("SettingsLogic", "src/shared/SettingsLogic.luau"),
     ]:
         out.append(mod(n, p))
     out.append(suite("classes_body.luau"))
@@ -599,6 +604,7 @@ def build_waves():
     for n, p in [
         ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
         ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
         ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
         ("WaveLogic", "src/shared/WaveLogic.luau"),
         ("StyleConfig", "src/shared/Config/StyleConfig.luau"),
@@ -650,7 +656,8 @@ def build_items():
 def build_hudlayout():
     # Diseño del HUD del cliente (cálculo puro): Vector2 mínimo simulado.
     stub = "local Vector2 = { new = function(x, y) return { X = x, Y = y } end }\n"
-    return stub + mod("HudLayout", "src/client/UI/HudLayout.luau") + suite("hudlayout_body.luau")
+    # SettingsLogic: los tamaños de la interfaz que se pueden elegir (⚙️ Ajustes).
+    return stub + mod("HudLayout", "src/client/UI/HudLayout.luau") + mod("SettingsLogic", "src/shared/SettingsLogic.luau") + suite("hudlayout_body.luau")
 
 
 SUITES = [

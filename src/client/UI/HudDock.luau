@@ -3,12 +3,14 @@
 -- acababan encimadas). Las posiciones y la escala salen de HudLayout (cálculo puro probado).
 -- - "Left": barra del menú (MenuBar), líneas de estado y, en táctil, el seguimiento de misiones.
 -- - "Right": aviso de datos guardados, tutorial y, en escritorio, el seguimiento de misiones.
--- Changed avisa cuando cambia el diseño (tamaño de pantalla, entradas del menú, barra del jefe).
+-- Changed avisa cuando cambia el diseño (tamaño de pantalla, entradas del menú, barra del jefe
+-- o el tamaño de la interfaz elegido en ⚙️ Ajustes).
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local HudLayout = require(script.Parent.HudLayout)
+local UserScale = require(script.Parent.UserScale)
 
 local HudDock = {}
 
@@ -148,5 +150,14 @@ end
 function HudDock.setChips(visible: boolean)
 	setOption("Chips", visible)
 end
+
+-- ⚙️ Tamaño de la interfaz: HudLayout ya usa el nuevo; se recoloca todo.
+UserScale.watch(function()
+	if screenGui then
+		HudDock.relayout()
+	else
+		current = nil
+	end
+end)
 
 return HudDock

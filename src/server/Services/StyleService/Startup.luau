@@ -97,10 +97,11 @@ function Api.start()
 		end
 		return taken * classModsOf(player).DamageTaken
 	end)
-	-- Daño a los jefes según la clase (Comando Élite)
+	-- Daño a los jefes según el estilo (Puños más, Guerrero menos: StyleConfig BossDamage) y
+	-- la clase (Comando Élite)
 	EnemyService.setOutgoingDamageModifier(function(player: Player, enemy: any, amount: number): number
 		if enemy and enemy.Kind == "Boss" then
-			return amount * classModsOf(player).BossDamage
+			return amount * StyleLogic.bossDamage(styleOf(player)) * classModsOf(player).BossDamage
 		end
 		return amount
 	end)

@@ -40,7 +40,7 @@ local ZoneConfig = {
 			MoneyPerMinute = 2200, -- 💰/min de referencia (premios por minutos)
 			-- Pegado directamente tras el Bosque (Z = 160..480, centro en Z = 320).
 			Center = Vector2.new(0, 320),
-			UnlockCost = 12500, -- 💰
+			UnlockCost = 25000, -- 💰 (antes 12 500: ~4 partidas del Bosque)
 			RequiredBoss = "ForestWarden",
 			Arrival = Vector3.new(0, 0, -132),
 			ArrivalFacing = Vector3.new(0, 0, 1),
@@ -51,7 +51,7 @@ local ZoneConfig = {
 			MoneyPerMinute = 6400, -- 💰/min de referencia (premios por minutos)
 			-- Pegada directamente tras el Valle Morado (Z = 480..800, centro en Z = 640).
 			Center = Vector2.new(0, 640),
-			UnlockCost = 125000, -- 💰
+			UnlockCost = 250000, -- 💰 (antes 125 000: ~10 partidas del Valle)
 			RequiredRebirths = 0,
 			RequiredBoss = "AmethystColossus",
 			Arrival = Vector3.new(0, 0, -132),
@@ -63,7 +63,7 @@ local ZoneConfig = {
 			MoneyPerMinute = 20000, -- 💰/min de referencia (premios por minutos)
 			-- Pegada tras la Caldera (Z = 800..1120, centro en Z = 960).
 			Center = Vector2.new(0, 960),
-			UnlockCost = 600000, -- 💰
+			UnlockCost = 1500000, -- 💰 (antes 600 000: ~13 partidas de la Caldera)
 			RequiredBoss = "CalderaTitan",
 			Arrival = Vector3.new(0, 0, -132),
 			ArrivalFacing = Vector3.new(0, 0, 1),
@@ -74,7 +74,7 @@ local ZoneConfig = {
 			MoneyPerMinute = 64000, -- 💰/min de referencia (premios por minutos)
 			-- Pegada tras la Tundra (Z = 1120..1440, centro en Z = 1280). Final del Mundo 1.
 			Center = Vector2.new(0, 1280),
-			UnlockCost = 3500000, -- 💰
+			UnlockCost = 6000000, -- 💰 (antes 3 500 000: ~13 partidas de la Tundra)
 			RequiredBoss = "IceGolem",
 			Arrival = Vector3.new(0, 0, -132),
 			ArrivalFacing = Vector3.new(0, 0, 1),
@@ -101,7 +101,7 @@ local ZoneConfig = {
 			-- volcán al oeste, glaciar al este, el Altar del Equilibrio en medio (el Coloso que se
 			-- parte en dos) y la Grieta Elemental (mazmorra) al norte.
 			Center = Vector2.new(2000, -295),
-			UnlockCost = 20000000, -- 💰
+			UnlockCost = 15000000, -- 💰 (antes 20 000 000)
 			RequiredBoss = "GoblinKing",
 			Arrival = Vector3.new(0, 0, 100),
 			ArrivalFacing = Vector3.new(0, 0, -1),

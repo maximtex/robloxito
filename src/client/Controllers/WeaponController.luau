@@ -336,14 +336,39 @@ local function buildCard(row: ScrollingFrame, weaponId: string, def, order: numb
 		shadow.ZIndex = 2
 		shadow.Parent = card
 	else
+		-- Sin imagen: el objeto de su categoría en grande (🗡️, 🥊, 🔱, 🔫) y su elemento de
+		-- insignia en la esquina, para que se vea qué es (antes solo el elemento: 🔮 parecía
+		-- un orbe aunque fuera una espada).
+		local category = WeaponConfig.Categories[def.Category or "Weapons"]
+		local itemIcon = (category and category.ItemIcon) or def.Icon
 		UiKit.text(card, "ArtIcon", {
 			Position = UDim2.fromOffset(12, 62),
 			Size = UDim2.new(1, -24, 0, 172),
 			TextSize = 110,
 			TextXAlignment = Enum.TextXAlignment.Center,
-			Text = def.Icon,
+			Text = itemIcon,
 			ZIndex = 3,
 		})
+		if def.Icon and def.Icon ~= itemIcon then
+			local badge = UiKit.create("Frame", {
+				Name = "ElementBadge",
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -18, 0, 70),
+				Size = UDim2.fromOffset(52, 52),
+				BackgroundColor3 = Color3.fromRGB(30, 20, 45),
+				BackgroundTransparency = 0.15,
+				ZIndex = 4,
+			}, card)
+			UiKit.corner(badge, 26)
+			UiKit.stroke(badge, WeaponConfig.Rarities[def.Rarity] or WHITE, 2, 0)
+			UiKit.text(badge, "Icon", {
+				Size = UDim2.fromScale(1, 1),
+				TextSize = 32,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				Text = def.Icon,
+				ZIndex = 5,
+			})
+		end
 	end
 
 	-- Píldora: nivel si la tiene, su efecto si no
@@ -1132,6 +1157,7 @@ function WeaponController.start()
 		end,
 	})
 	ui.ScreenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutPanel)
+	UiKit.onScaleChanged(layoutPanel) -- ⚙️ tamaño de la interfaz
 	layoutPanel()
 	ui.Close.Activated:Connect(function()
 		PanelManager.close(PANEL_NAME)

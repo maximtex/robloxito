@@ -29,8 +29,10 @@ local function pay(participant: Participant, diamonds: number, money: number): (
 		return 0, 0
 	end
 	-- Pase Diamantes ×2, Poción de Diamantes y aventuras: también multiplican los 💎 de los
-	-- premios de las oleadas.
-	local given = DiamondService.grant(participant.Player, diamonds * PlayerDataService.diamondMultiplier(profile))
+	-- premios de las oleadas. Llegan con decimales: lo que falta para el siguiente es su
+	-- probabilidad (WaveLogic.roundDiamonds).
+	local raw = diamonds * PlayerDataService.diamondMultiplier(profile)
+	local given = DiamondService.grant(participant.Player, WaveLogic.roundDiamonds(raw, math.random()))
 	local coins = math.max(0, math.floor(money))
 	if coins > 0 then
 		profile.Money += coins

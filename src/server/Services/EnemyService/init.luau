@@ -25,8 +25,8 @@
 --   o volver a casa. Publica <Estado>Until (hora del servidor) para los efectos del cliente.
 -- - Marca elemental de los combos (Aura / AuraUntil) y retroceso breve al recibir una
 --   habilidad fuerte (nunca los jefes).
--- - Rediseño "solo disparar": cada enemigo derrotado da también ⚡ (DiamondService.grant:
---   su recompensa · EconomyConfig.KillDiamondShare · poder de energía del jugador), sube la
+-- - Cada enemigo derrotado da también 💎 (DiamondService.grant: EconomyConfig.KillDiamonds
+--   de su tipo · DiamondTier de su zona · multiplicador de 💎 del jugador), sube la
 --   RACHA del jugador (WaveLogic: multiplica el botín mientras mate sin parar; atributos
 --   Streak y StreakUntil) y a veces suelta un ORBE DORADO (botín ×10, nunca un jefe).
 --   setKillModifier deja que WaveService añada lo de las mejoras de la partida.

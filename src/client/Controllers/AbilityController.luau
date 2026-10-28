@@ -1160,6 +1160,7 @@ local function buildGui()
 		end
 	end
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	UiKit.onScaleChanged(place) -- ⚙️ tamaño de la interfaz
 	UserInputService.LastInputTypeChanged:Connect(place)
 	place()
 

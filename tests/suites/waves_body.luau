@@ -231,7 +231,7 @@ end
 check("la práctica explica cada momento (consejos)", hintsOK and easier)
 check("el modo normal no tiene consejos y lo raro no falla", WaveLogic.hint("Forest", 1) == nil and WaveLogic.hint("Nada", "Countdown") == nil)
 local practiceE, practiceM = WaveLogic.victoryReward("Tutorial")
-check("la práctica da un premio de victoria más pequeño", practiceE == math.floor(WaveConfig.VictoryDiamonds * practice.VictoryScale) and practiceM == math.floor(WaveConfig.VictoryMoney * practice.VictoryScale) and practiceE < WaveLogic.victoryReward("Forest"))
+check("la práctica da un premio de victoria más pequeño", near(practiceE, WaveConfig.VictoryDiamonds * practice.VictoryScale) and practiceM == math.floor(WaveConfig.VictoryMoney * practice.VictoryScale) and practiceE < WaveLogic.victoryReward("Forest"))
 check("una arena que no existe no tiene oleadas", WaveLogic.waveCount("Nada") == 0)
 local growing = true
 local previous = 0
@@ -430,8 +430,16 @@ print("-- Botín de cada enemigo")
 check("orbe dorado cuando toca", WaveLogic.rollGolden(sequence({ 0 }), false) and not WaveLogic.rollGolden(sequence({ 0.99 }), false))
 check("los jefes nunca sueltan orbe dorado", not WaveLogic.rollGolden(sequence({ 0 }), true))
 check("el orbe dorado multiplica el botín", WaveLogic.goldenMultiplier(true) == WaveConfig.GoldenOrb.Multiplier and WaveLogic.goldenMultiplier(false) == 1)
-check("💎 de un Espinillo: 35 · 0.15", near(WaveLogic.killDiamonds(35, 0.15), 5.25))
-check("valores raros dan 0", WaveLogic.killDiamonds(0 / 0, 0.15) == 0 and WaveLogic.killDiamonds(35, -1) == 0)
+-- 💎 de cada enemigo: por su tipo y su zona (EconomyConfig), NO por el 💰 que da
+local smallForest = WaveLogic.killDiamonds("Normal", "Forest")
+check(("💎 de un pequeño del Bosque: %.3f (1 de cada %d)"):format(smallForest, math.floor(1 / smallForest + 0.5)), near(smallForest, EconomyConfig.KillDiamonds.Normal) and smallForest < 0.1)
+check("un mediano da más que un pequeño y un élite ×EliteDiamonds", WaveLogic.killDiamonds("Strong", "Forest") > smallForest
+	and near(WaveLogic.killDiamonds("Normal", "Forest", true), smallForest * EconomyConfig.EliteDiamonds))
+check("zonas más altas dan algo más, pero poco (no ×5 como el 💰)", WaveLogic.killDiamonds("Normal", "DividedLands") > WaveLogic.killDiamonds("Normal", "CrystalValley")
+	and WaveLogic.killDiamonds("Normal", "DividedLands") <= smallForest * 6)
+check("con varios jugadores, cada uno su parte", near(WaveLogic.killDiamonds("Strong", "Forest", false, 0.5), WaveLogic.killDiamonds("Strong", "Forest") / 2))
+check("los jefes no dan 💎 por golpe (dan su DiamondReward aparte)", WaveLogic.killDiamonds("Boss", "Forest") == 0)
+check("valores raros dan 0", WaveLogic.killDiamonds(nil, "Forest") == 0 and WaveLogic.killDiamonds("Nope", "Forest") == 0 and WaveLogic.killDiamonds("Normal", "Forest", false, 0 / 0) == 0)
 
 print("-- Sonidos de la partida")
 local soundsOK, soundCount = true, 0
@@ -455,5 +463,58 @@ for _, name in usedSounds do
 	end
 end
 check("están todos los que usa el cliente (" .. soundCount .. ")" .. (if #missing > 0 then ": faltan " .. table.concat(missing, ", ") else ""), #missing == 0)
+
+print("-- Ritmo de los 💎 (pruebas con amigos: sobraban y se mejoraba todo en una tarde)")
+-- 💎 de una partida ganada de cada modo (valor esperado, sin pases ni pociones): los bichos,
+-- el premio de cada oleada, el de victoria y el jefe (o sus dos mitades).
+local function runDiamonds(arenaId: string): (number, number)
+	local arena = WaveConfig.Arenas[arenaId]
+	local diamonds, money = 0, 0
+	for w = 1, WaveLogic.waveCount(arenaId) do
+		if not WaveLogic.isBossWave(arenaId, w) then
+			for _, typeId in WaveLogic.spawnList(arenaId, w, function() return 0.5 end) do
+				local def = EnemyConfig.Types[typeId]
+				diamonds += WaveLogic.killDiamonds(def.Kind, arena.Zone)
+				money += def.Reward * WaveLogic.rewardMultiplier(w) * WaveConfig.MoneyMultiplier
+			end
+			local d, m = WaveLogic.clearReward(w, arenaId)
+			diamonds += d
+			money += m
+		end
+	end
+	local vd, vm = WaveLogic.victoryReward(arenaId)
+	diamonds += vd
+	money += vm + (if arena.Chest then arena.Chest.Money else 0)
+	local boss = EnemyConfig.Types[arena.Boss]
+	if boss and boss.Split then
+		for _, half in boss.Split.Into do
+			diamonds += EnemyConfig.Types[half].DiamondReward or 0
+		end
+	elseif boss then
+		diamonds += boss.DiamondReward or 0
+	end
+	return diamonds, money
+end
+local ranges = {
+	{ "Forest", 8, 25 },
+	{ "CrystalValley", 15, 40 },
+	{ "EmberCaldera", 30, 80 },
+	{ "FrozenTundra", 55, 140 },
+	{ "DividedLands", 70, 180 },
+	{ "DividedLandsCave", 90, 220 },
+}
+local paceOK, report = true, {}
+for _, entry in ranges do
+	local d = runDiamonds(entry[1])
+	table.insert(report, ("%s %d"):format(entry[1], d))
+	paceOK = paceOK and d >= entry[2] and d <= entry[3]
+end
+print("  💎 por partida ganada: " .. table.concat(report, " · "))
+check("cada partida ganada da pocos 💎 (de ~15 en el Bosque a ~150 en el Mundo 2)", paceOK)
+local forestD = runDiamonds("Forest")
+check("la 2.ª clase (200 💎) pide varias partidas del Bosque, no una", forestD * 6 < 200)
+local caveD, caveM = runDiamonds("DividedLandsCave")
+local _, forestM = runDiamonds("Forest")
+check("de la primera a la última zona el 💰 crece mucho más que los 💎", caveM / forestM > 10 * (caveD / forestD))
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

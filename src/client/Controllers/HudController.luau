@@ -19,6 +19,7 @@ local Theme = require(script.Parent.Parent.UI.Theme)
 local Icons = require(script.Parent.Parent.UI.Icons)
 local PanelManager = require(script.Parent.Parent.UI.PanelManager)
 local HudLayout = require(script.Parent.Parent.UI.HudLayout)
+local UserScale = require(script.Parent.Parent.UI.UserScale)
 
 local FONTS = Theme.Fonts
 local INK = Color3.fromRGB(43, 29, 63) -- #2B1D3F
@@ -310,6 +311,7 @@ function HudController.start()
 		end
 	end
 	ui.ScreenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
+	UserScale.watch(applyScale) -- ⚙️ tamaño de la interfaz
 	applyScale()
 
 	local lastDiamonds: number? = nil

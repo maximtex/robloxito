@@ -6,6 +6,7 @@
 
 local WaveConfig = require(script.Parent.Config.WaveConfig)
 local EnemyConfig = require(script.Parent.Config.EnemyConfig)
+local EconomyConfig = require(script.Parent.Config.EconomyConfig)
 
 local WaveLogic = {}
 
@@ -163,26 +164,38 @@ function WaveLogic.rewardMultiplier(wave: number): number
 	return 1 + WaveConfig.RewardGrowth * (w - 1)
 end
 
--- Multiplicador de los premios de un modo (RewardScale: zonas más altas, más premio).
+-- Multiplicador del 💰 de un modo (RewardScale: zonas más altas, más premio).
 local function rewardScale(arenaId: string?): number
 	local arena = arenaId and WaveConfig.Arenas[arenaId]
 	return if arena and arena.RewardScale ~= nil then positive(arena.RewardScale) else 1
 end
 
--- Premio por limpiar la oleada `wave` (💎, 💰) en el modo `arenaId` (opcional). Los 💎 los
--- multiplica después WaveService con PlayerDataService.diamondMultiplier.
-function WaveLogic.clearReward(wave: number, arenaId: string?): (number, number)
-	local w = math.max(1, math.floor(positive(wave)))
-	local scale = rewardScale(arenaId)
-	return math.floor(WaveConfig.ClearDiamonds * w * scale), math.floor(WaveConfig.ClearMoney * w * scale)
+-- Multiplicador de los 💎 de una zona (EconomyConfig.DiamondTier; 1 si no está). Crece mucho
+-- más despacio que el 💰: los 💎 son escasos en todas las zonas.
+function WaveLogic.diamondTier(zoneId: string?): number
+	local tier = zoneId and EconomyConfig.DiamondTier[zoneId]
+	return if tier ~= nil then positive(tier) else 1
 end
 
--- Premio de victoria (💎, 💰); cada modo puede escalarlo (RewardScale y VictoryScale: la
--- práctica del tutorial da menos).
+local function arenaDiamondTier(arenaId: string?): number
+	local arena = arenaId and WaveConfig.Arenas[arenaId]
+	return WaveLogic.diamondTier(arena and arena.Zone)
+end
+
+-- Premio por limpiar la oleada `wave` (💎, 💰) en el modo `arenaId` (opcional). Los 💎 llevan
+-- decimales (WaveService los redondea con WaveLogic.roundDiamonds, después de multiplicarlos
+-- con PlayerDataService.diamondMultiplier); el 💰 es entero.
+function WaveLogic.clearReward(wave: number, arenaId: string?): (number, number)
+	local w = math.max(1, math.floor(positive(wave)))
+	return WaveConfig.ClearDiamonds * w * arenaDiamondTier(arenaId), math.floor(WaveConfig.ClearMoney * w * rewardScale(arenaId))
+end
+
+-- Premio de victoria (💎, 💰): el 💰 por RewardScale y los 💎 por la zona del modo; VictoryScale
+-- escala los dos (la práctica del tutorial da menos). 💎 con decimales, como clearReward.
 function WaveLogic.victoryReward(arenaId: string?): (number, number)
 	local arena = arenaId and WaveConfig.Arenas[arenaId]
-	local scale = (if arena and arena.VictoryScale ~= nil then positive(arena.VictoryScale) else 1) * rewardScale(arenaId)
-	return math.floor(WaveConfig.VictoryDiamonds * scale), math.floor(WaveConfig.VictoryMoney * scale)
+	local victory = if arena and arena.VictoryScale ~= nil then positive(arena.VictoryScale) else 1
+	return WaveConfig.VictoryDiamonds * victory * arenaDiamondTier(arenaId), math.floor(WaveConfig.VictoryMoney * victory * rewardScale(arenaId))
 end
 
 -- Cofre de victoria de las mazmorras (Arenas.*.Chest): (💰, poción o nil). `rollPotion` y
@@ -363,10 +376,18 @@ function WaveLogic.goldenMultiplier(golden: boolean): number
 	return if golden then WaveConfig.GoldenOrb.Multiplier else 1
 end
 
--- 💎 de un enemigo para quien recibe `share` de su recompensa (la parte del dinero que le
--- toca, antes de multiplicadores).
-function WaveLogic.killDiamonds(share: number, killShare: number): number
-	return positive(share) * positive(killShare)
+-- 💎 de un enemigo (antes de multiplicadores) para quien se lleva `share` (0..1) de su
+-- recompensa: EconomyConfig.KillDiamonds de su tipo (Normal, Strong; los jefes dan su
+-- DiamondReward aparte) · DiamondTier de su zona · EliteDiamonds si es élite. NO depende del
+-- 💰 que da el enemigo.
+function WaveLogic.killDiamonds(kind: string?, zoneId: string?, elite: boolean?, share: number?): number
+	local base = kind and EconomyConfig.KillDiamonds[kind]
+	if base == nil then
+		return 0
+	end
+	local fraction = if share == nil then 1 else math.clamp(positive(share), 0, 1)
+	local eliteMult = if elite then positive(EconomyConfig.EliteDiamonds) else 1
+	return positive(base) * WaveLogic.diamondTier(zoneId) * eliteMult * fraction
 end
 
 -- Un número de 💎 con decimales -> entero: lo que falta para el siguiente es su probabilidad

@@ -12,7 +12,6 @@ local RebirthLogic = require(Shared.RebirthLogic)
 local AdventureLogic = require(Shared.AdventureLogic)
 local CombatConfig = require(Shared.Config.CombatConfig)
 local ItemLogic = require(Shared.ItemLogic)
-local EconomyConfig = require(Shared.Config.EconomyConfig)
 local WaveLogic = require(Shared.WaveLogic)
 local PlayerDataService = require(script.Parent.Parent.PlayerDataService)
 local DiamondService = require(script.Parent.Parent.DiamondService)
@@ -125,10 +124,12 @@ local function onDeath(enemy: Enemy)
 			local bonus = WaveLogic.streakMultiplier(count) * WaveLogic.goldenMultiplier(golden) * lootBonus
 			local earned = math.floor(amount * lootMultiplier(profile) * bonus * enemy.MoneyMultiplier)
 			profile.Money += earned
-			-- 💎 (Diamonds en el código): pocos, por el pase Diamantes ×2, la Poción de Diamantes y
-			-- las aventuras (PlayerDataService.diamondMultiplier); lo que no llega a uno entero es
-			-- su probabilidad
-			local rawDiamonds = WaveLogic.killDiamonds(amount, EconomyConfig.KillDiamondShare) * bonus * PlayerDataService.diamondMultiplier(profile)
+			-- 💎 (Diamonds en el código): pocos y según el tipo de enemigo y su zona, NO su 💰
+			-- (WaveLogic.killDiamonds); por el pase Diamantes ×2, la Poción de Diamantes y las
+			-- aventuras (PlayerDataService.diamondMultiplier); lo que no llega a uno entero es
+			-- su probabilidad. Cada uno se lleva la parte de su daño (amount / reward).
+			local share = if reward > 0 then amount / reward else 0
+			local rawDiamonds = WaveLogic.killDiamonds(enemy.Kind, enemy.ZoneId, enemy.Variant == "Elite", share) * bonus * PlayerDataService.diamondMultiplier(profile)
 			local diamonds = DiamondService.grant(player, WaveLogic.roundDiamonds(rawDiamonds, math.random()))
 			if diamonds <= 0 then
 				PlayerDataService.replicate(player) -- grant ya replica si ha sumado energía

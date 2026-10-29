@@ -183,6 +183,13 @@ local function stoneOf(material: any, default: Enum.Material): Enum.Material
 	return default
 end
 
+-- Material del cuerpo de los estilos nuevos (FlameImp, MagmaBrute, VolcanoTitan): look.Material
+-- (nombre de Enum.Material) o plástico liso. Faltaba y el servidor fallaba al crear el primero
+-- (EnemyService no arrancaba: sin bichos en el mapa).
+local function bodyMaterial(look: any): Enum.Material
+	return stoneOf(look and look.Material, Enum.Material.SmoothPlastic)
+end
+
 -- Gólem de Geoda: bloques de pizarra con crecimientos de cristal (look.Material cambia la
 -- piedra: los brutos de las Tierras Divididas son de basalto o de hielo glaciar).
 function BUILDERS.Golem(rig: Rig, look)

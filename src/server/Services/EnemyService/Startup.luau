@@ -123,6 +123,12 @@ function Api.start()
 				warn(("[EnemyService] %s en %s cae en una zona sin monstruos (SafeAreas): no se crea."):format(spawn.Type, tostring(home)))
 				continue
 			end
+			-- Ni junto al punto de aparición (SpawnClear)
+			local clear = zoneSettings.SpawnClear
+			if clear and (Vector2.new(spawn.Offset.X, spawn.Offset.Y) - clear.Center).Magnitude < clear.Radius then
+				warn(("[EnemyService] %s en %s está junto al punto de aparición (SpawnClear): no se crea."):format(spawn.Type, tostring(home)))
+				continue
+			end
 			local enemy = createEnemy(zoneId, spawn.Type, home, zoneSettings, nil, nil)
 			-- Los de las mazmorras (lejos del mapa): más vida, más daño y más botín, y en las del
 			-- Valle y la Caldera algunos de los pequeños son élite (los medianos no: el más duro

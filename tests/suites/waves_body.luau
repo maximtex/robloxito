@@ -189,6 +189,21 @@ for arenaId, mode in WaveConfig.Arenas do
 	end
 end
 check("cada modo usa los enemigos y el jefe de su zona", zonesOK)
+-- Junto al punto de aparición no sale ningún bicho del mundo (EnemyConfig.Zones.*.SpawnClear)
+local clearOK, worldCount = true, 0
+for zoneId, zone in EnemyConfig.Zones do
+	local clear = zone.SpawnClear
+	for _, spawn in zone.Spawns or {} do
+		if zoneId == "Forest" and math.abs(spawn.Offset.X) < 500 then
+			worldCount += 1
+		end
+		if clear and math.sqrt((spawn.Offset.X - clear.Center.X) ^ 2 + (spawn.Offset.Y - clear.Center.Y) ^ 2) < clear.Radius then
+			clearOK = false
+			print(("  %s: %s en (%d, %d) está junto al punto de aparición"):format(zoneId, spawn.Type, spawn.Offset.X, spawn.Offset.Y))
+		end
+	end
+end
+check("ningún bicho junto al punto de aparición, y el Bosque sigue lleno (30 o más)", clearOK and EnemyConfig.Zones.Forest.SpawnClear ~= nil and worldCount >= 30)
 check("más oleadas en las mazmorras de arriba: Bosque 10, Valle 12 y Caldera 15, la última con su jefe", WaveLogic.waveCount("Forest") == 10 and WaveLogic.waveCount("CrystalValley") == 12 and WaveLogic.isBossWave("CrystalValley", 12) and not WaveLogic.isBossWave("CrystalValley", 10)
 	and WaveLogic.waveCount("EmberCaldera") == 15 and WaveLogic.isBossWave("EmberCaldera", 15))
 

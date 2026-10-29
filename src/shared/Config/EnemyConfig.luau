@@ -598,6 +598,10 @@ local EnemyConfig = {
 			SafeAreas = {
 				{ Min = Vector2.new(-46, -17), Max = Vector2.new(62, 165) },
 			},
+			-- Alrededor del punto de aparición (el SpawnLocation, en (0, 43)) no sale ninguno en
+			-- este radio: al entrar no hay bichos a la vista (EnemyService no crea los que caigan
+			-- dentro; la prueba de las oleadas lo comprueba).
+			SpawnClear = { Center = Vector2.new(0, 43), Radius = 80 },
 			SafeZones = {
 				{ Center = Vector2.new(38, 85), Radius = 20 }, -- Jardín de los Huevos (EggConfig.Gardens.Forest)
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal al Valle (ZoneConfig.Portals.ForestPortal)
@@ -611,15 +615,15 @@ local EnemyConfig = {
 				{ Center = Vector2.new(-1220, 5), Radius = 22 },
 			},
 			Spawns = {
-				-- Zona de inicio: enemigos para golpear desde el principio, alrededor del centro del
-				-- pueblo y justo fuera de la zona sin monstruos (al oeste, al este y al norte)
-				{ Type = "StarterThornling", Offset = Vector2.new(-56, 26) },
-				{ Type = "StarterThornling", Offset = Vector2.new(-54, 63) },
+				-- Zona de inicio: enemigos para golpear desde el principio, alrededor del pueblo y
+				-- fuera del radio del punto de aparición (SpawnClear; al oeste, al este y al norte)
+				{ Type = "StarterThornling", Offset = Vector2.new(-78, 19) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-80, 56) },
 				{ Type = "StarterThornling", Offset = Vector2.new(-84, 62) },
 				{ Type = "StarterThornling", Offset = Vector2.new(80, 20) },
 				{ Type = "StarterThornling", Offset = Vector2.new(84, 62) },
-				{ Type = "StarterThornling", Offset = Vector2.new(-20, -25) },
-				{ Type = "StarterThornling", Offset = Vector2.new(20, -25) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-23, -36) },
+				{ Type = "StarterThornling", Offset = Vector2.new(23, -36) },
 				{ Type = "Thornling", Offset = Vector2.new(-54, 140) },
 				{ Type = "Thornling", Offset = Vector2.new(72, 125) },
 
@@ -628,11 +632,11 @@ local EnemyConfig = {
 				-- zona segura.
 				{ Type = "Thornling", Offset = Vector2.new(-60, 134) },
 				{ Type = "Thornling", Offset = Vector2.new(-70, 136) },
-				{ Type = "Thornling", Offset = Vector2.new(-62, 62) },
+				{ Type = "Thornling", Offset = Vector2.new(-81, 48) },
 				{ Type = "Thornling", Offset = Vector2.new(-92, 62) },
 				{ Type = "Thornling", Offset = Vector2.new(-96, 70) },
-				{ Type = "Thornling", Offset = Vector2.new(-62, 12) },
-				{ Type = "Barkbrute", Offset = Vector2.new(-68, 12) },
+				{ Type = "Thornling", Offset = Vector2.new(-73, 6) },
+				{ Type = "Barkbrute", Offset = Vector2.new(-75, 9) },
 
 				-- Cueva de los Espinillos por dentro (CaveConfig; se entra por la boca de la colina
 				-- oeste). Sala 1, el Nido: los pequeños, lejos de donde llegas.
@@ -658,15 +662,15 @@ local EnemyConfig = {
 				{ Type = "Thornling", Offset = Vector2.new(68, 115) },
 				{ Type = "Thornling", Offset = Vector2.new(72, 96) }, -- (lejos del Jardín de los Huevos)
 				{ Type = "Thornling", Offset = Vector2.new(76, 84) },
-				{ Type = "Thornling", Offset = Vector2.new(68, 48) },
-				{ Type = "ThornCaster", Offset = Vector2.new(71, 48) }, -- lanzador (dispara de lejos)
-				{ Type = "Thornling", Offset = Vector2.new(68, 12) },
+				{ Type = "Thornling", Offset = Vector2.new(82, 49) },
+				{ Type = "ThornCaster", Offset = Vector2.new(82, 46) }, -- lanzador (dispara de lejos)
+				{ Type = "Thornling", Offset = Vector2.new(75, 9) },
 
 				-- Pradera norte (pasando el letrero de ZONA SEGURA)
 				{ Type = "Thornling", Offset = Vector2.new(-68, -28) },
 				{ Type = "Thornling", Offset = Vector2.new(-48, -28) },
-				{ Type = "Thornling", Offset = Vector2.new(0, -30) },
-				{ Type = "ThornCaster", Offset = Vector2.new(3, -30) }, -- lanzador (dispara de lejos)
+				{ Type = "Thornling", Offset = Vector2.new(0, -39) },
+				{ Type = "ThornCaster", Offset = Vector2.new(3, -39) }, -- lanzador (dispara de lejos)
 				{ Type = "Thornling", Offset = Vector2.new(48, -28) },
 				{ Type = "Thornling", Offset = Vector2.new(68, -28) },
 				{ Type = "Thornling", Offset = Vector2.new(-68, -36) },

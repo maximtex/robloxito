@@ -624,18 +624,6 @@ function MenuBar.add(spec: Spec): Entry
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 	}, inner)
 
-	-- Brillo superior tipo botón cartoon
-	local gloss = UiKit.create("Frame", {
-		Name = "Gloss",
-		Position = UDim2.fromOffset(4, 3),
-		Size = UDim2.new(1, -8, 0, 14),
-		BackgroundColor3 = WHITE,
-		BackgroundTransparency = 0.72,
-		BorderSizePixel = 0,
-		ZIndex = 4,
-	}, tile)
-	UiKit.corner(gloss, 6)
-
 	-- Icono grande directamente sobre el azulejo completo (sin círculo detrás)
 	local iconSize = style.IconSize or 60
 	local iconTop = style.IconTop or (if iconSize >= 64 then 0 else 2)

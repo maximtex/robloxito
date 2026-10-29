@@ -71,9 +71,11 @@ local function addStroke(parent: Instance, thickness: number, mode: Enum.ApplySt
 end
 
 local function buildGui(playerGui: PlayerGui)
-	local existing = playerGui:FindFirstChild("DiamondHud")
-	if existing then
-		existing:Destroy()
+	for _, oldName in { "DiamondHud", "EnergyHud", "MoneyHud", "TopBarHud" } do
+		local existing = playerGui:FindFirstChild(oldName)
+		if existing then
+			existing:Destroy()
+		end
 	end
 
 	local screenGui = create("ScreenGui", {

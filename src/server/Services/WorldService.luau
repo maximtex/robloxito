@@ -674,20 +674,22 @@ function WorldService.start()
 	print("[WorldService] Iniciando construcción del mundo...")
 	PartFactory.removeExisting(workspace, WorldConfig.ModelName)
 
-	-- Limpiar cualquier modelo o mesh huérfano en Workspace
+	-- Limpiar cualquier modelo, carpeta o mesh huérfano que haya quedado guardado en el .rbxl
+	-- de Studio (WorldService es el primer servicio de mundo en arrancar: aquí en Workspace
+	-- solo deben quedar Terrain, Camera, Baseplate y personajes).
 	pcall(function()
-		for _, name in { "AuxScene", "BossBanana", "jefe_banana", "banana", "BananaMesh", "BananaBoss", "CofreReclamar", "evolucionador", "Evolucionador" } do
-			local old = workspace:FindFirstChild(name)
-			if old then
-				old:Destroy()
+		local chars = {}
+		for _, p in Players:GetPlayers() do
+			if p.Character then
+				chars[p.Character] = true
 			end
 		end
 		for _, child in workspace:GetChildren() do
-			if child:IsA("Model") or child:IsA("BasePart") or child:IsA("MeshPart") then
-				local lName = child.Name:lower()
-				if (lName:find("banana") or lName:find("aux") or lName:find("evolucion")) and child.Name ~= WorldConfig.ModelName then
-					child:Destroy()
-				end
+			if child:IsA("Terrain") or child:IsA("Camera") or chars[child] or child.Name == "Baseplate" then
+				continue
+			end
+			if child:IsA("Model") or child:IsA("BasePart") or child:IsA("Folder") or child:IsA("BaseScript") then
+				child:Destroy()
 			end
 		end
 	end)

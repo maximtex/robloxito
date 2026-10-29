@@ -246,12 +246,14 @@ function Api.start()
 		local uiScale = UiKit.computeScale(hud.AbsoluteSize)
 		local slots = (if primary == nil or primary.Visible then 1 else 0) + (if secondary and secondary.Visible then 1 else 0)
 		local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+		-- Margen extra respecto al botón de ataque para no rozar su insignia "🔒 AUTO" (a -10 px)
+		local attackSpan = ATTACK_BUTTON + GAP + (if slots == 0 then 14 else 0)
 		for slot, ui in buttons do
 			local shift = (slot - 1) * (BUTTON_SIZE + GAP)
 			if touchOnly then
 				ui.Frame.Position = UDim2.new(1, -(EDGE + shift * uiScale), 0.5, -(76 + slots * (BUTTON_SIZE + 26)) * uiScale)
 			else
-				ui.Frame.Position = UDim2.new(1, -(EDGE + (ATTACK_BUTTON + GAP + slots * (BUTTON_SIZE + GAP) + shift) * uiScale), 1, -34)
+				ui.Frame.Position = UDim2.new(1, -(EDGE + (attackSpan + slots * (BUTTON_SIZE + GAP) + shift) * uiScale), 1, -34)
 			end
 		end
 		-- 💨 a la izquierda de los dos botones del estilo
@@ -259,7 +261,7 @@ function Api.start()
 		if touchOnly then
 			dashUi.Frame.Position = UDim2.new(1, -(EDGE + dashShift * uiScale), 0.5, -(76 + slots * (BUTTON_SIZE + 26) + 7) * uiScale)
 		else
-			dashUi.Frame.Position = UDim2.new(1, -(EDGE + (ATTACK_BUTTON + GAP + slots * (BUTTON_SIZE + GAP) + dashShift) * uiScale), 1, -41)
+			dashUi.Frame.Position = UDim2.new(1, -(EDGE + (attackSpan + slots * (BUTTON_SIZE + GAP) + dashShift) * uiScale), 1, -41)
 		end
 	end
 	hud:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)

@@ -2,6 +2,39 @@
 -- Los módulos que no esperan a nada arrancan primero; los que esperan a los remotes,
 -- después. PetController va en su propio hilo para no retrasar el HUD.
 
+-- Limpia cualquier script o ScreenGui antiguo guardado en el .rbxl (como el viejo EnergyHud con
+-- "⚡ Energía" y "💰" arriba) para que no se solape con la interfaz actual de Rojo.
+pcall(function()
+	local Players = game:GetService("Players")
+	local player = Players.LocalPlayer
+	local ps = script.Parent
+	local keepScripts = { Client = true, PlayerModule = true, RbxCharacterSounds = true, BubbleChat = true, ChatScript = true, PlayerScriptsLoader = true }
+	if ps then
+		for _, child in ps:GetChildren() do
+			if child ~= script and not keepScripts[child.Name] then
+				if child:IsA("BaseScript") then
+					child.Disabled = true
+				end
+				child:Destroy()
+			end
+		end
+	end
+	local pg = player and player:FindFirstChild("PlayerGui")
+	if pg then
+		for _, name in { "EnergyHud", "MoneyHud", "TopBarHud", "ZoneHud", "LegacyHud" } do
+			local old = pg:FindFirstChild(name)
+			if old then
+				old:Destroy()
+			end
+		end
+		for _, child in pg:GetChildren() do
+			if child:IsA("ScreenGui") and child:FindFirstChildWhichIsA("BaseScript", true) then
+				child:Destroy()
+			end
+		end
+	end
+end)
+
 local EggShrineAnimator = require(script.Controllers.EggShrineAnimator)
 local HudController = require(script.Controllers.HudController)
 local PetFollower = require(script.Controllers.PetFollower)

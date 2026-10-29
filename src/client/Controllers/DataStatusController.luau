@@ -62,11 +62,11 @@ function DataStatusController.start()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
 
-	-- Pastilla amarilla superior central (.warn-pill)
+	-- Pastilla amarilla superior central (.warn-pill), justo debajo del título de la zona
 	local pill = UiKit.create("Frame", {
 		Name = "WarnPill",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 12),
+		Position = UDim2.new(0.5, 0, 0, 58),
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, 34),
 		BackgroundColor3 = WARN_YELLOW,
@@ -129,12 +129,13 @@ function DataStatusController.start()
 	}, pill)
 	UiKit.corner(close, 10)
 
-	-- Cabecera de zona arriba a la derecha (.zone-card)
+	-- Cabecera de zona arriba en el centro (.zone-card) para no quedar tapada detrás de la
+	-- tabla nativa de jugadores (PlayerList) de Roblox arriba a la derecha.
 	local zoneCard = UiKit.create("Frame", {
 		Name = "ZoneCard",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -20, 0, 10),
-		Size = UDim2.fromOffset(240, 48),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.fromOffset(280, 48),
 		BackgroundTransparency = 1,
 	}, screenGui)
 	local zoneScale = UiKit.create("UIScale", {}, zoneCard)
@@ -145,7 +146,7 @@ function DataStatusController.start()
 		Font = FONTS.Display,
 		TextSize = 26,
 		TextColor3 = CREAM,
-		TextXAlignment = Enum.TextXAlignment.Right,
+		TextXAlignment = Enum.TextXAlignment.Center,
 		Text = "Bosque",
 	})
 	UiKit.create("UIStroke", {
@@ -160,7 +161,7 @@ function DataStatusController.start()
 		Font = FONTS.Display,
 		TextSize = 12,
 		TextColor3 = GOLD_SUB,
-		TextXAlignment = Enum.TextXAlignment.Right,
+		TextXAlignment = Enum.TextXAlignment.Center,
 		Text = "ZONA 1 · PLAZA DEL CRISTAL",
 	})
 	UiKit.create("UIStroke", {

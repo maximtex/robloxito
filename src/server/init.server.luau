@@ -1,6 +1,39 @@
 -- Punto de entrada del servidor. El orden importa:
 -- los remotes deben existir antes de que UpgradeService y PetService conecten sus eventos.
 
+-- Limpia scripts o interfaces antiguas que hayan quedado guardadas en el archivo .rbxl de Studio
+-- (fuera de Rojo) para que no corran en paralelo ni dupliquen el HUD o el mapa.
+pcall(function()
+	local ServerScriptService = game:GetService("ServerScriptService")
+	for _, child in ServerScriptService:GetChildren() do
+		if child ~= script and (child:IsA("Script") or child:IsA("Folder") or child:IsA("ModuleScript")) then
+			if child:IsA("BaseScript") then
+				child.Disabled = true
+			end
+			child:Destroy()
+		end
+	end
+	local StarterGui = game:GetService("StarterGui")
+	for _, child in StarterGui:GetChildren() do
+		if child:IsA("ScreenGui") or child:IsA("LocalScript") or child:IsA("Script") then
+			child:Destroy()
+		end
+	end
+	local StarterPlayer = game:GetService("StarterPlayer")
+	local sps = StarterPlayer:FindFirstChild("StarterPlayerScripts")
+	if sps then
+		local keep = { Client = true, PlayerModule = true, RbxCharacterSounds = true, BubbleChat = true, ChatScript = true, PlayerScriptsLoader = true }
+		for _, child in sps:GetChildren() do
+			if not keep[child.Name] then
+				if child:IsA("BaseScript") then
+					child.Disabled = true
+				end
+				child:Destroy()
+			end
+		end
+	end
+end)
+
 local Services = script.Services
 
 local RemoteService = require(Services.RemoteService)

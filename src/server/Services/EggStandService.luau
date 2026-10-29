@@ -246,11 +246,130 @@ local function buildEggPlaza(parent: Instance)
 	plaza.Parent = parent
 end
 
+-- Construye un Haxigator limpio con piezas nativas si el modelo del place falta o está corrupto
+-- (p. ej. si trae agrupado un mini-mapa o mallas desfasadas que disparan su caja a >10 studs).
+local function buildCleanCrocodile(parent: Instance): BasePart
+	local green = Color3.fromRGB(76, 188, 72)
+	local darkGreen = Color3.fromRGB(42, 128, 48)
+	local bellyColor = Color3.fromRGB(238, 224, 132)
+	local eyeWhite = Color3.fromRGB(250, 250, 252)
+	local pupilColor = Color3.fromRGB(24, 28, 34)
+
+	local body = PartFactory.part(parent, "Body", {
+		Size = Vector3.new(3.2, 2.2, 2.5),
+		CFrame = CFrame.new(0, 1.5, 0),
+		Color = green,
+		Material = Enum.Material.SmoothPlastic,
+		Solid = false,
+	})
+	PartFactory.part(parent, "Belly", {
+		Size = Vector3.new(2.9, 1.5, 2.56),
+		CFrame = CFrame.new(0.1, 1.25, 0),
+		Color = bellyColor,
+		Material = Enum.Material.SmoothPlastic,
+		Solid = false,
+	})
+	PartFactory.part(parent, "Head", {
+		Size = Vector3.new(2.4, 2.1, 2.6),
+		CFrame = CFrame.new(-1.2, 2.35, 0),
+		Color = green,
+		Material = Enum.Material.SmoothPlastic,
+		Solid = false,
+	})
+	PartFactory.part(parent, "Snout", {
+		Size = Vector3.new(2.2, 1.15, 2.2),
+		CFrame = CFrame.new(-2.6, 2.0, 0),
+		Color = green,
+		Material = Enum.Material.SmoothPlastic,
+		Solid = false,
+	})
+	PartFactory.part(parent, "Jaw", {
+		Size = Vector3.new(2.0, 0.55, 2.0),
+		CFrame = CFrame.new(-2.5, 1.35, 0),
+		Color = bellyColor,
+		Material = Enum.Material.SmoothPlastic,
+		Solid = false,
+	})
+	for _, z in { -0.68, 0.68 } do
+		PartFactory.ball(parent, "Nostril", Vector3.new(-3.45, 2.62, z), 0.28, darkGreen, Enum.Material.SmoothPlastic, false)
+		PartFactory.ball(parent, "Eye", Vector3.new(-2.15, 2.85, z * 1.45), 0.58, eyeWhite, Enum.Material.SmoothPlastic, false)
+		PartFactory.ball(parent, "Pupil", Vector3.new(-2.38, 2.85, z * 1.48), 0.32, pupilColor, Enum.Material.SmoothPlastic, false)
+		PartFactory.part(parent, "Tooth", {
+			Size = Vector3.new(0.28, 0.38, 0.28),
+			CFrame = CFrame.new(-3.2, 1.62, z * 1.1),
+			Color = eyeWhite,
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+	end
+	for _, x in { -0.95, 0.95 } do
+		for _, z in { -1.15, 1.15 } do
+			PartFactory.part(parent, "Leg", {
+				Size = Vector3.new(0.95, 0.9, 0.85),
+				CFrame = CFrame.new(x, 0.45, z),
+				Color = green,
+				Material = Enum.Material.SmoothPlastic,
+				Solid = false,
+			})
+		end
+	end
+	PartFactory.part(parent, "Tail", {
+		Size = Vector3.new(2.4, 1.1, 1.35),
+		CFrame = CFrame.new(2.35, 1.15, 0),
+		Color = green,
+		Material = Enum.Material.SmoothPlastic,
+		Solid = false,
+	})
+	-- Crestas dorsales pegadas al lomo (sin mallas con offset que se separen al escalar)
+	for i, crest in {
+		{ X = -0.7, Y = 3.55, S = Vector3.new(0.65, 0.45, 0.9) },
+		{ X = 0.25, Y = 2.82, S = Vector3.new(0.75, 0.5, 1.0) },
+		{ X = 1.15, Y = 2.62, S = Vector3.new(0.7, 0.45, 0.9) },
+		{ X = 2.15, Y = 1.85, S = Vector3.new(0.65, 0.4, 0.75) },
+	} do
+		PartFactory.part(parent, "Crest" .. i, {
+			Size = crest.S,
+			CFrame = CFrame.new(crest.X, crest.Y, 0),
+			Color = darkGreen,
+			Material = Enum.Material.SmoothPlastic,
+			Solid = false,
+		})
+	end
+	return body
+end
+
+-- Comprueba si el modelo de ReplicatedStorage.PetModels está corrupto (p. ej. contiene un mapa
+-- entero, piezas a más de 6 studs de su raíz, demasiadas piezas o SpecialMesh con Offset).
+local function isPetModelCorrupted(model: Model): boolean
+	local root = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+	if not root then
+		return true
+	end
+	local _, rawSize = model:GetBoundingBox()
+	if rawSize.X > 8 or rawSize.Y > 8 or rawSize.Z > 8 or rawSize.Y < 0.2 then
+		return true
+	end
+	local partCount = 0
+	for _, item in model:GetDescendants() do
+		if item:IsA("Model") then
+			return true
+		elseif item:IsA("SpecialMesh") and item.Offset.Magnitude > 0.05 then
+			return true
+		elseif item:IsA("BasePart") then
+			partCount += 1
+			if (item.Position - root.Position).Magnitude > 6 then
+				return true
+			end
+		end
+	end
+	return partCount == 0 or partCount > 35
+end
+
 -- Mascota exclusiva sobre el altar (Gardens.Forest.FeaturedPet): su modelo de
 -- ReplicatedStorage.PetModels (guardado en el place, fuera de Rojo; el mismo que te sigue al
 -- comprarla), agrandado, con sus partículas y mirando a la entrada del jardín (-X). Encima, su
 -- nombre y su precio en Robux; con E se compra (MonetizationConfig.PetProducts, lo abre
--- ShopController). Devuelve false si el place no tiene el modelo.
+-- ShopController). Si el modelo del place está corrupto o sobredimensionado, lo sanea.
 local function buildFeaturedPet(altar: Model, padTop: Vector3, base: BasePart): boolean
 	local garden = EggConfig.Gardens.Forest
 	local petId = garden.FeaturedPet
@@ -259,19 +378,32 @@ local function buildFeaturedPet(altar: Model, padTop: Vector3, base: BasePart): 
 	if not source then
 		return false
 	end
-	local copy = source:Clone()
 	local pet: Model
-	if copy:IsA("Model") then
-		pet = copy
+	local scale = garden.FeaturedPetScale or 1
+	local sourceModel = if source:IsA("Model") then source else nil
+	if sourceModel and not isPetModelCorrupted(sourceModel) then
+		pet = sourceModel:Clone()
+		pet:ScaleTo(pet:GetScale() * scale)
+		local _, scaledSize = pet:GetBoundingBox()
+		if scaledSize.X > 12 or scaledSize.Y > 12 or scaledSize.Z > 12 then
+			pet:Destroy()
+			pet = Instance.new("Model")
+			pet.PrimaryPart = buildCleanCrocodile(pet)
+		end
 	else
+		-- Saneamos también la plantilla en ReplicatedStorage.PetModels para que el cliente
+		-- (PetModelBuilder) no clone el mini-mapa roto si alguien equipa la mascota.
 		pet = Instance.new("Model")
-		copy.Parent = pet
-		if copy:IsA("BasePart") then
-			pet.PrimaryPart = copy
+		pet.PrimaryPart = buildCleanCrocodile(pet)
+		if folder and source then
+			local cleanTemplate = pet:Clone()
+			cleanTemplate.Name = source.Name
+			source:Destroy()
+			cleanTemplate.Parent = folder
 		end
 	end
-	pet.Name = "FeaturedPet_" .. source.Name
-	pet:SetAttribute("MapAsset", source.Name) -- contenido del place: WorkspaceAudit no lo lista
+	pet.Name = "FeaturedPet_" .. petId
+	pet:SetAttribute("MapAsset", petId) -- contenido del place: WorkspaceAudit no lo lista
 	for _, item in pet:GetDescendants() do
 		if item:IsA("BasePart") then
 			item.Anchored = true
@@ -281,8 +413,6 @@ local function buildFeaturedPet(altar: Model, padTop: Vector3, base: BasePart): 
 		end
 	end
 
-	local scale = garden.FeaturedPetScale or 1
-	pet:ScaleTo(scale)
 	-- Más grande, más chispas: la misma cantidad de partículas por superficie
 	for _, item in pet:GetDescendants() do
 		if item:IsA("ParticleEmitter") then

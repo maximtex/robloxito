@@ -8,13 +8,17 @@
 -- "de N minutos" (premio diario, cofres, códigos: RewardLogic.moneyAmount) usan el de la mejor
 -- zona abierta del jugador (ZoneLogic.bestMoneyPerMinute). Ajustable después de jugar.
 --
--- Los 5 mapas del Mundo 1 son cuadrados de 320×320 (halfSpan = 160) pegados de forma
--- continua en +Z sin puentes intermedios:
---   1. Forest:         Z = -160 .. +160 (Center Z = 0)
---   2. CrystalValley:  Z = +160 .. +480 (Center Z = 320)
---   3. EmberCaldera:   Z = +480 .. +800 (Center Z = 640)
---   4. FrozenTundra:   Z = +800 .. +1120 (Center Z = 960)
---   5. GoblinFortress: Z = +1120 .. +1440 (Center Z = 1280): al fondo, el portal gigante al Mundo 2
+-- Los 6 mapas del Mundo 1 son cuadrados de 320×320 (halfSpan = 160) pegados de forma
+-- continua en +Z sin puentes intermedios (el pueblo, sin bichos, y detrás la Zona 1 gratis;
+-- pruebas con amigos: "que el spawn sea solo el pueblo y la primera zona de pelea la de al lado"):
+--   0. Forest:         Z = -160 .. +160 (Center Z = 0): el pueblo (spawn, tiendas, huevos, práctica)
+--   1. ThornWoods:     Z = +160 .. +480 (Center Z = 320): Bosque de Espinas, gratis, con los
+--                      bichos del Bosque y la Cueva de los Espinillos junto a la puerta del Valle
+--   2. CrystalValley:  Z = +480 .. +800 (Center Z = 640)
+--   3. EmberCaldera:   Z = +800 .. +1120 (Center Z = 960)
+--   4. FrozenTundra:   Z = +1120 .. +1440 (Center Z = 1280)
+--   5. GoblinFortress: Z = +1440 .. +1760 (Center Z = 1600): al fondo, el portal gigante al Mundo 2
+-- Cada mazmorra (CaveConfig) tiene la boca junto a la puerta de la zona siguiente.
 -- El Mundo 2 (World2) es un pueblo aparte, lejos (X = 2000): se llega por el portal gigante de
 -- la Fortaleza (WorldPortals), que solo se abre al derrotar al Rey Goblin (RequiredBoss sin
 -- precio: se desbloquea solo al matarlo, BossRewardService).
@@ -27,7 +31,7 @@ local ZoneConfig = {
 
 	Zones = {
 		Forest = {
-			DisplayName = "Bosque Inicial",
+			DisplayName = "Pueblo del Bosque",
 			MoneyPerMinute = 700, -- 💰/min de referencia (premios por minutos)
 			Center = Vector2.new(0, 0),
 			UnlockCost = 0, -- siempre disponible
@@ -35,11 +39,23 @@ local ZoneConfig = {
 			ArrivalFacing = Vector3.new(0, 0, -1),
 			Radius = 160,
 		},
+		-- Zona 1: la primera de pelea, gratis, pegada tras el pueblo (Z = 160..480, centro en
+		-- Z = 320; ThornWoodsService). Sus bichos son los del Bosque (EnemyConfig.Zones.ThornWoods)
+		-- y su mazmorra, la Cueva de los Espinillos (con las oleadas del Guardián del Bosque).
+		ThornWoods = {
+			DisplayName = "Bosque de Espinas",
+			MoneyPerMinute = 700, -- 💰/min de referencia (premios por minutos)
+			Center = Vector2.new(0, 320),
+			UnlockCost = 0, -- gratis, sin jefe
+			Arrival = Vector3.new(0, 0, -132),
+			ArrivalFacing = Vector3.new(0, 0, 1),
+			Radius = 160,
+		},
 		CrystalValley = {
 			DisplayName = "Valle Morado",
 			MoneyPerMinute = 2200, -- 💰/min de referencia (premios por minutos)
-			-- Pegado directamente tras el Bosque (Z = 160..480, centro en Z = 320).
-			Center = Vector2.new(0, 320),
+			-- Tras el Bosque de Espinas (Z = 480..800, centro en Z = 640).
+			Center = Vector2.new(0, 640),
 			UnlockCost = 25000, -- 💰 (antes 12 500: ~4 partidas del Bosque)
 			RequiredBoss = "ForestWarden",
 			Arrival = Vector3.new(0, 0, -132),
@@ -49,8 +65,8 @@ local ZoneConfig = {
 		EmberCaldera = {
 			DisplayName = "Caldera de Brasas",
 			MoneyPerMinute = 6400, -- 💰/min de referencia (premios por minutos)
-			-- Pegada directamente tras el Valle Morado (Z = 480..800, centro en Z = 640).
-			Center = Vector2.new(0, 640),
+			-- Pegada directamente tras el Valle Morado (Z = 800..1120, centro en Z = 960).
+			Center = Vector2.new(0, 960),
 			UnlockCost = 250000, -- 💰 (antes 125 000: ~10 partidas del Valle)
 			RequiredRebirths = 0,
 			RequiredBoss = "AmethystColossus",
@@ -61,8 +77,8 @@ local ZoneConfig = {
 		FrozenTundra = {
 			DisplayName = "Tundra Helada",
 			MoneyPerMinute = 20000, -- 💰/min de referencia (premios por minutos)
-			-- Pegada tras la Caldera (Z = 800..1120, centro en Z = 960).
-			Center = Vector2.new(0, 960),
+			-- Pegada tras la Caldera (Z = 1120..1440, centro en Z = 1280).
+			Center = Vector2.new(0, 1280),
 			UnlockCost = 1500000, -- 💰 (antes 600 000: ~13 partidas de la Caldera)
 			RequiredBoss = "CalderaTitan",
 			Arrival = Vector3.new(0, 0, -132),
@@ -72,8 +88,8 @@ local ZoneConfig = {
 		GoblinFortress = {
 			DisplayName = "Fortaleza Goblin",
 			MoneyPerMinute = 64000, -- 💰/min de referencia (premios por minutos)
-			-- Pegada tras la Tundra (Z = 1120..1440, centro en Z = 1280). Final del Mundo 1.
-			Center = Vector2.new(0, 1280),
+			-- Pegada tras la Tundra (Z = 1440..1760, centro en Z = 1600). Final del Mundo 1.
+			Center = Vector2.new(0, 1600),
 			UnlockCost = 6000000, -- 💰 (antes 3 500 000: ~13 partidas de la Tundra)
 			RequiredBoss = "IceGolem",
 			Arrival = Vector3.new(0, 0, -132),
@@ -111,27 +127,34 @@ local ZoneConfig = {
 
 	-- Puertas de energía: situadas exactamente en el paso abierto del muro divisorio entre mapas.
 	Portals = {
+		-- Del pueblo al Bosque de Espinas: gratis (siempre abierto)
 		ForestPortal = {
 			Zone = "Forest",
-			Offset = Vector2.new(0, 160), -- justo en la frontera Z = 160 entre Bosque y Valle Morado
+			Offset = Vector2.new(0, 160), -- justo en la frontera Z = 160 entre el pueblo y el Bosque de Espinas
+			Target = "ThornWoods",
+			Style = "Ancient",
+		},
+		ValleyPortal = {
+			Zone = "ThornWoods",
+			Offset = Vector2.new(0, 160), -- frontera Z = 480 entre el Bosque de Espinas y el Valle Morado
 			Target = "CrystalValley",
 			Style = "Ancient",
 		},
 		CalderaPortal = {
 			Zone = "CrystalValley",
-			Offset = Vector2.new(0, 160), -- justo en la frontera Z = 480 (320 + 160) entre Valle y Caldera
+			Offset = Vector2.new(0, 160), -- justo en la frontera Z = 800 (640 + 160) entre Valle y Caldera
 			Target = "EmberCaldera",
 			Style = "Ember",
 		},
 		TundraPortal = {
 			Zone = "EmberCaldera",
-			Offset = Vector2.new(0, 160), -- frontera Z = 800 entre la Caldera y la Tundra
+			Offset = Vector2.new(0, 160), -- frontera Z = 1120 entre la Caldera y la Tundra
 			Target = "FrozenTundra",
 			Style = "Frost",
 		},
 		FortressPortal = {
 			Zone = "FrozenTundra",
-			Offset = Vector2.new(0, 160), -- frontera Z = 1120 entre la Tundra y la Fortaleza
+			Offset = Vector2.new(0, 160), -- frontera Z = 1440 entre la Tundra y la Fortaleza
 			Target = "GoblinFortress",
 			Style = "Goblin",
 		},

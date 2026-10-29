@@ -10,6 +10,7 @@ local StudFloor = require(Shared.Util.StudFloor)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
+local CaveConfig = require(Shared.Config.CaveConfig)
 local PartFactory = require(script.Parent.PartFactory)
 
 local StudWorld = {}
@@ -802,6 +803,14 @@ function StudWorld.newDecor(layout, zoneName: string, keepOut: { { number } }?)
 		if enemies.Boss then
 			local arena = enemies.Boss.Arena
 			table.insert(blocked, { originX + arena.Center.X, originZ + arena.Center.Y, arena.Radius + 6 })
+		end
+	end
+	-- Las bocas de las mazmorras de esta zona (montículos de roca, con sitio delante)
+	for _, cave in CaveConfig.Caves do
+		local mound = cave.Entrance and cave.Entrance.Mound
+		if mound and (cave.EntranceZone or cave.Zone) == zoneName then
+			local center = mound.Front - mound.Facing * (mound.Depth / 2)
+			table.insert(blocked, { center.X, center.Z, math.max(mound.Depth, mound.Span) / 2 + 12 })
 		end
 	end
 

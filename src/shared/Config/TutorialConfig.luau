@@ -74,7 +74,7 @@ local TutorialConfig = {
 		{
 			Id = "Boss",
 			Title = "Vence al Guardián",
-			Text = "Ve a la 🦇 Cueva de los Espinillos y gana las oleadas de su altar. Con poca vida, ❤️ (Y).",
+			Text = "Cruza al Bosque de Espinas: la 🦇 Cueva de los Espinillos está al fondo. Gana las oleadas de su altar.",
 			Goal = { Source = "Stat", Key = "BossKills" },
 			Target = 1,
 			Guide = "Cave",
@@ -85,7 +85,7 @@ local TutorialConfig = {
 			Text = "Junta el 💰 que pide el portal y ábrelo: allí siguen las aventuras.",
 			Goal = { Source = "Zone", Zone = "CrystalValley" },
 			Target = 1,
-			Guide = "Portal:ForestPortal",
+			Guide = "Portal:ValleyPortal",
 		},
 	},
 	SkipRateLimit = { Cooldown = 1, WindowSeconds = 5, MaxPerWindow = 4 },

@@ -92,8 +92,9 @@ local function guideTarget(guide: string?): (Vector3?, string?)
 				return Vector3.new(altar.X, GeneratorConfig.Position.Y + 6, altar.Y), CaveConfig.Zone
 			end
 		end
+		-- La boca está en el Bosque de Espinas (CaveConfig.EntranceZone), junto a la puerta del Valle
 		local mouth = CaveConfig.Entrance.Guide
-		return Vector3.new(mouth.X, GeneratorConfig.Position.Y + mouth.Y, mouth.Z), CaveConfig.Zone
+		return Vector3.new(mouth.X, GeneratorConfig.Position.Y + mouth.Y, mouth.Z), CaveConfig.EntranceZone or CaveConfig.Zone
 	end
 	local kind, id = guide:match("^(%a+):(%w+)$")
 	if kind == "Egg" then
@@ -118,6 +119,32 @@ local function guideTarget(guide: string?): (Vector3?, string?)
 		end
 	end
 	return nil, nil
+end
+
+-- Primer portal del camino de `from` a `to` (andando de zona en zona por ZoneConfig.Portals), o
+-- nil si no hay camino.
+local function portalToward(from: string, to: string): string?
+	local firstStep: { [string]: string } = {}
+	local queue = { from }
+	local seen = { [from] = true }
+	local head = 1
+	while queue[head] do
+		local zone = queue[head]
+		head += 1
+		for portalId, portal in ZoneConfig.Portals do
+			local nextZone = if portal.Zone == zone then portal.Target elseif portal.Target == zone then portal.Zone else nil
+			if nextZone and not seen[nextZone] then
+				seen[nextZone] = true
+				-- (hacia atrás es el mismo portal: está en la frontera entre las dos)
+				firstStep[nextZone] = firstStep[zone] or portalId
+				if nextZone == to then
+					return firstStep[nextZone]
+				end
+				table.insert(queue, nextZone)
+			end
+		end
+	end
+	return nil
 end
 
 -- Botón de la interfaz que señala un paso (de otros controladores; solo se lee).
@@ -534,6 +561,14 @@ function TutorialController.start()
 		local target, zoneId = guideTarget(guide)
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		local currentZone = player:GetAttribute(Attributes.CurrentZone)
+		-- Destino en otra zona (la cueva, desde el pueblo): primero, el portal hacia allí
+		if target and zoneId and typeof(currentZone) == "string" and currentZone ~= zoneId then
+			local portalId = portalToward(currentZone, zoneId)
+			if portalId then
+				target = guideTarget("Portal:" .. portalId)
+				zoneId = currentZone -- el portal está en la frontera: se ve desde los dos lados
+			end
+		end
 		local sameZone = zoneId == nil or currentZone == nil or currentZone == zoneId
 		local far = root and root:IsA("BasePart") and target and (root.Position - target).Magnitude > TutorialConfig.GuideHideDistance
 		setWorldGuide(if target and sameZone and far and not collapsed then target else nil)

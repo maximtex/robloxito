@@ -320,7 +320,7 @@ local function onFloor(zoneId: string, offset, what: string, margin: number?)
 		print(("  %s de %s fuera del suelo (%.0f, %.0f)"):format(what, zoneId, x, z))
 	end
 end
-for _, zoneId in { "FrozenTundra", "GoblinFortress", "World2", "DividedLands" } do
+for _, zoneId in { "ThornWoods", "CrystalValley", "EmberCaldera", "FrozenTundra", "GoblinFortress", "World2", "DividedLands" } do
 	onFloor(zoneId, ZoneConfig.Zones[zoneId].Arrival, "la llegada", 4)
 	local enemies = EnemyConfig.Zones[zoneId]
 	for _, spawn in (enemies and enemies.Spawns) or {} do
@@ -348,6 +348,25 @@ for portalId, p in ZoneConfig.Portals do
 		onFloor(p.Zone, Vector2.new(p.Offset.X, p.Offset.Y + (if north then 10 else -10)), "la puerta " .. portalId, 4)
 	end
 end
-check("llegadas, enemigos, arenas, huevos y portales de las zonas nuevas caen en su suelo", floorOk)
+-- Las bocas de las mazmorras (montículos) caben enteras en el suelo de su zona
+for caveId, cave in CaveConfig.Caves do
+	local mound = cave.Entrance.Mound
+	local layout = StudFloor.Zones[cave.EntranceZone or cave.Zone]
+	if mound and layout then
+		for _, dx in { 1, mound.Depth - 1 } do -- (la espalda puede ir pegada al muro)
+			for _, dz in { -mound.Span / 2 + 1, 0, mound.Span / 2 - 1 } do
+				local x, z = mound.Front.X + dx * -mound.Facing.X, mound.Front.Z + dz
+				if not StudFloor.onFloor(layout, x, z, 0) then
+					floorOk = false
+					print(("  la boca de %s se sale del suelo (%.0f, %.0f)"):format(caveId, x, z))
+				end
+			end
+		end
+	end
+end
+check("llegadas, enemigos, arenas, huevos, portales y bocas de las mazmorras caen en su suelo", floorOk)
+check("el pueblo y el Bosque de Espinas: gratis y seguidos (pueblo -> Bosque de Espinas -> Valle)",
+	ZoneConfig.Portals.ForestPortal.Target == "ThornWoods" and ZoneConfig.Portals.ValleyPortal.Zone == "ThornWoods" and ZoneConfig.Portals.ValleyPortal.Target == "CrystalValley"
+		and ZoneLogic.isUnlocked(profile(0, {}, {}), ZoneConfig, "ThornWoods") and not ZoneLogic.isUnlocked(profile(0, {}, {}), ZoneConfig, "CrystalValley"))
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

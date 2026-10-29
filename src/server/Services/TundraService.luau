@@ -370,7 +370,7 @@ local function buildDecor(parent: Instance)
 		igloo(folder, pos, yaw)
 	end)
 	-- Farolillos de hielo a los dos lados de la avenida
-	for z = TUNDRA.MinZ + 44, 1040, 28 do
+	for z = TUNDRA.MinZ + 44, TUNDRA.MaxZ - 52, 28 do
 		for _, side in { -1, 1 } do
 			local x = side * 16
 			if not StudWorld.onPath(TUNDRA, x, z) then

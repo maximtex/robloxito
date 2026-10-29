@@ -133,6 +133,11 @@ for zoneId, zone in EnemyConfig.Zones do
 			end
 		end
 	end
+	-- El Bosque de Espinas no tiene jefe propio: el del Bosque sale en las oleadas de su cueva
+	if not zone.Boss then
+		check(zoneId .. ": tiene Normal y Fuerte (su jefe sale en las oleadas de la cueva del Bosque)", kinds.Normal and kinds.Strong and EnemyConfig.Zones.Forest.Boss ~= nil)
+		continue
+	end
 	local bossDef = EnemyConfig.Types[zone.Boss.Type]
 	kinds[bossDef.Kind] = true
 	check(zoneId .. ": tiene Normal, Fuerte y Jefe", kinds.Normal and kinds.Strong and kinds.Boss)

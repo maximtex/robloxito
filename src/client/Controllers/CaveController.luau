@@ -137,15 +137,17 @@ local function setFade(shown: boolean, seconds: number)
 	end
 end
 
-local ZONE_ICONS = { Forest = "🌲", CrystalValley = "💎", EmberCaldera = "🌋", FrozenTundra = "❄️", GoblinFortress = "🏰", World2 = "🌍", DividedLands = "⚖️" }
+local ZONE_ICONS = { Forest = "🏡", ThornWoods = "🌲", CrystalValley = "💎", EmberCaldera = "🌋", FrozenTundra = "❄️", GoblinFortress = "🏰", World2 = "🌍", DividedLands = "⚖️" }
 
 local function onFade(data)
 	fadeToken += 1
 	local token = fadeToken
 	local inside = type(data) == "table" and data.Inside == true
 	local cave = (type(data) == "table" and CaveLogic.cave(data.Cave)) or CaveConfig.Caves[CaveConfig.Order[1]]
-	local zone = ZoneConfig.Zones[cave.Zone]
-	title.Text = if inside then ("%s %s"):format(cave.Icon or "🦇", string.upper(cave.Name)) else ("%s %s"):format(ZONE_ICONS[cave.Zone] or "🌲", string.upper(zone and zone.DisplayName or "Bosque Inicial"))
+	-- Al salir apareces delante de la boca: en su zona (la del Bosque, en el Bosque de Espinas)
+	local outsideZone = cave.EntranceZone or cave.Zone
+	local zone = ZoneConfig.Zones[outsideZone]
+	title.Text = if inside then ("%s %s"):format(cave.Icon or "🦇", string.upper(cave.Name)) else ("%s %s"):format(ZONE_ICONS[outsideZone] or "🌲", string.upper(zone and zone.DisplayName or "Bosque de Espinas"))
 	subtitle.Text = if inside then (cave.Subtitle or "") else "Saliendo de la cueva…"
 	title.TextTransparency, subtitle.TextTransparency = 1, 1
 	sound(CaveConfig.Sounds.Enter)

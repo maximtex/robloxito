@@ -37,7 +37,8 @@ local MESSAGES = {
 }
 
 local ZONE_HEADERS: { [string]: { Title: string, Sub: string } } = {
-	Forest = { Title = "Bosque", Sub = "ZONA 1 · PLAZA DEL CRISTAL" },
+	Forest = { Title = "Pueblo", Sub = "PLAZA DEL CRISTAL" },
+	ThornWoods = { Title = "Bosque de Espinas", Sub = "ZONA 1 · BOSQUE DE ESPINAS" },
 	CrystalValley = { Title = "Valle Morado", Sub = "ZONA 2 · VALLE CRISTALINO" },
 	EmberCaldera = { Title = "Caldera", Sub = "ZONA 3 · CALDERA DE BRASAS" },
 	FrozenTundra = { Title = "Tundra", Sub = "ZONA 4 · TUNDRA HELADA" },

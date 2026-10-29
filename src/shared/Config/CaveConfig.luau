@@ -1,10 +1,12 @@
 -- Mazmorras (cuevas): una en cada zona, con la MISMA forma (tres salas unidas por pasillos,
--- lejos del mapa) y cada vez más difíciles:
---   Bosque: Cueva de los Espinillos. La boca está en la colina oeste, al final del camino de
---           piedra que sale de la plaza (StudFloor.Zones.Forest.Cave).
---   Valle:  Cueva de Amatista. La boca es un montículo de roca a la derecha de la llegada.
---   Caldera: Forja de Magma. Igual, a la derecha de la llegada.
---   Tundra: Gruta Glacial. Igual (con carámbanos que caen del techo).
+-- lejos del mapa) y cada vez más difíciles. La boca de cada una (un montículo de roca) está al
+-- fondo de su zona, JUNTO A LA PUERTA de la siguiente (pruebas con amigos): al ganar sus
+-- oleadas derrotas al jefe que abre esa puerta.
+--   Bosque: Cueva de los Espinillos. Sus bichos y su jefe son del Bosque (Zone = "Forest"),
+--           pero la boca está en el Bosque de Espinas (EntranceZone), junto a la puerta del Valle.
+--   Valle:  Cueva de Amatista, junto a la puerta de la Caldera.
+--   Caldera: Forja de Magma, junto a la puerta de la Tundra.
+--   Tundra: Gruta Glacial, junto a la puerta de la Fortaleza (con carámbanos que caen del techo).
 --   Mundo 2 · Tierras Divididas: Grieta Elemental. Montículo al norte del mapa (al este de la
 --           plazoleta del final de la avenida); sala de fuego, sala de hielo con su guardián y,
 --           en el altar, las Oleadas Gemelas (Ignis y Glacius a la vez).
@@ -25,10 +27,10 @@
 -- boca de esa cueva. Los bichos de las salas son los de su zona (EnemyConfig.Zones.<zona>).
 -- Las cuevas están fuera de los cuadrados de las zonas: ZoneService las cuenta como su zona.
 -- Todo en coordenadas del mundo y en bordes de bloque (8k ± 4); las alturas, desde la cara
--- de arriba del suelo. Las del Valle y la Caldera son la del Bosque movida en Z (Shift: lo
--- mismo que se separan los centros de las zonas, así sus bichos y círculos tienen los mismos
--- Offset relativos a su zona). Lo construye Server.Util.CaveDungeon (la boca del Bosque,
--- ForestCave); el viaje y las trampas, CaveService; el fundido, los carteles de cada sala y el
+-- de arriba del suelo. Las del Valle y la Caldera son la del Bosque movida en Z (lo mismo que
+-- se separan los centros de las zonas, así sus bichos y círculos tienen los mismos Offset
+-- relativos a su zona). Lo construye Server.Util.CaveDungeon (las bocas, ForestCave.buildMound);
+-- el viaje y las trampas, CaveService; el fundido, los carteles de cada sala y el
 -- ambiente, el cliente (CaveController). Lógica pura (en qué cueva y sala estás) en
 -- Shared.CaveLogic.
 -- Listas planas (Rooms, Corridors, Gates, Exits): las de todas las cuevas seguidas, cada una
@@ -48,14 +50,8 @@ local FOREST = {
 	-- brillan ("Thorns"), cristales ("Crystal"), roca volcánica con lava ("Magma") o hielo ("Ice")
 	Decor = "Thorns",
 
-	-- Boca de la cueva (en el mapa del Bosque): al entrar en Trigger (el fondo del túnel,
-	-- detrás de la bruma oscura) te lleva dentro; al salir de la cueva apareces en Exit,
-	-- en el camino, mirando a la pradera. Guide: a dónde apunta la guía del tutorial.
-	Entrance = {
-		Trigger = { MinX = -140, MaxX = -132, MinZ = 12, MaxZ = 28, Height = 24 },
-		Exit = { Position = Vector3.new(-110, 0, 20), Facing = Vector3.new(1, 0, 0) },
-		Guide = Vector3.new(-126, 8, 20),
-	},
+	-- La boca (Entrance, abajo) no está en su zona: está en el Bosque de Espinas.
+	EntranceZone = "ThornWoods",
 
 	-- Dónde apareces dentro (sala 1, junto al portal de salida), mirando a la cueva.
 	Arrival = { Position = Vector3.new(-928, 0, 4), Facing = Vector3.new(-1, 0, 0) },
@@ -184,8 +180,10 @@ local function shifted(value: any, dz: number, key: any?): any
 	return value
 end
 
--- Boca de una mazmorra fuera del Bosque: un montículo de roca de 4 × 3 bloques con el túnel en
--- medio, con el frente del túnel en (x, z) del mundo mirando al oeste (-X).
+-- Boca de una mazmorra: un montículo de roca de 4 × 3 bloques con el túnel en medio, con el
+-- frente del túnel en (x, z) del mundo mirando al oeste (-X). Al entrar en Trigger (el fondo
+-- del túnel, detrás de la bruma oscura) te lleva dentro; al salir de la cueva apareces en Exit,
+-- delante de la boca. Guide: a dónde apunta la guía del tutorial.
 local function moundAt(x: number, z: number)
 	return {
 		Trigger = { MinX = x + 8, MaxX = x + 16, MinZ = z - 8, MaxZ = z + 8, Height = 16 },
@@ -197,22 +195,27 @@ local function moundAt(x: number, z: number)
 	}
 end
 
--- Boca de las cuevas del Valle, la Caldera y la Tundra: a la derecha de la llegada desde el
--- portal (Offset (44, -124) de su zona, donde estaba el círculo de las oleadas). `centerZ`: Z
--- del mundo del centro de la zona.
-local function mound(centerZ: number)
-	return moundAt(44, centerZ - 124)
+-- Boca de las cuevas del Mundo 1: al fondo de la zona, a la derecha de la plazoleta de la
+-- puerta de la zona siguiente (el frente del túnel a 8 studs de la plazoleta, mirando a ella;
+-- el montículo cabe en el suelo entre el camino del fondo y el muro). `gateZ`: Z del mundo
+-- del borde sur del suelo de la zona (StudFloor.Zones.*.MaxZ).
+local function besideGate(gateZ: number)
+	return moundAt(36, gateZ - 16)
 end
+
+-- Bosque: la boca, en el Bosque de Espinas (suelo hasta Z = 452)
+FOREST.Entrance = besideGate(452)
 
 -- Valle Morado: Cueva de Amatista -------------------------------------------------------------
 
-local VALLEY = shifted(FOREST, 320)
+local VALLEY = shifted(FOREST, 640)
+VALLEY.EntranceZone = nil
 VALLEY.Name = "Cueva de Amatista"
 VALLEY.Icon = "💎"
 VALLEY.Zone = "CrystalValley"
 VALLEY.Subtitle = "Pinchos de cristal, un Gólem Guardián y el trono del Coloso"
 VALLEY.Decor = "Crystal"
-VALLEY.Entrance = mound(295)
+VALLEY.Entrance = besideGate(772)
 VALLEY.Rooms[1].Name, VALLEY.Rooms[1].Label, VALLEY.Rooms[1].Text = "La Cantera", "SALA 1 · LA CANTERA", "Fragmentos · ¡cuidado con los pinchos!"
 VALLEY.Rooms[2].Name, VALLEY.Rooms[2].Label, VALLEY.Rooms[2].Text = "La Geoda", "SALA 2 · LA GEODA", "El Gólem Guardián"
 VALLEY.Rooms[3].Name, VALLEY.Rooms[3].Label, VALLEY.Rooms[3].Text = "El Trono", "SALA 3 · EL TRONO", "Oleadas del Coloso"
@@ -227,7 +230,7 @@ VALLEY.Strength = { Health = 2.2, Damage = 1.8, Reward = 1.6 }
 -- Mini-jefe de la sala 2 (EnemyService lo crea): un bicho de la zona más grande, con más
 -- vida (×Health además de la de la cueva: unos 3 500 aquí y 12 000 en la Caldera, por debajo
 -- del jefe), que pega más y da más botín. Position: dónde vive.
-VALLEY.MiniBoss = { Type = "GeodeGolem", Name = "👑 Gólem Guardián", Position = Vector3.new(-1084, 0, 332), Health = 2.5, Damage = 1.4, Reward = 6, Scale = 1.7 }
+VALLEY.MiniBoss = { Type = "GeodeGolem", Name = "👑 Gólem Guardián", Position = Vector3.new(-1084, 0, 652), Health = 2.5, Damage = 1.4, Reward = 6, Scale = 1.7 }
 -- Parte de los pequeños de las salas que son élite (uno de cada round(1 / EliteChance),
 -- siempre los mismos)
 VALLEY.EliteChance = 0.25
@@ -247,13 +250,14 @@ VALLEY.Theme = {
 
 -- Caldera de Brasas: Forja de Magma ---------------------------------------------------------
 
-local CALDERA = shifted(FOREST, 640)
+local CALDERA = shifted(FOREST, 960)
+CALDERA.EntranceZone = nil
 CALDERA.Name = "Forja de Magma"
 CALDERA.Icon = "🔥"
 CALDERA.Zone = "EmberCaldera"
 CALDERA.Subtitle = "Chorros de lava, el Gólem del Horno y el corazón del Titán"
 CALDERA.Decor = "Magma"
-CALDERA.Entrance = mound(615)
+CALDERA.Entrance = besideGate(1092)
 CALDERA.Rooms[1].Name, CALDERA.Rooms[1].Label, CALDERA.Rooms[1].Text = "La Fragua", "SALA 1 · LA FRAGUA", "Chispas · ¡cuidado con la lava!"
 CALDERA.Rooms[2].Name, CALDERA.Rooms[2].Label, CALDERA.Rooms[2].Text = "El Horno", "SALA 2 · EL HORNO", "El Gólem del Horno"
 CALDERA.Rooms[3].Name, CALDERA.Rooms[3].Label, CALDERA.Rooms[3].Text = "El Corazón", "SALA 3 · EL CORAZÓN", "Oleadas del Titán"
@@ -265,7 +269,7 @@ CALDERA.Gates[2].Kills, CALDERA.Gates[2].Opens, CALDERA.Gates[2].Enemies = 1, "e
 CALDERA.Gates[2].MiniBoss = true
 CALDERA.Gates[2].Ask = "Derrota al Gólem del Horno"
 CALDERA.Strength = { Health = 2.8, Damage = 2.2, Reward = 2 }
-CALDERA.MiniBoss = { Type = "MagmaGolem", Name = "👑 Gólem del Horno", Position = Vector3.new(-1084, 0, 652), Health = 2, Damage = 1.5, Reward = 6, Scale = 1.8 }
+CALDERA.MiniBoss = { Type = "MagmaGolem", Name = "👑 Gólem del Horno", Position = Vector3.new(-1084, 0, 972), Health = 2, Damage = 1.5, Reward = 6, Scale = 1.8 }
 CALDERA.EliteChance = 0.35
 CALDERA.Traps = { Kind = "Lava", Name = "Chorro de lava", Interval = { 4, 6.5 }, Warning = 1.1, Radius = 7, Spread = 4, Damage = 0.22, Color = RGB(255, 110, 30) }
 CALDERA.Theme = {
@@ -280,13 +284,14 @@ CALDERA.Theme = {
 
 -- Tundra Helada: Gruta Glacial --------------------------------------------------------------
 
-local TUNDRA = shifted(FOREST, 960)
+local TUNDRA = shifted(FOREST, 1280)
+TUNDRA.EntranceZone = nil
 TUNDRA.Name = "Gruta Glacial"
 TUNDRA.Icon = "❄️"
 TUNDRA.Zone = "FrozenTundra"
 TUNDRA.Subtitle = "Carámbanos que caen, el Yeti Ancestral y el trono del Gólem de Hielo"
 TUNDRA.Decor = "Ice"
-TUNDRA.Entrance = mound(935)
+TUNDRA.Entrance = besideGate(1412)
 TUNDRA.Rooms[1].Name, TUNDRA.Rooms[1].Label, TUNDRA.Rooms[1].Text = "La Escarcha", "SALA 1 · LA ESCARCHA", "Lobos · ¡cuidado con los carámbanos!"
 TUNDRA.Rooms[2].Name, TUNDRA.Rooms[2].Label, TUNDRA.Rooms[2].Text = "El Glaciar", "SALA 2 · EL GLACIAR", "El Yeti Ancestral"
 TUNDRA.Rooms[3].Name, TUNDRA.Rooms[3].Label, TUNDRA.Rooms[3].Text = "El Trono Helado", "SALA 3 · EL TRONO HELADO", "Oleadas del Gólem de Hielo"
@@ -298,7 +303,7 @@ TUNDRA.Gates[2].Kills, TUNDRA.Gates[2].Opens, TUNDRA.Gates[2].Enemies = 1, "el T
 TUNDRA.Gates[2].MiniBoss = true
 TUNDRA.Gates[2].Ask = "Derrota al Yeti Ancestral"
 TUNDRA.Strength = { Health = 3.2, Damage = 2.5, Reward = 2.4 }
-TUNDRA.MiniBoss = { Type = "Yeti", Name = "👑 Yeti Ancestral", Position = Vector3.new(-1084, 0, 972), Health = 1.8, Damage = 1.5, Reward = 6, Scale = 1.8 }
+TUNDRA.MiniBoss = { Type = "Yeti", Name = "👑 Yeti Ancestral", Position = Vector3.new(-1084, 0, 1292), Health = 1.8, Damage = 1.5, Reward = 6, Scale = 1.8 }
 TUNDRA.EliteChance = 0.4
 -- Carámbanos: caen del techo donde avisa el círculo
 TUNDRA.Traps = { Kind = "Ice", Name = "Carámbanos", Interval = { 4, 6 }, Warning = 1.1, Radius = 6.5, Spread = 4, Damage = 0.25, Color = RGB(150, 220, 255) }
@@ -319,6 +324,7 @@ TUNDRA.Theme = {
 -- el montículo al este de la plazoleta del final de la avenida, mirando a ella.
 
 local DIVIDED = shifted(FOREST, -296)
+DIVIDED.EntranceZone = nil
 DIVIDED.Name = "Grieta Elemental"
 DIVIDED.Icon = "⚖️"
 DIVIDED.Zone = "DividedLands"
@@ -367,7 +373,7 @@ local CaveConfig = {
 	-- La del Mundo 2 va la última: el progreso de las puertas se guarda por su número
 	Order = { "Forest", "CrystalValley", "EmberCaldera", "FrozenTundra", "DividedLands" },
 	Caves = { Forest = FOREST, CrystalValley = VALLEY, EmberCaldera = CALDERA, FrozenTundra = TUNDRA, DividedLands = DIVIDED },
-	-- Distancia en Z entre las cuevas (la de los centros de las zonas)
+	-- Distancia en Z entre los centros de dos zonas seguidas
 	Shift = 320,
 
 	-- Listas planas (se rellenan abajo)
@@ -436,6 +442,7 @@ end
 CaveConfig.Name = FOREST.Name
 CaveConfig.Zone = FOREST.Zone
 CaveConfig.Entrance = FOREST.Entrance
+CaveConfig.EntranceZone = FOREST.EntranceZone -- la boca está en el Bosque de Espinas
 CaveConfig.Arrival = FOREST.Arrival
 CaveConfig.Strength = FOREST.Strength
 CaveConfig.Tint = FOREST.Theme.Tint

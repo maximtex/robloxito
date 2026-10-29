@@ -118,50 +118,39 @@ StudFloor.Zones = {
 			{ -44, 44, -28, 28 }, -- plaza del pueblo: spawn y puestos (X = ±36)
 			{ 28, 60, 36, 84 }, -- patio del Jardín de los Huevos (6 bloques de ancho)
 			{ 12, 28, 52, 68 }, -- pasillo de 2 bloques del patio a la avenida sur, con hierba a los lados
-			{ -12, 12, 28, 108 }, -- avenida sur hacia el portal del Valle
+			{ -12, 12, 28, 108 }, -- avenida sur hacia el portal del Bosque de Espinas
 			{ -28, 28, 108, 140 }, -- plazoleta del portal (entra en el paso del muro)
-			{ -140, -44, 12, 28 }, -- camino de la cueva: de la plaza a la boca (Cave.Road)
 		},
 		DecorSeed = 2024,
-		-- Cueva de los Espinillos, al oeste: un camino sale de la plaza del pueblo, cruza la
-		-- pradera oeste y entra por una boca en la colina (la construye Server.Util.ForestCave).
-		-- Al cruzar la bruma del fondo te lleva dentro de la cueva, a otro sitio (CaveConfig).
-		-- Todo en coordenadas del mundo y en bordes de bloque.
-		-- Road: el camino (también está en Paths, para que se dibuje con sus bordes).
-		-- Opening: casillas de la colina que se vacían para la boca; Ceiling: filas de 8 de alto
-		-- del hueco (encima vuelve a haber colina).
-		Cave = {
-			Name = "Cueva de los Espinillos",
-			Road = { -140, -44, 12, 28 },
-			Opening = { MinX = -140, MaxX = -124, MinZ = 12, MaxZ = 28, Ceiling = 3 },
-		},
+		-- (La Cueva de los Espinillos ya no está aquí: su boca está en el Bosque de Espinas, junto
+		-- a la puerta del Valle. Layout.Cave / Opening siguen funcionando para otra boca en una colina.)
 	},
 
-	-- Valle Morado: llegada desde el Bosque, río con puente en la avenida, plaza del santuario
-	-- (18, 303), Trono de Amatista (95, 330) y portal a la Caldera (Z = 455) en el muro sur.
-	CrystalValley = {
+	-- Bosque de Espinas (Zona 1, gratis): pegado tras el pueblo, con los bichos del Bosque. Llegada
+	-- desde el pueblo al norte, avenida central con dos caminos de lado a lado (las praderas de los
+	-- pequeños, de los Espinillos y de los Brutos) y, al fondo, la plazoleta de la puerta del Valle
+	-- (Z = 455) con la boca de la Cueva de los Espinillos a su derecha (CaveConfig). Mismos colores
+	-- que el pueblo; el borde, el de la maqueta del Valle (donde estaba antes).
+	ThornWoods = {
 		MinX = -132,
 		MaxX = 132,
 		MinZ = 140,
 		MaxZ = 452,
-		River = { MinZ = 252, MaxZ = 284, BridgeHalf = 12 },
 		Colors = {
-			GroundA = RGB(152, 140, 218),
-			GroundB = RGB(132, 120, 198),
-			Path = RGB(216, 214, 232),
-			Border = RGB(78, 70, 138),
+			GroundA = StudFloor.Palette.GreenLight,
+			GroundB = StudFloor.Palette.GreenDark,
+			Path = StudFloor.Palette.GrayLight,
+			Border = StudFloor.Palette.GrayDark,
 		},
-		GrassTexture = "rbxassetid://137577632284745",
-		PathTexture = "rbxassetid://110463584344376",
+		GrassTexture = "rbxassetid://102683223562470",
+		PathTexture = "rbxassetid://126337185333576",
 		Walls = {
 			North = false,
 			South = true,
 			GateHalf = 28,
-			Base = { RGB(78, 70, 138), RGB(58, 52, 108) },
-			Top = { RGB(152, 140, 218), RGB(132, 120, 198) },
+			Base = { RGB(216, 132, 88), RGB(190, 104, 64) },
+			Top = { StudFloor.Palette.GreenLight, StudFloor.Palette.GreenDark },
 		},
-		-- Borde a medida (maqueta «Zona 2 — Valle Morado», simétrica), como Forest.Outline. La
-		-- fila del río ocupa lo de siempre y la del sur llega al paso del portal de la Caldera.
 		Outline = {
 			{ 140, 148, 44 },
 			{ 148, 156, 60 },
@@ -181,6 +170,60 @@ StudFloor.Zones = {
 			{ 428, 436, 84 },
 			{ 436, 452, 60 },
 		},
+		Paths = {
+			{ -28, 28, 140, 180 }, -- llegada desde el pueblo
+			{ -12, 12, 172, 428 }, -- avenida central hacia la puerta del Valle
+			{ -100, 100, 228, 244 }, -- camino de las praderas de los pequeños
+			{ -100, 100, 324, 340 }, -- camino de las praderas de los Brutos
+			{ -28, 28, 420, 460 }, -- plazoleta de la puerta del Valle (entra en el paso del muro)
+		},
+		DecorSeed = 2525,
+	},
+
+	-- Valle Morado: llegada desde el Bosque, río con puente en la avenida, plaza del santuario
+	-- (18, 303), Trono de Amatista (95, 330) y portal a la Caldera (Z = 455) en el muro sur.
+	CrystalValley = {
+		MinX = -132,
+		MaxX = 132,
+		MinZ = 460,
+		MaxZ = 772,
+		River = { MinZ = 572, MaxZ = 604, BridgeHalf = 12 },
+		Colors = {
+			GroundA = RGB(152, 140, 218),
+			GroundB = RGB(132, 120, 198),
+			Path = RGB(216, 214, 232),
+			Border = RGB(78, 70, 138),
+		},
+		GrassTexture = "rbxassetid://137577632284745",
+		PathTexture = "rbxassetid://110463584344376",
+		Walls = {
+			North = false,
+			South = true,
+			GateHalf = 28,
+			Base = { RGB(78, 70, 138), RGB(58, 52, 108) },
+			Top = { RGB(152, 140, 218), RGB(132, 120, 198) },
+		},
+		-- Borde a medida (maqueta «Zona 2 — Valle Morado», simétrica), como Forest.Outline. La
+		-- fila del río ocupa lo de siempre y la del sur llega al paso del portal de la Caldera.
+		Outline = {
+			{ 460, 468, 44 },
+			{ 468, 476, 60 },
+			{ 476, 484, 76 },
+			{ 484, 492, 92 },
+			{ 492, 500, 100 },
+			{ 500, 516, 108 },
+			{ 516, 532, 116 },
+			{ 532, 572, 124 },
+			{ 572, 604, 132 },
+			{ 604, 620, 124 },
+			{ 620, 708, 132 },
+			{ 708, 724, 124 },
+			{ 724, 732, 116 },
+			{ 732, 740, 108 },
+			{ 740, 748, 100 },
+			{ 748, 756, 84 },
+			{ 756, 772, 60 },
+		},
 		-- Lo de fuera del borde son terrazas (StudWorld.buildWalls): cada escalón de 8 de fondo
 		-- y más alto que el anterior; llegan Extend studs más allá del muro de siempre. El río
 		-- sigue entre ellas hasta Reach: cascada al oeste y cueva al este.
@@ -192,27 +235,27 @@ StudFloor.Zones = {
 				{ Height = 48, Colors = { RGB(108, 82, 190), RGB(96, 72, 176) } },
 				{ Height = 80, Colors = { RGB(74, 56, 146), RGB(64, 48, 130) } },
 			},
-			Channel = { MinZ = 252, MaxZ = 284, Reach = 164 },
+			Channel = { MinZ = 572, MaxZ = 604, Reach = 164 },
 		},
 		Paths = {
-			{ -28, 28, 140, 180 }, -- llegada desde el Bosque
-			{ -100, 100, 180, 204 }, -- camino de la llegada (8 studs antes del borde)
-			{ -12, 12, 172, 428 }, -- avenida central (cruza el río por el puente)
-			{ -36, 36, 292, 324 }, -- plaza del santuario del Huevo de Cristal
+			{ -28, 28, 460, 500 }, -- llegada desde el Bosque
+			{ -100, 100, 500, 524 }, -- camino de la llegada (8 studs antes del borde)
+			{ -12, 12, 492, 748 }, -- avenida central (cruza el río por el puente)
+			{ -36, 36, 612, 644 }, -- plaza del santuario del Huevo de Cristal
 			-- Rondas oeste y este: siguen los escalones del borde, 8 studs por dentro
-			{ -108, -92, 196, 220 },
-			{ 92, 108, 196, 220 },
-			{ -116, -100, 212, 252 },
-			{ 100, 116, 212, 252 },
-			{ -116, -100, 284, 308 },
-			{ 100, 116, 284, 308 },
-			{ -124, -108, 300, 396 },
-			{ 108, 124, 300, 396 },
-			{ -116, -92, 388, 412 },
-			{ 92, 116, 388, 412 },
-			{ -100, 100, 404, 420 }, -- camino del fondo
-			{ 76, 116, 308, 348 }, -- Trono de Amatista (jefe del Valle)
-			{ -28, 28, 420, 460 }, -- plazoleta del portal (entra en el paso del muro)
+			{ -108, -92, 516, 540 },
+			{ 92, 108, 516, 540 },
+			{ -116, -100, 532, 572 },
+			{ 100, 116, 532, 572 },
+			{ -116, -100, 604, 628 },
+			{ 100, 116, 604, 628 },
+			{ -124, -108, 620, 716 },
+			{ 108, 124, 620, 716 },
+			{ -116, -92, 708, 732 },
+			{ 92, 116, 708, 732 },
+			{ -100, 100, 724, 740 }, -- camino del fondo
+			{ 76, 116, 628, 668 }, -- Trono de Amatista (jefe del Valle)
+			{ -28, 28, 740, 780 }, -- plazoleta del portal (entra en el paso del muro)
 		},
 		DecorSeed = 3031,
 	},
@@ -223,8 +266,8 @@ StudFloor.Zones = {
 	EmberCaldera = {
 		MinX = -132,
 		MaxX = 132,
-		MinZ = 460,
-		MaxZ = 772,
+		MinZ = 780,
+		MaxZ = 1092,
 		Colors = {
 			GroundA = RGB(214, 114, 68),
 			GroundB = RGB(188, 94, 52),
@@ -242,101 +285,6 @@ StudFloor.Zones = {
 		},
 		-- Borde a medida (maqueta «Zona 3 — Caldera de Brasas», cráter simétrico), como
 		-- Forest.Outline. Arriba cierra como el final del Valle; la última fila llega al fondo.
-		Outline = {
-			{ 460, 476, 60 },
-			{ 476, 484, 68 },
-			{ 484, 492, 76 },
-			{ 492, 500, 84 },
-			{ 500, 508, 92 },
-			{ 508, 516, 100 },
-			{ 516, 532, 108 },
-			{ 532, 548, 116 },
-			{ 548, 572, 124 },
-			{ 572, 660, 132 },
-			{ 660, 684, 124 },
-			{ 684, 700, 116 },
-			{ 700, 708, 108 },
-			{ 708, 716, 100 },
-			{ 716, 724, 92 },
-			{ 724, 732, 84 },
-			{ 732, 740, 76 },
-			{ 740, 748, 68 },
-			{ 748, 756, 60 },
-			{ 756, 772, 44 },
-		},
-		-- Paredes de roca volcánica en 5 escalones (StudWorld.buildWalls); el fondo lo cierra el
-		-- muro sur con el paso del portal a la Tundra. El canal de lava a la altura del lago
-		-- las cruza: cascada al oeste (sigue por el suelo hasta el lago) y a un pozo al este.
-		Hill = {
-			Extend = 32,
-			Terraces = {
-				{ Height = 12, Colors = { RGB(168, 104, 78), RGB(154, 92, 68) } },
-				{ Height = 28, Colors = { RGB(132, 78, 58), RGB(118, 68, 50) } },
-				{ Height = 48, Colors = { RGB(98, 58, 46), RGB(86, 50, 40) } },
-				{ Height = 72, Colors = { RGB(70, 42, 36), RGB(60, 36, 30) } },
-				{ Height = 104, Colors = { RGB(44, 28, 26), RGB(36, 22, 20) } },
-			},
-			-- OverSteps: las terrazas no se cortan; la lava baja por encima de los escalones
-			-- (CalderaService.buildLavaFlows) en vez de abrir una ranura hasta Reach.
-			Channel = { MinZ = 612, MaxZ = 628, Reach = 164, OverSteps = true },
-		},
-		Paths = {
-			{ -28, 28, 460, 492 }, -- llegada desde el Valle
-			{ -12, 12, 492, 684 }, -- avenida hacia el Corazón de la Caldera
-			{ -100, 100, 516, 532 }, -- camino de la llegada (8 studs antes del borde)
-			{ -12, 44, 604, 644 }, -- plaza de la Forja de Huevos
-			-- Rondas oeste y este: siguen los escalones del borde, 8 studs por dentro
-			{ -108, -92, 524, 548 },
-			{ 92, 108, 524, 548 },
-			{ -116, -100, 540, 580 },
-			{ 100, 116, 540, 580 },
-			{ -124, -108, 572, 660 },
-			{ 108, 124, 572, 660 },
-			{ -116, -100, 652, 684 },
-			{ 100, 116, 652, 684 },
-			{ -108, -92, 676, 700 },
-			{ 92, 108, 676, 700 },
-			{ -100, -84, 692, 708 },
-			{ 84, 100, 692, 708 },
-			{ -92, -76, 700, 716 },
-			{ 76, 92, 700, 716 },
-			{ -84, -68, 708, 724 },
-			{ 68, 84, 708, 724 },
-			{ -28, 28, 684, 732 }, -- Corazón de la Caldera (jefe)
-			{ -76, 76, 716, 732 }, -- camino del fondo
-			{ -28, 28, 732, 780 }, -- plazoleta del portal a la Tundra (entra en el paso del muro)
-		},
-		DecorSeed = 4047,
-	},
-
-	-- Tundra Helada (zona 4): la misma forma de cráter que la Caldera (sus filas, 320 más al
-	-- sur), cubierta de nieve. Llegada desde la Caldera, plaza de los Huevos de Hielo (30, 944),
-	-- lago helado (-46, 943), el Mirador del Gólem (0, 1030: una estatua de hielo; el jefe
-	-- sale en las oleadas de su mazmorra) y el portal a la Fortaleza Goblin (Z = 1095) en el
-	-- muro sur. Suelo: la textura del camino del Valle (casi blanca) aclarada, a 16 studs
-	-- por imagen (GrassTile), y caminos de hielo con studs (StudTexture).
-	FrozenTundra = {
-		MinX = -132,
-		MaxX = 132,
-		MinZ = 780,
-		MaxZ = 1092,
-		Colors = {
-			GroundA = RGB(236, 242, 250),
-			GroundB = RGB(222, 232, 246),
-			Path = RGB(150, 204, 240),
-			Border = RGB(82, 128, 190),
-		},
-		GrassTexture = "rbxassetid://110463584344376",
-		GrassTile = 16,
-		GrassTint = RGB(245, 250, 255),
-		PathTexture = StudFloor.StudTexture,
-		Walls = {
-			North = false,
-			South = true,
-			GateHalf = 28,
-			Base = { RGB(120, 150, 200), RGB(100, 128, 180) },
-			Top = { RGB(240, 246, 252), RGB(222, 234, 246) },
-		},
 		Outline = {
 			{ 780, 796, 60 },
 			{ 796, 804, 68 },
@@ -357,24 +305,29 @@ StudFloor.Zones = {
 			{ 1052, 1060, 76 },
 			{ 1060, 1068, 68 },
 			{ 1068, 1076, 60 },
-			{ 1076, 1092, 44 },
+			{ 1076, 1092, 60 }, -- un poco más ancho: cabe la boca de la Forja de Magma junto a la puerta
 		},
-		-- Montañas nevadas en 5 escalones, de la nieve al hielo azul oscuro
+		-- Paredes de roca volcánica en 5 escalones (StudWorld.buildWalls); el fondo lo cierra el
+		-- muro sur con el paso del portal a la Tundra. El canal de lava a la altura del lago
+		-- las cruza: cascada al oeste (sigue por el suelo hasta el lago) y a un pozo al este.
 		Hill = {
 			Extend = 32,
 			Terraces = {
-				{ Height = 12, Colors = { RGB(238, 244, 250), RGB(226, 236, 246) } },
-				{ Height = 28, Colors = { RGB(206, 224, 242), RGB(190, 212, 236) } },
-				{ Height = 48, Colors = { RGB(160, 190, 226), RGB(146, 178, 218) } },
-				{ Height = 72, Colors = { RGB(120, 150, 200), RGB(108, 138, 190) } },
-				{ Height = 104, Colors = { RGB(86, 108, 160), RGB(76, 96, 146) } },
+				{ Height = 12, Colors = { RGB(168, 104, 78), RGB(154, 92, 68) } },
+				{ Height = 28, Colors = { RGB(132, 78, 58), RGB(118, 68, 50) } },
+				{ Height = 48, Colors = { RGB(98, 58, 46), RGB(86, 50, 40) } },
+				{ Height = 72, Colors = { RGB(70, 42, 36), RGB(60, 36, 30) } },
+				{ Height = 104, Colors = { RGB(44, 28, 26), RGB(36, 22, 20) } },
 			},
+			-- OverSteps: las terrazas no se cortan; la lava baja por encima de los escalones
+			-- (CalderaService.buildLavaFlows) en vez de abrir una ranura hasta Reach.
+			Channel = { MinZ = 932, MaxZ = 948, Reach = 164, OverSteps = true },
 		},
 		Paths = {
-			{ -28, 28, 780, 812 }, -- llegada desde la Caldera
-			{ -12, 12, 812, 1052 }, -- avenida hacia el Mirador del Gólem
+			{ -28, 28, 780, 812 }, -- llegada desde el Valle
+			{ -12, 12, 812, 1004 }, -- avenida hacia el Corazón de la Caldera
 			{ -100, 100, 836, 852 }, -- camino de la llegada (8 studs antes del borde)
-			{ -12, 52, 924, 964 }, -- plaza de los Huevos de Hielo
+			{ -12, 44, 924, 964 }, -- plaza de la Forja de Huevos
 			-- Rondas oeste y este: siguen los escalones del borde, 8 studs por dentro
 			{ -108, -92, 844, 868 },
 			{ 92, 108, 844, 868 },
@@ -392,9 +345,99 @@ StudFloor.Zones = {
 			{ 76, 92, 1020, 1036 },
 			{ -84, -68, 1028, 1044 },
 			{ 68, 84, 1028, 1044 },
-			{ -28, 28, 1004, 1052 }, -- Mirador del Gólem (estatua de hielo)
+			{ -28, 28, 1004, 1052 }, -- Corazón de la Caldera (jefe)
 			{ -76, 76, 1036, 1052 }, -- camino del fondo
-			{ -28, 28, 1052, 1100 }, -- plazoleta del portal a la Fortaleza (entra en el paso del muro)
+			{ -28, 28, 1052, 1100 }, -- plazoleta del portal a la Tundra (entra en el paso del muro)
+		},
+		DecorSeed = 4047,
+	},
+
+	-- Tundra Helada (zona 4): la misma forma de cráter que la Caldera (sus filas, 320 más al
+	-- sur), cubierta de nieve. Llegada desde la Caldera, plaza de los Huevos de Hielo (30, 944),
+	-- lago helado (-46, 943), el Mirador del Gólem (0, 1030: una estatua de hielo; el jefe
+	-- sale en las oleadas de su mazmorra) y el portal a la Fortaleza Goblin (Z = 1095) en el
+	-- muro sur. Suelo: la textura del camino del Valle (casi blanca) aclarada, a 16 studs
+	-- por imagen (GrassTile), y caminos de hielo con studs (StudTexture).
+	FrozenTundra = {
+		MinX = -132,
+		MaxX = 132,
+		MinZ = 1100,
+		MaxZ = 1412,
+		Colors = {
+			GroundA = RGB(236, 242, 250),
+			GroundB = RGB(222, 232, 246),
+			Path = RGB(150, 204, 240),
+			Border = RGB(82, 128, 190),
+		},
+		GrassTexture = "rbxassetid://110463584344376",
+		GrassTile = 16,
+		GrassTint = RGB(245, 250, 255),
+		PathTexture = StudFloor.StudTexture,
+		Walls = {
+			North = false,
+			South = true,
+			GateHalf = 28,
+			Base = { RGB(120, 150, 200), RGB(100, 128, 180) },
+			Top = { RGB(240, 246, 252), RGB(222, 234, 246) },
+		},
+		Outline = {
+			{ 1100, 1116, 60 },
+			{ 1116, 1124, 68 },
+			{ 1124, 1132, 76 },
+			{ 1132, 1140, 84 },
+			{ 1140, 1148, 92 },
+			{ 1148, 1156, 100 },
+			{ 1156, 1172, 108 },
+			{ 1172, 1188, 116 },
+			{ 1188, 1212, 124 },
+			{ 1212, 1300, 132 },
+			{ 1300, 1324, 124 },
+			{ 1324, 1340, 116 },
+			{ 1340, 1348, 108 },
+			{ 1348, 1356, 100 },
+			{ 1356, 1364, 92 },
+			{ 1364, 1372, 84 },
+			{ 1372, 1380, 76 },
+			{ 1380, 1388, 68 },
+			{ 1388, 1396, 60 },
+			{ 1396, 1412, 60 }, -- un poco más ancho: cabe la boca de la Gruta Glacial junto a la puerta
+		},
+		-- Montañas nevadas en 5 escalones, de la nieve al hielo azul oscuro
+		Hill = {
+			Extend = 32,
+			Terraces = {
+				{ Height = 12, Colors = { RGB(238, 244, 250), RGB(226, 236, 246) } },
+				{ Height = 28, Colors = { RGB(206, 224, 242), RGB(190, 212, 236) } },
+				{ Height = 48, Colors = { RGB(160, 190, 226), RGB(146, 178, 218) } },
+				{ Height = 72, Colors = { RGB(120, 150, 200), RGB(108, 138, 190) } },
+				{ Height = 104, Colors = { RGB(86, 108, 160), RGB(76, 96, 146) } },
+			},
+		},
+		Paths = {
+			{ -28, 28, 1100, 1132 }, -- llegada desde la Caldera
+			{ -12, 12, 1132, 1372 }, -- avenida hacia el Mirador del Gólem
+			{ -100, 100, 1156, 1172 }, -- camino de la llegada (8 studs antes del borde)
+			{ -12, 52, 1244, 1284 }, -- plaza de los Huevos de Hielo
+			-- Rondas oeste y este: siguen los escalones del borde, 8 studs por dentro
+			{ -108, -92, 1164, 1188 },
+			{ 92, 108, 1164, 1188 },
+			{ -116, -100, 1180, 1220 },
+			{ 100, 116, 1180, 1220 },
+			{ -124, -108, 1212, 1300 },
+			{ 108, 124, 1212, 1300 },
+			{ -116, -100, 1292, 1324 },
+			{ 100, 116, 1292, 1324 },
+			{ -108, -92, 1316, 1340 },
+			{ 92, 108, 1316, 1340 },
+			{ -100, -84, 1332, 1348 },
+			{ 84, 100, 1332, 1348 },
+			{ -92, -76, 1340, 1356 },
+			{ 76, 92, 1340, 1356 },
+			{ -84, -68, 1348, 1364 },
+			{ 68, 84, 1348, 1364 },
+			{ -28, 28, 1324, 1372 }, -- Mirador del Gólem (estatua de hielo)
+			{ -76, 76, 1356, 1372 }, -- camino del fondo
+			{ -28, 28, 1372, 1420 }, -- plazoleta del portal a la Fortaleza (entra en el paso del muro)
 		},
 		DecorSeed = 5059,
 	},
@@ -407,8 +450,8 @@ StudFloor.Zones = {
 	GoblinFortress = {
 		MinX = -132,
 		MaxX = 132,
-		MinZ = 1100,
-		MaxZ = 1412,
+		MinZ = 1420,
+		MaxZ = 1732,
 		Colors = {
 			GroundA = RGB(110, 150, 52),
 			GroundB = RGB(86, 126, 40),
@@ -426,16 +469,16 @@ StudFloor.Zones = {
 			Top = { RGB(110, 150, 52), RGB(86, 126, 40) },
 		},
 		Outline = {
-			{ 1100, 1116, 60 },
-			{ 1116, 1124, 76 },
-			{ 1124, 1132, 92 },
-			{ 1132, 1140, 108 },
-			{ 1140, 1156, 124 },
-			{ 1156, 1372, 132 },
-			{ 1372, 1388, 124 },
-			{ 1388, 1396, 108 },
-			{ 1396, 1404, 84 },
-			{ 1404, 1412, 60 },
+			{ 1420, 1436, 60 },
+			{ 1436, 1444, 76 },
+			{ 1444, 1452, 92 },
+			{ 1452, 1460, 108 },
+			{ 1460, 1476, 124 },
+			{ 1476, 1692, 132 },
+			{ 1692, 1708, 124 },
+			{ 1708, 1716, 108 },
+			{ 1716, 1724, 84 },
+			{ 1724, 1732, 60 },
 		},
 		-- Rocas y riscos oscuros con musgo, que también cierran el fondo (CloseSouth)
 		Hill = {
@@ -450,16 +493,16 @@ StudFloor.Zones = {
 			},
 		},
 		Paths = {
-			{ -28, 28, 1100, 1132 }, -- llegada desde la Tundra
-			{ -12, 12, 1132, 1212 }, -- camino a la puerta de la muralla
-			{ -100, 100, 1148, 1164 }, -- camino de los campamentos (8 studs antes del borde)
-			{ -76, 76, 1212, 1356 }, -- patio de la fortaleza (Sala del Trono en medio)
-			{ -36, 36, 1356, 1404 }, -- tarima del portal gigante
+			{ -28, 28, 1420, 1452 }, -- llegada desde la Tundra
+			{ -12, 12, 1452, 1532 }, -- camino a la puerta de la muralla
+			{ -100, 100, 1468, 1484 }, -- camino de los campamentos (8 studs antes del borde)
+			{ -76, 76, 1532, 1676 }, -- patio de la fortaleza (Sala del Trono en medio)
+			{ -36, 36, 1676, 1724 }, -- tarima del portal gigante
 		},
 		DecorSeed = 6067,
 		-- Muralla de la fortaleza (FortressService): de borde a borde a esta Z, con la puerta
 		-- abierta (medio ancho GateHalf) frente al camino.
-		Rampart = { Z0 = 1196, Z1 = 1204, GateHalf = 16 },
+		Rampart = { Z0 = 1516, Z1 = 1524, GateHalf = 16 },
 	},
 
 	-- Mundo 2: el pueblo nuevo, lejos de todo (centro (2000, 0); World2Service). Plaza con los

@@ -604,7 +604,7 @@ local EnemyConfig = {
 			SpawnClear = { Center = Vector2.new(0, 43), Radius = 80 },
 			SafeZones = {
 				{ Center = Vector2.new(38, 85), Radius = 20 }, -- Jardín de los Huevos (EggConfig.Gardens.Forest)
-				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal al Valle (ZoneConfig.Portals.ForestPortal)
+				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal al Bosque de Espinas (ZoneConfig.Portals.ForestPortal)
 				-- Círculo de la práctica de las oleadas (WaveConfig.Places.Practice, radio AreaRadius + 4):
 				-- los del mundo no entran a por nadie ni atacan a quien espera junto al altar.
 				{ Center = Vector2.new(-69, 98), Radius = 22 },
@@ -615,31 +615,10 @@ local EnemyConfig = {
 				{ Center = Vector2.new(-1220, 5), Radius = 22 },
 			},
 			Spawns = {
-				-- Zona de inicio: enemigos para golpear desde el principio, alrededor del pueblo y
-				-- fuera del radio del punto de aparición (SpawnClear; al oeste, al este y al norte)
-				{ Type = "StarterThornling", Offset = Vector2.new(-78, 19) },
-				{ Type = "StarterThornling", Offset = Vector2.new(-80, 56) },
-				{ Type = "StarterThornling", Offset = Vector2.new(-84, 62) },
-				{ Type = "StarterThornling", Offset = Vector2.new(80, 20) },
-				{ Type = "StarterThornling", Offset = Vector2.new(84, 62) },
-				{ Type = "StarterThornling", Offset = Vector2.new(-23, -36) },
-				{ Type = "StarterThornling", Offset = Vector2.new(23, -36) },
-				{ Type = "Thornling", Offset = Vector2.new(-54, 140) },
-				{ Type = "Thornling", Offset = Vector2.new(72, 125) },
-
-				-- Pradera izquierda (al oeste de las parcelas y tiendas), a ambos lados del círculo
-				-- de la práctica de las oleadas (WaveConfig.Places.Practice, en (-69, 98)), lejos de su
-				-- zona segura.
-				{ Type = "Thornling", Offset = Vector2.new(-60, 134) },
-				{ Type = "Thornling", Offset = Vector2.new(-70, 136) },
-				{ Type = "Thornling", Offset = Vector2.new(-81, 48) },
-				{ Type = "Thornling", Offset = Vector2.new(-92, 62) },
-				{ Type = "Thornling", Offset = Vector2.new(-96, 70) },
-				{ Type = "Thornling", Offset = Vector2.new(-73, 6) },
-				{ Type = "Barkbrute", Offset = Vector2.new(-75, 9) },
-
-				-- Cueva de los Espinillos por dentro (CaveConfig; se entra por la boca de la colina
-				-- oeste). Sala 1, el Nido: los pequeños, lejos de donde llegas.
+				-- El pueblo no tiene bichos: los del Bosque están en el Bosque de Espinas (ThornWoods).
+				-- Cueva de los Espinillos por dentro (CaveConfig; se entra por su boca, en el Bosque
+				-- de Espinas junto a la puerta del Valle). Sala 1, el Nido: los pequeños, lejos de
+				-- donde llegas.
 				{ Type = "StarterThornling", Offset = Vector2.new(-950, 5) },
 				{ Type = "StarterThornling", Offset = Vector2.new(-948, 51) },
 				{ Type = "StarterThornling", Offset = Vector2.new(-966, 31) },
@@ -648,39 +627,70 @@ local EnemyConfig = {
 				{ Type = "Thornling", Offset = Vector2.new(-990, 29) },
 				{ Type = "Thornling", Offset = Vector2.new(-994, 7) },
 				{ Type = "Thornling", Offset = Vector2.new(-968, 57) },
+				{ Type = "ThornCaster", Offset = Vector2.new(-980, 42) }, -- lanzadores (disparan de lejos)
+				{ Type = "ThornCaster", Offset = Vector2.new(-960, 14) },
 				-- Sala 2, la Galería: los medianos (uno guarda el pasillo a la sala del altar).
 				{ Type = "Barkbrute", Offset = Vector2.new(-1066, 29) },
 				{ Type = "Barkbrute", Offset = Vector2.new(-1090, 63) },
 				{ Type = "Barkbrute", Offset = Vector2.new(-1104, 31) },
 				{ Type = "Barkbrute", Offset = Vector2.new(-1112, 5) },
 				{ Type = "Barkbrute", Offset = Vector2.new(-1076, 3) },
-
-				-- Pradera derecha (al este de las parcelas y los huevos)
-				{ Type = "Thornling", Offset = Vector2.new(88, 105) },
-				{ Type = "Thornling", Offset = Vector2.new(68, 118) },
-				{ Type = "ThornCaster", Offset = Vector2.new(71, 118) }, -- lanzador (dispara de lejos)
-				{ Type = "Thornling", Offset = Vector2.new(68, 115) },
-				{ Type = "Thornling", Offset = Vector2.new(72, 96) }, -- (lejos del Jardín de los Huevos)
-				{ Type = "Thornling", Offset = Vector2.new(76, 84) },
-				{ Type = "Thornling", Offset = Vector2.new(82, 49) },
-				{ Type = "ThornCaster", Offset = Vector2.new(82, 46) }, -- lanzador (dispara de lejos)
-				{ Type = "Thornling", Offset = Vector2.new(75, 9) },
-
-				-- Pradera norte (pasando el letrero de ZONA SEGURA)
-				{ Type = "Thornling", Offset = Vector2.new(-68, -28) },
-				{ Type = "Thornling", Offset = Vector2.new(-48, -28) },
-				{ Type = "Thornling", Offset = Vector2.new(0, -39) },
-				{ Type = "ThornCaster", Offset = Vector2.new(3, -39) }, -- lanzador (dispara de lejos)
-				{ Type = "Thornling", Offset = Vector2.new(48, -28) },
-				{ Type = "Thornling", Offset = Vector2.new(68, -28) },
-				{ Type = "Thornling", Offset = Vector2.new(-68, -36) },
-				{ Type = "Thornling", Offset = Vector2.new(-28, -36) },
-				{ Type = "Thornling", Offset = Vector2.new(28, -36) },
-				{ Type = "Barkbrute", Offset = Vector2.new(68, -36) },
 			},
 			Boss = {
 				Type = "ForestWarden",
 				Arena = { Name = "Círculo del Guardián", Center = Vector2.new(-58, -35), Radius = 16 },
+			},
+		},
+
+		-- Bosque de Espinas (Zona 1, gratis; centro (0, 295) del mundo): los bichos del Bosque.
+		-- Al norte, junto a la llegada desde el pueblo, los pequeños; en medio, los Espinillos y
+		-- los lanzadores; al fondo, los Brutos de Corteza. La boca de la Cueva de los Espinillos
+		-- (con las oleadas del Guardián) está junto a la puerta del Valle.
+		ThornWoods = {
+			RewardMultiplier = 1,
+			SafeZones = {
+				{ Center = Vector2.new(0, -132), Radius = 18 }, -- llegada desde el pueblo
+				{ Center = Vector2.new(0, 160), Radius = 16 }, -- puerta del Valle (ZoneConfig.Portals.ValleyPortal)
+				-- Boca de la Cueva de los Espinillos (CaveConfig.Caves.Forest.Entrance): nadie te espera
+				{ Center = Vector2.new(30, 141), Radius = 16 },
+			},
+			Spawns = {
+				-- Los pequeños, junto a la llegada
+				{ Type = "StarterThornling", Offset = Vector2.new(-50, -100) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-80, -90) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-20, -95) },
+				{ Type = "StarterThornling", Offset = Vector2.new(20, -95) },
+				{ Type = "StarterThornling", Offset = Vector2.new(50, -100) },
+				{ Type = "StarterThornling", Offset = Vector2.new(80, -90) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-40, -78) },
+				{ Type = "StarterThornling", Offset = Vector2.new(40, -78) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-90, -70) },
+				{ Type = "StarterThornling", Offset = Vector2.new(90, -70) },
+				{ Type = "Thornling", Offset = Vector2.new(-60, -40) },
+				{ Type = "Thornling", Offset = Vector2.new(60, -40) },
+				-- En medio: los Espinillos y los lanzadores
+				{ Type = "Thornling", Offset = Vector2.new(-50, -20) },
+				{ Type = "Thornling", Offset = Vector2.new(-85, -10) },
+				{ Type = "Thornling", Offset = Vector2.new(50, -20) },
+				{ Type = "Thornling", Offset = Vector2.new(85, -10) },
+				{ Type = "Thornling", Offset = Vector2.new(-30, 5) },
+				{ Type = "Thornling", Offset = Vector2.new(30, 5) },
+				{ Type = "Thornling", Offset = Vector2.new(-70, 15) },
+				{ Type = "Thornling", Offset = Vector2.new(70, 15) },
+				{ Type = "Thornling", Offset = Vector2.new(-110, 25) },
+				{ Type = "Thornling", Offset = Vector2.new(110, 25) },
+				{ Type = "ThornCaster", Offset = Vector2.new(-100, -5) }, -- lanzador (dispara de lejos)
+				{ Type = "ThornCaster", Offset = Vector2.new(100, -5) },
+				-- Al fondo: los Brutos de Corteza (antes de la cueva y la puerta del Valle)
+				{ Type = "Barkbrute", Offset = Vector2.new(-60, 70) },
+				{ Type = "Barkbrute", Offset = Vector2.new(60, 70) },
+				{ Type = "Barkbrute", Offset = Vector2.new(-90, 95) },
+				{ Type = "Barkbrute", Offset = Vector2.new(100, 60) },
+				{ Type = "ThornCaster", Offset = Vector2.new(-40, 95) },
+				{ Type = "Thornling", Offset = Vector2.new(40, 95) },
+				{ Type = "Thornling", Offset = Vector2.new(90, 95) },
+				{ Type = "Thornling", Offset = Vector2.new(-100, 110) },
+				{ Type = "Thornling", Offset = Vector2.new(-70, 120) },
 			},
 		},
 
@@ -689,9 +699,11 @@ local EnemyConfig = {
 			SafeZones = {
 				{ Center = Vector2.new(18, 8), Radius = 11 },
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal a la Caldera (ZoneConfig.Portals.CalderaPortal)
-				-- Boca de la Cueva de Amatista (CaveConfig.Caves.CrystalValley.Entrance), donde
-				-- estaba el círculo de las oleadas: nadie te espera al salir.
+				-- Llegada desde el Bosque de Espinas (antes, la boca de la cueva): nadie te espera
 				{ Center = Vector2.new(36, -124), Radius = 22 },
+				-- Boca de la Cueva de Amatista (CaveConfig.Caves.CrystalValley.Entrance), junto a la
+				-- puerta de la Caldera: nadie te espera al salir.
+				{ Center = Vector2.new(30, 141), Radius = 16 },
 				-- Cueva de Amatista por dentro (relativo al centro de la zona, como la del Bosque): donde
 				-- llegas y el círculo de las oleadas en la sala 3 (WaveConfig.Places).
 				{ Center = Vector2.new(-928, 29), Radius = 12 },
@@ -745,8 +757,11 @@ local EnemyConfig = {
 			SafeZones = {
 				{ Center = Vector2.new(24, 10), Radius = 11 },
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal a la Tundra (ZoneConfig.Portals.TundraPortal)
-				-- Boca de la Forja de Magma (CaveConfig.Caves.EmberCaldera.Entrance)
+				-- Llegada desde el Valle (antes, la boca de la cueva)
 				{ Center = Vector2.new(36, -124), Radius = 22 },
+				-- Boca de la Forja de Magma (CaveConfig.Caves.EmberCaldera.Entrance), junto a la puerta
+				-- de la Tundra
+				{ Center = Vector2.new(30, 141), Radius = 16 },
 				-- Forja de Magma por dentro (relativo al centro de la zona, como la del Bosque): donde
 				-- llegas y el círculo de las oleadas en la sala 3 (WaveConfig.Places).
 				{ Center = Vector2.new(-928, 29), Radius = 12 },
@@ -800,8 +815,11 @@ local EnemyConfig = {
 			SafeZones = {
 				{ Center = Vector2.new(30, 9), Radius = 20 }, -- plaza de los Huevos de Hielo
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal a la Fortaleza (ZoneConfig.Portals.FortressPortal)
-				-- Boca de la Gruta Glacial (CaveConfig.Caves.FrozenTundra.Entrance)
+				-- Llegada desde la Caldera (antes, la boca de la cueva)
 				{ Center = Vector2.new(36, -124), Radius = 22 },
+				-- Boca de la Gruta Glacial (CaveConfig.Caves.FrozenTundra.Entrance), junto a la puerta
+				-- de la Fortaleza
+				{ Center = Vector2.new(30, 141), Radius = 16 },
 				-- Gruta Glacial por dentro: donde llegas y el círculo de las oleadas (WaveConfig.Places)
 				{ Center = Vector2.new(-928, 29), Radius = 12 },
 				{ Center = Vector2.new(-1220, 5), Radius = 22 },

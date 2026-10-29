@@ -194,7 +194,7 @@ local clearOK, worldCount = true, 0
 for zoneId, zone in EnemyConfig.Zones do
 	local clear = zone.SpawnClear
 	for _, spawn in zone.Spawns or {} do
-		if zoneId == "Forest" and math.abs(spawn.Offset.X) < 500 then
+		if zoneId == "ThornWoods" and math.abs(spawn.Offset.X) < 500 then
 			worldCount += 1
 		end
 		if clear and math.sqrt((spawn.Offset.X - clear.Center.X) ^ 2 + (spawn.Offset.Y - clear.Center.Y) ^ 2) < clear.Radius then
@@ -203,7 +203,14 @@ for zoneId, zone in EnemyConfig.Zones do
 		end
 	end
 end
-check("ningún bicho junto al punto de aparición, y el Bosque sigue lleno (30 o más)", clearOK and EnemyConfig.Zones.Forest.SpawnClear ~= nil and worldCount >= 30)
+check("ningún bicho junto al punto de aparición, y el Bosque de Espinas lleno (30 o más)", clearOK and EnemyConfig.Zones.Forest.SpawnClear ~= nil and worldCount >= 30)
+local townEnemies = 0
+for _, spawn in EnemyConfig.Zones.Forest.Spawns do
+	if math.abs(spawn.Offset.X) < 500 then
+		townEnemies += 1
+	end
+end
+check("el pueblo no tiene bichos (solo los de su cueva, lejos del mapa)", townEnemies == 0)
 check("más oleadas en las mazmorras de arriba: Bosque 10, Valle 12 y Caldera 15, la última con su jefe", WaveLogic.waveCount("Forest") == 10 and WaveLogic.waveCount("CrystalValley") == 12 and WaveLogic.isBossWave("CrystalValley", 12) and not WaveLogic.isBossWave("CrystalValley", 10)
 	and WaveLogic.waveCount("EmberCaldera") == 15 and WaveLogic.isBossWave("EmberCaldera", 15))
 

@@ -148,13 +148,11 @@ for _, caveId in CaveConfig.Order do
 	-- Entrar y salir
 	local trigger = cave.Entrance.Trigger
 	local out = cave.Entrance.Exit
-	if caveId == "Forest" then
-		local mouth = StudFloor.Zones.Forest.Cave
-		local opening, road = mouth.Opening, mouth.Road
-		check("la boca te lleva dentro desde el fondo del túnel", trigger.MinX >= opening.MinX and trigger.MaxX < opening.MaxX and trigger.MinZ >= opening.MinZ and trigger.MaxZ <= opening.MaxZ and trigger.Height <= (opening.Ceiling or 3) * B)
-		check("al salir apareces en el camino, fuera de la boca y mirando a la pradera",
-			out.Position.X > opening.MaxX + 4 and out.Position.X >= road[1] and out.Position.X <= road[2] and out.Position.Z >= road[3] and out.Position.Z <= road[4] and out.Facing.X > 0)
-	else
+	-- Todas las bocas son montículos; la del Bosque está en el Bosque de Espinas (EntranceZone)
+	local mouthZoneId = cave.EntranceZone or cave.Zone
+	local mouthZone = ZoneConfig.Zones[mouthZoneId]
+	do
+		local originX, originZ = base.X + mouthZone.Center.X, base.Z + mouthZone.Center.Y
 		local mound = cave.Entrance.Mound
 		local front = mound.Front
 		local facing = mound.Facing
@@ -165,12 +163,19 @@ for _, caveId in CaveConfig.Order do
 		check("la boca (montículo) está en su zona y te lleva dentro desde el fondo del túnel", tunnelOK and inZone)
 		check("al salir apareces delante de la boca, mirando hacia fuera", out.Position.X < front.X - 6 and math.abs(out.Position.Z - front.Z) < 1 and out.Facing.X < 0)
 		local guarded = false
-		for _, safe in EnemyConfig.Zones[cave.Zone].SafeZones do
+		for _, safe in EnemyConfig.Zones[mouthZoneId].SafeZones do
 			if dist(originX + safe.Center.X, originZ + safe.Center.Y, out.Position.X, out.Position.Z) + 2 <= safe.Radius then
 				guarded = true
 			end
 		end
 		check("delante de la boca es zona segura", guarded)
+		-- Junto a la puerta de la zona siguiente (pruebas con amigos), si su zona tiene una
+		for _, portal in ZoneConfig.Portals do
+			if portal.Zone == mouthZoneId and portal.Offset.Y > 0 then
+				local gateDist = dist(front.X, front.Z, originX + portal.Offset.X, originZ + portal.Offset.Y)
+				check(("la boca está junto a la puerta de %s (%.0f studs)"):format(portal.Target, gateDist), gateDist <= 60)
+			end
+		end
 	end
 	local arrival = cave.Arrival.Position
 	check("llegas a la sala 1, lejos de sus paredes", CaveLogic.roomAt(arrival.X, arrival.Z) == global(1) and inside(localRooms[1].Rect, arrival.X, arrival.Z, WALL + 4))

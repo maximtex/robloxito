@@ -486,6 +486,29 @@ puede apuntar):
 - Se rehace al cambiar de estilo, al subir de grado (atributo `UpgradeLevel_Armor`) y al
   reaparecer. Pruebas en la batería `styles`.
 
+## 17. Mapa: el pueblo sin bichos y la Zona 1 gratis
+
+El pueblo (spawn) es solo pueblo; la primera zona de pelea es el mapa de al lado, gratis, y
+cada mazmorra queda junto a la puerta de la zona siguiente:
+- Mundo 1 en +Z (`ZoneConfig`, mapas de 320): pueblo (`Forest`, Z -160..160) → **Bosque de
+  Espinas** (`ThornWoods`, Z 160..480, gratis y sin jefe) → Valle (480..800) → Caldera
+  (800..1120) → Tundra (1120..1440) → Fortaleza (1440..1760). Valle, Caldera, Tundra y
+  Fortaleza se corrieron un mapa (sus centros +320 y sus suelos en `StudFloor`, +320 en Z).
+- Bosque de Espinas (`StudFloor.Zones.ThornWoods`, `ThornWoodsService`): suelo verde como el
+  pueblo, avenida central, dos caminos de lado a lado, cartel a la llegada, árboles, zarzas,
+  rocas y setas. Bichos (`EnemyConfig.Zones.ThornWoods`): los que había alrededor del pueblo.
+- El pueblo ya no tiene bichos ni el camino de la cueva al oeste. `EnemyConfig.Zones.Forest`
+  guarda los de su cueva (lejos del mapa), el Guardián (sale en sus oleadas) y `SpawnClear`.
+- Portales: `ForestPortal` (pueblo → Bosque de Espinas, abierto) y `ValleyPortal` (Bosque de
+  Espinas → Valle: el Guardián y 25 000 💰, como antes).
+- Mazmorras (`CaveConfig`): todas las bocas son montículos (`moundAt`), al fondo de su zona a
+  la derecha de la plazoleta de la puerta (`besideGate`). La del Bosque está en el Bosque de
+  Espinas (`EntranceZone`); por dentro, todas siguen igual (corridas en Z con su zona). La
+  Caldera y la Tundra tienen un poco más de suelo junto a la puerta para que quepan.
+- Tutorial: la guía de la cueva y de la puerta del Valle pasa por los portales que hagan falta.
+- Pruebas: `zones` (todo en su suelo, bocas incluidas), `cave` (cada boca a ≤ 60 studs de la
+  puerta siguiente), `waves` (el pueblo sin bichos y el Bosque de Espinas con 30 o más).
+
 ## 16. Tutorial corto y fácil
 
 El de antes tenía 5 pasos y los dos últimos (ganar las 10 oleadas de la cueva y juntar 💰 para

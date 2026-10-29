@@ -82,24 +82,88 @@ type StyleSpec = {
 	Order: number,
 	Icon: string,
 	Key: string,
-	Accent: Color3?, -- color temático del medallón y tinte del azulejo
-	IconSize: number?, -- lado del icono dentro del medallón (por defecto 44)
+	Colors: { Color3 }?, -- { Top, Mid, Bottom } degradado saturado completo como en la imagen 3
+	IconSize: number?, -- lado del icono grande sobre el azulejo (60..64)
 	IconTop: number?,
 	Featured: boolean?,
 }
 
+local RGB = Color3.fromRGB
 local DOCK_STYLES: { [string]: StyleSpec } = {
-	Armory = { Group = "Bottom", Order = 10, Icon = "armory3d", Key = "L", Accent = Color3.fromRGB(235, 110, 72), IconSize = 46 },
+	Armory = {
+		Group = "Bottom",
+		Order = 10,
+		Icon = "armory3d",
+		Key = "L",
+		Colors = { RGB(96, 208, 255), RGB(44, 152, 245), RGB(22, 102, 205) },
+		IconSize = 64,
+	},
 	-- Amuletos (G) va integrado dentro de Inventario para limpiar la barra inferior (tecla G sigue activa).
-	Amulets = { Group = "Hidden", Order = 20, Icon = "amulets3d", Key = "G", Accent = Color3.fromRGB(190, 130, 255), IconSize = 44 },
-	Pets = { Group = "Bottom", Order = 30, Icon = "pets3d", Key = "P", Accent = Color3.fromRGB(76, 198, 132), IconSize = 46 },
-	Cores = { Group = "Hidden", Order = 35, Icon = "cores", Key = "N", Accent = Color3.fromRGB(110, 190, 255) },
-	Inventory = { Group = "Bottom", Order = 38, Icon = "inventory3d", Key = "I", Accent = Color3.fromRGB(82, 162, 242), IconSize = 46 },
-	Rebirth = { Group = "Bottom", Order = 50, Icon = "rebirth3d", Key = "T", Accent = Color3.fromRGB(255, 201, 60), IconSize = 42, Featured = true },
+	Amulets = {
+		Group = "Hidden",
+		Order = 20,
+		Icon = "amulets3d",
+		Key = "G",
+		Colors = { RGB(206, 124, 255), RGB(154, 72, 236), RGB(104, 36, 184) },
+		IconSize = 64,
+	},
+	Pets = {
+		Group = "Bottom",
+		Order = 30,
+		Icon = "pets3d",
+		Key = "P",
+		Colors = { RGB(255, 194, 68), RGB(246, 134, 34), RGB(204, 82, 14) },
+		IconSize = 64,
+	},
+	Cores = {
+		Group = "Hidden",
+		Order = 35,
+		Icon = "cores",
+		Key = "N",
+		Colors = { RGB(96, 208, 255), RGB(44, 152, 245), RGB(22, 102, 205) },
+	},
+	Inventory = {
+		Group = "Bottom",
+		Order = 38,
+		Icon = "inventory3d",
+		Key = "I",
+		Colors = { RGB(122, 232, 74), RGB(66, 190, 42), RGB(38, 138, 24) },
+		IconSize = 64,
+	},
+	Rebirth = {
+		Group = "Bottom",
+		Order = 50,
+		Icon = "rebirth3d",
+		Key = "T",
+		Colors = { RGB(255, 232, 78), RGB(255, 186, 28), RGB(224, 128, 10) },
+		IconSize = 54,
+		IconTop = 5,
+		Featured = true,
+	},
 	-- Misiones (M) se unifica con la tarjeta izquierda `DailyMiniCard` para no duplicar el botón a la derecha.
-	Quests = { Group = "Hidden", Order = 60, Icon = "quests", Key = "M", Accent = Color3.fromRGB(236, 200, 120) },
-	Rewards = { Group = "Side", Order = 70, Icon = "rewards3d", Key = "J", Accent = Color3.fromRGB(236, 98, 158), IconSize = 46 },
-	Shop = { Group = "Side", Order = 80, Icon = "shop", Key = "K", Accent = Color3.fromRGB(162, 108, 248), IconSize = 44 },
+	Quests = {
+		Group = "Hidden",
+		Order = 60,
+		Icon = "quests",
+		Key = "M",
+		Colors = { RGB(255, 136, 136), RGB(232, 72, 72), RGB(178, 36, 42) },
+	},
+	Rewards = {
+		Group = "Side",
+		Order = 70,
+		Icon = "rewards3d",
+		Key = "J",
+		Colors = { RGB(255, 118, 148), RGB(238, 62, 102), RGB(186, 28, 66) },
+		IconSize = 64,
+	},
+	Shop = {
+		Group = "Side",
+		Order = 80,
+		Icon = "shop",
+		Key = "K",
+		Colors = { RGB(206, 124, 255), RGB(154, 72, 236), RGB(104, 36, 184) },
+		IconSize = 60,
+	},
 }
 local GROUP_GAP_ORDER = 40 -- hueco más ancho (24) entre el grupo y Renacer
 local TOUCH_GAP_ORDER = 55 -- en táctil, el mismo hueco después de Renacer
@@ -265,7 +329,7 @@ local function build()
 	touchGap = secondGap
 	bottomRow = bottom
 
-	-- Columna derecha: Premios y Tienda + botón plegable
+	-- Columna derecha: Premios y Tienda
 	local side = UiKit.create("Frame", {
 		Name = "SideDock",
 		AnchorPoint = Vector2.new(1, 0),
@@ -281,26 +345,6 @@ local function build()
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Padding = UDim.new(0, SIDE.SideGap),
 	}, side)
-
-	local togglePill = UiKit.create("TextButton", {
-		Name = "SideToggle",
-		Size = UDim2.fromOffset(SIDE.SideTile, 24),
-		BackgroundColor3 = TILE.Bottom,
-		BorderSizePixel = 0,
-		LayoutOrder = 1,
-		Font = FONTS.Display,
-		TextSize = 13,
-		TextColor3 = CREAM,
-		Text = "▾ Menú",
-		AutoButtonColor = true,
-	}, side)
-	UiKit.corner(togglePill, 8)
-	addInkStroke(togglePill, 2, Enum.ApplyStrokeMode.Border, TILE.Outline)
-	togglePill.Activated:Connect(function()
-		sideCollapsed = not sideCollapsed
-		refreshSideVisibility()
-	end)
-	sideToggleBtn = togglePill
 	sideColumn = side
 
 	-- Contenedor izquierdo para la tarjeta de misión diaria (debajo de las monedas)
@@ -512,13 +556,16 @@ function MenuBar.add(spec: Spec): Entry
 		Order = 100 + spec.Order,
 		Icon = spec.Image or string.lower(spec.Id),
 		Key = spec.Key or "",
-		Accent = spec.Color,
 	}
 	local featured = style.Featured == true -- Renacer: anillo dorado y porcentaje encima
-	local accent = style.Accent or spec.Color or TILE.Open
+	local colors = style.Colors or {
+		RGB(96, 208, 255),
+		RGB(44, 152, 245),
+		RGB(22, 102, 205),
+	}
 	local size = SIZE.Tile
-	local border = 3
-	local radius = 12
+	local border = 3.5
+	local radius = 14
 
 	local slot = UiKit.create("Frame", {
 		Name = "Slot_" .. spec.Id,
@@ -547,7 +594,7 @@ function MenuBar.add(spec: Spec): Entry
 	}, lift)
 	UiKit.corner(ring, radius + 2)
 
-	-- Cara del azulejo con tinte temático uniforme
+	-- Cara del azulejo rellena por completo de su color vivo (como en la 3.ª imagen)
 	local tile = UiKit.create("Frame", {
 		Name = "Face",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -561,52 +608,49 @@ function MenuBar.add(spec: Spec): Entry
 	local gradient = UiKit.create("UIGradient", { Name = "Tint", Rotation = 90 }, tile)
 	local stroke = addInkStroke(tile, border, Enum.ApplyStrokeMode.Border, TILE.Outline)
 
+	-- Filo brillante interior (blanco suave o dorado en Renacer)
 	local inner = UiKit.create("Frame", {
 		Name = "Inner",
 		Position = UDim2.fromOffset(2, 2),
 		Size = UDim2.new(1, -4, 1, -4),
 		BackgroundTransparency = 1,
-		ZIndex = 3,
+		ZIndex = 4,
 	}, tile)
 	UiKit.corner(inner, math.max(radius - border - 2, 2))
 	local innerStroke = UiKit.create("UIStroke", {
-		Color = if featured then TILE.Featured else accent,
+		Color = if featured then WHITE else WHITE,
 		Thickness = 2,
-		Transparency = if featured then 0 else 0.45,
+		Transparency = if featured then 0.25 else 0.45,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 	}, inner)
 
-	-- Medallón circular unificado para que todos los iconos compartan el mismo marco y proporción
-	local medallion = UiKit.create("Frame", {
-		Name = "Medallion",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 4),
-		Size = UDim2.fromOffset(50, 50),
-		BackgroundColor3 = Color3.fromRGB(24, 22, 34):Lerp(accent, 0.22),
+	-- Brillo superior tipo botón cartoon
+	local gloss = UiKit.create("Frame", {
+		Name = "Gloss",
+		Position = UDim2.fromOffset(4, 3),
+		Size = UDim2.new(1, -8, 0, 14),
+		BackgroundColor3 = WHITE,
+		BackgroundTransparency = 0.72,
 		BorderSizePixel = 0,
 		ZIndex = 4,
-	}, lift)
-	UiKit.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }, medallion)
-	UiKit.create("UIStroke", {
-		Color = accent,
-		Thickness = 1.8,
-		Transparency = 0.25,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-	}, medallion)
+	}, tile)
+	UiKit.corner(gloss, 6)
 
-	local iconSize = style.IconSize or 44
-	local icon = Icons.make(medallion, style.Icon, {
+	-- Icono grande directamente sobre el azulejo completo (sin círculo detrás)
+	local iconSize = style.IconSize or 60
+	local iconTop = style.IconTop or (if iconSize >= 64 then 0 else 2)
+	local icon = Icons.make(lift, style.Icon, {
 		Name = "Icon",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, iconTop),
 		Size = UDim2.fromOffset(iconSize, iconSize),
 		ZIndex = 5,
 	})
 	local emoji = icon:FindFirstChild("Emoji")
 	if emoji and emoji:IsA("TextLabel") and not Icons.has(style.Icon) then
 		emoji.Text = spec.Icon
-		emoji.Size = UDim2.fromScale(0.8, 0.8)
-		emoji.Position = UDim2.fromScale(0.5, 0.5)
+		emoji.Size = UDim2.fromScale(0.82, 0.82)
+		emoji.Position = UDim2.fromScale(0.5, 0.53)
 	end
 	local image = icon:FindFirstChild("Image")
 	if image and image:IsA("ImageLabel") then
@@ -714,16 +758,14 @@ function MenuBar.add(spec: Spec): Entry
 	local hovered, open, attention = false, false, false
 	local attentionColor: Color3? = nil
 	local quick = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local baseTop = TILE.Top:Lerp(accent, 0.25)
-	local baseMid = TILE.Mid:Lerp(accent, 0.16)
-	local baseBot = TILE.Bottom:Lerp(accent, 0.1)
-	local litTop = TILE.OpenTop:Lerp(accent, 0.35)
-	local litMid = TILE.OpenMid:Lerp(accent, 0.24)
-	local litBot = TILE.OpenBottom:Lerp(accent, 0.15)
+	local baseTop, baseMid, baseBot = colors[1], colors[2], colors[3]
+	local litTop = baseTop:Lerp(WHITE, 0.22)
+	local litMid = baseMid:Lerp(WHITE, 0.16)
+	local litBot = baseBot:Lerp(WHITE, 0.12)
 	local function refresh()
 		local highlighted = open or attention
 		stroke.Color = if open then TILE.Open elseif attention then (attentionColor or TILE.Open) else TILE.Outline
-		innerStroke.Transparency = if featured or highlighted then 0 else 0.45
+		innerStroke.Transparency = if featured or highlighted then 0.15 else 0.45
 		ring.Visible = highlighted
 		local lit = highlighted or hovered
 		gradient.Color = ColorSequence.new({

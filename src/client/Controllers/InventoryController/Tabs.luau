@@ -153,6 +153,8 @@ function Part.start()
 					ZIndex = 2,
 				}, tile)
 			else
+				local cat = WeaponConfig.Categories and WeaponConfig.Categories[def.Category or "Weapons"]
+				local itemIcon = (cat and cat.ItemIcon) or def.Icon or "⚔️"
 				label(tile, "Icon", {
 					AnchorPoint = Vector2.new(0.5, 0.5),
 					Position = UDim2.fromScale(0.5, 0.42),
@@ -160,9 +162,21 @@ function Part.start()
 					Font = FONTS.Display,
 					TextScaled = true,
 					TextXAlignment = Enum.TextXAlignment.Center,
-					Text = def.Icon or "⚔️",
+					Text = itemIcon,
 					ZIndex = 2,
 				})
+				if def.Icon and def.Icon ~= itemIcon then
+					label(tile, "ElementBadge", {
+						AnchorPoint = Vector2.new(1, 0),
+						Position = UDim2.new(1, -6, 0, 4),
+						Size = UDim2.fromOffset(22, 22),
+						Font = FONTS.Display,
+						TextScaled = true,
+						TextXAlignment = Enum.TextXAlignment.Center,
+						Text = def.Icon,
+						ZIndex = 3,
+					})
+				end
 			end
 			label(tile, "Name", {
 				AnchorPoint = Vector2.new(0.5, 1),

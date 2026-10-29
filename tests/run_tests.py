@@ -368,6 +368,7 @@ def build_petcombat():
         ("CombatConfig", "src/shared/Config/CombatConfig.luau"),
         ("PetCombatConfig", "src/shared/Config/PetCombatConfig.luau"),
         ("PetConfig", "src/shared/Config/PetConfig.luau"),
+        ("PetClassLogic", "src/shared/PetClassLogic.luau"),
         ("WeaponConfig", "src/shared/Config/WeaponConfig.luau"),
         ("WeaponLogic", "src/shared/WeaponLogic.luau"),
         ("WaveConfig", "src/shared/Config/WaveConfig.luau"),

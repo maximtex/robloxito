@@ -10,6 +10,7 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EnemyConfig = require(Shared.Config.EnemyConfig)
+local PetClassLogic = require(Shared.PetClassLogic)
 local PartFactory = require(script.Parent.Parent.Parent.Util.PartFactory)
 local EnemyLogic = require(script.Parent.Parent.Parent.Util.EnemyLogic)
 local Types = require(script.Parent.Types)
@@ -17,9 +18,11 @@ type Enemy = Types.Enemy
 type SafeArea = Types.SafeArea
 
 local ctx: any -- tabla de estado compartida (la crea EnemyService/init.luau)
+local Api = {}
 local ENRAGED_EYES: any
 local GROUND: any
 local WINDUP_EYES: any
+local enemies: any
 
 -- Funciones de las otras partes
 local function burst(...) return ctx.burst(...) end
@@ -84,33 +87,59 @@ local function canTarget(enemy: Enemy, position: Vector3): boolean
 end
 
 local function acquireTarget(enemy: Enemy): Player?
-	local best, bestDistance = nil, math.huge
+	local best, bestScore = nil, math.huge
 	for _, player in Players:GetPlayers() do
 		local root = characterOf(player)
 		if root then
-			local distance = flat(root.Position - enemy.Root.Position)
+			local tankPos = player:GetAttribute("PetTankPos")
+			local refPos = if typeof(tankPos) == "Vector3" and canTarget(enemy, tankPos) then tankPos else root.Position
+			local distance = flat(refPos - enemy.Root.Position)
 			local inRange = if enemy.Kind == "Boss" then flat(root.Position - enemy.LeashCenter) <= enemy.LeashRadius - 2 else distance <= enemy.DetectRange
-			if inRange and distance < bestDistance and sameWorld(enemy, player) and canTarget(enemy, root.Position) then
-				best, bestDistance = player, distance
+			-- Si el jugador tiene una mascota Tanque provocando al frente, atrae antes el aggro
+			local score = if typeof(tankPos) == "Vector3" then distance * 0.65 else distance
+			if inRange and score < bestScore and sameWorld(enemy, player) and canTarget(enemy, root.Position) then
+				best, bestScore = player, score
 			end
 		end
 	end
 	return best
 end
 
+-- Provocación física de mascota Tanque: los enemigos cercanos cambian su objetivo hacia el
+-- punto de guardia del Tanque (`guardPoint`) durante `seconds` segundos.
+function Api.tauntAround(player: Player, guardPoint: Vector3, radius: number, seconds: number): number
+	local now = os.clock()
+	local count = 0
+	for _, enemy in enemies or {} do
+		if enemy.Status.State ~= "Dead" and enemy.Status.State ~= "Return" and enemy.Model.Parent ~= nil and sameWorld(enemy, player) then
+			local d = flat(enemy.Root.Position - guardPoint)
+			if d <= radius and canTarget(enemy, guardPoint) then
+				enemy.Target = player
+				enemy.TauntUntil = now + seconds
+				enemy.TauntPoint = guardPoint
+				if enemy.Kind ~= "Boss" and ctx.Service and ctx.Service.applyControl then
+					ctx.Service.applyControl(enemy, "Slow", math.min(seconds * 0.45, 1.4), 0.75)
+				end
+				count += 1
+			end
+		end
+	end
+	return count
+end
+
 -- Golpe cuerpo a cuerpo avisado: el bicho se compromete (se queda quieto mirando a su
 -- objetivo durante AttackWindup, con los ojos encendidos) y al final pega solo por delante y
 -- a su alcance: apartarse o rodearlo lo esquiva; el Guerrero puede bloquearlo o pararlo.
--- Atributos para el cliente (AttackWarning y EnemyAnimator): AttackTarget (UserId de a quién
--- va), AttackDir (hacia dónde), AttackReach (alcance) y AttackAt (hora del golpe).
+-- Si `aimPoint` es la mascota Tanque provocando al frente, el enemigo apunta hacia el Tanque.
 local HIT_SLACK = 1.5 -- studs de margen al validar el golpe
 local FRONT_DOT = -0.1 -- un poco más de medio círculo por delante
-local function attack(enemy: Enemy, target: Player)
+local function attack(enemy: Enemy, target: Player, aimPoint: Vector3?)
 	local generation = enemy.Generation
 	local windup = enemy.Def.AttackWindup
 	local origin = enemy.Root.Position
 	local targetRoot = characterOf(target)
-	local forward = if targetRoot then Vector3.new(targetRoot.Position.X - origin.X, 0, targetRoot.Position.Z - origin.Z) else Vector3.zero
+	local focus = aimPoint or (if targetRoot then targetRoot.Position else nil)
+	local forward = if focus then Vector3.new(focus.X - origin.X, 0, focus.Z - origin.Z) else Vector3.zero
 	if forward.Magnitude > 0.05 then
 		forward = forward.Unit
 		enemy.Root.CFrame = CFrame.lookAt(origin, origin + forward)
@@ -146,7 +175,9 @@ local function attack(enemy: Enemy, target: Player)
 		local distance = offset.Magnitude
 		local inFront = distance < enemy.Radius + 1 or offset.Unit:Dot(forward) >= FRONT_DOT
 		if distance <= reach and inFront then
-			damagePlayer(enemy, target, humanoid, enemy.Def.Damage)
+			-- Si estaba provocado por el Tanque, el escudo del Tanque amortigua parte extra del golpe
+			local mult = if PetClassLogic.isTaunted(enemy.TauntUntil, os.clock()) then 0.8 else 1
+			damagePlayer(enemy, target, humanoid, enemy.Def.Damage * mult)
 		end
 	end)
 end
@@ -426,12 +457,23 @@ local function updateEnemy(enemy: Enemy, now: number)
 		return
 	end
 
-	local offset = targetRoot.Position - position
+	-- Si el jugador tiene una mascota Tanque provocando al frente, el enemigo persigue y golpea
+	-- la posición de guardia del Tanque en vez de pegarse encima del jugador.
+	local tankAttr = target:GetAttribute("PetTankPos")
+	local goalPos = targetRoot.Position
+	if typeof(tankAttr) == "Vector3" and canTarget(enemy, tankAttr) then
+		goalPos = Vector3.new(tankAttr.X, targetRoot.Position.Y, tankAttr.Z)
+		enemy.TauntPoint = goalPos
+	elseif PetClassLogic.isTaunted(enemy.TauntUntil, now) and typeof(enemy.TauntPoint) == "Vector3" and canTarget(enemy, enemy.TauntPoint) then
+		goalPos = Vector3.new(enemy.TauntPoint.X, targetRoot.Position.Y, enemy.TauntPoint.Z)
+	end
+
+	local offset = goalPos - position
 	local distance = flat(offset)
 	-- A distancia (Def.Ranged): se para a tiro y dispara; si te acercas mientras recarga,
 	-- retrocede un poco (sin salir de su zona). Pegado a él, golpea como los demás.
 	local ranged = enemy.Def.Ranged
-	if ranged and distance > enemy.Def.AttackRange + enemy.Radius and distance <= ranged.Range and canSee(enemy, targetRoot.Position) then
+	if ranged and distance > enemy.Def.AttackRange + enemy.Radius and distance <= ranged.Range and canSee(enemy, goalPos) then
 		status.State = "Attack"
 		enemy.ChaseCheck = nil
 		local flatOffset = Vector3.new(offset.X, 0, offset.Z)
@@ -457,17 +499,17 @@ local function updateEnemy(enemy: Enemy, now: number)
 		if now >= enemy.NextAttack and not stunned then
 			-- Ralentizado: también ataca más despacio.
 			enemy.NextAttack = now + EnemyLogic.attackCooldown(enemy.Def.AttackCooldown, enemy.Control, now)
-			attack(enemy, target)
+			attack(enemy, target, goalPos)
 		end
 	else
 		status.State = "Chase"
-		if not handleStuck(enemy, now, targetRoot.Position) then
-			enemy.Humanoid:MoveTo(targetRoot.Position)
+		if not handleStuck(enemy, now, goalPos) then
+			enemy.Humanoid:MoveTo(goalPos)
 		end
 	end
 end
 
-local Part = { Api = {} }
+local Part = { Api = Api }
 
 function Part.install(context: any)
 	ctx = context
@@ -485,6 +527,7 @@ function Part.link(context: any)
 	ENRAGED_EYES = context.ENRAGED_EYES
 	GROUND = context.GROUND
 	WINDUP_EYES = context.WINDUP_EYES
+	enemies = context.enemies
 end
 
 return Part

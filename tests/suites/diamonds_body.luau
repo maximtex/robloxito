@@ -90,5 +90,11 @@ check("los Tanques se suman con tope (nunca invulnerable)", math.abs(tanks.Damag
 local mixed = PetClassLogic.bonuses({ "AmethystDragon", "CrystalTurtle", "MoonOwl", "Nope" })
 check("cada clase da lo suyo y las que no existen no cuentan", mixed.Damage > 1 and mixed.DamageTaken < 1 and mixed.Heal > 0 and mixed.Money == 1)
 check("texto de la interfaz", string.find(PetClassLogic.describe("CrystalTurtle"), "Tanque", 1, true) ~= nil and string.find(PetClassLogic.describe("MoonOwl"), "vida/s", 1, true) ~= nil)
+local hasTank, tankId, tankIndex = PetClassLogic.hasClass({ "AmethystDragon", "CrystalTurtle", "MoonOwl" }, "Tank")
+check("hasClass detecta la mascota Tanque equipada y su posición", hasTank == true and tankId == "CrystalTurtle" and tankIndex == 2)
+local gx, gz = PetClassLogic.tankGuardPoint(0, 0, 0, 20, 5.5)
+check("tankGuardPoint sitúa al Tanque delante del jugador hacia el enemigo", math.abs(gx) < 1e-6 and math.abs(gz - 5.5) < 1e-6)
+check("isTaunted comprueba vigencia de la provocación", PetClassLogic.isTaunted(15, 10) == true and PetClassLogic.isTaunted(10, 15) == false)
+check("hitMultiplier potencia los golpes directos de mascotas Atacantes", PetClassLogic.hitMultiplier("AmethystDragon") > 1 and PetClassLogic.hitMultiplier("CrystalTurtle") == 1)
 
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

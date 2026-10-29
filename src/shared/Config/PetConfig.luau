@@ -17,10 +17,19 @@ local PetConfig = {
 	-- con tope (Max). PetClassLogic lo calcula; lo aplican PlayerDataService (daño),
 	-- StyleService (daño recibido), HealthService (curación) y EnemyService (💰).
 	Classes = {
-		Attacker = { Name = "Atacante", Icon = "⚔️", Text = "Más daño", Base = 0.03, Max = 0.6, Order = 1 },
-		Tank = { Name = "Tanque", Icon = "🛡️", Text = "Recibes menos daño", Base = 0.03, Max = 0.35, Order = 2 },
-		Healer = { Name = "Sanadora", Icon = "💚", Text = "Te cura poco a poco, también peleando", Base = 0.0015, Max = 0.015, Order = 3 },
-		Collector = { Name = "Recolectora", Icon = "💰", Text = "Más 💰 de los enemigos", Base = 0.05, Max = 1, Order = 4 },
+		Attacker = { Name = "Atacante", Icon = "⚔️", Text = "Golpes potenciados y más daño", Base = 0.03, Max = 0.6, Order = 1 },
+		Tank = { Name = "Tanque", Icon = "🛡️", Text = "Provoca enemigos al frente y recibes menos daño", Base = 0.03, Max = 0.35, Order = 2 },
+		Healer = { Name = "Sanadora", Icon = "💚", Text = "Lanza pulsos curativos y te cura en pelea", Base = 0.0015, Max = 0.015, Order = 3 },
+		Collector = { Name = "Recolectora", Icon = "💰", Text = "Extrae más 💰 de los enemigos", Base = 0.05, Max = 1, Order = 4 },
+	},
+	ActiveRoles = {
+		TankGuardDistance = 5.5, -- studs delante del jugador donde el Tanque intercepta y mantiene el aggro
+		TankTauntRadius = 18, -- radio del pulso de provocación del Tanque
+		TankTauntSeconds = 3.5, -- segundos que los enemigos quedan provocados hacia el Tanque
+		TankTauntInterval = 2.6, -- cada cuánto emite provocación en combate
+		HealerPulseInterval = 3.2, -- cada cuánto lanza un pulso activo de curación en combate
+		HealerPulseBase = 0.025, -- fracción base de vida máxima curada por pulso activo
+		AttackerStrikeMultiplier = 1.35, -- multiplicador de daño directo de los proyectiles de mascota Atacante
 	},
 	ClassPower = { Common = 1, Uncommon = 1.5, Rare = 2, Epic = 3, Legendary = 4, Mythic = 5, Exclusive = 5 },
 	StyleClasses = {

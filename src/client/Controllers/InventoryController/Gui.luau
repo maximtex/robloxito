@@ -9,6 +9,7 @@ local ItemConfig = require(Shared.Config.ItemConfig)
 local ItemLogic = require(Shared.ItemLogic)
 local Theme = require(script.Parent.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.Parent.UI.UiKit)
+local PanelManager = require(script.Parent.Parent.Parent.UI.PanelManager)
 
 local ctx: any -- tabla de estado compartida (la crea InventoryController/init.luau)
 local CELL: any
@@ -50,12 +51,23 @@ local function buildGui()
 	})
 	UiKit.text(panel, "Subtitle", {
 		Position = UDim2.fromOffset(22, 48),
-		Size = UDim2.new(1, -90, 0, 20),
+		Size = UDim2.new(1, -240, 0, 20),
 		Font = FONTS.Light,
 		TextSize = 16,
 		TextColor3 = THEME.Muted,
-		Text = "Tus armas, huevos, pociones y títulos",
+		Text = "Tus armas, huevos, pociones, títulos y amuletos",
 	})
+	local amuletsBtn = UiKit.button(panel, "AmuletsShortcut", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -64, 0, 14),
+		Size = UDim2.fromOffset(154, 40),
+		BackgroundColor3 = Color3.fromRGB(116, 76, 178),
+		TextSize = 17,
+		Text = "🧿 Amuletos [G]",
+	})
+	amuletsBtn.Activated:Connect(function()
+		PanelManager.open("Amulets")
+	end)
 	local close = UiKit.button(panel, "Close", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -14, 0, 14),

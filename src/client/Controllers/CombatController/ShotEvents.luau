@@ -363,12 +363,18 @@ function Part.start()
 				orb.CFrame = CFrame.new(at)
 			end)
 		elseif event.Kind == "FoxBolt" and typeof(event.Target) == "Vector3" then
-			-- Rayo turquesa desde el zorrito hasta el objetivo (daño ya aplicado).
-			-- Bola de luz con estela; tarda según la distancia para que se vea el recorrido.
+			-- Rayo desde la mascota hasta el objetivo (color según la clase de mascota).
 			local from = petPosition(owner, tostring(event.PetId or "QuartzFox"), tonumber(event.Index) or 1) or event.Target
 			local target = event.Target :: Vector3
+			local petClass = tostring(event.Class or "")
+			local boltColor = if petClass == "Attacker"
+				then Color3.fromRGB(255, 105, 65)
+				elseif petClass == "Tank" then GUARD_COLOR
+				elseif petClass == "Healer" then Color3.fromRGB(95, 240, 145)
+				elseif petClass == "Collector" then THEME.Gold
+				else FOX_COLOR
 			local travel = math.clamp((target - from).Magnitude / 70, 0.12, 0.3)
-			local bolt = fxPart(Vector3.one * 0.6, CFrame.new(from), FOX_COLOR)
+			local bolt = fxPart(Vector3.one * 0.6, CFrame.new(from), boltColor)
 			bolt.Shape = Enum.PartType.Ball
 			local tail = Instance.new("Attachment")
 			tail.Position = Vector3.new(0, 0.22, 0)
@@ -382,18 +388,60 @@ function Part.start()
 			trail.Lifetime = 0.14
 			trail.LightEmission = 1
 			trail.FaceCamera = true
-			trail.Color = ColorSequence.new(Color3.new(1, 1, 1), FOX_COLOR)
+			trail.Color = ColorSequence.new(Color3.new(1, 1, 1), boltColor)
 			trail.Transparency = NumberSequence.new(0.1, 1)
 			trail.Parent = bolt
-			emitAt("Glint", from, FOX_COLOR, 3)
+			emitAt("Glint", from, boltColor, 3)
 			local tween = TweenService:Create(bolt, TweenInfo.new(travel, Enum.EasingStyle.Sine, Enum.EasingDirection.In), { CFrame = CFrame.new(target) })
 			tween.Completed:Once(function()
 				bolt:Destroy()
-				emitAt("Glint", target, FOX_COLOR, 4)
-				showPetHits(event.Hits, FOX_COLOR, isOwner)
+				emitAt("Glint", target, boltColor, 4)
+				showPetHits(event.Hits, boltColor, isOwner)
 			end)
 			tween:Play()
 			Debris:AddItem(bolt, travel + 0.3)
+		elseif event.Kind == "PetTaunt" and typeof(event.Center) == "Vector3" then
+			-- Pulso de provocación física de mascota Tanque: onda y cúpula de escudo en la vanguardia
+			local center = event.Center :: Vector3
+			local radius = tonumber(event.Radius) or 9
+			local shieldPos = petPosition(owner, tostring(event.PetId or "CrystalTurtle"), tonumber(event.Index) or 1) or center
+			impactRing(shieldPos, radius * 0.65, GUARD_COLOR)
+			local dome = fxPart(Vector3.one * 3.5, CFrame.new(shieldPos), GUARD_COLOR)
+			dome.Shape = Enum.PartType.Ball
+			dome.Material = Enum.Material.ForceField
+			dome.Transparency = 0.25
+			TweenService:Create(dome, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Size = Vector3.one * (radius * 1.25),
+				Transparency = 1,
+			}):Play()
+			Debris:AddItem(dome, 0.5)
+			emitAt("Spark", shieldPos, GUARD_COLOR, 10)
+			if isOwner then
+				comboLabel(shieldPos + Vector3.new(0, 1.4, 0), "🛡️ ¡Provocación!", GUARD_COLOR)
+			end
+		elseif event.Kind == "PetHeal" then
+			-- Pulso curativo activo de mascota Sanadora hacia el jugador
+			local character = owner.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if root and root:IsA("BasePart") then
+				local healColor = Color3.fromRGB(95, 245, 140)
+				local from = petPosition(owner, tostring(event.PetId or "MoonOwl"), tonumber(event.Index) or 1) or (root.Position + Vector3.new(0, 2, 0))
+				local orb = fxPart(Vector3.one * 0.75, CFrame.new(from), healColor)
+				orb.Shape = Enum.PartType.Ball
+				local tween = TweenService:Create(orb, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = CFrame.new(root.Position) })
+				tween.Completed:Once(function()
+					orb:Destroy()
+					if root.Parent then
+						impactRing(root.Position, 4, healColor)
+						emitAt("Glint", root.Position, healColor, 8)
+						if isOwner and typeof(event.Amount) == "number" and event.Amount > 0 then
+							damageNumber(root.Position + Vector3.new(0, 1.6, 0), event.Amount, healColor, false)
+						end
+					end
+				end)
+				tween:Play()
+				Debris:AddItem(orb, 0.35)
+			end
 		elseif event.Kind == "DragonCast" and typeof(event.Center) == "Vector3" and typeof(event.Radius) == "number" then
 			-- Aviso previo: círculo violeta que se llena hasta el impacto.
 			local telegraph = if typeof(event.Telegraph) == "number" then event.Telegraph else 0.8

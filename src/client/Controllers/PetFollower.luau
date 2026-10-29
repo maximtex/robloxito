@@ -11,6 +11,7 @@ local Workspace = game:GetService("Workspace")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local PetConfig = require(Shared.Config.PetConfig)
+local PetClassLogic = require(Shared.PetClassLogic)
 local MonetizationLogic = require(Shared.MonetizationLogic)
 local PetModelBuilder = require(script.Parent.Parent.Pets.PetModelBuilder)
 local PetLayout = require(script.Parent.Parent.Pets.PetLayout)
@@ -56,6 +57,7 @@ local DEFAULT_MOTION: Motion = { Hover = 1.1, Bob = 0.15, BobSpeed = 3 }
 type PetVisual = {
 	Model: Model,
 	Root: BasePart,
+	Class: string,
 	Radius: number,
 	Phase: number,
 	Motion: Motion,
@@ -131,6 +133,7 @@ local function rebuild(player: Player)
 			table.insert(tracker.Pets, {
 				Model = model,
 				Root = root,
+				Class = PetClassLogic.classOf(petId),
 				Radius = radius,
 				Phase = index * 1.7,
 				Motion = motion,
@@ -220,6 +223,7 @@ local function update(deltaTime: number)
 
 		local petTargetPos = player:GetAttribute("PetTargetPos")
 		local petTargetRadius = player:GetAttribute("PetTargetRadius")
+		local petTankPos = player:GetAttribute("PetTankPos")
 		local attackingTarget = typeof(petTargetPos) == "Vector3"
 		local petCount = #tracker.Pets
 
@@ -231,15 +235,37 @@ local function update(deltaTime: number)
 			local motion = visual.Motion
 			local target: CFrame
 			if attackingTarget then
-				local angle = (index - 1) / math.max(1, petCount) * math.pi * 2 + elapsed * 1.4
-				local ringRadius = (if typeof(petTargetRadius) == "number" then petTargetRadius else 2) + 2.2
 				local tPos = petTargetPos :: Vector3
-				local attackPos = Vector3.new(
-					tPos.X + math.cos(angle) * ringRadius,
-					groundY + motion.Hover,
-					tPos.Z + math.sin(angle) * ringRadius
-				)
-				target = CFrame.lookAt(attackPos, Vector3.new(tPos.X, attackPos.Y, tPos.Z))
+				if visual.Class == "Tank" then
+					-- Mascota Tanque: se planta en vanguardia entre el jugador y el enemigo provocando el aggro
+					local gx, gz
+					if typeof(petTankPos) == "Vector3" then
+						gx, gz = petTankPos.X, petTankPos.Z
+					else
+						gx, gz = PetClassLogic.tankGuardPoint(root.Position.X, root.Position.Z, tPos.X, tPos.Z)
+					end
+					local sideShift = (index - 1) * 1.6
+					local guardPos = Vector3.new(gx, groundY + motion.Hover, gz) + right * sideShift
+					target = CFrame.lookAt(guardPos, Vector3.new(tPos.X, guardPos.Y, tPos.Z))
+				elseif visual.Class == "Healer" then
+					-- Mascota Sanadora: orbita cerca del jugador para asistirlo y curarlo
+					local healAngle = elapsed * 1.8 + index * 2.1
+					local healPos = Vector3.new(
+						root.Position.X + math.cos(healAngle) * 3.2,
+						groundY + motion.Hover + 0.35,
+						root.Position.Z + math.sin(healAngle) * 3.2
+					)
+					target = CFrame.lookAt(healPos, Vector3.new(tPos.X, healPos.Y, tPos.Z))
+				else
+					local angle = (index - 1) / math.max(1, petCount) * math.pi * 2 + elapsed * 1.4
+					local ringRadius = (if typeof(petTargetRadius) == "number" then petTargetRadius else 2) + 2.2
+					local attackPos = Vector3.new(
+						tPos.X + math.cos(angle) * ringRadius,
+						groundY + motion.Hover,
+						tPos.Z + math.sin(angle) * ringRadius
+					)
+					target = CFrame.lookAt(attackPos, Vector3.new(tPos.X, attackPos.Y, tPos.Z))
+				end
 			else
 				local position = root.Position - flatLook * slot.Z + right * slot.X
 				position = Vector3.new(position.X, groundY + motion.Hover, position.Z)

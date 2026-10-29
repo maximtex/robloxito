@@ -85,14 +85,70 @@ function PetClassLogic.amountText(classId: string, value: number): string
 	return ("+%s %% daño"):format(percentText(value))
 end
 
--- "🛡️ Tanque: -9 % daño recibido" (para la interfaz)
+-- "🛡️ Tanque: -9 % daño recibido (provoca)" (para la interfaz)
+local ROLE_HINT = {
+	Attacker = "golpe crítico",
+	Tank = "provoca enemigos",
+	Healer = "pulso curativo",
+	Collector = "botín extra",
+}
+
 function PetClassLogic.describe(petId: any): string
 	local classId, value = PetClassLogic.bonusOf(petId)
 	local def = PetConfig.Classes[classId]
 	if not def then
 		return ""
 	end
-	return ("%s %s: %s"):format(def.Icon, def.Name, PetClassLogic.amountText(classId, value))
+	local hint = ROLE_HINT[classId]
+	local suffix = if hint then (" (%s)"):format(hint) else ""
+	return ("%s %s: %s%s"):format(def.Icon, def.Name, PetClassLogic.amountText(classId, value), suffix)
+end
+
+-- ¿Hay al menos una mascota equipada de la clase `targetClass`? Devuelve (true, petId, índice).
+function PetClassLogic.hasClass(petIds: { string }?, targetClass: string): (boolean, string?, number?)
+	for index, petId in petIds or {} do
+		if PetConfig.Pets[petId] and PetClassLogic.classOf(petId) == targetClass then
+			return true, petId, index
+		end
+	end
+	return false, nil, nil
+end
+
+-- Punto físico de guardia del Tanque en el plano XZ: se interpone entre el jugador y el enemigo
+-- a `guardDistance` studs delante del jugador (hacia el enemigo), para que los enemigos provocados
+-- se detengan y golpeen al Tanque en lugar de pegarse encima del jugador.
+function PetClassLogic.tankGuardPoint(
+	playerX: number,
+	playerZ: number,
+	enemyX: number,
+	enemyZ: number,
+	guardDistance: number?
+): (number, number)
+	local roles = PetConfig.ActiveRoles or {}
+	local dist = if type(guardDistance) == "number" and guardDistance > 0 then guardDistance else (roles.TankGuardDistance or 5.5)
+	local dx = enemyX - playerX
+	local dz = enemyZ - playerZ
+	local len = math.sqrt(dx * dx + dz * dz)
+	if len < 0.05 then
+		return playerX, playerZ - dist
+	end
+	local ux, uz = dx / len, dz / len
+	local step = math.min(dist, math.max(2.5, len * 0.75))
+	return playerX + ux * step, playerZ + uz * step
+end
+
+-- ¿Sigue activo el estado de provocación (aggro hacia el Tanque)?
+function PetClassLogic.isTaunted(tauntUntil: number?, now: number): boolean
+	return type(tauntUntil) == "number" and now < tauntUntil
+end
+
+-- Multiplicador del golpe directo de una mascota según su rol activo.
+function PetClassLogic.hitMultiplier(petId: any): number
+	local roles = PetConfig.ActiveRoles or {}
+	if PetClassLogic.classOf(petId) == "Attacker" then
+		return roles.AttackerStrikeMultiplier or 1.35
+	end
+	return 1
 end
 
 -- Resumen de las equipadas: "⚔️ +9 % daño · 💚 +0.3 % vida/s" (solo lo que dan)

@@ -8,6 +8,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local PetConfig = require(Shared.Config.PetConfig)
 local PetCombatConfig = require(Shared.Config.PetCombatConfig)
+local PetClassLogic = require(Shared.PetClassLogic)
 local StyleLogic = require(Shared.StyleLogic)
 local ClassLogic = require(Shared.ClassLogic)
 local WarriorLogic = require(Shared.WarriorLogic)
@@ -49,17 +50,19 @@ local function singlePetDamage(player: Player, petId: string): number
 	local rarityDef = petDef and PetConfig.Rarities[petDef.Rarity]
 	local mult = (petDef and petDef.Multiplier) or (rarityDef and rarityDef.Multiplier) or 1.1
 	-- Base: el 60 % del poder del arma equipada (sin mascotas ni bonificaciones; con el láser
-	-- inicial, 6 como antes) por su propio multiplicador y la mejora "Poder de Mascotas"
+	-- inicial, 6 como antes) por su propio multiplicador, la mejora "Poder de Mascotas" y el rol activo
 	local stats = PlayerDataService.combatStats(profile)
 	local petPowerLevel = profile.UpgradeLevels.PetPower or 0
-	local base = stats.RawPower * 0.6 * mult * (1 + petPowerLevel * 0.25)
+	local roleMult = PetClassLogic.hitMultiplier(petId)
+	local base = stats.RawPower * 0.6 * mult * (1 + petPowerLevel * 0.25) * roleMult
 	return math.max(1, math.floor(base * stats.Bonus))
 end
 
 local function clearTargetAttributes(player: Player)
-	if player:GetAttribute("PetTargetPos") ~= nil then
+	if player:GetAttribute("PetTargetPos") ~= nil or player:GetAttribute("PetTankPos") ~= nil then
 		player:SetAttribute("PetTargetPos", nil)
 		player:SetAttribute("PetTargetRadius", nil)
+		player:SetAttribute("PetTankPos", nil)
 	end
 end
 

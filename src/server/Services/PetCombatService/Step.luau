@@ -6,6 +6,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local MonetizationLogic = require(Shared.MonetizationLogic)
+local PetConfig = require(Shared.Config.PetConfig)
+local PetClassLogic = require(Shared.PetClassLogic)
 local StyleConfig = require(Shared.Config.StyleConfig)
 local ClassLogic = require(Shared.ClassLogic)
 local AimLogic = require(Shared.AimLogic)
@@ -46,10 +48,12 @@ local function firePunch(...) return ctx.firePunch(...) end
 local function fireSlash(...) return ctx.fireSlash(...) end
 local function flatDistance(...) return ctx.flatDistance(...) end
 local function gather(...) return ctx.gather(...) end
+local function heal(...) return ctx.heal(...) end
 local function hitInfo(...) return ctx.hitInfo(...) end
 local function isBursting(...) return ctx.isBursting(...) end
 local function magicLock(...) return ctx.magicLock(...) end
 local function manaUpkeep(...) return ctx.manaUpkeep(...) end
+local function maxHealthOf(...) return ctx.maxHealthOf(...) end
 local function modsOf(...) return ctx.modsOf(...) end
 local function notifyAbility(...) return ctx.notifyAbility(...) end
 local function publishAmmo(...) return ctx.publishAmmo(...) end
@@ -247,15 +251,43 @@ function Api.step(now: number)
 			target.Billboard.Enabled = true
 		end
 		local equipped = PlayerDataService.getEquippedPetIds(profile)
+		local roles = PetConfig.ActiveRoles or {}
 		-- Posición del objetivo para que PetFollower mueva las mascotas alrededor
 		if #equipped > 0 then
 			player:SetAttribute("PetTargetPos", target.Root.Position)
 			player:SetAttribute("PetTargetRadius", target.Radius or 2)
+			local hasTank, tankPetId, tankIdx = PetClassLogic.hasClass(equipped, "Tank")
+			if hasTank then
+				local gx, gz = PetClassLogic.tankGuardPoint(
+					root.Position.X,
+					root.Position.Z,
+					target.Root.Position.X,
+					target.Root.Position.Z,
+					roles.TankGuardDistance
+				)
+				local guardPos = Vector3.new(gx, target.Root.Position.Y, gz)
+				player:SetAttribute("PetTankPos", guardPos)
+				if now >= (state.NextTankTauntAt or 0) then
+					state.NextTankTauntAt = now + (roles.TankTauntInterval or 2.6)
+					if EnemyService.tauntAround then
+						EnemyService.tauntAround(player, guardPos, roles.TankTauntRadius or 18, roles.TankTauntSeconds or 3.5)
+					end
+					broadcast(player, guardPos, {
+						Kind = "PetTaunt",
+						PetId = tankPetId,
+						Index = tankIdx or 1,
+						Center = guardPos,
+						Radius = 9,
+					})
+				end
+			elseif player:GetAttribute("PetTankPos") ~= nil then
+				player:SetAttribute("PetTankPos", nil)
+			end
 		else
 			clearTargetAttributes(player)
 		end
 
-		-- Cada mascota equipada golpea periódicamente al objetivo
+		-- Cada mascota equipada golpea periódicamente al objetivo y ejecuta su rol activo
 		for index, petId in equipped do
 			if not EnemyService.isAlive(target) then
 				break
@@ -263,6 +295,7 @@ function Api.step(now: number)
 			local nextAt = state.PetNextHit[index] or 0
 			if now >= nextAt then
 				state.PetNextHit[index] = now + PET_HIT_INTERVAL + (index - 1) * 0.12
+				local petClass, bonusVal = PetClassLogic.bonusOf(petId)
 				local damage = singlePetDamage(player, petId)
 				local dealt, killed = EnemyService.damage(target, player, damage)
 				if dealt > 0 then
@@ -270,10 +303,26 @@ function Api.step(now: number)
 					broadcast(player, root.Position, {
 						Kind = "FoxBolt",
 						PetId = petId,
+						Class = petClass,
 						Index = index,
 						Target = target.Root.Position,
 						Hits = { hitInfo(target, dealt, killed) },
 					})
+				end
+				if petClass == "Healer" and now >= (state.NextPetHealAt or 0) then
+					local maxHp = maxHealthOf(player)
+					local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+					if maxHp and humanoid and humanoid.Health > 0 and humanoid.Health < maxHp - 0.5 then
+						state.NextPetHealAt = now + (roles.HealerPulseInterval or 3.2)
+						local pulseAmt = math.max(1, math.floor(maxHp * ((roles.HealerPulseBase or 0.025) + bonusVal * 3)))
+						heal(player, pulseAmt)
+						broadcast(player, root.Position, {
+							Kind = "PetHeal",
+							PetId = petId,
+							Index = index,
+							Amount = pulseAmt,
+						})
+					end
 				end
 				if killed then
 					clearTarget(player, state)

@@ -78,28 +78,28 @@ export type Entry = {
 }
 
 type StyleSpec = {
-	Group: string, -- "Bottom" (fila de abajo) o "Side" (columna derecha)
+	Group: string, -- "Bottom" (fila de abajo), "Side" (columna derecha) o "Hidden" (integrado en otro panel/tarjeta)
 	Order: number,
 	Icon: string,
 	Key: string,
-	IconSize: number?, -- lado del icono (por defecto 60; los iconos 3D, 64)
-	IconTop: number?, -- distancia del icono al borde de arriba (por defecto 2; 0 si mide 64)
+	Accent: Color3?, -- color temático del medallón y tinte del azulejo
+	IconSize: number?, -- lado del icono dentro del medallón (por defecto 44)
+	IconTop: number?,
 	Featured: boolean?,
 }
 
 local DOCK_STYLES: { [string]: StyleSpec } = {
-	Armory = { Group = "Bottom", Order = 10, Icon = "armory3d", Key = "L", IconSize = 64 },
-	Amulets = { Group = "Bottom", Order = 20, Icon = "amulets3d", Key = "G", IconSize = 64 },
-	Pets = { Group = "Bottom", Order = 30, Icon = "pets3d", Key = "P", IconSize = 64 },
-	-- Núcleos ya no tiene azulejo (CoreController no lo añade); si vuelve, va aquí.
-	Cores = { Group = "Bottom", Order = 35, Icon = "cores", Key = "N" },
-	-- Inventario (InventoryController): mochila 3D.
-	Inventory = { Group = "Bottom", Order = 40, Icon = "inventory3d", Key = "I", IconSize = 64 },
-	-- Las flechas llenan todo el dibujo: más pequeñas y centradas para que no pisen el borde.
-	Rebirth = { Group = "Bottom", Order = 50, Icon = "rebirth3d", Key = "T", IconSize = 54, IconTop = 5, Featured = true },
-	Quests = { Group = "Side", Order = 60, Icon = "quests", Key = "M" },
-	Rewards = { Group = "Side", Order = 70, Icon = "rewards3d", Key = "J", IconSize = 64 },
-	Shop = { Group = "Side", Order = 80, Icon = "shop", Key = "K" },
+	Armory = { Group = "Bottom", Order = 10, Icon = "armory3d", Key = "L", Accent = Color3.fromRGB(235, 110, 72), IconSize = 46 },
+	-- Amuletos (G) va integrado dentro de Inventario para limpiar la barra inferior (tecla G sigue activa).
+	Amulets = { Group = "Hidden", Order = 20, Icon = "amulets3d", Key = "G", Accent = Color3.fromRGB(190, 130, 255), IconSize = 44 },
+	Pets = { Group = "Bottom", Order = 30, Icon = "pets3d", Key = "P", Accent = Color3.fromRGB(76, 198, 132), IconSize = 46 },
+	Cores = { Group = "Hidden", Order = 35, Icon = "cores", Key = "N", Accent = Color3.fromRGB(110, 190, 255) },
+	Inventory = { Group = "Bottom", Order = 38, Icon = "inventory3d", Key = "I", Accent = Color3.fromRGB(82, 162, 242), IconSize = 46 },
+	Rebirth = { Group = "Bottom", Order = 50, Icon = "rebirth3d", Key = "T", Accent = Color3.fromRGB(255, 201, 60), IconSize = 42, Featured = true },
+	-- Misiones (M) se unifica con la tarjeta izquierda `DailyMiniCard` para no duplicar el botón a la derecha.
+	Quests = { Group = "Hidden", Order = 60, Icon = "quests", Key = "M", Accent = Color3.fromRGB(236, 200, 120) },
+	Rewards = { Group = "Side", Order = 70, Icon = "rewards3d", Key = "J", Accent = Color3.fromRGB(236, 98, 158), IconSize = 46 },
+	Shop = { Group = "Side", Order = 80, Icon = "shop", Key = "K", Accent = Color3.fromRGB(162, 108, 248), IconSize = 44 },
 }
 local GROUP_GAP_ORDER = 40 -- hueco más ancho (24) entre el grupo y Renacer
 local TOUCH_GAP_ORDER = 55 -- en táctil, el mismo hueco después de Renacer
@@ -109,11 +109,16 @@ local bottomRow: Frame? = nil
 local bottomScale: UIScale? = nil
 local sideColumn: Frame? = nil
 local sideScale: UIScale? = nil
+local sideCollapsed = false
+local sideToggleBtn: TextButton? = nil
 local touchGap: Frame? = nil
 local touchMode: boolean? = nil
 local leftStack: Frame? = nil
 local leftScale: UIScale? = nil
 local dailyCard: Frame? = nil
+local dailyStroke: UIStroke? = nil
+local dailyBadge: Frame? = nil
+local dailyBadgeText: TextLabel? = nil
 local dailyTitle: TextLabel? = nil
 local dailyProg: TextLabel? = nil
 local dailyFill: Frame? = nil
@@ -139,11 +144,29 @@ local function gap(name: string, order: number, parent: Instance): Frame
 	}, parent)
 end
 
-local function parentFor(entry: any): Frame
+local function parentFor(entry: any): Frame?
+	if entry.Group == "Hidden" then
+		return nil
+	end
 	if entry.Group == "Side" and not touchMode then
 		return sideColumn :: Frame
 	end
 	return bottomRow :: Frame
+end
+
+local function refreshSideVisibility()
+	for _, entry in entries do
+		if entry.Group == "Side" then
+			entry.Slot.Visible = not (sideCollapsed and not touchMode)
+		elseif entry.Group == "Hidden" then
+			entry.Slot.Visible = false
+		else
+			entry.Slot.Visible = true
+		end
+	end
+	if sideToggleBtn then
+		sideToggleBtn.Text = if sideCollapsed then "◂ Menú" else "▾ Menú"
+	end
 end
 
 -- Ancho de la fila de abajo a escala 1 (azulejos visibles, huecos y espaciado).
@@ -175,6 +198,7 @@ local function relayout()
 			touchGap.Visible = touch
 		end
 	end
+	refreshSideVisibility()
 
 	local s = layout.MenuScale or layout.Scale -- escala del HUD con el aumento de los botones
 	local screen = (dockGui :: ScreenGui).AbsoluteSize
@@ -241,7 +265,7 @@ local function build()
 	touchGap = secondGap
 	bottomRow = bottom
 
-	-- Columna derecha: Misiones, Premios, Tienda
+	-- Columna derecha: Premios y Tienda + botón plegable
 	local side = UiKit.create("Frame", {
 		Name = "SideDock",
 		AnchorPoint = Vector2.new(1, 0),
@@ -257,6 +281,26 @@ local function build()
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Padding = UDim.new(0, SIDE.SideGap),
 	}, side)
+
+	local togglePill = UiKit.create("TextButton", {
+		Name = "SideToggle",
+		Size = UDim2.fromOffset(SIDE.SideTile, 24),
+		BackgroundColor3 = TILE.Bottom,
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Font = FONTS.Display,
+		TextSize = 13,
+		TextColor3 = CREAM,
+		Text = "▾ Menú",
+		AutoButtonColor = true,
+	}, side)
+	UiKit.corner(togglePill, 8)
+	addInkStroke(togglePill, 2, Enum.ApplyStrokeMode.Border, TILE.Outline)
+	togglePill.Activated:Connect(function()
+		sideCollapsed = not sideCollapsed
+		refreshSideVisibility()
+	end)
+	sideToggleBtn = togglePill
 	sideColumn = side
 
 	-- Contenedor izquierdo para la tarjeta de misión diaria (debajo de las monedas)
@@ -276,20 +320,69 @@ local function build()
 	}, left)
 	leftStack = left
 
-	-- Tarjeta de Misión Diaria estilo pergamino (como en `HUD Rediseño (standalone).html`)
+	-- Tarjeta de Misión Diaria unificada con el botón de Misiones [M]
 	local card = UiKit.create("Frame", {
 		Name = "DailyMiniCard",
 		Size = UDim2.fromOffset(238, 56),
 		BackgroundColor3 = WHITE,
 		LayoutOrder = 1,
-		Visible = false,
+		Visible = true,
 	}, left)
 	UiKit.corner(card, 16)
 	UiKit.create("UIGradient", {
 		Rotation = 90,
 		Color = ColorSequence.new(Color3.fromRGB(255, 248, 230), Color3.fromRGB(244, 226, 184)),
 	}, card)
-	addInkStroke(card, 3.5, Enum.ApplyStrokeMode.Border)
+	dailyStroke = addInkStroke(card, 3.5, Enum.ApplyStrokeMode.Border)
+
+	-- Insignia de tecla [M] arriba a la izquierda de la tarjeta
+	local dKey = UiKit.create("Frame", {
+		Name = "KeyBadge",
+		Position = UDim2.fromOffset(-6, -6),
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = INK,
+		ZIndex = 6,
+	}, card)
+	UiKit.corner(dKey, 6)
+	UiKit.create("UIStroke", {
+		Color = WHITE,
+		Thickness = 1.5,
+		Transparency = 0.7,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, dKey)
+	UiKit.text(dKey, "KeyText", {
+		Size = UDim2.fromScale(1, 1),
+		Font = FONTS.Display,
+		TextSize = 11,
+		TextColor3 = CREAM,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = "M",
+		ZIndex = 7,
+	})
+
+	-- Aviso rojo inclinado (arriba a la derecha de la tarjeta) para misiones listas para reclamar
+	local dBadge = UiKit.create("Frame", {
+		Name = "Badge",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 7, 0, -7),
+		Size = UDim2.fromOffset(22, 22),
+		BackgroundColor3 = TILE.Badge,
+		Rotation = 6,
+		Visible = false,
+		ZIndex = 6,
+	}, card)
+	UiKit.corner(dBadge, 6)
+	addInkStroke(dBadge, 2.5, Enum.ApplyStrokeMode.Border, TILE.Outline)
+	local dBadgeText = UiKit.text(dBadge, "Count", {
+		Size = UDim2.fromScale(1, 1),
+		Font = FONTS.Display,
+		TextSize = 14,
+		TextColor3 = WHITE,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 7,
+	})
+	dailyBadge = dBadge
+	dailyBadgeText = dBadgeText
 
 	Icons.make(card, "quests", {
 		Name = "QuestIcon",
@@ -318,7 +411,7 @@ local function build()
 		TextSize = 14,
 		TextColor3 = GREEN_TEXT,
 		TextXAlignment = Enum.TextXAlignment.Right,
-		Text = "0/15",
+		Text = "Misiones",
 		ZIndex = 2,
 	})
 
@@ -335,7 +428,7 @@ local function build()
 	local dFill = UiKit.create("Frame", {
 		Name = "Fill",
 		Position = UDim2.fromOffset(2, 2),
-		Size = UDim2.new(0.15, -4, 1, -4),
+		Size = UDim2.new(1, -4, 1, -4),
 		BackgroundColor3 = WHITE,
 		BorderSizePixel = 0,
 		ZIndex = 3,
@@ -386,6 +479,10 @@ local function build()
 					active = true
 				end
 			end
+			-- Si se abre Amuletos, se marca abierto también Inventario (donde está agrupado)
+			if entry.Id == "Inventory" and openPanel == "Amulets" then
+				active = true
+			end
 			entry.setOpen(active)
 		end
 	end)
@@ -415,8 +512,10 @@ function MenuBar.add(spec: Spec): Entry
 		Order = 100 + spec.Order,
 		Icon = spec.Image or string.lower(spec.Id),
 		Key = spec.Key or "",
+		Accent = spec.Color,
 	}
 	local featured = style.Featured == true -- Renacer: anillo dorado y porcentaje encima
+	local accent = style.Accent or spec.Color or TILE.Open
 	local size = SIZE.Tile
 	local border = 3
 	local radius = 12
@@ -435,9 +534,6 @@ function MenuBar.add(spec: Spec): Entry
 		BackgroundTransparency = 1,
 	}, slot)
 
-	-- Sin sombra debajo ni brillo arriba: asomaban fuera del contorno y se veía un segundo
-	-- cuadro gris detrás (Santiago). El azulejo es solo la cara gris con su contorno negro.
-
 	-- Anillo negro por fuera del borde amarillo (panel abierto)
 	local ring = UiKit.create("Frame", {
 		Name = "OpenRing",
@@ -451,21 +547,20 @@ function MenuBar.add(spec: Spec): Entry
 	}, lift)
 	UiKit.corner(ring, radius + 2)
 
-	-- Cara del azulejo: el contorno (UIStroke) va por fuera, así que mide lo que el diseño
-	-- menos el contorno y el total queda igual que en el diseño.
+	-- Cara del azulejo con tinte temático uniforme
 	local tile = UiKit.create("Frame", {
 		Name = "Face",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.new(1, -2 * border, 1, -2 * border),
-		BackgroundColor3 = WHITE, -- el color lo da el degradado
+		BackgroundColor3 = WHITE,
 		BorderSizePixel = 0,
 		ZIndex = 3,
 	}, lift)
 	UiKit.corner(tile, radius - border)
 	local gradient = UiKit.create("UIGradient", { Name = "Tint", Rotation = 90 }, tile)
 	local stroke = addInkStroke(tile, border, Enum.ApplyStrokeMode.Border, TILE.Outline)
-	-- Filo claro por dentro del contorno (dorado en Renacer)
+
 	local inner = UiKit.create("Frame", {
 		Name = "Inner",
 		Position = UDim2.fromOffset(2, 2),
@@ -474,36 +569,51 @@ function MenuBar.add(spec: Spec): Entry
 		ZIndex = 3,
 	}, tile)
 	UiKit.corner(inner, math.max(radius - border - 2, 2))
-	UiKit.create("UIStroke", {
-		Color = if featured then TILE.Featured else WHITE,
+	local innerStroke = UiKit.create("UIStroke", {
+		Color = if featured then TILE.Featured else accent,
 		Thickness = 2,
-		Transparency = if featured then 0 else 0.9,
+		Transparency = if featured then 0 else 0.45,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 	}, inner)
-	-- Icono grande, pegado arriba (el nombre ocupa la parte de abajo)
-	local iconSize = style.IconSize or 60
-	local iconTop = style.IconTop or (if iconSize >= 64 then 0 else 2)
-	local icon = Icons.make(lift, style.Icon, {
-		Name = "Icon",
+
+	-- Medallón circular unificado para que todos los iconos compartan el mismo marco y proporción
+	local medallion = UiKit.create("Frame", {
+		Name = "Medallion",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, iconTop),
+		Position = UDim2.new(0.5, 0, 0, 4),
+		Size = UDim2.fromOffset(50, 50),
+		BackgroundColor3 = Color3.fromRGB(24, 22, 34):Lerp(accent, 0.22),
+		BorderSizePixel = 0,
+		ZIndex = 4,
+	}, lift)
+	UiKit.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }, medallion)
+	UiKit.create("UIStroke", {
+		Color = accent,
+		Thickness = 1.8,
+		Transparency = 0.25,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, medallion)
+
+	local iconSize = style.IconSize or 44
+	local icon = Icons.make(medallion, style.Icon, {
+		Name = "Icon",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
 		Size = UDim2.fromOffset(iconSize, iconSize),
 		ZIndex = 5,
 	})
 	local emoji = icon:FindFirstChild("Emoji")
 	if emoji and emoji:IsA("TextLabel") and not Icons.has(style.Icon) then
-		-- Emoji (Armas ⚔️): más grande y centrado en el hueco de encima del nombre
 		emoji.Text = spec.Icon
-		emoji.Size = UDim2.fromScale(0.82, 0.82)
-		emoji.Position = UDim2.fromScale(0.5, 0.53)
+		emoji.Size = UDim2.fromScale(0.8, 0.8)
+		emoji.Position = UDim2.fromScale(0.5, 0.5)
 	end
-	-- Sombra del dibujo (drop-shadow 0 2px 0 rgba(0,0,0,.4))
 	local image = icon:FindFirstChild("Image")
 	if image and image:IsA("ImageLabel") then
 		local imageShadow = image:Clone()
 		imageShadow.Name = "ImageShadow"
 		imageShadow.ImageColor3 = Color3.new(0, 0, 0)
-		imageShadow.ImageTransparency = 0.6
+		imageShadow.ImageTransparency = 0.55
 		imageShadow.Position = UDim2.fromOffset(0, 2)
 		imageShadow.ZIndex = image.ZIndex - 1
 		imageShadow.Parent = icon
@@ -601,23 +711,31 @@ function MenuBar.add(spec: Spec): Entry
 		ZIndex = 10,
 	}, lift)
 
-	-- Estados: ratón encima (sube 5), panel abierto (borde amarillo, sube 4), atención
-	-- (borde del color que pida el controlador, p. ej. Premios listos).
 	local hovered, open, attention = false, false, false
 	local attentionColor: Color3? = nil
 	local quick = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local baseTop = TILE.Top:Lerp(accent, 0.25)
+	local baseMid = TILE.Mid:Lerp(accent, 0.16)
+	local baseBot = TILE.Bottom:Lerp(accent, 0.1)
+	local litTop = TILE.OpenTop:Lerp(accent, 0.35)
+	local litMid = TILE.OpenMid:Lerp(accent, 0.24)
+	local litBot = TILE.OpenBottom:Lerp(accent, 0.15)
 	local function refresh()
 		local highlighted = open or attention
 		stroke.Color = if open then TILE.Open elseif attention then (attentionColor or TILE.Open) else TILE.Outline
+		innerStroke.Transparency = if featured or highlighted then 0 else 0.45
 		ring.Visible = highlighted
 		local lit = highlighted or hovered
 		gradient.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, if lit then TILE.OpenTop else TILE.Top),
-			ColorSequenceKeypoint.new(0.55, if lit then TILE.OpenMid else TILE.Mid),
-			ColorSequenceKeypoint.new(1, if lit then TILE.OpenBottom else TILE.Bottom),
+			ColorSequenceKeypoint.new(0, if lit then litTop else baseTop),
+			ColorSequenceKeypoint.new(0.55, if lit then litMid else baseMid),
+			ColorSequenceKeypoint.new(1, if lit then litBot else baseBot),
 		})
 		local rise = if hovered then -5 elseif open then -4 else 0
 		TweenService:Create(lift, quick, { Position = UDim2.fromOffset(0, rise) }):Play()
+		if spec.Id == "Quests" and dailyStroke then
+			dailyStroke.Color = if open then TILE.Open elseif attention then (attentionColor or TILE.Open) else INK
+		end
 	end
 	refresh()
 
@@ -643,6 +761,10 @@ function MenuBar.add(spec: Spec): Entry
 		local show = text ~= nil and text ~= ""
 		badge.Visible = show
 		badgeText.Text = text or ""
+		if spec.Id == "Quests" and dailyBadge and dailyBadgeText then
+			dailyBadge.Visible = show
+			dailyBadgeText.Text = text or ""
+		end
 	end
 	function entry.setAttention(active: boolean, color: Color3?)
 		attention = active
@@ -678,6 +800,9 @@ function MenuBar.add(spec: Spec): Entry
 end
 
 function MenuBar.tile(id: string): GuiObject?
+	if id == "Quests" and dailyCard then
+		return dailyCard
+	end
 	local entry = entries[id]
 	return entry and entry.Tile
 end
@@ -699,11 +824,13 @@ function MenuBar.status(id: string, order: number): TextLabel
 			if not dailyCard or not dailyTitle or not dailyProg or not dailyFill then
 				return
 			end
+			dailyCard.Visible = true
 			if raw == "" then
-				dailyCard.Visible = false
+				dailyTitle.Text = "Misiones y logros"
+				dailyProg.Text = "¡Al día!"
+				dailyFill.Size = UDim2.new(1, -4, 1, -4)
 				return
 			end
-			dailyCard.Visible = true
 			-- Limpia el emoji inicial "📜 " si viene incluido
 			local clean = string.gsub(raw, "^📜%s*", "")
 			local titlePart, curStr, maxStr = string.match(clean, "^(.-)%s+([%d%.,kKmM]+)/([%d%.,kKmM]+)$")

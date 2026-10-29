@@ -163,7 +163,7 @@ local function buildPanel(playerGui: Instance)
 			TextXAlignment = Enum.TextXAlignment.Center,
 			Text = ICONS[zoneId] or "📍",
 		})
-		UiKit.text(row, "Name", {
+		local name = UiKit.text(row, "Name", {
 			Position = UDim2.fromOffset(54, 7),
 			Size = UDim2.new(1, -180, 0, 22),
 			Font = FONTS.Display,
@@ -186,7 +186,7 @@ local function buildPanel(playerGui: Instance)
 			TextSize = 17,
 			Text = "Ir",
 		})
-		rows[zoneId] = { Frame = row, Sub = sub, Go = go }
+		rows[zoneId] = { Frame = row, Name = name, Sub = sub, Go = go }
 	end
 	screenGui.Parent = playerGui
 	return { ScreenGui = screenGui, Panel = panel, PanelScale = panelScale, Close = close, Rows = rows }
@@ -254,6 +254,9 @@ function TravelController.start()
 		local current = player:GetAttribute(Constants.Attributes.CurrentZone)
 		for zoneId, row in ui.Rows do
 			local open = isUnlocked(zoneId)
+			-- Las cerradas también salen (con su candado y lo que falta), pero no se puede ir
+			row.Frame.BackgroundTransparency = if open or current == zoneId then 0 else 0.45
+			row.Name.TextColor3 = if open or current == zoneId then THEME.Text else THEME.Muted
 			if current == zoneId then
 				row.Sub.Text = (SUBTITLES[zoneId] or "") .. " · estás aquí"
 				setGo(row.Go, "📍 Aquí", THEME.Inset, true)
@@ -261,8 +264,8 @@ function TravelController.start()
 				row.Sub.Text = SUBTITLES[zoneId] or ""
 				setGo(row.Go, if pending then "…" else "✨ Ir", THEME.Buy, pending)
 			else
-				row.Sub.Text = lockedText(zoneId)
-				setGo(row.Go, "🔒", THEME.Inset, true)
+				row.Sub.Text = (SUBTITLES[zoneId] or "") .. " · " .. lockedText(zoneId)
+				setGo(row.Go, "🔒 Cerrada", THEME.Disabled, true)
 			end
 		end
 	end

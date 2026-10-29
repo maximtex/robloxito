@@ -514,8 +514,9 @@ cada mazmorra queda junto a la puerta de la zona siguiente:
 - 🗺️ Viajar (`TravelController`; botón encima del ⚙️, tecla O): las zonas del Mundo 1
   (`ZoneConfig.TravelOrder`); a las abiertas se va al instante (`FastTravel` →
   `ZoneService.fastTravel`), al pueblo junto al spawn (`TravelArrival`). No en una partida de
-  oleadas (código `InWave`) y como mucho uno cada `FastTravelCooldown` (5 s). En Studio, con
-  `DevConfig.StudioAllZones`, se puede ir a todas aunque estén cerradas (para probar).
+  oleadas (código `InWave`) y como mucho uno cada `FastTravelCooldown` (5 s). Las cerradas salen
+  en la lista con su candado y lo que falta. (`DevConfig.StudioAllZones = true` deja ir a todas
+  en Studio para probar; en el repositorio, false.)
 
 ## 16. Tutorial corto y fácil
 

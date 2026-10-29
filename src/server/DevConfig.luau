@@ -19,11 +19,12 @@
 --
 -- StudioAllZones = true: en Studio, 🗺️ Viajar te deja ir a TODAS las zonas del Mundo 1 aunque
 -- estén cerradas (para probarlas sin abrir cada puerta) y no te devuelve al pueblo al estar en
--- una cerrada. Fuera de Studio se ignora: en el juego publicado solo a las abiertas.
+-- una cerrada. Fuera de Studio se ignora: en el juego publicado solo a las abiertas. En el
+-- repositorio, false (las cerradas salen en la lista con su candado, como en el juego).
 
 return {
 	TutorialSandbox = false,
 	SandboxStartingMoney = 15000,
 	StudioPasses = false,
-	StudioAllZones = true,
+	StudioAllZones = false,
 }

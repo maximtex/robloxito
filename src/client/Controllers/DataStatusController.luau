@@ -9,6 +9,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 
 local Constants = require(ReplicatedStorage:WaitForChild("Shared").Constants)
@@ -62,11 +63,18 @@ function DataStatusController.start()
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	}, nil)
 
-	-- Pastilla amarilla superior central (.warn-pill), justo debajo del título de la zona
+	-- Oculta la lista gris nativa de jugadores de Roblox arriba a la derecha (las tablas de
+	-- clasificación están en la plaza) para que no tape la cabecera de zona ni roce el menú M/J/K.
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+	end)
+
+	-- Pastilla amarilla superior central (.warn-pill); baja automáticamente si está visible el
+	-- banner del tutorial ("Tutorial / TU PRIMERA OLEADA") para no encimarse.
 	local pill = UiKit.create("Frame", {
 		Name = "WarnPill",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 58),
+		Position = UDim2.new(0.5, 0, 0, 12),
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, 34),
 		BackgroundColor3 = WARN_YELLOW,
@@ -129,13 +137,12 @@ function DataStatusController.start()
 	}, pill)
 	UiKit.corner(close, 10)
 
-	-- Cabecera de zona arriba en el centro (.zone-card) para no quedar tapada detrás de la
-	-- tabla nativa de jugadores (PlayerList) de Roblox arriba a la derecha.
+	-- Cabecera de zona arriba a la derecha (.zone-card)
 	local zoneCard = UiKit.create("Frame", {
 		Name = "ZoneCard",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 8),
-		Size = UDim2.fromOffset(280, 48),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -20, 0, 10),
+		Size = UDim2.fromOffset(240, 48),
 		BackgroundTransparency = 1,
 	}, screenGui)
 	local zoneScale = UiKit.create("UIScale", {}, zoneCard)
@@ -146,7 +153,7 @@ function DataStatusController.start()
 		Font = FONTS.Display,
 		TextSize = 26,
 		TextColor3 = CREAM,
-		TextXAlignment = Enum.TextXAlignment.Center,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		Text = "Bosque",
 	})
 	UiKit.create("UIStroke", {
@@ -161,7 +168,7 @@ function DataStatusController.start()
 		Font = FONTS.Display,
 		TextSize = 12,
 		TextColor3 = GOLD_SUB,
-		TextXAlignment = Enum.TextXAlignment.Center,
+		TextXAlignment = Enum.TextXAlignment.Right,
 		Text = "ZONA 1 · PLAZA DEL CRISTAL",
 	})
 	UiKit.create("UIStroke", {
@@ -172,6 +179,30 @@ function DataStatusController.start()
 
 	screenGui.Parent = playerGui
 
+	local watchedTutorial: Instance? = nil
+	local function placeWarnPill()
+		local s = pillScale.Scale
+		local tutHud = playerGui:FindFirstChild("TutorialHud")
+		local tutCard = tutHud and tutHud:FindFirstChild("Card") :: GuiObject?
+		local tutPill = tutHud and tutHud:FindFirstChild("Pill") :: GuiObject?
+		if tutHud and tutHud ~= watchedTutorial then
+			watchedTutorial = tutHud
+			if tutCard then
+				tutCard:GetPropertyChangedSignal("Visible"):Connect(placeWarnPill)
+			end
+			if tutPill then
+				tutPill:GetPropertyChangedSignal("Visible"):Connect(placeWarnPill)
+			end
+		end
+		local y = 12
+		if tutCard and tutCard.Visible then
+			y = math.floor(16 + 66 * s)
+		elseif tutPill and tutPill.Visible then
+			y = math.floor(12 + 46 * s)
+		end
+		pill.Position = UDim2.new(0.5, 0, 0, y)
+	end
+
 	local function applyScale()
 		local size = screenGui.AbsoluteSize
 		if size.X <= 0 or size.Y <= 0 then
@@ -181,9 +212,15 @@ function DataStatusController.start()
 		local s = HudLayout.scale(size, isTouch)
 		pillScale.Scale = s
 		zoneScale.Scale = s
+		placeWarnPill()
 	end
 	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
 	UiKit.onScaleChanged(applyScale) -- ⚙️ tamaño de la interfaz
+	playerGui.ChildAdded:Connect(function(child)
+		if child.Name == "TutorialHud" then
+			task.defer(placeWarnPill)
+		end
+	end)
 	applyScale()
 
 	-- "" fuera de la cueva; si no, lo que dice la cabecera en la boca o en cada sala

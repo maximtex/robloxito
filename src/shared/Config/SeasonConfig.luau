@@ -6,7 +6,7 @@
 local V2 = Vector2.new
 
 local SeasonConfig = {
-	Christmas = true,
+	Christmas = false,
 
 	-- Adornos navideños del Bosque (diseños de ChristmasData: Arch, Lantern, GiftPile y
 	-- Snowman), en coordenadas del mundo y mirando hacia FaceToward. Todos en el prado, sin

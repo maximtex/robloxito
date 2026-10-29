@@ -378,6 +378,13 @@ local function buildDecor(parent: Instance)
 			end
 		end
 	end
+	-- Transición hacia la Fortaleza Goblin junto al portal sur: estacas y estandartes goblins con nieve
+	for _, side in { -1, 1 } do
+		local gatePos = world(side * 15, StudWorld.FloorTop, 145)
+		studBlock(folder, "FortressTransitionPost", Vector3.new(1.2, 5.6, 1.2), CFrame.new(gatePos + Vector3.new(0, 2.8, 0)) * CFrame.Angles(0, 0, math.rad(-side * 8)), PINE.Trunk, true)
+		studBlock(folder, "FortressTransitionBanner", Vector3.new(2.2, 3.2, 0.3), CFrame.new(gatePos + Vector3.new(-side * 1.1, 3.6, 0)), RGB(150, 42, 48), false)
+		studBlock(folder, "FortressTransitionSnow", Vector3.new(2.8, 0.7, 2.8), CFrame.new(gatePos + Vector3.new(0, 0.35, 0)), SNOW, false)
+	end
 	-- Cartel de bienvenida en la llegada
 	local sign = PartFactory.part(folder, "CartelLlegada", {
 		Size = Vector3.one * 0.2,

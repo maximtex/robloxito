@@ -445,6 +445,37 @@ local function buildDecor(parent: Instance)
 	decor.scatter(28, 2, math.huge, 4, function(pos, yaw)
 		buildEmberRock(folder, pos, yaw)
 	end)
+	-- Braseros volcánicos en la avenida y transición helada junto al portal sur hacia la Tundra
+	local top = StudWorld.FloorTop
+	for _, zOff in { -108, -44, 38 } do
+		for _, side in { -1, 1 } do
+			local p = world(side * 16, top, zOff)
+			StudWorld.allStuds(PartFactory.part(folder, "BrazierBase", {
+				Size = Vector3.new(2.4, 3.2, 2.4),
+				CFrame = CFrame.new(p + Vector3.new(0, 1.6, 0)),
+				Color = COLORS.Rock,
+				Material = Enum.Material.Plastic,
+				Solid = true,
+			}))
+			PartFactory.part(folder, "BrazierFlame", {
+				Size = Vector3.new(1.6, 1.4, 1.6),
+				CFrame = CFrame.new(p + Vector3.new(0, 3.8, 0)) * CFrame.Angles(0, math.rad(45), 0),
+				Color = COLORS.LavaBright,
+				Material = Enum.Material.Neon,
+				Solid = false,
+			})
+		end
+	end
+	for _, side in { -1, 1 } do
+		local gatePos = world(side * 15, top, 145)
+		PartFactory.part(folder, "TundraTransitionIce", {
+			Size = Vector3.new(2.2, 5.2, 2.2),
+			CFrame = CFrame.new(gatePos + Vector3.new(0, 2.6, 0)) * CFrame.Angles(math.rad(10), math.rad(45), math.rad(-side * 12)),
+			Color = Color3.fromRGB(165, 222, 255),
+			Material = Enum.Material.Glass,
+			Solid = true,
+		})
+	end
 end
 
 function CalderaService.start()

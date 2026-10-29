@@ -337,155 +337,152 @@ local function buildWaterBorder(parent: Instance)
 end
 
 -- Detalles decorativos del mapa (capturas 1, 2, 3 y 4):
--- Espantapájaros con cabeza de calabaza brillante, calabazas talladas, setas, matitas de pasto y flores
+-- Estandartes medievales, postes de antorcha, cajas de provisiones, setas, matitas de pasto y flores
 local function buildForestDetails(parent: Instance)
 	local folder = PartFactory.folder(parent, "MapDetails")
 
-	-- Helper: Calabaza luminosa (Jack-o'-lantern)
-	local function buildGlowingPumpkin(pos: Vector3, scale: number, yawDeg: number)
+	-- Helper: Poste de antorcha medieval (madera y hierro forjado con fuego cálido)
+	local function buildTorchPost(pos: Vector3, scale: number, yawDeg: number)
 		local m = Instance.new("Model")
-		m.Name = "GlowingPumpkin"
+		m.Name = "MedievalTorch"
 		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
-		local r = 2.4 * scale
+		local s = scale or 1
+		local stone = Color3.fromRGB(136, 140, 148)
+		local wood = Color3.fromRGB(116, 78, 46)
+		local iron = Color3.fromRGB(58, 62, 70)
+		local flame = Color3.fromRGB(255, 178, 62)
 
-		PartFactory.ball(m, "PumpkinBody", (cf * CFrame.new(0, r * 0.44, 0)).Position, r, Color3.fromRGB(252, 118, 18), Enum.Material.SmoothPlastic, false)
-		PartFactory.ball(m, "InnerGlow", (cf * CFrame.new(0, r * 0.44, -r * 0.12)).Position, r * 0.86, Color3.fromRGB(255, 224, 48), Enum.Material.Neon, false)
-
-		-- Ojos y sonrisa luminosos amarillos
-		for _, sx in { -0.22, 0.22 } do
-			PartFactory.part(m, "EyeGlow", {
-				Size = Vector3.new(0.28 * r, 0.26 * r, 0.18 * r),
-				CFrame = cf * CFrame.new(sx * r, r * 0.56, -r * 0.44) * CFrame.Angles(0, 0, math.rad(sx * 24)),
-				Color = Color3.fromRGB(255, 238, 60),
-				Material = Enum.Material.Neon,
-				Solid = false,
-			})
-		end
-		PartFactory.part(m, "MouthGlow", {
-			Size = Vector3.new(0.58 * r, 0.18 * r, 0.18 * r),
-			CFrame = cf * CFrame.new(0, r * 0.30, -r * 0.45),
-			Color = Color3.fromRGB(255, 234, 52),
-			Material = Enum.Material.Neon,
-			Solid = false,
+		PartFactory.part(m, "Base", {
+			Size = Vector3.new(2.0 * s, 0.7 * s, 2.0 * s),
+			CFrame = cf * CFrame.new(0, 0.35 * s, 0),
+			Color = stone,
+			Material = Enum.Material.Slate,
+			Solid = true,
 		})
-		-- Tallo verde curvado
-		PartFactory.part(m, "Stem", {
-			Size = Vector3.new(0.22 * r, 0.42 * r, 0.22 * r),
-			CFrame = cf * CFrame.new(0, r * 0.92, 0) * CFrame.Angles(math.rad(16), 0, math.rad(12)),
-			Color = Color3.fromRGB(68, 124, 38),
-			Material = Enum.Material.SmoothPlastic,
-			Solid = false,
-		})
-		m.Parent = folder
-	end
-
-	-- Helper: Grupo de calabazas pequeñas + hojas de otoño (captura 1 y 2)
-	local function buildPumpkinPatch(pos: Vector3, yawDeg: number)
-		local m = Instance.new("Model")
-		m.Name = "PumpkinPatch"
-		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
-		buildGlowingPumpkin((cf * CFrame.new(0, 0, 0)).Position, 0.9, yawDeg)
-		PartFactory.ball(m, "WhiteGourd", (cf * CFrame.new(-1.4, 0.9, 1.1)).Position, 1.6, Color3.fromRGB(244, 228, 214), Enum.Material.SmoothPlastic, false)
-		PartFactory.ball(m, "MiniPumpkin", (cf * CFrame.new(1.5, 0.65, 0.8)).Position, 1.2, Color3.fromRGB(255, 140, 28), Enum.Material.SmoothPlastic, false)
-		-- Hojas de otoño rojas y amarillas en el suelo
-		for i, leafCol in {
-			Color3.fromRGB(232, 54, 36),
-			Color3.fromRGB(250, 178, 32),
-			Color3.fromRGB(110, 198, 38),
-			Color3.fromRGB(240, 96, 28),
-		} do
-			local angle = math.rad(i * 90 + 25)
-			PartFactory.part(m, "Leaf" .. i, {
-				Size = Vector3.new(0.9, 0.12, 0.6),
-				CFrame = cf * CFrame.new(math.cos(angle) * 2.1, 0.08, math.sin(angle) * 2.1) * CFrame.Angles(0, angle, 0),
-				Color = leafCol,
-				Material = Enum.Material.SmoothPlastic,
-				Solid = false,
-			})
-		end
-		m.Parent = folder
-	end
-
-	-- Helper: Espantapájaros con cabeza de calabaza luminosa y sombrero (como en la captura 1)
-	local function buildScarecrow(pos: Vector3, yawDeg: number)
-		local m = Instance.new("Model")
-		m.Name = "Scarecrow"
-		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
-
-		-- Base morada de roca + calabaza pequeña a los pies
-		PartFactory.part(m, "BaseStone", {
-			Size = Vector3.new(4.2, 0.45, 3.6),
-			CFrame = cf * CFrame.new(0, 0.22, 0),
-			Color = Color3.fromRGB(116, 68, 128),
-			Material = Enum.Material.SmoothPlastic,
-			Solid = false,
-		})
-		PartFactory.ball(m, "FootPumpkin", (cf * CFrame.new(1.3, 0.75, -0.8)).Position, 1.3, Color3.fromRGB(252, 124, 20), Enum.Material.SmoothPlastic, false)
-
-		-- Poste de madera y brazos extendidos
-		PartFactory.part(m, "WoodPole", {
-			Size = Vector3.new(0.65, 6.6, 0.65),
-			CFrame = cf * CFrame.new(0, 3.3, 0),
-			Color = Color3.fromRGB(142, 88, 44),
+		PartFactory.part(m, "Poste", {
+			Size = Vector3.new(0.75 * s, 5.0 * s, 0.75 * s),
+			CFrame = cf * CFrame.new(0, 3.2 * s, 0),
+			Color = wood,
 			Material = Enum.Material.Wood,
 			Solid = true,
 		})
-		PartFactory.part(m, "CrossArms", {
-			Size = Vector3.new(6.2, 0.55, 0.55),
-			CFrame = cf * CFrame.new(0, 4.9, 0) * CFrame.Angles(0, 0, math.rad(6)),
-			Color = Color3.fromRGB(142, 88, 44),
+		PartFactory.part(m, "BrazoHierro", {
+			Size = Vector3.new(0.45 * s, 0.4 * s, 1.5 * s),
+			CFrame = cf * CFrame.new(0, 5.2 * s, -0.45 * s),
+			Color = iron,
+			Material = Enum.Material.Metal,
+			Solid = false,
+		})
+		PartFactory.part(m, "Cazoleta", {
+			Size = Vector3.new(1.1 * s, 0.45 * s, 1.1 * s),
+			CFrame = cf * CFrame.new(0, 5.5 * s, -0.95 * s),
+			Color = iron,
+			Material = Enum.Material.Metal,
+			Solid = false,
+		})
+		local fire = PartFactory.part(m, "Llama", {
+			Size = Vector3.new(0.78 * s, 1.15 * s, 0.78 * s),
+			CFrame = cf * CFrame.new(0, 6.15 * s, -0.95 * s) * CFrame.Angles(0, math.rad(45), 0),
+			Color = flame,
+			Material = Enum.Material.Neon,
+			Solid = false,
+		})
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 192, 96)
+		light.Brightness = 1.1
+		light.Range = 14
+		light.Shadows = false
+		light.Parent = fire
+		m.Parent = folder
+	end
+
+	-- Helper: Campamento de provisiones medievales (cajas de madera, barril con aros de hierro y saco)
+	local function buildSupplyCamp(pos: Vector3, yawDeg: number)
+		local m = Instance.new("Model")
+		m.Name = "MedievalSupplies"
+		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
+		local crateWood = Color3.fromRGB(162, 116, 68)
+		local darkWood = Color3.fromRGB(118, 80, 44)
+		local iron = Color3.fromRGB(62, 66, 74)
+		local cloth = Color3.fromRGB(218, 200, 160)
+
+		PartFactory.part(m, "CrateLarge", {
+			Size = Vector3.new(2.6, 2.2, 2.6),
+			CFrame = cf * CFrame.new(-1.2, 1.1, -0.4) * CFrame.Angles(0, math.rad(14), 0),
+			Color = crateWood,
+			Material = Enum.Material.WoodPlanks,
+			Solid = true,
+		})
+		PartFactory.part(m, "CrateSmall", {
+			Size = Vector3.new(1.8, 1.6, 1.8),
+			CFrame = cf * CFrame.new(-1.0, 3.0, -0.3) * CFrame.Angles(0, math.rad(-18), 0),
+			Color = darkWood,
+			Material = Enum.Material.WoodPlanks,
+			Solid = true,
+		})
+		PartFactory.verticalCylinder(m, "Barrel", (cf * CFrame.new(1.3, 1.35, 0.4)).Position, 2.7, 2.1, darkWood, Enum.Material.WoodPlanks, true)
+		for _, h in { 0.65, 2.05 } do
+			PartFactory.verticalCylinder(m, "IronHoop", (cf * CFrame.new(1.3, h, 0.4)).Position, 0.24, 2.22, iron, Enum.Material.Metal, false)
+		end
+		PartFactory.ball(m, "GrainSack", (cf * CFrame.new(0.2, 0.65, 1.4)).Position, 1.5, cloth, Enum.Material.Fabric, false)
+		m.Parent = folder
+	end
+
+	-- Helper: Estandarte real medieval con escudo heráldico y remate dorado
+	local function buildMedievalBanner(pos: Vector3, yawDeg: number)
+		local m = Instance.new("Model")
+		m.Name = "MedievalBanner"
+		local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yawDeg), 0)
+		local stone = Color3.fromRGB(138, 142, 152)
+		local wood = Color3.fromRGB(122, 82, 46)
+		local gold = Color3.fromRGB(244, 198, 62)
+		local crimson = Color3.fromRGB(186, 42, 48)
+
+		PartFactory.part(m, "BaseStone", {
+			Size = Vector3.new(2.8, 0.8, 2.8),
+			CFrame = cf * CFrame.new(0, 0.4, 0),
+			Color = stone,
+			Material = Enum.Material.Slate,
+			Solid = true,
+		})
+		PartFactory.part(m, "WoodPole", {
+			Size = Vector3.new(0.65, 8.0, 0.65),
+			CFrame = cf * CFrame.new(0, 4.4, 0),
+			Color = wood,
+			Material = Enum.Material.Wood,
+			Solid = true,
+		})
+		PartFactory.part(m, "CrossBar", {
+			Size = Vector3.new(3.8, 0.45, 0.45),
+			CFrame = cf * CFrame.new(0, 7.9, 0.32),
+			Color = wood,
 			Material = Enum.Material.Wood,
 			Solid = false,
 		})
-
-		-- Túnica naranja y mangas
-		PartFactory.part(m, "Tunic", {
-			Size = Vector3.new(2.5, 3.2, 1.6),
-			CFrame = cf * CFrame.new(0, 3.9, 0),
-			Color = Color3.fromRGB(238, 134, 48),
+		PartFactory.ball(m, "GoldFinial", (cf * CFrame.new(0, 8.65, 0)).Position, 0.95, gold, Enum.Material.SmoothPlastic, false)
+		PartFactory.part(m, "BannerCloth", {
+			Size = Vector3.new(2.8, 4.6, 0.22),
+			CFrame = cf * CFrame.new(0, 5.4, 0.42),
+			Color = crimson,
+			Material = Enum.Material.Fabric,
+			Solid = false,
+		})
+		PartFactory.part(m, "GoldCrest", {
+			Size = Vector3.new(1.2, 1.6, 0.28),
+			CFrame = cf * CFrame.new(0, 5.7, 0.44),
+			Color = gold,
 			Material = Enum.Material.SmoothPlastic,
 			Solid = false,
 		})
-		PartFactory.part(m, "Sleeves", {
-			Size = Vector3.new(4.8, 0.95, 1.1),
-			CFrame = cf * CFrame.new(0, 4.85, 0) * CFrame.Angles(0, 0, math.rad(6)),
-			Color = Color3.fromRGB(238, 134, 48),
-			Material = Enum.Material.SmoothPlastic,
-			Solid = false,
-		})
-		-- Cinturón de cuerda blanca
-		PartFactory.part(m, "RopeBelt", {
-			Size = Vector3.new(2.65, 0.32, 1.75),
-			CFrame = cf * CFrame.new(0, 3.35, 0),
-			Color = Color3.fromRGB(245, 232, 212),
-			Material = Enum.Material.SmoothPlastic,
-			Solid = false,
-		})
-
-		-- Cabeza de calabaza luminosa + sombrero de paja
-		buildGlowingPumpkin((cf * CFrame.new(0, 5.4, 0)).Position, 1.15, yawDeg)
-		PartFactory.part(m, "HatBrim", {
-			Size = Vector3.new(4.2, 0.35, 4.2),
-			CFrame = cf * CFrame.new(0, 7.65, 0) * CFrame.Angles(math.rad(-8), 0, math.rad(5)),
-			Color = Color3.fromRGB(244, 178, 52),
-			Material = Enum.Material.SmoothPlastic,
-			Solid = false,
-		})
-		PartFactory.part(m, "HatBand", {
-			Size = Vector3.new(2.45, 0.38, 2.45),
-			CFrame = cf * CFrame.new(0, 7.95, 0) * CFrame.Angles(math.rad(-8), 0, math.rad(5)),
-			Color = Color3.fromRGB(142, 62, 168),
-			Material = Enum.Material.SmoothPlastic,
-			Solid = false,
-		})
-		PartFactory.part(m, "HatTop", {
-			Size = Vector3.new(2.1, 1.35, 2.1),
-			CFrame = cf * CFrame.new(0, 8.65, 0) * CFrame.Angles(math.rad(-8), 0, math.rad(5)),
-			Color = Color3.fromRGB(244, 178, 52),
-			Material = Enum.Material.SmoothPlastic,
-			Solid = false,
-		})
-
+		for _, sx in { -0.85, 0.85 } do
+			PartFactory.part(m, "BannerTail", {
+				Size = Vector3.new(1.1, 1.0, 0.22),
+				CFrame = cf * CFrame.new(sx, 2.6, 0.42),
+				Color = crimson,
+				Material = Enum.Material.Fabric,
+				Solid = false,
+			})
+		end
 		m.Parent = folder
 	end
 
@@ -594,10 +591,10 @@ local function buildForestDetails(parent: Instance)
 			StudWorld.buildBlockyTree(folder, pos, yaw, rng:NextNumber(0.9, 1.2))
 		end
 	end)
-	decor.scatter(4, 3, 9, 14, buildScarecrow)
-	decor.scatter(6, 2, 10, 7, buildPumpkinPatch)
+	decor.scatter(4, 3, 9, 14, buildMedievalBanner)
+	decor.scatter(6, 2, 10, 7, buildSupplyCamp)
 	decor.scatter(10, 2, 12, 6, function(pos, yaw)
-		buildGlowingPumpkin(pos, rng:NextNumber(0.9, 1.2), yaw)
+		buildTorchPost(pos, rng:NextNumber(0.9, 1.2), yaw)
 	end)
 	decor.scatter(16, 2, math.huge, 4, function(pos)
 		buildMushroom(pos, rng:NextNumber() < 0.5)
@@ -605,6 +602,31 @@ local function buildForestDetails(parent: Instance)
 	decor.scatter(50, 1.5, math.huge, 3, function(pos)
 		buildGrassTuft(pos, rng:NextNumber() < 0.45)
 	end)
+
+	-- Antorchas medievales y estandartes flanqueando la avenida central y transición de cristal hacia el Valle
+	local top = StudWorld.FloorTop
+	for _, z in { 46, 102 } do
+		for _, side in { -1, 1 } do
+			buildTorchPost(Vector3.new(side * 16.5, top, z), 1.05, if side < 0 then 90 else -90)
+		end
+	end
+	for _, side in { -1, 1 } do
+		buildMedievalBanner(Vector3.new(side * 16.5, top, 22), if side < 0 then 90 else -90)
+		-- Brotes de amatista junto al paso sur (Z = 148) que suavizan la transición hacia el Valle Morado
+		local transPos = Vector3.new(side * 15, top, 148)
+		for idx, spec in {
+			{ Offset = Vector3.new(0, 1.8, 0), Size = Vector3.new(1.3, 3.6, 1.3), Tilt = CFrame.Angles(math.rad(10), math.rad(35), math.rad(-side * 12)), Color = Color3.fromRGB(178, 104, 255) },
+			{ Offset = Vector3.new(side * 1.4, 1.1, 0.8), Size = Vector3.new(0.9, 2.2, 0.9), Tilt = CFrame.Angles(math.rad(-14), math.rad(15), math.rad(side * 20)), Color = Color3.fromRGB(84, 196, 255) },
+		} do
+			PartFactory.part(folder, "ValleyTransitionCrystal" .. idx, {
+				Size = spec.Size,
+				CFrame = CFrame.new(transPos + spec.Offset) * spec.Tilt,
+				Color = spec.Color,
+				Material = Enum.Material.Neon,
+				Solid = false,
+			})
+		end
+	end
 
 	-- Fuera lo que pise el camino de la cueva (con 3 studs de margen)
 	if road then

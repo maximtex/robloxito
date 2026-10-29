@@ -59,6 +59,7 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 35,
 			RespawnSeconds = 4,
+			Trait = { Kind = "BrambleSlow", SlowFactor = 0.85, Duration = 1.0 },
 			-- Modelo 3D: arbolito.glb (Server.Util.ModelosZona1)
 			Look = { Style = "Arbolito", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(127, 209, 59), Eyes = Color3.fromRGB(255, 243, 160) },
 		},
@@ -75,6 +76,7 @@ local EnemyConfig = {
 			LeashRange = 20,
 			Reward = 140,
 			RespawnSeconds = 6,
+			Trait = { Kind = "BrambleSlow", SlowFactor = 0.78, Duration = 1.4 },
 			-- Modelo 3D: arbol_guardian.glb (Server.Util.ModelosZona1)
 			Look = { Style = "ArbolGuardian", Primary = Color3.fromRGB(110, 68, 38), Secondary = Color3.fromRGB(127, 209, 59), Eyes = Color3.fromRGB(255, 243, 160) },
 		},
@@ -92,10 +94,11 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 35,
 			RespawnSeconds = 4,
+			Trait = { Kind = "BrambleSlow", SlowFactor = 0.85, Duration = 1.0 },
 			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
 			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
 			Ranged = { Range = 24, Keep = 12, Damage = 5, Cooldown = 2.8, Windup = 0.75, Speed = 32, Radius = 2, Size = 1.1 },
-			Look = { Style = "Caster", Primary = Color3.fromRGB(96, 70, 44), Secondary = Color3.fromRGB(150, 255, 80), Eyes = Color3.fromRGB(190, 255, 120) },
+			Look = { Style = "Caster", Theme = "Forest", Primary = Color3.fromRGB(96, 70, 44), Secondary = Color3.fromRGB(150, 255, 80), Eyes = Color3.fromRGB(190, 255, 120) },
 		},
 		ForestWarden = {
 			DisplayName = "Guardián del Bosque",
@@ -140,6 +143,7 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 110,
 			RespawnSeconds = 4,
+			Trait = { Kind = "CrystalWard", ShieldReduction = 0.45 },
 			Look = { Style = "Shard", Primary = Color3.fromRGB(150, 110, 240), Secondary = Color3.fromRGB(110, 226, 255), Eyes = Color3.fromRGB(34, 22, 48) },
 		},
 		GeodeGolem = {
@@ -155,6 +159,7 @@ local EnemyConfig = {
 			LeashRange = 20,
 			Reward = 450,
 			RespawnSeconds = 6,
+			Trait = { Kind = "CrystalWard", ShieldReduction = 0.50 },
 			Look = { Style = "Golem", Primary = Color3.fromRGB(98, 102, 126), Secondary = Color3.fromRGB(96, 220, 210), Eyes = Color3.fromRGB(110, 170, 255) },
 		},
 		-- Lanzador del Valle (oleadas): dispara esquirlas de cristal
@@ -171,10 +176,11 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 110,
 			RespawnSeconds = 4,
+			Trait = { Kind = "CrystalWard", ShieldReduction = 0.40 },
 			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
 			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
 			Ranged = { Range = 26, Keep = 12, Damage = 9, Cooldown = 2.6, Windup = 0.7, Speed = 36, Radius = 2, Size = 1.1 },
-			Look = { Style = "Caster", Primary = Color3.fromRGB(92, 62, 150), Secondary = Color3.fromRGB(110, 226, 255), Eyes = Color3.fromRGB(230, 200, 255) },
+			Look = { Style = "Caster", Theme = "Crystal", Primary = Color3.fromRGB(92, 62, 150), Secondary = Color3.fromRGB(110, 226, 255), Eyes = Color3.fromRGB(230, 200, 255) },
 		},
 		AmethystColossus = {
 			DisplayName = "Coloso de Amatista",
@@ -216,7 +222,8 @@ local EnemyConfig = {
 			LeashRange = 18,
 			Reward = 320,
 			RespawnSeconds = 4,
-			Look = { Style = "Shard", Primary = Color3.fromRGB(255, 128, 44), Secondary = Color3.fromRGB(255, 230, 96), Eyes = Color3.fromRGB(44, 20, 20) },
+			Trait = { Kind = "EmberPool", Radius = 4.0, Duration = 2.4, TickDamage = 5 },
+			Look = { Style = "FlameImp", Primary = Color3.fromRGB(214, 72, 32), Secondary = Color3.fromRGB(255, 210, 68), Eyes = Color3.fromRGB(44, 20, 20) },
 		},
 		MagmaGolem = {
 			DisplayName = "Gólem de Magma",
@@ -231,7 +238,8 @@ local EnemyConfig = {
 			LeashRange = 20,
 			Reward = 1300,
 			RespawnSeconds = 6,
-			Look = { Style = "Golem", Primary = Color3.fromRGB(74, 60, 58), Secondary = Color3.fromRGB(255, 118, 36), Eyes = Color3.fromRGB(255, 200, 90) },
+			Trait = { Kind = "EmberPool", Radius = 5.4, Duration = 3.0, TickDamage = 9 },
+			Look = { Style = "MagmaBrute", Material = "Basalt", Primary = Color3.fromRGB(74, 54, 48), Secondary = Color3.fromRGB(255, 118, 36), Eyes = Color3.fromRGB(255, 200, 90) },
 		},
 		-- Lanzador de la Caldera (oleadas): bolas de fuego
 		EmberCaster = {
@@ -247,10 +255,11 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 320,
 			RespawnSeconds = 4,
+			Trait = { Kind = "EmberPool", Radius = 3.8, Duration = 2.2, TickDamage = 5 },
 			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
 			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
 			Ranged = { Range = 26, Keep = 12, Damage = 12, Cooldown = 2.4, Windup = 0.65, Speed = 40, Radius = 2.2, Size = 1.3 },
-			Look = { Style = "Caster", Primary = Color3.fromRGB(120, 36, 28), Secondary = Color3.fromRGB(255, 150, 40), Eyes = Color3.fromRGB(255, 220, 120) },
+			Look = { Style = "Caster", Theme = "Ember", Primary = Color3.fromRGB(120, 36, 28), Secondary = Color3.fromRGB(255, 150, 40), Eyes = Color3.fromRGB(255, 220, 120) },
 		},
 		CalderaTitan = {
 			DisplayName = "Titán de la Caldera",
@@ -276,7 +285,7 @@ local EnemyConfig = {
 			Enrage = { HealthFraction = 0.5, SpeedMultiplier = 1.3, SlamIntervalMultiplier = 0.65 },
 			-- Peligro de su arena (BossAttacks): erupciones de lava, avisado en el suelo cerca de cada jugador
 			Hazard = { Style = "Lava", Interval = 7, Telegraph = 1.3, Radius = 6, Damage = 20, Count = 3, Color = Color3.fromRGB(255, 110, 30) },
-			Look = { Style = "Colossus", Primary = Color3.fromRGB(64, 52, 52), Secondary = Color3.fromRGB(255, 118, 36), Eyes = Color3.fromRGB(255, 232, 150) },
+			Look = { Style = "VolcanoTitan", Material = "Basalt", Primary = Color3.fromRGB(64, 48, 46), Secondary = Color3.fromRGB(255, 118, 36), Eyes = Color3.fromRGB(255, 232, 150) },
 		},
 
 		-- Tundra Helada -------------------------------------------------------------------
@@ -293,6 +302,7 @@ local EnemyConfig = {
 			LeashRange = 20,
 			Reward = 1000,
 			RespawnSeconds = 4,
+			Trait = { Kind = "FrostChill", SlowFactor = 0.78, Duration = 1.5 },
 			Look = { Style = "Wolf", Primary = Color3.fromRGB(226, 236, 248), Secondary = Color3.fromRGB(120, 190, 255), Eyes = Color3.fromRGB(70, 200, 255) },
 		},
 		Yeti = {
@@ -308,6 +318,7 @@ local EnemyConfig = {
 			LeashRange = 20,
 			Reward = 4000,
 			RespawnSeconds = 6,
+			Trait = { Kind = "FrostChill", SlowFactor = 0.72, Duration = 1.8 },
 			Look = { Style = "Yeti", Primary = Color3.fromRGB(240, 246, 255), Secondary = Color3.fromRGB(110, 150, 200), Eyes = Color3.fromRGB(70, 170, 255) },
 		},
 		-- Lanzador de la Tundra (oleadas): carámbanos
@@ -324,10 +335,11 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 1000,
 			RespawnSeconds = 4,
+			Trait = { Kind = "FrostChill", SlowFactor = 0.78, Duration = 1.5 },
 			-- A distancia (EnemyService.Ai): se para a Range, dispara cada Cooldown (avisado Windup s)
 			-- y si te acercas mientras recarga retrocede hasta Keep. La bola va a donde estabas.
 			Ranged = { Range = 28, Keep = 14, Damage = 14, Cooldown = 2.4, Windup = 0.65, Speed = 44, Radius = 2.2, Size = 1.3 },
-			Look = { Style = "Caster", Primary = Color3.fromRGB(70, 110, 170), Secondary = Color3.fromRGB(170, 235, 255), Eyes = Color3.fromRGB(200, 245, 255) },
+			Look = { Style = "Caster", Theme = "Frost", Primary = Color3.fromRGB(70, 110, 170), Secondary = Color3.fromRGB(170, 235, 255), Eyes = Color3.fromRGB(200, 245, 255) },
 		},
 		IceGolem = {
 			DisplayName = "Gólem de Hielo",
@@ -369,6 +381,7 @@ local EnemyConfig = {
 			LeashRange = 24,
 			Reward = 3200,
 			RespawnSeconds = 4,
+			Trait = { Kind = "BattleFrenzy", HealthFraction = 0.45, SpeedMultiplier = 1.25 },
 			Look = { Style = "Goblin", Primary = Color3.fromRGB(116, 186, 72), Secondary = Color3.fromRGB(122, 86, 52), Eyes = Color3.fromRGB(255, 214, 60) },
 		},
 		GoblinBrute = {
@@ -384,6 +397,7 @@ local EnemyConfig = {
 			LeashRange = 24,
 			Reward = 12000,
 			RespawnSeconds = 7,
+			Trait = { Kind = "BattleFrenzy", HealthFraction = 0.50, SpeedMultiplier = 1.30 },
 			Look = { Style = "GoblinBrute", Primary = Color3.fromRGB(96, 152, 62), Secondary = Color3.fromRGB(120, 124, 136), Eyes = Color3.fromRGB(255, 120, 60) },
 		},
 		-- Rey Goblin (jefe final del Mundo 1): enorme, SUPER rápido (corre más que tú) y duro.
@@ -431,7 +445,8 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 8000,
 			RespawnSeconds = 4,
-			Look = { Style = "Shard", Primary = Color3.fromRGB(255, 112, 36), Secondary = Color3.fromRGB(255, 220, 90), Eyes = Color3.fromRGB(120, 20, 10) },
+			Trait = { Kind = "EmberPool", Radius = 4.5, Duration = 2.6, TickDamage = 12 },
+			Look = { Style = "FlameImp", Primary = Color3.fromRGB(255, 112, 36), Secondary = Color3.fromRGB(255, 220, 90), Eyes = Color3.fromRGB(120, 20, 10) },
 		},
 		FrostWisp = {
 			DisplayName = "Espíritu de Escarcha",
@@ -446,6 +461,7 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 8000,
 			RespawnSeconds = 4,
+			Trait = { Kind = "FrostChill", SlowFactor = 0.76, Duration = 1.6 },
 			-- Lanza esquirlas de hielo a distancia (EnemyService.Ai; los de fuego siguen cuerpo a cuerpo)
 			Ranged = { Range = 26, Keep = 12, Damage = 20, Cooldown = 2.2, Windup = 0.6, Speed = 46, Radius = 2.2, Size = 1.3 },
 			Look = { Style = "Shard", Primary = Color3.fromRGB(110, 200, 255), Secondary = Color3.fromRGB(235, 250, 255), Eyes = Color3.fromRGB(20, 60, 140) },
@@ -463,7 +479,8 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 26000,
 			RespawnSeconds = 6,
-			Look = { Style = "Golem", Material = "Basalt", Primary = Color3.fromRGB(78, 52, 46), Secondary = Color3.fromRGB(255, 120, 30), Eyes = Color3.fromRGB(255, 214, 90) },
+			Trait = { Kind = "EmberPool", Radius = 5.8, Duration = 3.0, TickDamage = 16 },
+			Look = { Style = "MagmaBrute", Material = "Basalt", Primary = Color3.fromRGB(78, 52, 46), Secondary = Color3.fromRGB(255, 120, 30), Eyes = Color3.fromRGB(255, 214, 90) },
 		},
 		FrostBrute = {
 			DisplayName = "Bruto de Escarcha",
@@ -478,6 +495,7 @@ local EnemyConfig = {
 			LeashRange = 22,
 			Reward = 26000,
 			RespawnSeconds = 6,
+			Trait = { Kind = "FrostChill", SlowFactor = 0.72, Duration = 1.8 },
 			Look = { Style = "Golem", Material = "Glacier", Primary = Color3.fromRGB(176, 214, 242), Secondary = Color3.fromRGB(90, 200, 255), Eyes = Color3.fromRGB(230, 250, 255) },
 		},
 		-- Coloso del Equilibrio (jefe de las Tierras Divididas): gigante mitad fuego y mitad hielo
@@ -542,7 +560,7 @@ local EnemyConfig = {
 			-- Peligro de su arena (BossAttacks): erupciones de lava, avisado en el suelo cerca de cada jugador
 			Hazard = { Style = "Lava", Interval = 7.5, Telegraph = 1.2, Radius = 6, Damage = 22, Count = 2, Color = Color3.fromRGB(255, 110, 30) },
 			Scale = 1.2,
-			Look = { Style = "Colossus", Material = "CrackedLava", Primary = Color3.fromRGB(150, 46, 26), Secondary = Color3.fromRGB(255, 140, 40), Eyes = Color3.fromRGB(255, 236, 160) },
+			Look = { Style = "VolcanoTitan", Material = "CrackedLava", Primary = Color3.fromRGB(150, 46, 26), Secondary = Color3.fromRGB(255, 140, 40), Eyes = Color3.fromRGB(255, 236, 160) },
 		},
 		GlaciusColossus = {
 			DisplayName = "Glacius, el Coloso de Hielo",

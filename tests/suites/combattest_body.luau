@@ -173,4 +173,22 @@ check("como mucho Max × su velocidad", math.abs(EnemyLogic.pursuitBoost(60, pur
 check("y nunca más rápido que CatchUp × tu velocidad", EnemyLogic.pursuitBoost(60, pursuit, 10, 16) * 10 <= 16 * pursuit.CatchUp + 1e-9)
 check("si ya es más rápido que tú, no acelera", EnemyLogic.pursuitBoost(60, pursuit, 30, 16) == 1)
 check("sin datos raros", EnemyLogic.pursuitBoost(0 / 0, pursuit, 10, 16) == 1 and EnemyLogic.pursuitBoost(5, nil, 10, 16) == 1)
+
+print("-- Identidad visual y mecánicas por zona")
+local types = EnemyConfig.Types
+check("Caldera tiene modelos distintos a los del Valle (FlameImp, MagmaBrute, VolcanoTitan)",
+	types.Cinderling.Look.Style ~= types.Shardling.Look.Style
+	and types.MagmaGolem.Look.Style ~= types.GeodeGolem.Look.Style
+	and types.CalderaTitan.Look.Style ~= types.AmethystColossus.Look.Style)
+check("los lanzadores de cada zona tienen su propio tema visual",
+	types.ThornCaster.Look.Theme == "Forest"
+	and types.CrystalCaster.Look.Theme == "Crystal"
+	and types.EmberCaster.Look.Theme == "Ember"
+	and types.FrostCaster.Look.Theme == "Frost")
+check("los enemigos de cada zona tienen mecánicas propias (Trait)",
+	types.Barkbrute.Trait and types.Barkbrute.Trait.Kind == "BrambleSlow"
+	and types.Shardling.Trait and types.Shardling.Trait.Kind == "CrystalWard"
+	and types.Cinderling.Trait and types.Cinderling.Trait.Kind == "EmberPool"
+	and types.FrostWolf.Trait and types.FrostWolf.Trait.Kind == "FrostChill"
+	and types.Goblin.Trait and types.Goblin.Trait.Kind == "BattleFrenzy")
 print(failures == 0 and "TODO OK" or (failures .. " FALLOS"))

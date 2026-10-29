@@ -345,6 +345,92 @@ function BUILDERS.Caster(rig: Rig, look)
 	-- Bastón con la bola de luz (va con el brazo derecho: grupo Arm)
 	limb(rig, "Hand1", Vector3.new(1.3, 0.4, -0.6), Vector3.new(1.3, 4.4, -0.6), 0.22, WOOD_DARK, Enum.Material.Wood)
 	orb(rig, "Hand1", 0.95, Vector3.new(1.3, 4.75, -0.6), glow, Enum.Material.Neon)
+	-- Detalle único por bioma para que los lanzadores de cada zona tengan silueta propia
+	local theme = look.Theme
+	if theme == "Forest" then
+		for side = -1, 1, 2 do
+			limb(rig, "Antler" .. side, Vector3.new(side * 0.55, 4.7, -0.1), Vector3.new(side * 1.15, 5.65, -0.2), 0.22, WOOD_DARK, Enum.Material.Wood)
+		end
+	elseif theme == "Crystal" then
+		for side = -1, 1, 2 do
+			crystalSpike(rig, "CrystalHalo" .. side, Vector3.new(0.45, 1.3, 0.45), Vector3.new(side * 0.95, 5.1, 0), Vector3.new(0, 0, math.rad(-side * 24)), glow)
+		end
+	elseif theme == "Ember" then
+		box(rig, "FlameCrest", Vector3.new(0.5, 1.3, 0.9), CFrame.new(0, 5.5, 0) * CFrame.Angles(math.rad(-14), 0, 0), glow, Enum.Material.Neon)
+	elseif theme == "Frost" then
+		for side = -1, 1, 2 do
+			box(rig, "IceMantle" .. side, Vector3.new(0.65, 1.1, 0.65), CFrame.new(side * 1.15, 3.6, 0.1) * CFrame.Angles(0, math.rad(45), math.rad(-side * 18)), glow, Enum.Material.Ice)
+		end
+	end
+end
+
+-- Diablillo de Brasa (Caldera y Volcán): diablillo volcánico bípedo con cuernos curvados,
+-- cresta de fuego, cola encendida y garras (distinto del Fragmento de Cristal del Valle).
+function BUILDERS.FlameImp(rig: Rig, look)
+	local bodyMat = bodyMaterial(look)
+	local dark = darker(look.Primary, 0.25)
+	box(rig, "Torso", Vector3.new(2.0, 2.2, 1.6), CFrame.new(0, 2.4, 0) * CFrame.Angles(math.rad(8), 0, 0), look.Primary, bodyMat)
+	orb(rig, "Core", 1.1, Vector3.new(0, 2.45, -0.55), look.Secondary, Enum.Material.Neon)
+	box(rig, "Head", Vector3.new(1.7, 1.5, 1.6), CFrame.new(0, 4.0, -0.15), look.Primary, bodyMat)
+	box(rig, "FlameCrest", Vector3.new(0.45, 1.1, 1.0), CFrame.new(0, 5.05, 0) * CFrame.Angles(math.rad(-18), 0, 0), look.Secondary, Enum.Material.Neon)
+	-- Cola de diablillo con punta de brasa
+	limb(rig, "Tail", Vector3.new(0, 1.6, 0.7), Vector3.new(0, 2.5, 2.0), 0.35, dark, bodyMat)
+	orb(rig, "TailTip", 0.65, Vector3.new(0, 2.6, 2.1), look.Secondary, Enum.Material.Neon)
+	cartoonEyes(rig, Vector3.new(0, 4.1, -0.82), 0.42, 0.62, look)
+	for side = -1, 1, 2 do
+		limb(rig, "Horn" .. side, Vector3.new(side * 0.55, 4.55, -0.1), Vector3.new(side * 1.15, 5.45, 0.25), 0.32, dark, bodyMat)
+		limb(rig, "Arm" .. side, Vector3.new(side * 1.15, 3.1, 0), Vector3.new(side * 1.55, 1.9, -0.55), 0.48, look.Primary, bodyMat)
+		orb(rig, "Fist" .. side, 0.68, Vector3.new(side * 1.55, 1.85, -0.55), look.Secondary, Enum.Material.Neon)
+		box(rig, "Leg" .. side, Vector3.new(0.65, 1.3, 0.75), CFrame.new(side * 0.55, 0.65, 0), dark, bodyMat)
+	end
+end
+
+-- Bruto de Magma (Caldera y Volcán): demonio acorazado de basalto con cuernos de toro,
+-- chimeneas volcánicas en los hombros y mazo de lava incandescente en la mano derecha.
+function BUILDERS.MagmaBrute(rig: Rig, look)
+	local bodyMat = bodyMaterial(look)
+	local dark = darker(look.Primary, 0.22)
+	box(rig, "Torso", Vector3.new(3.8, 3.8, 2.8), CFrame.new(0, 3.9, 0), look.Primary, bodyMat)
+	box(rig, "Belt", Vector3.new(4.0, 0.6, 3.0), CFrame.new(0, 2.2, 0), dark, Enum.Material.Metal)
+	orb(rig, "Core", 1.7, Vector3.new(0, 4.0, -1.05), look.Secondary, Enum.Material.Neon)
+	box(rig, "Head", Vector3.new(2.2, 1.8, 2.0), CFrame.new(0, 6.4, -0.35), dark, bodyMat)
+	box(rig, "Jaw", Vector3.new(2.0, 0.6, 1.8), CFrame.new(0, 5.55, -0.55), look.Primary, bodyMat)
+	for side = -1, 1, 2 do
+		eye(rig, "Eye" .. side, 0.38, Vector3.new(side * 0.55, 6.5, -1.38), look.Eyes)
+		limb(rig, "Horn" .. side, Vector3.new(side * 0.95, 6.9, -0.2), Vector3.new(side * 2.1, 7.8, -0.7), 0.48, look.Secondary, Enum.Material.Neon)
+		box(rig, "Shoulder" .. side, Vector3.new(1.8, 1.6, 1.8), CFrame.new(side * 2.5, 5.4, 0) * CFrame.Angles(0, 0, math.rad(-side * 14)), dark, bodyMat)
+		orb(rig, "Vent" .. side, 0.9, Vector3.new(side * 2.5, 6.2, 0), look.Secondary, Enum.Material.Neon)
+		limb(rig, "Arm" .. side, Vector3.new(side * 2.5, 5.0, 0), Vector3.new(side * 2.8, 2.3, -0.6), 1.15, look.Primary, bodyMat)
+		box(rig, "Fist" .. side, Vector3.new(1.6, 1.6, 1.6), CFrame.new(side * 2.8, 1.9, -0.6), dark, bodyMat)
+		box(rig, "Leg" .. side, Vector3.new(1.3, 2.0, 1.4), CFrame.new(side * 1.0, 1.0, 0), dark, bodyMat)
+	end
+	-- Mazo volcánico en la mano derecha
+	limb(rig, "Hand1", Vector3.new(2.8, 1.9, -0.6), Vector3.new(2.9, 4.8, -2.5), 0.45, dark, Enum.Material.Metal)
+	box(rig, "Hand1", Vector3.new(1.8, 1.8, 2.4), CFrame.new(2.9, 5.1, -2.7), look.Secondary, Enum.Material.Neon)
+end
+
+-- Titán Volcánico (jefe de la Caldera e Ignis): señor del volcán con grandes cuernos de
+-- obsidiana, espinas dorsales de magma y guanteletes ardientes.
+function BUILDERS.VolcanoTitan(rig: Rig, look)
+	local bodyMat = bodyMaterial(look)
+	local dark = darker(look.Primary, 0.25)
+	box(rig, "Torso", Vector3.new(7.4, 8.2, 5.2), CFrame.new(0, 8.0, 0), look.Primary, bodyMat)
+	box(rig, "ChestPlate", Vector3.new(6.2, 3.4, 5.5), CFrame.new(0, 9.6, 0), dark, bodyMat)
+	orb(rig, "Core", 2.8, Vector3.new(0, 8.6, -2.1), look.Secondary, Enum.Material.Neon)
+	box(rig, "Head", Vector3.new(3.4, 2.8, 3.0), CFrame.new(0, 13.4, -0.5), dark, bodyMat)
+	box(rig, "FlameCrown", Vector3.new(2.6, 1.4, 1.2), CFrame.new(0, 15.1, -0.5), look.Secondary, Enum.Material.Neon)
+	for index = 1, 4 do
+		box(rig, "BackSpine" .. index, Vector3.new(1.1, 2.4, 1.4), CFrame.new(0, 5.5 + index * 1.6, 2.8) * CFrame.Angles(math.rad(-28), 0, 0), look.Secondary, Enum.Material.Neon)
+	end
+	for side = -1, 1, 2 do
+		eye(rig, "Eye" .. side, 0.65, Vector3.new(side * 0.85, 13.5, -2.02), look.Eyes)
+		limb(rig, "Horn" .. side, Vector3.new(side * 1.4, 14.2, -0.4), Vector3.new(side * 3.4, 16.4, -1.1), 0.85, look.Secondary, Enum.Material.Neon)
+		box(rig, "Shoulder" .. side, Vector3.new(3.4, 3.2, 3.4), CFrame.new(side * 4.8, 10.8, 0) * CFrame.Angles(0, 0, math.rad(-side * 16)), dark, bodyMat)
+		orb(rig, "ShoulderLava" .. side, 1.8, Vector3.new(side * 4.8, 12.3, 0), look.Secondary, Enum.Material.Neon)
+		limb(rig, "Arm" .. side, Vector3.new(side * 4.8, 10.4, 0), Vector3.new(side * 5.6, 4.4, -0.8), 2.1, look.Primary, bodyMat)
+		box(rig, "Fist" .. side, Vector3.new(3.2, 3.2, 3.2), CFrame.new(side * 5.6, 3.8, -0.8), look.Secondary, Enum.Material.Neon)
+		box(rig, "Leg" .. side, Vector3.new(2.4, 3.8, 2.4), CFrame.new(side * 1.7, 1.9, 0), dark, bodyMat)
+	end
 end
 
 -- Goblin Bruto: un goblin enorme con casco con cuernos, peto de hierro, colmillos y un garrote.
@@ -419,8 +505,11 @@ local SHAPES = {
 	Brute = { Root = Vector3.new(3, 3.4, 2.2), Hip = 1.6, Radius = 2, BarHeight = 7, Pivots = { Body = Vector3.new(0, 1.9, 0), Arm = Vector3.new(1.9, 4.9, 0), Leg = Vector3.new(0.8, 1.9, 0) } },
 	Treant = { Root = Vector3.new(5, 7, 4), Hip = 3, Radius = 4, BarHeight = 19, Pivots = { Body = Vector3.new(0, 3, 0), Arm = Vector3.new(2.3, 9, 0) } },
 	Shard = { Root = Vector3.new(2.6, 2.8, 2.6), Hip = 1.2, Radius = 1.7, BarHeight = 5.8, Pivots = { Body = Vector3.new(0, 2.6, 0), Leg = Vector3.new(0.55, 1.2, 0) } },
+	FlameImp = { Root = Vector3.new(2.4, 2.8, 2.4), Hip = 1.2, Radius = 1.7, BarHeight = 6.0, Pivots = { Body = Vector3.new(0, 1.3, 0), Arm = Vector3.new(1.15, 3.1, 0), Leg = Vector3.new(0.55, 1.3, 0) } },
 	Golem = { Root = Vector3.new(3.4, 3.6, 2.6), Hip = 1.8, Radius = 2.2, BarHeight = 8.2, Pivots = { Body = Vector3.new(0, 1.9, 0), Arm = Vector3.new(2.4, 5, 0), Leg = Vector3.new(0.9, 1.9, 0) } },
+	MagmaBrute = { Root = Vector3.new(3.6, 3.8, 2.8), Hip = 1.9, Radius = 2.3, BarHeight = 8.6, Pivots = { Body = Vector3.new(0, 2.0, 0), Arm = Vector3.new(2.5, 5.0, 0), Leg = Vector3.new(1.0, 2.0, 0) } },
 	Colossus = { Root = Vector3.new(6, 8, 4.5), Hip = 3.5, Radius = 4.5, BarHeight = 18, Pivots = { Body = Vector3.new(0, 3.8, 0), Arm = Vector3.new(4.6, 10.5, 0), Leg = Vector3.new(1.6, 3.8, 0) } },
+	VolcanoTitan = { Root = Vector3.new(6.2, 8.2, 4.6), Hip = 3.6, Radius = 4.6, BarHeight = 18.5, Pivots = { Body = Vector3.new(0, 3.8, 0), Arm = Vector3.new(4.8, 10.4, 0), Leg = Vector3.new(1.7, 3.8, 0) } },
 	-- Hind: pivote de las patas de atrás (cuadrúpedos; si no, el de Leg)
 	Wolf = { Root = Vector3.new(2.6, 2.4, 4), Hip = 1.4, Radius = 2, BarHeight = 5.8, Pivots = { Body = Vector3.new(0, 2.4, 0), Leg = Vector3.new(0.72, 2.1, -1.25), Hind = Vector3.new(0.72, 2.1, 1.45) } },
 	Yeti = { Root = Vector3.new(3.6, 4, 3), Hip = 2.2, Radius = 2.5, BarHeight = 10.6, Pivots = { Body = Vector3.new(0, 2.3, 0), Arm = Vector3.new(2.6, 5.9, 0), Leg = Vector3.new(1.05, 2.3, 0) } },

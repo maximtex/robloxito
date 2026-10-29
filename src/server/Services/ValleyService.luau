@@ -327,6 +327,38 @@ local function buildDecor(parent: Instance, decor)
 	decor.scatter(22, 2, math.huge, 6, function(pos, yaw)
 		buildCrystalCluster(folder, pos, yaw, crystals[rng:NextInteger(1, #crystals)])
 	end)
+	-- Faroles de cristal en la avenida y transición volcánica junto al portal sur hacia la Caldera
+	local top = StudWorld.FloorTop
+	for _, zOff in { -110, -45, 45, 105 } do
+		for _, side in { -1, 1 } do
+			local p = world(side * 16, top, zOff)
+			PartFactory.verticalCylinder(folder, "CrystalLanternPost", p + Vector3.new(0, 2.2, 0), 4.4, 0.9, PIZARRA, Enum.Material.Slate, true)
+			PartFactory.part(folder, "CrystalLanternGem", {
+				Size = Vector3.new(1.3, 2.2, 1.3),
+				CFrame = CFrame.new(p + Vector3.new(0, 5.2, 0)) * CFrame.Angles(math.rad(12), math.rad(45), 0),
+				Color = VIOLETA,
+				Material = Enum.Material.Neon,
+				Solid = false,
+			})
+		end
+	end
+	for _, side in { -1, 1 } do
+		local gatePos = world(side * 15, top, 145)
+		PartFactory.part(folder, "CalderaTransitionRock", {
+			Size = Vector3.new(3.2, 4.4, 2.8),
+			CFrame = CFrame.new(gatePos + Vector3.new(0, 2.2, 0)) * CFrame.Angles(math.rad(8), math.rad(side * 25), math.rad(-side * 10)),
+			Color = Color3.fromRGB(64, 48, 44),
+			Material = Enum.Material.Basalt,
+			Solid = true,
+		})
+		PartFactory.part(folder, "CalderaTransitionVein", {
+			Size = Vector3.new(0.7, 3.8, 0.7),
+			CFrame = CFrame.new(gatePos + Vector3.new(-side * 0.8, 2.4, -0.6)) * CFrame.Angles(math.rad(8), 0, math.rad(-side * 10)),
+			Color = Color3.fromRGB(255, 128, 36),
+			Material = Enum.Material.Neon,
+			Solid = false,
+		})
+	end
 end
 
 -- Sobre las terrazas: cristales en los escalones 3 y 4 y árboles de cristal en el 1 y el 2,

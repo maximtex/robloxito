@@ -161,6 +161,48 @@ local function onDeath(enemy: Enemy)
 	end
 
 	burst(position, enemy.Def.Look.Secondary, if isBoss then 60 else 20, true, enemy.Run)
+	-- Mecánica de zona (EmberPool en Caldera/Volcán): al morir deja un charco de brasa ardiente
+	local trait = enemy.Def.Trait
+	if trait and trait.Kind == "EmberPool" and ctx.placeFx then
+		local radius = trait.Radius or 4.0
+		local duration = trait.Duration or 2.4
+		local tickDamage = trait.TickDamage or 6
+		local groundY = position.Y - enemy.RootHeight + 0.12
+		local pool = Instance.new("Part")
+		pool.Name = "EmberPoolHazard"
+		pool.Shape = Enum.PartType.Cylinder
+		pool.Anchored = true
+		pool.CanCollide = false
+		pool.CanQuery = false
+		pool.CanTouch = false
+		pool.Material = Enum.Material.Neon
+		pool.Color = Color3.fromRGB(255, 112, 32)
+		pool.Transparency = 0.35
+		pool.Size = Vector3.new(0.22, radius * 2, radius * 2)
+		pool.CFrame = CFrame.new(position.X, groundY, position.Z) * CFrame.Angles(0, 0, math.rad(90))
+		ctx.placeFx(pool, enemy.Run)
+		Debris:AddItem(pool, duration + 0.1)
+		task.spawn(function()
+			local steps = math.max(1, math.floor(duration / 0.6))
+			for _ = 1, steps do
+				task.wait(0.6)
+				if not pool.Parent then
+					break
+				end
+				for _, p in Players:GetPlayers() do
+					local char = p.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					if root and hum and hum.Health > 0 and sameWorld(enemy, p) then
+						local dx, dz = root.Position.X - position.X, root.Position.Z - position.Z
+						if math.sqrt(dx * dx + dz * dz) <= radius and math.abs(root.Position.Y - groundY) < 8 then
+							hum:TakeDamage(tickDamage * (enemy.DamageMultiplier or 1))
+						end
+					end
+				end
+			end
+		end)
+	end
 	local killer = enemy.LastHitBy
 	enemy.LastHitBy = nil
 	local dissolve = enemy.DeathSeconds or DISSOLVE_SECONDS[enemy.Kind] or 0.8
@@ -215,6 +257,15 @@ function Api.damage(enemy: Enemy, player: Player, amount: number): (number, bool
 			end
 		end
 	end
+	-- Mecánica de zona (CrystalWard en el Valle Morado): coraza cristalina que amortigua el primer golpe recibido
+	if enemy.CrystalWardActive and type(amount) == "number" then
+		local trait = enemy.Def.Trait
+		local reduction = if trait and type(trait.ShieldReduction) == "number" then math.clamp(trait.ShieldReduction, 0, 0.8) else 0.45
+		amount = math.max(1, math.floor(amount * (1 - reduction)))
+		enemy.CrystalWardActive = false
+		enemy.Model:SetAttribute("CrystalWard", nil)
+		burst(enemy.Root.Position, Color3.fromRGB(140, 235, 255), 14, false, enemy.Run)
+	end
 	-- Jefe que se parte: ningún golpe lo baja de la vida del corte (ni lo mata de golpe)
 	local splitFloor = if enemy.OnSplit and enemy.SplitAt then math.max(1, math.floor(enemy.Status.MaxHealth * enemy.SplitAt)) else nil
 	if splitFloor and type(amount) == "number" then
@@ -256,6 +307,13 @@ function Api.damage(enemy: Enemy, player: Player, amount: number): (number, bool
 	if enrage and not enemy.Enraged and enemy.Status.Health <= enemy.Status.MaxHealth * enrage.HealthFraction then
 		setEnraged(enemy, true) -- más rápido (refreshSpeed)
 		burst(enemy.Root.Position, ENRAGED_EYES, 40, false, enemy.Run)
+	end
+	-- Mecánica de zona (BattleFrenzy en Fortaleza Goblin): acelera al bajar de cierta vida
+	local trait = enemy.Def.Trait
+	if trait and trait.Kind == "BattleFrenzy" and not enemy.FrenzyActive and enemy.Status.Health <= enemy.Status.MaxHealth * (trait.HealthFraction or 0.45) then
+		enemy.FrenzyActive = true
+		refreshSpeed(enemy, os.clock())
+		burst(enemy.Root.Position, Color3.fromRGB(255, 110, 48), 16, false, enemy.Run)
 	end
 	-- Quien le golpea se convierte en su objetivo si no tenía uno
 	if enemy.Target == nil then
@@ -382,6 +440,18 @@ local function damagePlayer(enemy: Enemy, player: Player, humanoid: Humanoid, am
 		end
 	end
 	humanoid:TakeDamage(final) -- respeta el escudo de aparición
+	-- Mecánicas de impacto según el bioma (espinas del Bosque o escarcha de la Tundra)
+	local trait = enemy.Def.Trait
+	if trait and ctx.slowPlayer and final > 0 then
+		if trait.Kind == "BrambleSlow" or trait.Kind == "FrostChill" then
+			ctx.slowPlayer(humanoid, trait.SlowFactor or 0.8, trait.Duration or 1.4)
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root then
+				local fxColor = if trait.Kind == "FrostChill" then Color3.fromRGB(150, 225, 255) else Color3.fromRGB(130, 220, 75)
+				burst(root.Position, fxColor, 8, false, enemy.Run)
+			end
+		end
+	end
 end
 
 -- Enemigos vivos dentro de un radio (borde incluido), sin repetidos y como mucho `maxTargets`.

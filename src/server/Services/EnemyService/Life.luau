@@ -102,11 +102,14 @@ local function restingEyes(enemy: Enemy): Color3
 	return if enemy.Enraged then ENRAGED_EYES else enemy.EyeColor
 end
 
--- Velocidad al andar: la base (con furia) y los estados de control. Solo escribe si cambia.
+-- Velocidad al andar: la base (con furia o frenesí de zona) y los estados de control. Solo escribe si cambia.
 local function refreshSpeed(enemy: Enemy, now: number)
 	local base = enemy.Def.WalkSpeed
 	if enemy.Enraged and enemy.Def.Enrage then
 		base *= enemy.Def.Enrage.SpeedMultiplier
+	end
+	if enemy.FrenzyActive and enemy.Def.Trait and enemy.Def.Trait.Kind == "BattleFrenzy" then
+		base *= (enemy.Def.Trait.SpeedMultiplier or 1.25)
 	end
 	-- Jefes persiguiendo a quien huye (EnemyConfig.Pursuit; BossAttacks.updateBoss)
 	base *= enemy.SpeedBoost or 1
@@ -194,6 +197,10 @@ local function respawn(enemy: Enemy)
 	EnemyLogic.reset(enemy.Status)
 	enemy.Target = nil
 	clearControl(enemy)
+	enemy.FrenzyActive = false
+	local trait = enemy.Def.Trait
+	enemy.CrystalWardActive = trait ~= nil and trait.Kind == "CrystalWard"
+	enemy.Model:SetAttribute("CrystalWard", enemy.CrystalWardActive or nil)
 	setEnraged(enemy, false) -- también restablece la velocidad
 	enemy.StuckSince = nil
 	enemy.LastHomeDistance = math.huge

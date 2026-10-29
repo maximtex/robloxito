@@ -37,6 +37,8 @@ local ZoneConfig = {
 			UnlockCost = 0, -- siempre disponible
 			Arrival = Vector3.new(0, 0, 125),
 			ArrivalFacing = Vector3.new(0, 0, -1),
+			-- Viaje rápido (🗺️ Viajar): al pueblo se llega junto al spawn, no a la puerta del sur
+			TravelArrival = Vector3.new(0, 0, 52),
 			Radius = 160,
 		},
 		-- Zona 1: la primera de pelea, gratis, pegada tras el pueblo (Z = 160..480, centro en
@@ -175,6 +177,18 @@ local ZoneConfig = {
 	-- (Server.Util.PortalBuilder) y Style su aspecto. Radius: lo cerca que hay que pasar de
 	-- su centro para cruzarlo.
 	WorldPortals = {
+		-- Portal del spawn: junto a la avenida, entre ella y el Jardín de los Huevos (donde lo
+		-- pidió Santiago), en diagonal: mira a la avenida y al spawn. Lleva directo a la llegada del Bosque de Espinas.
+		SpawnPortal = {
+			Zone = "Forest",
+			Offset = Vector2.new(18, 100),
+			Facing = Vector3.new(-0.7071, 0, -0.7071), -- en diagonal, mirando a la avenida y al spawn
+			Target = "ThornWoods",
+			Title = "🌲 BOSQUE DE ESPINAS",
+			Style = "Return",
+			Scale = 2.6,
+			Radius = 5,
+		},
 		World2Portal = {
 			Zone = "GoblinFortress",
 			Offset = Vector2.new(0, 124),
@@ -198,6 +212,12 @@ local ZoneConfig = {
 			Radius = 6,
 		},
 	},
+
+	-- 🗺️ Viajar (TravelController / ZoneService.fastTravel): las zonas del Mundo 1, en orden, y
+	-- los segundos entre dos viajes. Solo a zonas abiertas y fuera de una partida de oleadas (al
+	-- Mundo 2 se va por su portal gigante).
+	TravelOrder = { "Forest", "ThornWoods", "CrystalValley", "EmberCaldera", "FrozenTundra", "GoblinFortress" },
+	FastTravelCooldown = 5,
 
 	PortalScale = 3.2,
 	PortalRadius = 15.5,

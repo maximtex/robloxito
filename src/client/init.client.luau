@@ -71,6 +71,7 @@ local ChestController = require(script.Controllers.ChestController)
 local LeaderboardController = require(script.Controllers.LeaderboardController)
 local SettingsController = require(script.Controllers.SettingsController)
 local QuickPotionController = require(script.Controllers.QuickPotionController)
+local TravelController = require(script.Controllers.TravelController)
 
 EggShrineAnimator.start() -- los huevos de los santuarios flotan y giran
 PetFollower.start()
@@ -100,6 +101,7 @@ task.spawn(ShopController.start) -- pases y compras de energía (💎 Tienda)
 task.spawn(InventoryController.start) -- 🎒 Inventario: armas, huevos, pociones y títulos (I)
 task.spawn(SettingsController.start) -- ⚙️ Ajustes: tamaño de la interfaz (se guarda)
 task.spawn(QuickPotionController.start) -- ❤️ Poción de Vida rápida (tecla Y)
+task.spawn(TravelController.start) -- 🗺️ Viajar: a cualquier zona abierta (tecla O)
 WorldPromptController.start() -- avisos del pueblo que abren Tienda, Premios y Misiones
 DayNightController.start() -- ciclo de día y noche (misma hora para todos)
 AmbientController.start() -- pájaros, mariposas, luciérnagas y sonido del bosque

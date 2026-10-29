@@ -16,9 +16,14 @@
 -- StudioPasses = true: en Studio, el jugador tiene todos los pases de la tienda (Diamantes ×2,
 -- Mejora automática, Abrir ×3, Más mascotas, Disparo automático) sin comprarlos, para
 -- probarlos. Fuera de Studio se ignora. En el repositorio, false.
+--
+-- StudioAllZones = true: en Studio, 🗺️ Viajar te deja ir a TODAS las zonas del Mundo 1 aunque
+-- estén cerradas (para probarlas sin abrir cada puerta) y no te devuelve al pueblo al estar en
+-- una cerrada. Fuera de Studio se ignora: en el juego publicado solo a las abiertas.
 
 return {
 	TutorialSandbox = false,
 	SandboxStartingMoney = 15000,
 	StudioPasses = false,
+	StudioAllZones = true,
 }

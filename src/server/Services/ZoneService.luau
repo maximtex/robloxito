@@ -11,6 +11,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
@@ -27,6 +28,12 @@ local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local ZoneLogic = require(script.Parent.Parent.Util.ZoneLogic)
 local PortalBuilder = require(script.Parent.Parent.Util.PortalBuilder)
+local DevConfig = require(script.Parent.Parent.DevConfig)
+
+-- Solo en Studio (DevConfig.StudioAllZones): viajar a todas las zonas del Mundo 1 para probar
+local function devAllZones(): boolean
+	return DevConfig.StudioAllZones == true and RunService:IsStudio()
+end
 
 local Codes = Constants.PurchaseCodes
 local FOLDER_NAME = "ZonePortals"
@@ -39,6 +46,7 @@ local ZoneService = {}
 
 local unlockLimiter = RateLimiter.new(ZoneConfig.UnlockCooldown, 5, 6)
 local travelLimiter = RateLimiter.new(ZoneConfig.TravelCooldown, 6, 6)
+local fastLimiter = RateLimiter.new(ZoneConfig.FastTravelCooldown or 5, 20, 4)
 local traveling: { [Player]: boolean } = {}
 
 -- Posiciones ------------------------------------------------------------------
@@ -421,6 +429,52 @@ local function travel(player: Player, zoneId: any): string
 	return Codes.Success
 end
 
+-- Viaje rápido (🗺️ Viajar): a la llegada de cualquier zona abierta del Mundo 1 (ZoneConfig.TravelOrder), sin estar junto a un
+-- portal. No durante una partida de oleadas (atributo WaveRun). Al pueblo se llega junto al
+-- spawn (TravelArrival). Si cambia de mundo, se guarda para aparecer allí la próxima vez.
+function ZoneService.fastTravel(player: Player, zoneId: any): string
+	-- Solo las zonas de la lista (las del Mundo 1)
+	if not isValidId(zoneId) or not ZoneConfig.Zones[zoneId] or not table.find(ZoneConfig.TravelOrder, zoneId) then
+		return Codes.InvalidRequest
+	end
+	if traveling[player] then
+		return Codes.Busy
+	end
+	local profile = PlayerDataService.get(player)
+	if not (profile and PlayerDataService.isPetDataReady(profile)) then
+		return Codes.NotReady
+	end
+	local run = player:GetAttribute(Constants.Attributes.WaveRun)
+	if run ~= nil and run ~= 0 and run ~= "" then
+		return Codes.InWave
+	end
+	if not ZoneLogic.isUnlocked(profile, ZoneConfig, zoneId) and not devAllZones() then
+		return Codes.ZoneLocked
+	end
+	local zone = ZoneConfig.Zones[zoneId]
+	local destination = ZoneService.getArrivalCFrame(zoneId) :: CFrame
+	if zone.TravelArrival then
+		local center = ZoneService.getZoneCenter(zoneId) :: Vector3
+		local position = center + zone.TravelArrival
+		destination = CFrame.lookAt(position, position + (zone.ArrivalFacing or Vector3.new(0, 0, -1)))
+	end
+	traveling[player] = true
+	pcall(function()
+		player:RequestStreamAroundAsync(destination.Position, STREAM_TIMEOUT)
+	end)
+	if not placeCharacter(player, destination) then
+		traveling[player] = nil
+		return Codes.NotReady
+	end
+	player:SetAttribute(Constants.Attributes.CurrentZone, zoneId)
+	if profile.PetData.World ~= worldOf(zoneId) then
+		profile.PetData.World = worldOf(zoneId)
+		PlayerDataService.markDirty(player)
+	end
+	traveling[player] = nil
+	return Codes.Success
+end
+
 -- Guardia de zonas: devuelve al bosque a quien esté en una zona no desbloqueada.
 local function guardZones()
 	for _, player in Players:GetPlayers() do
@@ -431,6 +485,7 @@ local function guardZones()
 		local zoneId = ZoneService.zoneAt(root.Position) or ZoneConfig.DefaultZone
 		local profile = PlayerDataService.get(player)
 		local allowed = zoneId == ZoneConfig.DefaultZone
+			or (devAllZones() and table.find(ZoneConfig.TravelOrder, zoneId) ~= nil)
 			or (profile ~= nil and PlayerDataService.isPetDataReady(profile) and ZoneLogic.isUnlocked(profile, ZoneConfig, zoneId))
 		if not allowed then
 			local back = ZoneService.getArrivalCFrame(ZoneConfig.DefaultZone)
@@ -496,12 +551,28 @@ function ZoneService.start()
 		travelResult:FireClient(player, code == Codes.Success, code, safeZoneId)
 	end)
 
+	RemoteService.get(Constants.Remotes.FastTravel).OnServerEvent:Connect(function(player: Player, zoneId: any)
+		local rate = fastLimiter:check(player)
+		if rate == "flood" then
+			return
+		end
+		local safeZoneId = if isValidId(zoneId) then zoneId else nil
+		if rate == "cooldown" then
+			travelResult:FireClient(player, false, Codes.TooFast, safeZoneId, true)
+			return
+		end
+		local code = ZoneService.fastTravel(player, zoneId)
+		travelResult:FireClient(player, code == Codes.Success, code, safeZoneId, true)
+	end)
+
 	Players.PlayerAdded:Connect(function(player)
 		player:SetAttribute(Constants.Attributes.CurrentZone, ZoneConfig.DefaultZone)
+		player:SetAttribute(Constants.Attributes.DevAllZones, if devAllZones() then true else nil)
 		watchSpawns(player)
 	end)
 	for _, player in Players:GetPlayers() do
 		player:SetAttribute(Constants.Attributes.CurrentZone, ZoneConfig.DefaultZone)
+		player:SetAttribute(Constants.Attributes.DevAllZones, if devAllZones() then true else nil)
 		watchSpawns(player)
 	end
 	-- Al cargar sus datos: si se fue estando en el Mundo 2, vuelve a aparecer allí
@@ -513,6 +584,7 @@ function ZoneService.start()
 	Players.PlayerRemoving:Connect(function(player)
 		unlockLimiter:remove(player)
 		travelLimiter:remove(player)
+		fastLimiter:remove(player)
 		traveling[player] = nil
 	end)
 

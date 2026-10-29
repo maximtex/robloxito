@@ -508,6 +508,14 @@ cada mazmorra queda junto a la puerta de la zona siguiente:
 - Tutorial: la guía de la cueva y de la puerta del Valle pasa por los portales que hagan falta.
 - Pruebas: `zones` (todo en su suelo, bocas incluidas), `cave` (cada boca a ≤ 60 studs de la
   puerta siguiente), `waves` (el pueblo sin bichos y el Bosque de Espinas con 30 o más).
+- Portal del spawn (`WorldPortals.SpawnPortal`): un arco en diagonal junto a la avenida, entre
+  ella y el Jardín de los Huevos, que te lleva a la llegada del Bosque de Espinas (como los
+  portales entre mundos).
+- 🗺️ Viajar (`TravelController`; botón encima del ⚙️, tecla O): las zonas del Mundo 1
+  (`ZoneConfig.TravelOrder`); a las abiertas se va al instante (`FastTravel` →
+  `ZoneService.fastTravel`), al pueblo junto al spawn (`TravelArrival`). No en una partida de
+  oleadas (código `InWave`) y como mucho uno cada `FastTravelCooldown` (5 s). En Studio, con
+  `DevConfig.StudioAllZones`, se puede ir a todas aunque estén cerradas (para probar).
 
 ## 16. Tutorial corto y fácil
 

@@ -805,6 +805,12 @@ function StudWorld.newDecor(layout, zoneName: string, keepOut: { { number } }?)
 			table.insert(blocked, { originX + arena.Center.X, originZ + arena.Center.Y, arena.Radius + 6 })
 		end
 	end
+	-- Los portales entre mundos de esta zona (el del spawn, el gigante del Mundo 2...)
+	for _, portal in ZoneConfig.WorldPortals or {} do
+		if portal.Zone == zoneName then
+			table.insert(blocked, { originX + portal.Offset.X, originZ + portal.Offset.Y, (portal.Scale or 3.2) * 4 + 6 })
+		end
+	end
 	-- Las bocas de las mazmorras de esta zona (montículos de roca, con sitio delante)
 	for _, cave in CaveConfig.Caves do
 		local mound = cave.Entrance and cave.Entrance.Mound

@@ -365,6 +365,27 @@ for caveId, cave in CaveConfig.Caves do
 	end
 end
 check("llegadas, enemigos, arenas, huevos, portales y bocas de las mazmorras caen en su suelo", floorOk)
+-- Portal del spawn y 🗺️ Viajar
+local spawnPortal = ZoneConfig.WorldPortals.SpawnPortal
+local inTown = false
+for _, area in EnemyConfig.Zones.Forest.SafeAreas or {} do
+	inTown = inTown or (spawnPortal.Offset.X >= area.Min.X and spawnPortal.Offset.X <= area.Max.X and spawnPortal.Offset.Y >= area.Min.Y and spawnPortal.Offset.Y <= area.Max.Y)
+end
+check("hay un portal en el pueblo (sin bichos) que lleva al Bosque de Espinas", spawnPortal ~= nil and spawnPortal.Zone == "Forest" and spawnPortal.Target == "ThornWoods"
+	and inTown and (spawnPortal.Offset - Vector2.new(0, 43)).Magnitude >= 12)
+local travelOk, listed = true, {}
+for _, zoneId in ZoneConfig.TravelOrder do
+	travelOk = travelOk and ZoneConfig.Zones[zoneId] ~= nil and not listed[zoneId]
+	listed[zoneId] = true
+end
+for zoneId, zone in ZoneConfig.Zones do
+	local worldOne = (zone.World or 1) == 1
+	travelOk = travelOk and (listed[zoneId] == true) == worldOne
+end
+check("🗺️ Viajar lista las zonas del Mundo 1 (todas y solo esas), empezando por el pueblo", travelOk and ZoneConfig.TravelOrder[1] == ZoneConfig.DefaultZone and ZoneConfig.FastTravelCooldown > 0)
+local townArrival = ZoneConfig.Zones.Forest.TravelArrival
+local tx, tz = worldOf("Forest", townArrival)
+check("al viajar al pueblo llegas junto al spawn, sobre el suelo", townArrival ~= nil and StudFloor.onFloor(StudFloor.Zones.Forest, tx, tz, 4) and (Vector2.new(townArrival.X, townArrival.Z) - Vector2.new(0, 43)).Magnitude <= 12)
 check("el pueblo y el Bosque de Espinas: gratis y seguidos (pueblo -> Bosque de Espinas -> Valle)",
 	ZoneConfig.Portals.ForestPortal.Target == "ThornWoods" and ZoneConfig.Portals.ValleyPortal.Zone == "ThornWoods" and ZoneConfig.Portals.ValleyPortal.Target == "CrystalValley"
 		and ZoneLogic.isUnlocked(profile(0, {}, {}), ZoneConfig, "ThornWoods") and not ZoneLogic.isUnlocked(profile(0, {}, {}), ZoneConfig, "CrystalValley"))

@@ -36,6 +36,9 @@ local Constants = {
 		TravelToZone = "TravelToZone",
 		-- Servidor -> cliente: (success, code, zoneId?)
 		TravelResult = "TravelResult",
+		-- Cliente -> servidor: (zoneId: string) viaje rápido desde 🗺️ Viajar (cualquier zona
+		-- abierta, sin estar junto a un portal). Responde con TravelResult(success, code, zoneId, true).
+		FastTravel = "FastTravel",
 
 		-- Armería. Cliente -> servidor: (action: "Buy" | "Equip" | "Upgrade", weaponId: string)
 		WeaponAction = "WeaponAction",
@@ -211,6 +214,8 @@ local Constants = {
 		EquippedPets = "EquippedPets",
 		-- Zonas desbloqueadas separadas por comas (solo informativo para la interfaz).
 		UnlockedZones = "UnlockedZones",
+		-- true solo en Studio con DevConfig.StudioAllZones: 🗺️ Viajar deja ir a todas las zonas.
+		DevAllZones = "DevAllZones",
 		-- Zona en la que está el jugador (la fija el servidor al viajar o reaparecer).
 		CurrentZone = "CurrentZone",
 		-- Estado de sus datos guardados: "Loading" | "Loaded" | "Unavailable" | "Failed".
@@ -354,6 +359,8 @@ local Constants = {
 		NotOwnedPass = "NotOwnedPass", -- hace falta el pase
 		-- Cofres
 		ChestCooldown = "ChestCooldown", -- ya abierto: hay que esperar
+		-- Viaje rápido
+		InWave = "InWave", -- en una partida de oleadas no se puede viajar
 	},
 }
 

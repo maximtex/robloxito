@@ -64,10 +64,9 @@ profile.PetData.Weapons.Levels.Laser = 1
 advance(1)
 check("compras reales funcionan en el modo prueba y mejorar el arma completa el paso 2", profile.UpgradeLevels.LaserSpeed == 1 and me:GetAttribute("TutorialStep") == 2)
 table.insert(profile.PetData.Pets, { Uid = "9", PetId = "MushroomHopper" })
-defeat(me, "ForestWarden", "Boss")
-table.insert(profile.PetData.UnlockedZones, "CrystalValley")
+profile.UpgradeLevels.Vitality = 1 -- ⚡ Mejoras: el último paso
 advance(1)
-check("los cinco pasos se pueden completar", me:GetAttribute("TutorialStatus") == "Completed")
+check("los cuatro pasos se pueden completar", me:GetAttribute("TutorialStatus") == "Completed")
 profile.Dirty = true
 PlayerDataService.markDirty(me)
 PlayerDataService.saveNow(me)

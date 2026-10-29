@@ -48,6 +48,8 @@ local claimLimiter = RateLimiter.new(QuestConfig.ClaimRateLimit.Cooldown, QuestC
 local requestLimiter = RateLimiter.new(QuestConfig.RequestRateLimit.Cooldown, QuestConfig.RequestRateLimit.WindowSeconds, QuestConfig.RequestRateLimit.MaxPerWindow)
 
 -- Estado del perfil que usan las misiones (todo del servidor).
+local BODY_UPGRADES = { "WalkSpeed", "Vitality", "Armor" }
+
 local function contextOf(profile: PlayerDataService.Profile): QuestLogic.Context
 	local unlocked: { [string]: boolean } = {}
 	local purchased = 0
@@ -74,6 +76,12 @@ local function contextOf(profile: PlayerDataService.Profile): QuestLogic.Context
 	for _, level in profile.PetData.Weapons.Levels do
 		weaponLevel = math.max(weaponLevel, level)
 	end
+	-- ⚡ Mejoras del cuerpo (el último paso del tutorial)
+	local bodyUpgrades = 0
+	for _, upgradeId in BODY_UPGRADES do
+		local level = profile.UpgradeLevels[upgradeId]
+		bodyUpgrades += if type(level) == "number" then level else 0
+	end
 	return {
 		WeaponLevel = weaponLevel,
 		PetsOwned = #profile.PetData.Pets + #profile.PetData.Archived,
@@ -82,6 +90,7 @@ local function contextOf(profile: PlayerDataService.Profile): QuestLogic.Context
 		ZonesUnlocked = purchased,
 		UnlockedZones = unlocked,
 		Rebirths = RebirthLogic.count(profile.PetData.Rebirth),
+		BodyUpgrades = bodyUpgrades,
 	}
 end
 

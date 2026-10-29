@@ -337,7 +337,7 @@ local WaveConfig = {
 			-- (Victory). Cómo elegir mejora lo explica siempre la propia ventana de cartas.
 			Hints = {
 				Countdown = "¡Los enemigos van a salir a tu alrededor! Apunta con el ratón y haz clic para atacar.",
-				[1] = "🏹 Apunta y haz clic (o mantén pulsado). Muévete (WASD) para que no te alcancen.",
+				[1] = "⚔️ Apunta y haz clic (o mantén pulsado). Muévete (WASD) para que no te alcancen.",
 				[2] = "Cada enemigo suelta 💰 y 💎. ¡Mata sin parar para subir la 🔥 RACHA!",
 				[3] = "¡Última oleada! Si un enemigo va a pegarte (¡!), Shift para esquivarlo con el dash.",
 				Victory = "🏆 ¡Bien hecho! Las oleadas son la mejor forma de ganar 💎: vuelve cuando quieras.",

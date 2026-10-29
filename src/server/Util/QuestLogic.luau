@@ -52,6 +52,7 @@ export type Context = {
 	ZonesUnlocked: number,
 	UnlockedZones: { [string]: boolean },
 	Rebirths: number?, -- renacimientos hechos (sin el campo cuenta como 0)
+	BodyUpgrades: number?, -- niveles de ⚡ Mejoras del cuerpo: Velocidad, Vitalidad y Armadura (tutorial)
 }
 
 -- WaveWins: partidas de oleadas ganadas (también la de práctica del tutorial).

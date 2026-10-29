@@ -37,6 +37,15 @@ join(alice)
 advance(0)
 local profile = PlayerDataService.get(alice)
 check("al entrar: tutorial activo, 0 pasos hechos", status(alice) == "Active" and step(alice) == 0)
+check("el tutorial es corto: 4 pasos, y se puede omitir tras la práctica", #TutorialConfig.Steps == 4 and TutorialConfig.MinSkipStep == 1)
+local money0 = profile.Money
+local function rewardMoney(upTo)
+	local total = 0
+	for i = 1, upTo do
+		total += (TutorialConfig.Steps[i].Reward and TutorialConfig.Steps[i].Reward.Money) or 0
+	end
+	return total
+end
 defeat(alice, "StarterThornling")
 defeat(alice, "Thornling")
 defeat(alice, "Thornling")
@@ -45,29 +54,43 @@ check("derrotar enemigos sueltos no cuenta: sigue en el paso 1 (oleadas)", step(
 GameEvents.fire("WaveWon", alice, "Tutorial") -- lo que hace WaveService al ganar la práctica
 advance(1)
 check("al ganar la oleada de práctica: paso 1 hecho", step(alice) == 1 and profile.PetData.Quests.Stats.WaveWins == 1)
+check("premio de la práctica: el 💰 para mejorar el arma", profile.Money - money0 == rewardMoney(1) and rewardMoney(1) >= 25)
+local notice = lastResult("TutorialReward", alice)
+check("el cliente recibe el aviso del premio", notice ~= nil and notice[1].Step == 1 and notice[1].Money == rewardMoney(1))
 profile.PetData.Weapons.Levels.Laser = 1 -- lo que hace WeaponService al mejorar el arma
 advance(1)
-check("tras mejorar su arma: paso 2 hecho", step(alice) == 2)
+check("tras mejorar su arma: paso 2 hecho y el 💰 del primer huevo (250)", step(alice) == 2 and profile.Money - money0 == rewardMoney(2) and TutorialConfig.Steps[2].Reward.Money >= 250)
 give(profile, "MushroomHopper")
 advance(1)
-check("con una mascota además de la inicial: paso 3 hecho", step(alice) == 3)
-defeat(alice, "ForestWarden", "Boss")
-advance(1)
-check("al derrotar al Guardián del Bosque: paso 4 hecho", step(alice) == 4)
+check("con una mascota además de la inicial: paso 3 hecho y el 💰 de la primera Vitalidad", step(alice) == 3 and profile.Money - money0 == rewardMoney(3)
+	and TutorialConfig.Steps[3].Reward.Money >= EconomyConfig.Upgrades.Vitality.BaseCost)
+check("todavía activo: falta ⚡ Mejoras y sin siguiente objetivo", status(alice) == "Active" and alice:GetAttribute("TutorialNext") == "")
 local energyBefore = profile.Diamonds
-table.insert(profile.PetData.UnlockedZones, "CrystalValley")
+profile.UpgradeLevels.Vitality = 1 -- lo que hace UpgradeService al comprar Vitalidad
 advance(1)
-check("al desbloquear el Valle: tutorial completado", status(alice) == "Completed" and step(alice) == 5)
+check("al comprar una mejora en ⚡ Mejoras: tutorial completado", status(alice) == "Completed" and step(alice) == 4)
+check("premio final: 💰 y dos ❤️ pociones", profile.Money - money0 == rewardMoney(4) and profile.PetData.Items.Potions.Health == 2)
 -- Sin producción pasiva: ese segundo no da nada.
 check(("no concede 💎 (+%s)"):format(tostring(profile.Diamonds - energyBefore)), profile.Diamonds == energyBefore)
+check("después: el siguiente objetivo es el Guardián de la cueva", alice:GetAttribute("TutorialNext") == "Boss")
+local moneyDone = profile.Money
+advance(5)
+check("los premios se dan una sola vez", profile.Money == moneyDone)
 leave(alice)
 advance(0)
-check("se guarda como completado", record(1).Tutorial.Status == "Completed" and record(1).Tutorial.Step == 5)
+check("se guarda como completado", record(1).Tutorial.Status == "Completed" and record(1).Tutorial.Step == 4)
 alice = newPlayer("Alice", 1)
 aliceHistory = track(alice)
 join(alice)
 advance(3)
 check("al volver: completado y nunca se muestra como activo", status(alice) == "Completed" and not table.find(aliceHistory, "Active"))
+local aliceMoney = PlayerDataService.get(alice).Money
+defeat(alice, "ForestWarden", "Boss")
+advance(1)
+check("con el Guardián derrotado, el siguiente objetivo es el Valle", alice:GetAttribute("TutorialNext") == "Valley")
+table.insert(PlayerDataService.get(alice).PetData.UnlockedZones, "CrystalValley")
+advance(1)
+check("con el Valle abierto ya no hay objetivo (y nada de premios)", alice:GetAttribute("TutorialNext") == "" and PlayerDataService.get(alice).Money >= aliceMoney)
 
 print("-- 2. Veterano con mascotas y el Valle (registro sin campo Tutorial)")
 storeData.player_2 = { Version = 2, Diamonds = 9000, UpgradeLevels = { GeneratorPower = 12 }, Pets = { { Uid = "1", PetId = "MossFox" }, { Uid = "2", PetId = "QuartzFox" } }, Equipped = { "1" }, NextPetUid = 3, UnlockedZones = { "CrystalValley" }, Quests = { Stats = { Kills = 300, DiamondsEarned = 50000 } } }
@@ -76,6 +99,7 @@ local bobHistory = track(bob)
 join(bob)
 advance(0)
 check("se completa solo al cargar y el cliente nunca lo ve activo", status(bob) == "Completed" and not table.find(bobHistory, "Active"))
+check("con el Valle abierto no le sale el Guardián como objetivo", bob:GetAttribute("TutorialNext") == "")
 -- La energía extra de Bob viene de sus LOGROS (Fase 5, al cargar), no del tutorial:
 local achievementEnergy = 0
 for _, f in fired do
@@ -93,7 +117,7 @@ storeData.player_3 = { Version = 2, Diamonds = 40, UpgradeLevels = { GeneratorPo
 local cara = newPlayer("Cara", 3)
 join(cara)
 advance(0)
-check("no repite lo que ya cumple: con 2 mascotas empieza en 'Derrota al Guardián' (3 hechos)", status(cara) == "Active" and step(cara) == 3)
+check("no repite lo que ya cumple: con 2 mascotas empieza en '⚡ Mejoras' (3 hechos)", status(cara) == "Active" and step(cara) == 3)
 table.remove(PlayerDataService.get(cara).PetData.Pets)
 advance(1)
 check("lo hecho no se deshace (sigue en 3)", step(cara) == 3)
@@ -112,6 +136,7 @@ check("al volver sigue omitido y no se muestra", status(cara) == "Skipped" and n
 defeat(cara, "ForestWarden", "Boss")
 advance(2)
 check("cumplir pasos después de omitir no lo reactiva", status(cara) == "Skipped")
+check("tras omitir también sale el siguiente objetivo (Guardián derrotado: el Valle)", cara:GetAttribute("TutorialNext") == "Valley")
 
 print("-- 5. El cliente no puede declarar pasos")
 local dan = newPlayer("Dan", 4)
@@ -140,7 +165,7 @@ storeData.player_5 = { Version = 2, Tutorial = { Status = "Hacked", Step = 99 } 
 local eve = newPlayer("Eve", 5)
 join(eve)
 advance(0)
-check("estado inválido -> activo; paso fuera de rango recortado (y completado)", status(eve) == "Completed" and step(eve) == 5)
+check("estado inválido -> activo; paso fuera de rango recortado (y completado)", status(eve) == "Completed" and step(eve) == #TutorialConfig.Steps)
 storeData.player_6 = { Version = 2, Tutorial = { Status = "Active", Step = -4 } }
 local fay = newPlayer("Fay", 6)
 join(fay)

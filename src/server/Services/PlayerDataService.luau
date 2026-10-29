@@ -252,6 +252,11 @@ local function refreshAccountEntry(profile: Profile)
 	if entry then
 		entry.Style = profile.PetData.FixedStyle
 	end
+	-- Tutorial hecho u omitido en algún personaje: los nuevos empiezan sin él
+	local tutorial = profile.PetData.Tutorial
+	if type(tutorial) == "table" and tutorial.Status ~= "Active" then
+		account.TutorialDone = true
+	end
 	ProfileLogic.updateSummary(account, profile.Slot, RebirthLogic.count(profile.PetData.Rebirth), bestZone(profile))
 end
 
@@ -508,6 +513,11 @@ local function loadPetData(player: Player, profile: Profile)
 			if type(data.Skills) == "table" then
 				data.Skills.Picked = true
 			end
+			profile.Dirty = true
+		end
+		-- Personaje nuevo de una cuenta que ya hizo el tutorial: empieza sin él
+		if isNew and account and account.TutorialDone and type(data.Tutorial) == "table" and data.Tutorial.Status == "Active" then
+			data.Tutorial.Status = "Skipped"
 			profile.Dirty = true
 		end
 		if #profile.PetData.Pets == 0 then

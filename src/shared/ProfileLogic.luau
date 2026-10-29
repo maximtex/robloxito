@@ -10,6 +10,7 @@
 --     Rebirths, Zone  para la lista (renacimientos y mejor zona abierta)
 --     Fresh     recién creado: al cargarlo por primera vez se le pone su clase
 --   Last: hueco con el que se entra
+--   TutorialDone: algún personaje ya completó u omitió el tutorial (los nuevos empiezan sin él)
 -- Cada personaje guarda su progreso en su propia entrada (SaveService: hueco 1 = la de
 -- siempre). Lo comprado con Robux en pases es de la cuenta (Roblox lo dice en cada servidor).
 
@@ -18,7 +19,7 @@ local ProfileLogic = {}
 ProfileLogic.MaxProfiles = 3
 
 export type Slot = { Style: string?, Created: number, Rebirths: number, Zone: string?, Fresh: boolean? }
-export type Account = { Slots: { [number]: Slot }, Last: number }
+export type Account = { Slots: { [number]: Slot }, Last: number, TutorialDone: boolean? }
 
 local function isFiniteNumber(value: any): boolean
 	return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
@@ -52,6 +53,7 @@ function ProfileLogic.sanitize(raw: any, styles: { [string]: any }): Account
 	if last and account.Slots[last] then
 		account.Last = last
 	end
+	account.TutorialDone = if raw.TutorialDone == true then true else nil
 	return account
 end
 
@@ -61,7 +63,7 @@ function ProfileLogic.serialize(account: Account): any
 	for slot, entry in account.Slots do
 		slots[tostring(slot)] = { Style = entry.Style, Created = entry.Created, Rebirths = entry.Rebirths, Zone = entry.Zone, Fresh = entry.Fresh }
 	end
-	return { Slots = slots, Last = account.Last }
+	return { Slots = slots, Last = account.Last, TutorialDone = if account.TutorialDone then true else nil }
 end
 
 function ProfileLogic.count(account: Account): number
@@ -122,6 +124,9 @@ function ProfileLogic.merge(account: Account, stored: Account)
 		if not account.Slots[slot] then
 			account.Slots[slot] = table.clone(entry)
 		end
+	end
+	if stored.TutorialDone then
+		account.TutorialDone = true
 	end
 end
 

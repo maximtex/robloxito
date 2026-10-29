@@ -1,9 +1,12 @@
 -- Tutorial inicial en el cliente (solo presentación; el servidor marca los pasos):
 -- - Lee TutorialStatus / TutorialStep (atributos del servidor). Sin atributos (datos no
 --   cargados o carga fallida) no se muestra nada.
--- - Tarjeta compacta en la columna derecha del HUD (HudDock: bajo el aviso de datos y sobre
---   el seguimiento de misiones): paso actual, explicación y progreso orientativo. Se puede
---   plegar (–) y omitir (dos pulsaciones: "Omitir" -> "¿Seguro?"), lo único que se envía.
+-- - Banner amarillo arriba en el centro: paso (1/4), qué hacer (una línea corta), progreso
+--   orientativo y el premio del paso debajo. Se puede omitir tras la práctica (dos
+--   pulsaciones: "Omitir" -> "¿Seguro?"), lo único que se envía.
+-- - Premios: aviso al recibirlos (TutorialReward).
+-- - Después (completado u omitido): el siguiente objetivo (atributo TutorialNext: la cueva y
+--   luego el portal del Valle) en el mismo banner, con su flecha; × lo oculta esta sesión.
 -- - Guía: en el mundo, un rayo y una flecha hacia el altar de las oleadas, el santuario o
 --   el portal (desaparecen al llegar); en la interfaz, un marco que parpadea sobre el botón.
 -- - Al completarlo se felicita una vez y desaparece. Nunca da recompensas.
@@ -24,6 +27,8 @@ local WaveConfig = require(Shared.Config.WaveConfig)
 local CaveConfig = require(Shared.Config.CaveConfig)
 local CaveLogic = require(Shared.CaveLogic)
 local formatNumber = require(Shared.Util.FormatNumber)
+local ItemConfig = require(Shared.Config.ItemConfig)
+local Toasts = require(script.Parent.Parent.UI.Toasts)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UiKit = require(script.Parent.Parent.UI.UiKit)
 local HudDock = require(script.Parent.Parent.UI.HudDock)
@@ -32,7 +37,7 @@ local MenuBar = require(script.Parent.Parent.UI.MenuBar)
 local THEME = Theme.Colors
 local FONTS = Theme.Fonts
 local Attributes = Constants.Attributes
-local CARD_SIZE = Vector2.new(320, 128)
+local CARD_SIZE = Vector2.new(600, 92)
 local GUIDE_COLOR = Color3.fromRGB(110, 236, 220)
 local STEPS = TutorialConfig.Steps
 
@@ -121,8 +126,33 @@ local function guideButton(guide: string?): GuiObject?
 		return MenuBar.tile("Pets") -- azulejo "Mascotas" de la barra del menú
 	elseif guide == "ArmoryButton" then
 		return MenuBar.tile("Armory") -- azulejo "Armas" (la Armería)
+	elseif guide == "SkillsButton" then
+		-- el ⚡ del segundo botón de habilidad (StyleController), que abre ⚡ Mejoras
+		local hud = player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("StyleHud")
+		local button = hud and hud:FindFirstChild("Skills", true)
+		return if button and button:IsA("GuiObject") then button else nil
 	end
 	return nil
+end
+
+-- Texto del premio: "+250 💰 · ❤️ ×2"
+local function rewardText(reward: any): string
+	if type(reward) ~= "table" then
+		return ""
+	end
+	local parts = {}
+	if type(reward.Money) == "number" and reward.Money > 0 then
+		table.insert(parts, ("+%s 💰"):format(formatNumber(reward.Money)))
+	end
+	if type(reward.Potions) == "table" then
+		for potionId, count in reward.Potions do
+			local def = ItemConfig.Potions[potionId]
+			if def and type(count) == "number" and count > 0 then
+				table.insert(parts, ("%s ×%d"):format(def.Icon or "🧪", count))
+			end
+		end
+	end
+	return table.concat(parts, " · ")
 end
 
 local function buildGui()
@@ -143,7 +173,7 @@ local function buildGui()
 		Name = "Card",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 16),
-		Size = UDim2.fromOffset(520, 58),
+		Size = UDim2.fromOffset(CARD_SIZE.X, CARD_SIZE.Y),
 		BackgroundColor3 = Color3.fromRGB(255, 204, 54),
 		Visible = false,
 	}, screenGui)
@@ -158,8 +188,8 @@ local function buildGui()
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 	}, card)
-	for col = 0, 14 do
-		for row = 0, 1 do
+	for col = 0, math.ceil(CARD_SIZE.X / 35) do
+		for row = 0, math.ceil(CARD_SIZE.Y / 25) do
 			local stud = UiKit.create("Frame", {
 				Position = UDim2.fromOffset(8 + col * 35, 6 + row * 25),
 				Size = UDim2.fromOffset(26, 20),
@@ -182,7 +212,7 @@ local function buildGui()
 	local header = UiKit.text(card, "Header", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0, -2),
-		Size = UDim2.fromOffset(180, 24),
+		Size = UDim2.fromOffset(260, 24),
 		Font = FONTS.Display,
 		TextSize = 20,
 		TextColor3 = Color3.fromRGB(255, 226, 56),
@@ -193,29 +223,61 @@ local function buildGui()
 	UiKit.outline(header, 2.5)
 
 	local title = UiKit.text(card, "Title", {
-		Position = UDim2.fromOffset(16, 4),
-		Size = UDim2.new(1, -32, 1, -8),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 10),
+		Size = UDim2.new(1, -150, 0, 32),
 		Font = FONTS.Display,
-		TextSize = 28,
+		TextSize = 27,
+		TextScaled = true,
 		TextColor3 = Color3.new(1, 1, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextTruncate = Enum.TextTruncate.AtEnd,
 		ZIndex = 4,
 	})
+	UiKit.create("UITextSizeConstraint", { MaxTextSize = 27, MinTextSize = 16 }, title)
 	UiKit.outline(title, 3)
 
+	-- Qué hacer, en una o dos líneas cortas (antes no se veía: solo el título)
 	local body = UiKit.text(card, "Body", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 46),
+		Size = UDim2.new(1, -36, 0, 40),
+		Font = FONTS.Body,
+		TextSize = 16,
+		TextWrapped = true,
+		TextColor3 = Color3.fromRGB(58, 38, 4),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		ZIndex = 4,
+	})
+
+	-- Premio del paso: una pestaña oscura colgando debajo del banner
+	local rewardTab = UiKit.create("Frame", {
+		Name = "Reward",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 1, -2),
+		Size = UDim2.fromOffset(230, 28),
+		BackgroundColor3 = Color3.fromRGB(40, 44, 54),
 		Visible = false,
-		Size = UDim2.fromOffset(0, 0),
+		ZIndex = 3,
+	}, card)
+	UiKit.corner(rewardTab, 8)
+	UiKit.stroke(rewardTab, Color3.fromRGB(20, 20, 24), 2, 0)
+	local rewardLabel = UiKit.text(rewardTab, "Label", {
+		Size = UDim2.fromScale(1, 1),
+		Font = FONTS.Body,
+		TextSize = 14,
+		TextColor3 = Color3.fromRGB(255, 226, 120),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 4,
 	})
 	local progressText = UiKit.text(card, "Progress", {
 		Visible = false,
 		Size = UDim2.fromOffset(0, 0),
 	})
 	local skip = UiKit.button(card, "Skip", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -8, 0.5, 0),
-		Size = UDim2.fromOffset(58, 24),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -8, 0, 8),
+		Size = UDim2.fromOffset(64, 26),
 		BackgroundColor3 = Color3.fromRGB(40, 44, 54),
 		Font = FONTS.Body,
 		TextSize = 11,
@@ -261,6 +323,8 @@ local function buildGui()
 		Header = header,
 		Title = title,
 		Body = body,
+		RewardTab = rewardTab,
+		RewardLabel = rewardLabel,
 		Fill = fill,
 		Progress = progressText,
 		Skip = skip,
@@ -274,6 +338,7 @@ end
 function TutorialController.start()
 	local remotes = ReplicatedStorage:WaitForChild(Constants.RemotesFolderName)
 	local skipRemote = remotes:WaitForChild(Constants.Remotes.SkipTutorial) :: RemoteEvent
+	local rewardRemote = remotes:WaitForChild(Constants.Remotes.TutorialReward) :: RemoteEvent
 	local ui = buildGui()
 
 	local collapsed = false
@@ -434,6 +499,21 @@ function TutorialController.start()
 		place()
 	end
 
+	-- Siguiente objetivo tras el tutorial (atributo TutorialNext; × lo oculta esta sesión)
+	local dismissed: { [string]: boolean } = {}
+	local nextById: { [string]: any } = {}
+	for _, goal in TutorialConfig.NextGoals or {} do
+		nextById[goal.Id] = goal
+	end
+	local function currentNext(): any?
+		local status = player:GetAttribute(Attributes.TutorialStatus)
+		local id = player:GetAttribute(Attributes.TutorialNext)
+		if (status ~= "Completed" and status ~= "Skipped") or typeof(id) ~= "string" or id == "" or dismissed[id] then
+			return nil
+		end
+		return nextById[id]
+	end
+
 	-- Progreso orientativo con los datos que ya ve el cliente (no decide nada).
 	local function progressFor(step): (number, string)
 		if step.Id == "Valley" then
@@ -449,60 +529,95 @@ function TutorialController.start()
 		return 0, ""
 	end
 
-	local function render()
-		local step, index = currentStep()
-		local status = player:GetAttribute(Attributes.TutorialStatus)
-		if not step then
-			-- Felicitación una sola vez si se completa durante la sesión.
-			if wasActive and status == "Completed" and not celebrating then
-				celebrating = true
-				ui.Pill.Visible = false
-				ui.Card.Visible = true
-				ui.Header.Text = "Tutorial"
-				ui.Title.Text = "¡Tutorial completado! ★"
-				ui.Body.Text = "Sigue avanzando con las 📜 Misiones (tecla M)."
-				ui.Fill.Size = UDim2.fromScale(1, 1)
-				ui.Progress.Text = ""
-				ui.Skip.Visible = false
-				ui.Collapse.Visible = false
-				task.delay(5, function()
-					ui.Card.Visible = false
-				end)
-			elseif not celebrating then
-				ui.Card.Visible = false
-				ui.Pill.Visible = false
-			end
-			wasActive = false
-			setWorldGuide(nil)
-			setButtonGuide(nil)
-			return
-		end
-		wasActive = true
-		-- Omitir solo cuando ya hizo los primeros pasos (TutorialConfig.MinSkipStep)
-		ui.Skip.Visible = index > (TutorialConfig.MinSkipStep or 0)
-		ui.Collapse.Visible = false
-		ui.Header.Text = "Tutorial"
-		local ratio, label = progressFor(step)
-		local cleanProgress = label:gsub("%s*💰", "")
-		ui.Title.Text = if cleanProgress ~= ""
-			then string.upper(step.Title) .. " (" .. cleanProgress .. ")"
-			else string.upper(step.Title)
-		ui.Body.Text = step.Text
-		ui.Fill.Size = UDim2.fromScale(ratio, 1)
-		ui.Progress.Text = label
-		ui.PillButton.Text = ("📖 Tutorial %d/%d"):format(index, #STEPS)
-		ui.Card.Visible = not collapsed
-		ui.Pill.Visible = collapsed
-		ui.Skip.Text = if confirmSkip then "¿Seguro?" else "Omitir"
-
-		-- Guía: botón de la interfaz o destino en el mundo (si está en esa zona y lejos).
-		local target, zoneId = guideTarget(step.Guide)
+	-- Guía: botón de la interfaz o destino en el mundo (si está en esa zona y lejos).
+	local function applyGuide(guide: string?)
+		local target, zoneId = guideTarget(guide)
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		local currentZone = player:GetAttribute(Attributes.CurrentZone)
 		local sameZone = zoneId == nil or currentZone == nil or currentZone == zoneId
 		local far = root and root:IsA("BasePart") and target and (root.Position - target).Magnitude > TutorialConfig.GuideHideDistance
 		setWorldGuide(if target and sameZone and far and not collapsed then target else nil)
-		setButtonGuide(if not collapsed then guideButton(step.Guide) else nil)
+		setButtonGuide(if not collapsed then guideButton(guide) else nil)
+	end
+
+	-- Título, instrucción y progreso de un paso o de un objetivo
+	local function show(entry: any, header: string)
+		local ratio, label = progressFor(entry)
+		local cleanProgress = label:gsub("%s*💰", "")
+		ui.Header.Text = header
+		ui.Title.Text = if cleanProgress ~= ""
+			then string.upper(entry.Title) .. " (" .. cleanProgress .. ")"
+			else string.upper(entry.Title)
+		ui.Body.Text = entry.Text
+		ui.Fill.Size = UDim2.fromScale(ratio, 1)
+		ui.Progress.Text = label
+		ui.Card.Visible = not collapsed
+		ui.Pill.Visible = collapsed
+		ui.Collapse.Visible = false
+	end
+
+	local mode: string? = nil -- "Step", "Next", "Done" o nil
+	local function render()
+		local step, index = currentStep()
+		local status = player:GetAttribute(Attributes.TutorialStatus)
+		if not step then
+			-- Felicitación una sola vez si se completa durante la sesión (5 s; luego, el
+			-- siguiente objetivo).
+			if wasActive and status == "Completed" and not celebrating then
+				celebrating = true
+				wasActive = false
+				mode = "Done"
+				ui.Pill.Visible = false
+				ui.Card.Visible = true
+				ui.Header.Text = "Tutorial"
+				ui.Title.Text = "¡TUTORIAL COMPLETADO! ★"
+				ui.Body.Text = "Usa la ❤️ poción (Y) cuando te quede poca vida. Ahora, a por tu siguiente objetivo."
+				ui.Fill.Size = UDim2.fromScale(1, 1)
+				ui.Progress.Text = ""
+				ui.RewardTab.Visible = false
+				ui.Skip.Visible = false
+				ui.Collapse.Visible = false
+				setWorldGuide(nil)
+				setButtonGuide(nil)
+				task.delay(5, function()
+					celebrating = false
+					render()
+				end)
+				return
+			end
+			wasActive = false
+			if celebrating then
+				return
+			end
+			local goal = currentNext()
+			if goal then
+				mode = "Next"
+				show(goal, "🎯 Siguiente objetivo")
+				ui.RewardTab.Visible = false
+				ui.Skip.Visible = true
+				ui.Skip.Text = "×"
+				applyGuide(goal.Guide)
+				return
+			end
+			mode = nil
+			ui.Card.Visible = false
+			ui.Pill.Visible = false
+			setWorldGuide(nil)
+			setButtonGuide(nil)
+			return
+		end
+		wasActive = true
+		mode = "Step"
+		show(step, ("Tutorial %d/%d"):format(index, #STEPS))
+		ui.PillButton.Text = ("📖 Tutorial %d/%d"):format(index, #STEPS)
+		-- Premio de este paso (lo justo para el siguiente)
+		local prize = rewardText(step.Reward)
+		ui.RewardTab.Visible = prize ~= "" and not collapsed
+		ui.RewardLabel.Text = "🎁 Premio: " .. prize
+		-- Omitir solo cuando ya hizo los primeros pasos (TutorialConfig.MinSkipStep)
+		ui.Skip.Visible = index > (TutorialConfig.MinSkipStep or 0)
+		ui.Skip.Text = if confirmSkip then "¿Seguro?" else "Omitir"
+		applyGuide(step.Guide)
 	end
 
 	ui.Collapse.Activated:Connect(function()
@@ -515,6 +630,15 @@ function TutorialController.start()
 		render()
 	end)
 	ui.Skip.Activated:Connect(function()
+		if mode == "Next" then
+			-- Ocultar el objetivo (vuelve al entrar otra vez o con el siguiente)
+			local id = player:GetAttribute(Attributes.TutorialNext)
+			if typeof(id) == "string" and id ~= "" then
+				dismissed[id] = true
+			end
+			render()
+			return
+		end
 		if not confirmSkip then
 			confirmSkip = true
 			render()
@@ -530,7 +654,15 @@ function TutorialController.start()
 		skipRemote:FireServer() -- el servidor decide; la tarjeta se oculta cuando lo confirma
 	end)
 
-	for _, attribute in { Attributes.TutorialStatus, Attributes.TutorialStep, Attributes.Money, Attributes.CurrentZone } do
+	-- Premios de cada paso
+	rewardRemote.OnClientEvent:Connect(function(given: any)
+		local text = rewardText(given)
+		if text ~= "" then
+			Toasts.show("🎁 Premio del tutorial: " .. text, { Color = Color3.fromRGB(255, 214, 80), Key = "TutorialReward" })
+		end
+	end)
+
+	for _, attribute in { Attributes.TutorialStatus, Attributes.TutorialStep, Attributes.TutorialNext, Attributes.Money, Attributes.CurrentZone } do
 		player:GetAttributeChangedSignal(attribute):Connect(render)
 	end
 	player.CharacterAdded:Connect(function(character)
@@ -538,7 +670,7 @@ function TutorialController.start()
 		render()
 	end)
 	-- La distancia al destino cambia al moverse: se revisa cada medio segundo solo
-	-- mientras hay un tutorial activo (no hay ningún bucle si no lo hay).
+	-- mientras hay un paso o un objetivo que enseñar (no hay ningún bucle si no lo hay).
 	local watching = false
 	local function watchDistance()
 		if watching then
@@ -546,7 +678,7 @@ function TutorialController.start()
 		end
 		watching = true
 		task.spawn(function()
-			while currentStep() ~= nil do
+			while currentStep() ~= nil or currentNext() ~= nil do
 				task.wait(0.5)
 				render()
 			end
@@ -554,6 +686,7 @@ function TutorialController.start()
 		end)
 	end
 	player:GetAttributeChangedSignal(Attributes.TutorialStatus):Connect(watchDistance)
+	player:GetAttributeChangedSignal(Attributes.TutorialNext):Connect(watchDistance)
 	render()
 	watchDistance()
 end

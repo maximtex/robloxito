@@ -485,3 +485,23 @@ puede apuntar):
   color de la clase.
 - Se rehace al cambiar de estilo, al subir de grado (atributo `UpgradeLevel_Armor`) y al
   reaparecer. Pruebas en la batería `styles`.
+
+## 16. Tutorial corto y fácil
+
+El de antes tenía 5 pasos y los dos últimos (ganar las 10 oleadas de la cueva y juntar 💰 para
+el portal) lo hacían largo; además el banner solo enseñaba el título. Ahora (`TutorialConfig`):
+- 4 pasos, unos 5 minutos: oleada de práctica (atacar, dash y carta), mejorar el arma, abrir
+  el primer huevo y comprar una mejora en ⚡ Mejoras (Velocidad, Vitalidad o Armadura: dato
+  `BodyUpgrades` del contexto de las misiones). La guía señala el altar, Armas, el huevo y el ⚡.
+- El banner enseña el paso (1/4), una línea de qué hacer y, colgando debajo, el premio.
+- Premios (`Reward`, `TutorialService`): lo justo para el paso siguiente (50 💰 para el arma,
+  250 💰 del Huevo del Bosque, 300 💰 de la primera Vitalidad) y al terminar 500 💰 y dos ❤️
+  pociones. Se avisan con `TutorialReward`. Omitir no da premios.
+- Omitir: tras la práctica (`MinSkipStep = 1`).
+- Veteranos (`Veteran`: jefe de la cueva, el Valle o un renacimiento): se completa solo, sin
+  premios.
+- Siguiente objetivo (`NextGoals`, `TutorialLogic.nextGoal`, atributo `TutorialNext`): tras el
+  tutorial, el mismo banner enseña "Vence al Guardián" (cueva) y luego "Abre el Valle Morado"
+  con su flecha; × lo oculta esta sesión.
+- Personajes: si la cuenta ya completó u omitió el tutorial (`ProfileLogic` `TutorialDone`),
+  los personajes nuevos empiezan sin él.

@@ -27,6 +27,7 @@ local RemoteService = require(script.Parent.RemoteService)
 local EnemyService = require(script.Parent.EnemyService)
 local PetService = require(script.Parent.PetService)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 
 local Codes = Constants.PurchaseCodes
 local MAX_ID_LENGTH = 64
@@ -370,6 +371,10 @@ end
 function ItemService.start()
 	stateRemote = RemoteService.get(Constants.Remotes.ItemState)
 	resultRemote = RemoteService.get(Constants.Remotes.ItemResult)
+	-- Otros servicios que dan objetos (premios del tutorial) avisan para refrescar al cliente
+	GameEvents.on("ItemsChanged", function(player: Player)
+		ItemService.push(player)
+	end)
 
 	RemoteService.get(Constants.Remotes.ItemAction).OnServerEvent:Connect(function(player: Player, action: any, arg: any)
 		local rate = actionLimiter:check(player)

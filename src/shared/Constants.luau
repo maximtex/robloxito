@@ -93,6 +93,8 @@ local Constants = {
 
 		-- Cliente -> servidor: () omitir el tutorial inicial (lo único que el cliente decide).
 		SkipTutorial = "SkipTutorial",
+		-- Servidor -> cliente: ({ Step, Money?, Potions? }) premio de un paso del tutorial.
+		TutorialReward = "TutorialReward",
 
 		-- Núcleos elementales (CoreService):
 		-- Cliente -> servidor: () pide el estado de sus núcleos
@@ -226,6 +228,8 @@ local Constants = {
 		TutorialStatus = "TutorialStatus",
 		-- Pasos ya hechos (0..número de pasos); el paso actual es TutorialStep + 1.
 		TutorialStep = "TutorialStep",
+		-- Tras el tutorial: Id del siguiente objetivo (TutorialConfig.NextGoals) o "" si no hay.
+		TutorialNext = "TutorialNext",
 		-- true solo en el modo prueba del tutorial (Studio): nada se carga ni se guarda.
 		TestMode = "TestMode",
 		-- Núcleos elementales: desbloqueados separados por comas ("Nature,Water") y elemento

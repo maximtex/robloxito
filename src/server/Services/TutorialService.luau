@@ -6,7 +6,10 @@
 -- - El cliente solo puede pedir omitirlo (SkipTutorial, con límite de frecuencia).
 -- - Estado en el perfil guardado (PetData.Tutorial) y replicado con atributos
 --   (TutorialStatus, TutorialStep). Si los datos no se cargan, no hay tutorial.
--- - No concede energía ni objetos: esas acciones ya las premian las misiones.
+-- - Premios (TutorialConfig.Steps[i].Reward): lo justo para el paso siguiente (💰 y
+--   pociones), al cumplir cada paso; omitir o completarlo por veterano no da nada. Se avisa
+--   al cliente con TutorialReward.
+-- - Después del tutorial publica el siguiente objetivo (atributo TutorialNext).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,7 +21,9 @@ local PlayerDataService = require(script.Parent.PlayerDataService)
 local RemoteService = require(script.Parent.RemoteService)
 local DiamondService = require(script.Parent.DiamondService)
 local QuestService = require(script.Parent.QuestService)
+local ItemLogic = require(Shared.ItemLogic)
 local TutorialLogic = require(script.Parent.Parent.Util.TutorialLogic)
+local GameEvents = require(script.Parent.Parent.Util.GameEvents)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 
 local Attributes = Constants.Attributes
@@ -35,13 +40,44 @@ local function readyProfile(player: Player): PlayerDataService.Profile?
 	return nil
 end
 
-local function publish(player: Player, data: TutorialLogic.TutorialData)
+local function publish(player: Player, data: TutorialLogic.TutorialData, next: string?)
 	if player:GetAttribute(Attributes.TutorialStatus) ~= data.Status then
 		player:SetAttribute(Attributes.TutorialStatus, data.Status)
 	end
 	if player:GetAttribute(Attributes.TutorialStep) ~= data.Step then
 		player:SetAttribute(Attributes.TutorialStep, data.Step)
 	end
+	if player:GetAttribute(Attributes.TutorialNext) ~= (next or "") then
+		player:SetAttribute(Attributes.TutorialNext, next or "")
+	end
+end
+
+-- Premio de un paso recién cumplido: 💰 y pociones. Devuelve lo dado (para el aviso) o nil.
+local function grant(player: Player, profile: any, index: number): any?
+	local reward = TutorialLogic.reward(index)
+	if type(reward) ~= "table" then
+		return nil
+	end
+	local given: any = { Step = index }
+	local money = reward.Money
+	if type(money) == "number" and money == money and money > 0 and money < math.huge then
+		profile.Money += math.floor(money)
+		given.Money = math.floor(money)
+	end
+	local items = ItemLogic.ofProfile(profile)
+	if type(reward.Potions) == "table" and items then
+		for potionId, count in reward.Potions do
+			local added = if type(count) == "number" then ItemLogic.addPotion(items, potionId, math.floor(count)) else 0
+			if added > 0 then
+				given.Potions = given.Potions or {}
+				given.Potions[potionId] = added
+			end
+		end
+		if given.Potions then
+			GameEvents.fire("ItemsChanged", player) -- el inventario y el botón ❤️ se refrescan
+		end
+	end
+	return if given.Money or given.Potions then given else nil
 end
 
 local function update(player: Player)
@@ -50,10 +86,25 @@ local function update(player: Player)
 		return
 	end
 	local data = profile.PetData.Tutorial
-	if TutorialLogic.update(data, QuestService.contextOf(profile), profile.PetData.Quests.Stats) then
+	local ctx = QuestService.contextOf(profile)
+	local stats = profile.PetData.Quests.Stats
+	local changed, done = TutorialLogic.update(data, ctx, stats)
+	if changed then
+		local rewarded = false
+		for _, index in done do
+			local given = grant(player, profile, index)
+			if given then
+				rewarded = true
+				RemoteService.get(Constants.Remotes.TutorialReward):FireClient(player, given)
+			end
+		end
 		PlayerDataService.markDirty(player)
+		if rewarded then
+			PlayerDataService.replicate(player)
+			PlayerDataService.saveNow(player) -- lo regalado no se pierde con una caída
+		end
 	end
-	publish(player, data)
+	publish(player, data, TutorialLogic.nextGoal(data, ctx, stats))
 end
 
 function TutorialService.start()
@@ -76,7 +127,8 @@ function TutorialService.start()
 		if TutorialLogic.skip(profile.PetData.Tutorial) then
 			PlayerDataService.markDirty(player)
 		end
-		publish(player, profile.PetData.Tutorial)
+		local data = profile.PetData.Tutorial
+		publish(player, data, TutorialLogic.nextGoal(data, QuestService.contextOf(profile), profile.PetData.Quests.Stats))
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)

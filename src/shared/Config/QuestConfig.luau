@@ -13,6 +13,11 @@
 --   { Source = "Daily", Event = "Kill" | "Diamonds" | "PetAbility" | "Upgrade" | "Egg", Kind?, Zone? }
 --       contador del día (solo para misiones diarias). Upgrade: mejoras de armas, guantes o
 --       bastones compradas (GameEvents "WeaponUpgraded"); Egg: huevos abiertos.
+--   { Source = "Weekly", Event = ..., filtros }   contador de la semana (solo retos semanales).
+--       Event: los de las diarias y además "WaveWin" (partida de oleadas ganada, sin la
+--       práctica; MinDifficulty: en esa dificultad o más; AnyMutator: con modificador),
+--       "WaveCleared" (oleada superada; con Max = true cuenta la más alta, no cuántas) y
+--       "MapEvent" (evento del mapa completado). Kill admite Elite = true.
 -- RequiresZone: no se muestra como alcanzable (ni se ofrece como diaria) sin esa zona.
 -- RequiresCombatPet: solo se ofrece como diaria si el jugador tiene una mascota de combate.
 --
@@ -29,6 +34,17 @@ local QuestConfig = {
 	RewardScale = 0.2, -- × a todas las recompensas en 💎 (antes 1: inflaban los 💎)
 	DailyAlways = { "DailyHunt" }, -- siempre entre las diarias del día
 	DaySeconds = 86400, -- las diarias cambian a las 00:00 UTC (hora del servidor)
+	-- Retos semanales (pruebas con amigos: "se siente repetitivo"): cada lunes a las 00:00 UTC
+	-- salen WeeklyCount de la lista Weekly (WeeklyAlways siempre), los mismos en cualquier
+	-- servidor; al reclamar los tres se abre el cofre semanal (WeeklyChest). Lo que no se
+	-- reclama esa semana se pierde.
+	WeeklyCount = 3,
+	WeeklyAlways = { "WeeklyWins" },
+	WeekSeconds = 7 * 86400,
+	WeekOffset = 3 * 86400, -- el 1 de enero de 1970 fue jueves: las semanas empiezan el lunes
+	WeeklyChest = { Id = "WeeklyChest", Title = "🎁 Cofre semanal", Description = "Reclama los 3 retos de la semana para abrirlo.", Reward = { Min = 400, Max = 3000 } },
+	-- Orden de las dificultades de las oleadas (WaveConfig.Difficulties) para MinDifficulty
+	DifficultyRank = { Normal = 1, Hard = 2, Nightmare = 3 },
 	-- Multiplicador de las recompensas según la mejor zona abierta (la más alta cuenta).
 	ZoneFactor = {
 		Forest = 1,
@@ -40,6 +56,19 @@ local QuestConfig = {
 		DividedLands = 5,
 	},
 	MaxIdLength = 64,
+	-- Retos de la semana (Source = "Weekly"): más largos que las diarias y mejor pagados.
+	Weekly = {
+		{ Id = "WeeklyWins", Title = "Racha de victorias", Description = "Gana 6 partidas de oleadas.", Goal = { Source = "Weekly", Event = "WaveWin" }, Target = 6, Reward = { Min = 100, Max = 600 } },
+		{ Id = "WeeklyHard", Title = "Sin miedo", Description = "Gana una partida en 🔥 Difícil (o más).", Goal = { Source = "Weekly", Event = "WaveWin", MinDifficulty = "Hard" }, Target = 1, Reward = { Min = 150, Max = 800 } },
+		{ Id = "WeeklyNightmare", Title = "Pesadilla", Description = "Gana una partida en 💀 Pesadilla.", Goal = { Source = "Weekly", Event = "WaveWin", MinDifficulty = "Nightmare" }, Target = 1, RequiresZone = "EmberCaldera", Reward = { Min = 250, Max = 1200 } },
+		{ Id = "WeeklyMutators", Title = "Caos controlado", Description = "Gana 3 partidas con modificador.", Goal = { Source = "Weekly", Event = "WaveWin", AnyMutator = true }, Target = 3, Reward = { Min = 120, Max = 700 } },
+		{ Id = "WeeklyEndless", Title = "Sin fin", Description = "Llega a la oleada 15 en un modo infinito.", Goal = { Source = "Weekly", Event = "WaveCleared", Max = true }, Target = 15, Reward = { Min = 150, Max = 800 } },
+		{ Id = "WeeklyBosses", Title = "Cazador de jefes", Description = "Derrota a 5 jefes.", Goal = { Source = "Weekly", Event = "Kill", Kind = "Boss" }, Target = 5, Reward = { Min = 120, Max = 700 } },
+		{ Id = "WeeklyElites", Title = "Caza de élites", Description = "Derrota a 20 bichos élite.", Goal = { Source = "Weekly", Event = "Kill", Elite = true }, Target = 20, RequiresZone = "CrystalValley", Reward = { Min = 120, Max = 700 } },
+		{ Id = "WeeklyHunt", Title = "Gran cacería", Description = "Derrota a 400 enemigos.", Goal = { Source = "Weekly", Event = "Kill" }, Target = 400, Reward = { Min = 100, Max = 600 } },
+		{ Id = "WeeklyEggs", Title = "Criador", Description = "Abre 15 huevos.", Goal = { Source = "Weekly", Event = "Egg" }, Target = 15, Reward = { Min = 100, Max = 500 } },
+		{ Id = "WeeklyEvents", Title = "Aventurero", Description = "Completa 2 eventos del mapa.", Goal = { Source = "Weekly", Event = "MapEvent" }, Target = 2, Reward = { Min = 150, Max = 800 } },
+	},
 	ClaimRateLimit = { Cooldown = 0.25, WindowSeconds = 2, MaxPerWindow = 8 },
 	RequestRateLimit = { Cooldown = 1, WindowSeconds = 5, MaxPerWindow = 6 },
 	PushInterval = 2, -- como mucho un envío de estado cada 2 s por jugador (salvo al reclamar)

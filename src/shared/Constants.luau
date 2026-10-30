@@ -39,6 +39,9 @@ local Constants = {
 		-- Cliente -> servidor: (zoneId: string) viaje rápido desde 🗺️ Viajar (cualquier zona
 		-- abierta, sin estar junto a un portal). Responde con TravelResult(success, code, zoneId, true).
 		FastTravel = "FastTravel",
+		-- Eventos del mapa (MapEventService). Servidor -> cliente: (data) con State = "Start" |
+		-- "Progress" | "Gem" | "Reward" | "End" (MapEventController).
+		MapEvent = "MapEvent",
 
 		-- Armería. Cliente -> servidor: (action: "Buy" | "Equip" | "Upgrade", weaponId: string)
 		WeaponAction = "WeaponAction",

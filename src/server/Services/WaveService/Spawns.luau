@@ -72,18 +72,18 @@ local function spawnOne(run: Run, typeId: string, wave: number, allowElite: bool
 		LeashCenter = run.Center,
 		LeashRadius = leash,
 		DetectRange = math.max(area * 2.5, leash * 1.6),
-		HealthMultiplier = WaveLogic.healthMultiplier(wave, run.Players),
+		HealthMultiplier = WaveLogic.healthMultiplier(wave, run.Players) * run.Effects.Health,
 		RewardMultiplier = WaveLogic.rewardMultiplier(wave),
 		PoolLimit = (run.Arena.Pool and run.Arena.Pool[typeId]) or 12,
 		OnDeath = onEnemyDeath(run, run.Id),
 		Run = run.Id,
 		MoneyMultiplier = WaveConfig.MoneyMultiplier,
-		DamageMultiplier = WaveLogic.damageMultiplier(wave),
+		DamageMultiplier = WaveLogic.damageMultiplier(wave) * run.Effects.Damage,
 		CollisionSlot = run.Slot,
 	}
 	local position = spawnPoint(run)
 	local enemy = nil
-	if allowElite and WaveLogic.isElite(run.ArenaId, math.random()) then
+	if allowElite and WaveLogic.isElite(run.ArenaId, math.random(), run.Effects.EliteBonus) then
 		local eliteOptions = table.clone(options)
 		eliteOptions.Elite = true
 		eliteOptions.PoolLimit = run.Arena.EliteMax or 4

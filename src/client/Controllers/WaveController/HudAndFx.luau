@@ -189,6 +189,9 @@ function Part.start()
 		ctx.hintToken += 1
 		local token = ctx.hintToken
 		ui.HintText.Text = text
+		-- Una línea más de alto por cada salto de línea (modificador y dificultad juntos)
+		local _, breaks = string.gsub(text, "\n", "")
+		ui.HintBox.Size = UDim2.fromOffset(560, 64 + 30 * math.min(breaks, 3))
 		ui.HintBox.Visible = true
 		ui.HintBox.BackgroundTransparency = 0.15
 		ui.HintText.TextTransparency = 0
@@ -239,6 +242,7 @@ function Part.start()
 		end
 		local phase = state.Phase
 		local left = secondsLeft(state.EndsAt)
+		ui.Tags.Text = if type(state.Tags) == "string" then state.Tags else ""
 		ui.Track.Visible = phase == "Wave"
 		ui.Title.TextColor3 = Color3.new(1, 1, 1)
 		if phase == "Countdown" then

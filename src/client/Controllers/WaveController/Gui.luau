@@ -106,6 +106,17 @@ local function buildHud()
 		BackgroundColor3 = ORANGE,
 	}, track)
 	UiKit.corner(fill, 6)
+	-- Modificador y dificultad de la partida ("🌊 Marea · 🔥 Difícil"), colgando debajo
+	local tags = textLabel(panel, "WaveTags", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 1, 2),
+		Size = UDim2.new(1, 0, 0, 20),
+		Font = FONTS.Display,
+		TextSize = 16,
+		TextColor3 = THEME.Gold,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Stroke = 2,
+	})
 
 	-- Anuncio grande (cuenta atrás, "OLEADA 4", "¡JEFE!")
 	local announce = UiKit.text(hud, "WaveAnnounce", {
@@ -139,10 +150,12 @@ local function buildHud()
 		Size = UDim2.new(1, -32, 1, -12),
 		Font = FONTS.Display,
 		TextSize = 22,
+		TextScaled = true, -- los de dos líneas (modificador y dificultad) caben
 		TextWrapped = true,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Stroke = 2,
 	})
+	UiKit.create("UITextSizeConstraint", { MaxTextSize = 22, MinTextSize = 12 }, hintText)
 	local hintScale = UiKit.create("UIScale", {}, hintBox)
 
 	hud.Parent = playerGui
@@ -401,6 +414,7 @@ local function buildHud()
 		Panel = panel,
 		Title = title,
 		Subtitle = subtitle,
+		Tags = tags,
 		Track = track,
 		Fill = fill,
 		Announce = announce,

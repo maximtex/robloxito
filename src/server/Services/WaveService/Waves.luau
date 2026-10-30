@@ -62,7 +62,8 @@ local function spawnOneBoss(run: Run, typeId: string, position: Vector3, onSplit
 	boss = EnemyService.spawnPooled(run.ZoneId, typeId, Vector3.new(position.X, run.Center.Y, position.Z), {
 		LeashCenter = run.Center,
 		LeashRadius = area + INSIDE_SLACK + 2,
-		HealthMultiplier = WaveLogic.bossHealthMultiplier(run.Players) * WaveLogic.endlessBossHealth(run.ArenaId, run.Wave),
+		HealthMultiplier = WaveLogic.bossHealthMultiplier(run.Players) * WaveLogic.endlessBossHealth(run.ArenaId, run.Wave) * run.Effects.BossHealth,
+		DamageMultiplier = run.Effects.Damage,
 		RewardMultiplier = 1,
 		PoolLimit = (arena.Pool and arena.Pool[typeId]) or 4,
 		Run = id,
@@ -173,7 +174,7 @@ local function startWave(run: Run, wave: number)
 		end
 	else
 		run.Phase = "Wave"
-		run.Queue = WaveLogic.spawnList(run.ArenaId, wave, math.random)
+		run.Queue = WaveLogic.spawnList(run.ArenaId, wave, math.random, run.Effects.CountScale)
 		run.Total = #run.Queue
 	end
 	run.EndsAt = 0
@@ -186,14 +187,14 @@ local function enterCards(run: Run)
 	run.EndsAt = os.clock() + WaveConfig.CardSeconds
 	local anyChoice = false
 	for player, participant in run.Participants do
-		local choices = WaveLogic.rollCards(participant.Levels, math.random, WaveConfig.CardChoices)
+		local choices = WaveLogic.rollCards(participant.Levels, math.random, WaveConfig.CardChoices, { Style = participant.Style, RareBoost = run.Effects.RareBoost })
 		participant.Choices = if #choices > 0 then choices else nil
 		if participant.Choices then
 			anyChoice = true
 			local cards = {}
 			for _, cardId in choices do
 				local card = WaveConfig.Cards[cardId]
-				table.insert(cards, { Id = cardId, Icon = card.Icon, Name = card.Name, Text = card.Text, Level = WaveLogic.levelOf(participant.Levels, cardId), MaxLevel = card.MaxLevel })
+				table.insert(cards, { Id = cardId, Icon = card.Icon, Name = card.Name, Text = card.Text, Level = WaveLogic.levelOf(participant.Levels, cardId), MaxLevel = card.MaxLevel, Rarity = card.Rarity or "Common", Class = card.Style ~= nil })
 			end
 			ctx.eventRemote:FireClient(player, "Cards", { Cards = cards, EndsAt = serverTime(run.EndsAt), Wave = run.Wave })
 		end

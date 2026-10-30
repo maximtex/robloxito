@@ -12,6 +12,7 @@ local RemoteService = require(script.Parent.Parent.RemoteService)
 local PlayerDataService = require(script.Parent.Parent.PlayerDataService)
 local EnemyService = require(script.Parent.Parent.EnemyService)
 local PetCombatService = require(script.Parent.Parent.PetCombatService)
+local RunBuffs = require(script.Parent.Parent.Parent.Util.RunBuffs)
 
 local ctx: any -- tabla de estado compartida (la crea StyleService/init.luau)
 local StyleService: any -- la tabla pública del servicio
@@ -102,13 +103,15 @@ function Api.start()
 		local armor = if profile then Economy.armorMultiplier(profile.UpgradeLevels.Armor) else 1
 		-- Mascotas Tanque (PetClassLogic)
 		local pets = if profile and profile.PetBonuses then profile.PetBonuses.DamageTaken else 1
-		return taken * classModsOf(player).DamageTaken * armor * pets
+		-- Cartas de la partida de oleadas (Piel dura, Cañón de cristal)
+		return taken * classModsOf(player).DamageTaken * armor * pets * RunBuffs.incoming(player)
 	end)
 	-- Daño a los jefes según el estilo (Puños más, Guerrero menos: StyleConfig BossDamage) y
 	-- la clase (Comando Élite)
 	EnemyService.setOutgoingDamageModifier(function(player: Player, enemy: any, amount: number): number
 		if enemy and enemy.Kind == "Boss" then
-			return amount * StyleLogic.bossDamage(styleOf(player)) * classModsOf(player).BossDamage
+			-- y las cartas de la partida (Cazajefes, Puño demoledor)
+			return amount * StyleLogic.bossDamage(styleOf(player)) * classModsOf(player).BossDamage * RunBuffs.bossDamage(player)
 		end
 		return amount
 	end)

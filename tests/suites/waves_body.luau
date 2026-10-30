@@ -429,7 +429,7 @@ check("mejoras tras la 3, la 6 y la 9 (no tras la 10)", WaveLogic.isCardWave("Fo
 print("-- Mejoras")
 local ordersOK, effectsOK = true, true
 local seen = {}
-local effectKeys = { "Damage", "Cooldown", "Chain", "Splash", "Twin", "Explode", "Loot", "Heal", "StreakSeconds" }
+local effectKeys = { "Damage", "Cooldown", "Chain", "Splash", "Twin", "Explode", "Loot", "Heal", "StreakSeconds", "Armor", "BossDamage" }
 for cardId, card in WaveConfig.Cards do
 	if seen[card.Order] or type(card.Name) ~= "string" or type(card.Text) ~= "string" or type(card.Icon) ~= "string" or not (card.MaxLevel >= 1) then
 		ordersOK = false
@@ -481,6 +481,131 @@ check("Reacción en cadena: explosión al matar", mods.Explode ~= nil and mods.E
 check("Codicia, Vampiro y Racha larga", near(mods.Loot, 1.3) and mods.Heal == 6 and mods.StreakSeconds == 1)
 local clamped = WaveLogic.modifiers({ Fury = 50, Twin = 0 / 0, Greed = -3 })
 check("niveles de más se quedan en el máximo y los raros no cuentan", near(clamped.Damage, 1 + 0.25 * 3) and clamped.Twin == 0 and clamped.Loot == 1)
+
+print("-- Cartas raras, épicas y de clase")
+local rarityOK, styleOK = true, true
+local styles = { Weapons = 0, Warrior = 0, Fists = 0, Magic = 0 }
+for cardId, card in WaveConfig.Cards do
+	if card.Rarity ~= nil and not WaveConfig.CardRarity[card.Rarity] then
+		rarityOK = false
+	end
+	if card.Style ~= nil then
+		if styles[card.Style] == nil then
+			styleOK = false
+		else
+			styles[card.Style] += 1
+		end
+	end
+end
+for _, count in styles do
+	styleOK = styleOK and count >= 1
+end
+check("cada carta tiene una rareza que existe", rarityOK and WaveConfig.CardRarity.Common.Weight > WaveConfig.CardRarity.Rare.Weight and WaveConfig.CardRarity.Rare.Weight > WaveConfig.CardRarity.Epic.Weight)
+check("cada estilo tiene al menos una carta de clase", styleOK)
+local function lcg(seed)
+	local state = seed
+	return function()
+		state = (state * 48271) % 2147483647
+		return state / 2147483647
+	end
+end
+local function countRolls(options, filter)
+	local rng = lcg(12345)
+	local hits, total = 0, 0
+	for _ = 1, 400 do
+		for _, cardId in WaveLogic.rollCards({}, rng, 3, options) do
+			total += 1
+			if filter(WaveConfig.Cards[cardId], cardId) then
+				hits += 1
+			end
+		end
+	end
+	return hits, total
+end
+local classForOther = countRolls({ Style = "Magic" }, function(card) return card.Style ~= nil and card.Style ~= "Magic" end)
+local ownClass = countRolls({ Style = "Magic" }, function(card) return card.Style == "Magic" end)
+local noStyle = countRolls(nil, function(card) return card.Style ~= nil end)
+check("las de clase solo salen a su estilo (y sin estilo, ninguna)", classForOther == 0 and ownClass > 0 and noStyle == 0)
+local rareNormal = countRolls({ Style = "Magic" }, function(card) return (card.Rarity or "Common") ~= "Common" end)
+local rareLucky = countRolls({ Style = "Magic", RareBoost = 3 }, function(card) return (card.Rarity or "Common") ~= "Common" end)
+check("las raras y épicas salen menos que las comunes, y con Suerte bastante más", rareNormal > 0 and rareLucky > rareNormal * 1.4)
+local epic = countRolls(nil, function(card) return card.Rarity == "Epic" end)
+local common = countRolls(nil, function(card) return (card.Rarity or "Common") == "Common" end)
+check("las épicas son las que menos salen", epic > 0 and epic * 4 < common)
+local extra = WaveLogic.modifiers({ Tough = 2, Glass = 1, Hunter = 2, Crusher = 1, Blast = 1, Whirl = 2 })
+check("Piel dura ×2 y Cañón de cristal: 0,9² · 1,3 del daño recibido", near(extra.Armor, 0.9 * 0.9 * 1.3) and near(extra.Damage, 1 + 0.6 + 0.1))
+check("Cazajefes ×2 y Puño demoledor: +85 % a los jefes", near(extra.BossDamage, 1 + 0.3 * 2 + 0.25))
+check("Estallido y Torbellino juntos: el radio y la fracción más grandes", extra.Splash ~= nil and extra.Splash.Radius == 9 and near(extra.Splash.Fraction, 0.5))
+check("sin cartas nuevas, ni armadura ni daño a jefes", plain.Armor == 1 and plain.BossDamage == 1)
+
+print("-- Modificadores de la partida")
+local mutatorsOK = true
+local weightSum = WaveConfig.MutatorNoneWeight
+local rewardSum = WaveConfig.MutatorNoneWeight
+local allowedKeys = { Order = true, Weight = true, Icon = true, Name = true, Text = true, Health = true, Damage = true, BossHealth = true, CountScale = true, EliteBonus = true, ClearHeal = true, CardEvery = true, RareBoost = true, Reward = true, VictoryBonus = true }
+for mutatorId, mutator in WaveConfig.Mutators do
+	for key in mutator do
+		if not allowedKeys[key] then
+			mutatorsOK = false
+			print("  clave rara en el modificador " .. mutatorId .. ": " .. key)
+		end
+	end
+	if type(mutator.Icon) ~= "string" or type(mutator.Name) ~= "string" or type(mutator.Text) ~= "string" or not (mutator.Weight > 0) then
+		mutatorsOK = false
+	end
+	weightSum += mutator.Weight
+	rewardSum += mutator.Weight * (mutator.Reward or 1)
+end
+check("cada modificador tiene nombre, icono, texto, peso y solo efectos que existen", mutatorsOK and #WaveLogic.mutatorOrder() >= 6)
+check("de media los modificadores no inflan los premios (≤ +30 %)", rewardSum / weightSum <= 1.3)
+check("la práctica del tutorial nunca lleva modificador", WaveLogic.rollMutator("Tutorial", sequence({ 0.5 })) == nil)
+local seenMutators, noneSeen = {}, false
+local mrng = lcg(777)
+for _ = 1, 600 do
+	local id = WaveLogic.rollMutator("Forest", mrng)
+	if id then
+		seenMutators[id] = true
+	else
+		noneSeen = true
+	end
+end
+local allSeen = noneSeen
+for mutatorId in WaveConfig.Mutators do
+	allSeen = allSeen and seenMutators[mutatorId] == true
+end
+check("salen todos los modificadores (y a veces ninguno)", allSeen)
+local fx = WaveLogic.runEffects("Hard", "Horde")
+check("Difícil + Marea: se multiplican", near(fx.Health, 1.8 * 0.7) and near(fx.CountScale, 1.5) and near(fx.Reward, 1.75 * 1.3) and near(fx.Damage, 1.4) and fx.ClearHeal == nil)
+local calm = WaveLogic.runEffects("Normal", nil)
+check("Normal sin modificador: nada cambia", calm.Health == 1 and calm.Damage == 1 and calm.Reward == 1 and calm.EliteBonus == 0 and calm.CardEvery == nil and calm.ClearHeal == nil and calm.VictoryBonus == 1)
+local restless = WaveLogic.runEffects("Nightmare", "Restless")
+check("Pesadilla + Sin respiro: sin cura y más élites", restless.ClearHeal == 0 and near(restless.EliteBonus, 0.1) and near(restless.Reward, 2.75 * 1.45))
+check("Suerte: mejoras cada 2 oleadas", WaveLogic.isCardWave("Forest", 2, WaveLogic.runEffects("Normal", "Lucky").CardEvery) and WaveLogic.isCardWave("Forest", 4, 2) and not WaveLogic.isCardWave("Forest", 3, 2) and not WaveLogic.isCardWave("Tutorial", 1, 1))
+check("Élites: también en el Bosque (que no tiene)", WaveLogic.isElite("Forest", 0.1, 0.15) and not WaveLogic.isElite("Forest", 0.2, 0.15) and not WaveLogic.isElite("Tutorial", 0, 0.5))
+local baseList = WaveLogic.spawnList("Forest", 9, sequence({ 0.5 }))
+local hordeList = WaveLogic.spawnList("Forest", 9, sequence({ 0.5 }), 1.5)
+check("Marea: un 50 % más de bichos", #hordeList >= math.floor(#baseList * 1.4) and #hordeList <= math.ceil(#baseList * 1.6) + 2)
+check("las etiquetas de la partida", WaveLogic.runTags("Hard", "Horde") == "🌊 Marea · 🔥 Difícil" and WaveLogic.runTags("Normal", nil) == "")
+
+print("-- Dificultades")
+local diffs = WaveConfig.Difficulties
+check("Normal, Difícil y Pesadilla, cada una pide la anterior", #diffs.Order == 3 and diffs.Order[1] == "Normal" and diffs.Hard.Requires == "Normal" and diffs.Nightmare.Requires == "Hard")
+check("más difícil = más vida, más daño y más premio", diffs.Nightmare.Health > diffs.Hard.Health and diffs.Hard.Health > 1 and diffs.Nightmare.Reward > diffs.Hard.Reward and diffs.Hard.Reward > 1 and diffs.Nightmare.Damage > diffs.Hard.Damage)
+check("los premios suben menos que la vida (no se hace más rentable sin más)", diffs.Hard.Reward < diffs.Hard.Health * diffs.Hard.Damage and diffs.Nightmare.Reward < diffs.Nightmare.Health)
+check("dificultades solo en los modos con jefe (no la práctica)", WaveLogic.hasDifficulties("Forest") and not WaveLogic.hasDifficulties("Tutorial") and WaveLogic.difficultyOf("Tutorial", "Hard") == "Normal" and WaveLogic.difficultyOf("Forest", "Trampa") == "Normal" and WaveLogic.difficultyOf("Forest", "Nightmare") == "Nightmare")
+check("cada dificultad guarda su récord aparte", WaveLogic.recordKey("Forest", "Normal") == "Forest" and WaveLogic.recordKey("Forest", "Hard") == "Forest@Hard" and WaveLogic.recordKey("Forest", nil) == "Forest")
+local dr = WaveLogic.emptyRecords()
+local forestWaves = WaveLogic.waveCount("Forest")
+check("al principio solo Normal", WaveLogic.isDifficultyUnlocked(dr, "Forest", "Normal") and not WaveLogic.isDifficultyUnlocked(dr, "Forest", "Hard") and not WaveLogic.isDifficultyUnlocked(dr, "Forest", "Nightmare"))
+WaveLogic.recordWave(dr, "Forest", forestWaves - 1)
+check("sin ganar (sin el jefe) aún no se abre Difícil", not WaveLogic.isDifficultyUnlocked(dr, "Forest", "Hard"))
+WaveLogic.recordWave(dr, "Forest", forestWaves)
+check("ganar la Normal abre la Difícil (solo de ese modo)", WaveLogic.isDifficultyUnlocked(dr, "Forest", "Hard") and not WaveLogic.isDifficultyUnlocked(dr, "Forest", "Nightmare") and not WaveLogic.isDifficultyUnlocked(dr, "CrystalValley", "Hard"))
+check("el récord en Difícil va aparte y suma a las superadas", WaveLogic.recordWave(dr, "Forest", 3, "Hard") == true and WaveLogic.bestWave(dr, "Forest@Hard") == 3 and WaveLogic.bestWave(dr, "Forest") == forestWaves and dr.Cleared == 3)
+WaveLogic.recordWave(dr, "Forest", forestWaves, "Hard")
+check("ganar la Difícil abre la Pesadilla", WaveLogic.isDifficultyUnlocked(dr, "Forest", "Nightmare"))
+local saved = WaveLogic.sanitizeRecords(dr)
+check("los récords por dificultad se guardan", WaveLogic.bestWave(saved, "Forest@Hard") == forestWaves and WaveLogic.isDifficultyUnlocked(saved, "Forest", "Nightmare"))
 
 print("-- Racha")
 local streak = WaveLogic.newStreak()

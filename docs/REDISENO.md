@@ -578,3 +578,39 @@ del Renacimiento, adornos de Navidad) y la tarima del portal del spawn se quedan
   plástico translúcido con studs. No se tocan el suelo ni los muros (ya van en studs con
   textura), lo de neón (cristales, lava, llamas, runas), lo invisible ni la bruma de las bocas.
 - Siguiente: los bichos.
+
+## 19. Que no se sienta repetitivo
+
+De la lista de las pruebas con amigos ("que no se sienta repetitivo"); Santiago eligió las
+cuatro ideas.
+- **Partidas distintas:** cada partida de oleadas (menos la práctica) puede salir con un
+  modificador al azar (`WaveConfig.Mutators`, sin modificador con peso `MutatorNoneWeight`):
+  🛡️ Blindados, 🌊 Marea, ⭐ Élites, 🍀 Suerte, 💔 Sin respiro, 🐺 Feroces y 😡 Jefe furioso. Lo
+  que pone más difícil también da más premio (de media no más de ×1,3, lo comprueba la batería
+  "waves"). Se avisa al entrar y sale como etiqueta bajo el panel de la partida y en el resumen.
+- **Cartas con rareza y de clase:** las mejoras tienen rareza (`WaveConfig.CardRarity`: Común,
+  Rara y Épica, con su color y menos probables) y hay nueve nuevas: 🪨 Piel dura, 🌪️ Ráfaga,
+  👑 Cazajefes, 💎 Cañón de cristal, 🏆 Tesoro y una de cada estilo (🏹 Flechas perforantes,
+  🌀 Torbellino, 👊 Puño demoledor, ✨ Sobrecarga arcana), que solo salen si juegas ese estilo.
+  El daño recibido y el daño a los jefes de la partida pasan por `Server.Util.RunBuffs`.
+- **Dificultades por mazmorra:** ⚔ Normal, 🔥 Difícil (×1,8 vida, ×1,4 daño, premios ×1,75) y
+  💀 Pesadilla (×3,2 vida, ×1,9 daño, más élites, premios ×2,75) (`WaveConfig.Difficulties`).
+  Cada una se abre al ganar la anterior en ese modo; el récord va aparte ("Forest@Hard"), así
+  que no hace falta nada nuevo en el guardado. Con más de una abierta, el altar enseña un panel
+  para elegir (`WaveController/Difficulty`); a la cuenta atrás de un amigo se entra en la suya.
+- **Retos semanales:** pestaña "Semanales" en 📜 Misiones: 3 retos por semana (siempre "Racha
+  de victorias" y 2 al azar de `QuestConfig.Weekly`) y, al reclamar los 3, el 🎁 Cofre semanal.
+  Cambian los lunes a las 00:00 UTC (`WeekOffset`). Cuentan victorias por dificultad o con
+  modificador, la oleada a la que llegas en el infinito, jefes, élites, huevos y eventos.
+- **Eventos del mapa (`MapEventService`, `MapEventConfig`, `MapEventLogic`):** cada 7-11 min
+  (el primero a los 2,5 min) pasa algo en una zona del Mundo 1 con bichos, mejor donde haya
+  alguien: ⚔️ Invasión (14 bichos de la zona alrededor de un punto, 150 s), 💰 Goblin del tesoro
+  (no ataca, corretea y se escapa a los 60 s; mucha vida y mucho botín) o 💎 Lluvia de diamantes
+  (40 gemas que se recogen al tocarlas, tope 15 por jugador). Aviso para todo el servidor (se
+  toca para abrir 🗺️ Viajar) y una columna de luz con la cuenta atrás en el sitio
+  (`MapEventController`). Premio para quien esté cerca o haya ayudado.
+- **Para probar en Studio:** en la barra de comandos (vista Servidor),
+  `workspace.MapEvents:SetAttribute("RunNow", "Invasion")` (o "TreasureGoblin", "DiamondRain",
+  "Any", y "Stop" para acabarlo). Fuera de Studio no hace nada.
+- Probado en Studio: los tres eventos arrancan, la columna y los avisos salen, las gemas pagan
+  y al acabar se quita todo; sin errores en la consola.

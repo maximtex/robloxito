@@ -21,6 +21,21 @@ export type Mods = {
 	Loot: number, -- multiplicador del botín (💎 y 💰)
 	Heal: number, -- vida por enemigo derrotado
 	StreakSeconds: number, -- segundos extra de la ventana de la racha
+	Armor: number, -- multiplicador del daño que recibe el jugador
+	BossDamage: number, -- multiplicador del daño a los jefes
+}
+-- Lo que cambian la dificultad y el modificador de una partida (WaveLogic.runEffects)
+export type Effects = {
+	Health: number, -- · vida de los bichos
+	Damage: number, -- · daño de los bichos (y del jefe)
+	BossHealth: number, -- · vida del jefe
+	CountScale: number, -- · bichos por oleada
+	EliteBonus: number, -- + probabilidad de élite
+	ClearHeal: number?, -- vida al superar una oleada (nil: la de siempre)
+	CardEvery: number?, -- mejoras cada tantas oleadas (nil: la del modo)
+	RareBoost: number, -- · probabilidad de cartas Raras y Épicas
+	Reward: number, -- · premios de las oleadas, botín y cofre
+	VictoryBonus: number, -- · premio de victoria
 }
 export type Streak = { Count: number, Until: number, Best: number }
 
@@ -120,11 +135,20 @@ end
 -- largo de la oleada (no salen todos los fuertes juntos) y el azar solo baraja un poco
 -- dentro de cada tramo. Lista vacía si la oleada no existe o es la del jefe. Las que vienen
 -- después del jefe son las del modo infinito (endlessCounts).
-function WaveLogic.spawnList(arenaId: string, wave: number, rng: () -> number): { string }
+function WaveLogic.spawnList(arenaId: string, wave: number, rng: () -> number, countScale: number?): { string }
 	local arena = WaveConfig.Arenas[arenaId]
 	local counts = arena and (arena.Waves[wave] or WaveLogic.endlessCounts(arenaId, wave))
 	if not counts then
 		return {}
+	end
+	-- Modificador "Marea": más bichos de cada tipo (al menos uno de cada)
+	local scale = if countScale ~= nil and isFiniteNumber(countScale) and countScale > 0 then math.min(countScale, 4) else 1
+	if scale ~= 1 then
+		local scaled = {}
+		for typeId, count in counts do
+			scaled[typeId] = math.max(1, math.floor(positive(count) * scale + 0.5))
+		end
+		counts = scaled
 	end
 	-- Cada enemigo con su "momento" ideal (k + 0.5) / n dentro de la oleada, más un poco de
 	-- azar; se ordena por ese momento (con desempate estable por tipo y número).
@@ -241,17 +265,23 @@ end
 
 -- ¿Sale élite este bicho de una oleada? (Arenas.*.EliteChance; `roll` en [0, 1)). Los jefes y
 -- la escolta, nunca (quien llama no lo pregunta).
-function WaveLogic.isElite(arenaId: string?, roll: number): boolean
+function WaveLogic.isElite(arenaId: string?, roll: number, bonus: number?): boolean
 	local arena = arenaId and WaveConfig.Arenas[arenaId]
-	local chance = if arena then positive(arena.EliteChance) else 0
+	if not arena or arena.Tutorial then
+		return false
+	end
+	local chance = math.min(0.9, positive(arena.EliteChance) + positive(bonus))
 	return chance > 0 and roll < chance
 end
 
 -- ¿Toca elegir mejora al terminar la oleada `wave`? (nunca tras la última; en el modo
 -- infinito siguen saliendo cada CardEvery)
-function WaveLogic.isCardWave(arenaId: string, wave: number): boolean
+function WaveLogic.isCardWave(arenaId: string, wave: number, everyOverride: number?): boolean
 	local arena = WaveConfig.Arenas[arenaId]
 	local every = if arena and arena.CardEvery then arena.CardEvery else WaveConfig.CardEvery
+	if everyOverride and isFiniteNumber(everyOverride) and everyOverride >= 1 and not (arena and arena.Tutorial) then
+		every = math.floor(everyOverride)
+	end
 	local count = WaveLogic.waveCount(arenaId)
 	return every > 0 and wave >= 1 and wave % every == 0 and (wave < count or (wave > count and WaveLogic.hasEndless(arenaId)))
 end
@@ -263,6 +293,137 @@ function WaveLogic.hint(arenaId: string, key: any): string?
 	local hints = arena and arena.Hints
 	local text = hints and hints[key]
 	return if type(text) == "string" then text else nil
+end
+
+-- Modificadores y dificultades de la partida ---------------------------------------------
+
+-- Modificadores en su orden (WaveConfig.Mutators).
+function WaveLogic.mutatorOrder(): { string }
+	local ids = {}
+	for mutatorId in WaveConfig.Mutators or {} do
+		table.insert(ids, mutatorId)
+	end
+	table.sort(ids, function(a, b)
+		return WaveConfig.Mutators[a].Order < WaveConfig.Mutators[b].Order
+	end)
+	return ids
+end
+
+-- Modificador al azar para una partida nueva según su Weight (nil: ninguno, con
+-- MutatorNoneWeight). La práctica del tutorial nunca lleva.
+function WaveLogic.rollMutator(arenaId: string, rng: () -> number): string?
+	local arena = WaveConfig.Arenas[arenaId]
+	if not arena or arena.Tutorial then
+		return nil
+	end
+	local order = WaveLogic.mutatorOrder()
+	local total = positive(WaveConfig.MutatorNoneWeight)
+	for _, mutatorId in order do
+		total += positive(WaveConfig.Mutators[mutatorId].Weight)
+	end
+	if total <= 0 then
+		return nil
+	end
+	local target = math.clamp(rng(), 0, 0.999999) * total
+	for _, mutatorId in order do
+		local weight = positive(WaveConfig.Mutators[mutatorId].Weight)
+		if target < weight then
+			return mutatorId
+		end
+		target -= weight
+	end
+	return nil
+end
+
+-- ¿Tiene dificultades este modo? (los que tienen jefe; la práctica no)
+function WaveLogic.hasDifficulties(arenaId: string): boolean
+	local arena = WaveConfig.Arenas[arenaId]
+	return arena ~= nil and arena.Boss ~= nil and not arena.Tutorial and WaveConfig.Difficulties ~= nil
+end
+
+-- Dificultad válida para un modo (la que se pide si existe y el modo las tiene; si no, Normal).
+function WaveLogic.difficultyOf(arenaId: string, difficultyId: any): string
+	local settings = WaveConfig.Difficulties
+	if type(difficultyId) == "string" and settings and settings[difficultyId] and table.find(settings.Order, difficultyId) and WaveLogic.hasDifficulties(arenaId) then
+		return difficultyId
+	end
+	return "Normal"
+end
+
+-- Clave del récord de un modo en una dificultad: "Forest" (Normal) o "Forest@Hard".
+function WaveLogic.recordKey(arenaId: string, difficultyId: string?): string
+	if difficultyId == nil or difficultyId == "Normal" then
+		return arenaId
+	end
+	return arenaId .. "@" .. difficultyId
+end
+
+-- ¿Ha ganado ya este modo en esa dificultad? (su récord llega a la oleada del jefe)
+function WaveLogic.hasWon(records: any, arenaId: string, difficultyId: string?): boolean
+	local count = WaveLogic.waveCount(arenaId)
+	return count > 0 and WaveLogic.bestWave(records, WaveLogic.recordKey(arenaId, difficultyId)) >= count
+end
+
+-- ¿Puede jugar este modo en esa dificultad? Normal siempre; las demás, tras ganar la que
+-- piden (Requires) en ese mismo modo.
+function WaveLogic.isDifficultyUnlocked(records: any, arenaId: string, difficultyId: string): boolean
+	local settings = WaveConfig.Difficulties
+	local difficulty = settings and settings[difficultyId]
+	if difficultyId == "Normal" then
+		return WaveConfig.Arenas[arenaId] ~= nil
+	end
+	if not (difficulty and WaveLogic.hasDifficulties(arenaId)) then
+		return false
+	end
+	return difficulty.Requires == nil or WaveLogic.hasWon(records, arenaId, difficulty.Requires)
+end
+
+local NEUTRAL_EFFECTS = { Health = 1, Damage = 1, BossHealth = 1, CountScale = 1, EliteBonus = 0, RareBoost = 1, Reward = 1, VictoryBonus = 1 }
+
+-- Lo que cambian juntas la dificultad y el modificador (Effects): multiplicadores que se
+-- multiplican, la probabilidad de élite que se suma y, del modificador, la cura al superar
+-- una oleada y cada cuántas oleadas hay mejoras.
+function WaveLogic.runEffects(difficultyId: string?, mutatorId: string?): Effects
+	local effects = table.clone(NEUTRAL_EFFECTS) :: any
+	local sources = {}
+	local difficulty = difficultyId and WaveConfig.Difficulties and WaveConfig.Difficulties[difficultyId]
+	if type(difficulty) == "table" and difficulty.Icon then
+		table.insert(sources, difficulty)
+	end
+	local mutator = mutatorId and WaveConfig.Mutators and WaveConfig.Mutators[mutatorId]
+	if mutator then
+		table.insert(sources, mutator)
+	end
+	for _, source in sources do
+		for _, key in { "Health", "Damage", "BossHealth", "CountScale", "RareBoost", "Reward", "VictoryBonus" } do
+			local value = source[key]
+			if isFiniteNumber(value) and value > 0 then
+				effects[key] *= value
+			end
+		end
+		effects.EliteBonus += positive(source.EliteBonus)
+		if isFiniteNumber(source.ClearHeal) and source.ClearHeal >= 0 then
+			effects.ClearHeal = source.ClearHeal
+		end
+		if isFiniteNumber(source.CardEvery) and source.CardEvery >= 1 then
+			effects.CardEvery = math.floor(source.CardEvery)
+		end
+	end
+	return effects
+end
+
+-- Texto corto para la interfaz: "🌊 Marea · 🔥 Difícil" ("" si no hay nada especial).
+function WaveLogic.runTags(difficultyId: string?, mutatorId: string?): string
+	local parts = {}
+	local mutator = mutatorId and WaveConfig.Mutators and WaveConfig.Mutators[mutatorId]
+	if mutator then
+		table.insert(parts, mutator.Icon .. " " .. mutator.Name)
+	end
+	local difficulty = difficultyId and difficultyId ~= "Normal" and WaveConfig.Difficulties and WaveConfig.Difficulties[difficultyId]
+	if type(difficulty) == "table" and difficulty.Icon then
+		table.insert(parts, difficulty.Icon .. " " .. difficulty.Name)
+	end
+	return table.concat(parts, " · ")
 end
 
 -- Mejoras ------------------------------------------------------------------------------
@@ -283,19 +444,55 @@ function WaveLogic.levelOf(levels: Levels?, cardId: string): number
 	return if isFiniteNumber(value) and value > 0 then math.floor(value) else 0
 end
 
--- Hasta `count` mejoras distintas que aún se pueden subir, al azar.
-function WaveLogic.rollCards(levels: Levels?, rng: () -> number, count: number?): { string }
-	local available = {}
+-- Peso de una carta al sortear: el de su rareza (CardRarity) y, si no es Común, · rareBoost.
+function WaveLogic.cardWeight(cardId: string, rareBoost: number?): number
+	local card = WaveConfig.Cards[cardId]
+	if not card then
+		return 0
+	end
+	local rarity = card.Rarity or "Common"
+	local info = WaveConfig.CardRarity and WaveConfig.CardRarity[rarity]
+	local weight = if info then positive(info.Weight) else 1
+	if rarity ~= "Common" and rareBoost ~= nil and isFiniteNumber(rareBoost) and rareBoost > 0 then
+		weight *= math.min(rareBoost, 10)
+	end
+	return weight
+end
+
+-- Hasta `count` mejoras distintas que aún se pueden subir, al azar según su rareza
+-- (cardWeight). options.Style: las de clase solo salen a ese estilo (sin él, ninguna);
+-- options.RareBoost: más Raras y Épicas (modificador "Suerte").
+function WaveLogic.rollCards(levels: Levels?, rng: () -> number, count: number?, options: { Style: string?, RareBoost: number? }?): { string }
+	local style = options and options.Style
+	local boost = options and options.RareBoost
+	local available, weights = {}, {}
 	for _, cardId in orderedCards() do
-		if WaveLogic.levelOf(levels, cardId) < WaveConfig.Cards[cardId].MaxLevel then
+		local card = WaveConfig.Cards[cardId]
+		local styleOk = card.Style == nil or card.Style == style
+		local weight = WaveLogic.cardWeight(cardId, boost)
+		if styleOk and weight > 0 and WaveLogic.levelOf(levels, cardId) < card.MaxLevel then
 			table.insert(available, cardId)
+			table.insert(weights, weight)
 		end
 	end
 	local wanted = math.min(count or WaveConfig.CardChoices, #available)
 	local choices = {}
 	for _ = 1, wanted do
-		local index = math.clamp(math.floor(rng() * #available) + 1, 1, #available)
+		local total = 0
+		for _, weight in weights do
+			total += weight
+		end
+		local target = math.clamp(rng(), 0, 0.999999) * total
+		local index = #available
+		for i, weight in weights do
+			if target < weight then
+				index = i
+				break
+			end
+			target -= weight
+		end
 		table.insert(choices, table.remove(available, index))
+		table.remove(weights, index)
 	end
 	return choices
 end
@@ -316,7 +513,7 @@ end
 
 -- Efecto total de las mejoras de un jugador.
 function WaveLogic.modifiers(levels: Levels?): Mods
-	local mods: Mods = { Damage = 1, Cooldown = 1, Chain = 0, Splash = nil, Twin = 0, Explode = nil, Loot = 1, Heal = 0, StreakSeconds = 0 }
+	local mods: Mods = { Damage = 1, Cooldown = 1, Chain = 0, Splash = nil, Twin = 0, Explode = nil, Loot = 1, Heal = 0, StreakSeconds = 0, Armor = 1, BossDamage = 1 }
 	for cardId, card in WaveConfig.Cards do
 		local level = math.min(WaveLogic.levelOf(levels, cardId), card.MaxLevel)
 		if level > 0 then
@@ -330,7 +527,13 @@ function WaveLogic.modifiers(levels: Levels?): Mods
 				mods.Chain += card.Chain * level
 			end
 			if card.Splash then
-				mods.Splash = { Radius = card.Splash.Radius + card.Splash.RadiusPerLevel * (level - 1), Fraction = card.Splash.Fraction }
+				-- Estallido y Torbellino juntos: el radio y la fracción más grandes
+				local radius = card.Splash.Radius + card.Splash.RadiusPerLevel * (level - 1)
+				local current = mods.Splash
+				mods.Splash = {
+					Radius = math.max(radius, if current then current.Radius else 0),
+					Fraction = math.max(card.Splash.Fraction, if current then current.Fraction else 0),
+				}
 			end
 			if card.Twin then
 				mods.Twin = math.min(1, mods.Twin + card.Twin * level)
@@ -346,6 +549,12 @@ function WaveLogic.modifiers(levels: Levels?): Mods
 			end
 			if card.StreakSeconds then
 				mods.StreakSeconds += card.StreakSeconds * level
+			end
+			if card.Armor then
+				mods.Armor *= card.Armor ^ level
+			end
+			if card.BossDamage then
+				mods.BossDamage += card.BossDamage * level
 			end
 		end
 	end
@@ -428,7 +637,7 @@ end
 
 export type Records = { Cleared: number, Best: { [string]: number } }
 
-local MAX_RECORD_MODES = 20
+local MAX_RECORD_MODES = 40 -- cada modo en cada dificultad (recordKey)
 
 function WaveLogic.emptyRecords(): Records
 	return { Cleared = 0, Best = {} }
@@ -466,17 +675,19 @@ function WaveLogic.bestWave(records: any, arenaId: string): number
 	return if isFiniteNumber(best) and best > 0 then math.floor(best) else 0
 end
 
--- Oleada `wave` superada en el modo `arenaId`: suma una a las superadas y sube el récord
--- de ese modo. true si es un récord nuevo. La práctica y los modos que no existen no cuentan.
-function WaveLogic.recordWave(records: Records, arenaId: string, wave: number): boolean
+-- Oleada `wave` superada en el modo `arenaId` (en la dificultad `difficultyId`, Normal si
+-- no se dice): suma una a las superadas y sube el récord de ese modo en esa dificultad
+-- (recordKey). true si es un récord nuevo. La práctica y los modos que no existen no cuentan.
+function WaveLogic.recordWave(records: Records, arenaId: string, wave: number, difficultyId: string?): boolean
 	local arena = WaveConfig.Arenas[arenaId]
 	local w = math.floor(positive(wave))
 	if not arena or arena.Tutorial or w < 1 or type(records) ~= "table" or type(records.Best) ~= "table" then
 		return false
 	end
+	local key = WaveLogic.recordKey(arenaId, WaveLogic.difficultyOf(arenaId, difficultyId))
 	records.Cleared = math.min(math.floor(positive(records.Cleared)) + 1, 1e9)
-	if w > WaveLogic.bestWave(records, arenaId) then
-		records.Best[arenaId] = math.min(w, 1e6)
+	if w > WaveLogic.bestWave(records, key) then
+		records.Best[key] = math.min(w, 1e6)
 		return true
 	end
 	return false

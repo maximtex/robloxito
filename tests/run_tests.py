@@ -554,6 +554,23 @@ def build_zones():
     return "\n".join(out)
 
 
+def build_mapevents():
+    # Eventos del mapa (lógica pura): tipo, zona, sitio, bichos de la invasión, goblin y premios.
+    out = [harness("zones_stubs.luau")]
+    out += [mod(n, p) for n, p in [
+        ("ZoneConfig", "src/shared/Config/ZoneConfig.luau"),
+        ("EnemyConfig", "src/shared/Config/EnemyConfig.luau"),
+        ("EconomyConfig", "src/shared/Config/EconomyConfig.luau"),
+        ("MapEventConfig", "src/shared/Config/MapEventConfig.luau"),
+        ("MapEventLogic", "src/shared/MapEventLogic.luau"),
+        ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
+        ("StudFloor", "src/shared/Util/StudFloor.luau"),
+        ("QuestConfig", "src/shared/Config/QuestConfig.luau"),
+    ]]
+    out.append(suite("mapevents_body.luau"))
+    return "\n".join(out)
+
+
 def build_leaderboard():
     # Clasificación (pura) y sitio de los monolitos en el bosque (con el paisaje real).
     out = [harness("landscape_stubs.luau")]
@@ -697,6 +714,7 @@ SUITES = [
     ("rebirth", "Renacimiento: requisito (oleadas + 💰), ciclo, reinicio, fichas, tienda y multiplicadores", build_rebirth),
     ("adventure", "Aventuras: personajes, misiones, amuletos y bendiciones", build_adventure),
     ("zones", "Zonas: desbloqueo con renacimientos y coherencia de la Caldera", build_zones),
+    ("mapevents", "Eventos del mapa: invasión, goblin del tesoro y lluvia de 💎", build_mapevents),
     ("leaderboard", "Monolitos de clasificación: orden y sitio junto al spawn", build_leaderboard),
     ("shop", "Premio diario, códigos, pases, compras sueltas y mejora automática", build_shop),
     ("hudlayout", "Interfaz: menú, avisos y columnas sin solaparse en muchas pantallas", build_hudlayout),

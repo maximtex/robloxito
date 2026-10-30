@@ -9,6 +9,8 @@ local WaveConfig = require(Shared.Config.WaveConfig)
 local WaveLogic = require(Shared.WaveLogic)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local TutorialConfig = require(Shared.Config.TutorialConfig)
+local StyleLogic = require(Shared.StyleLogic)
+local PlayerDataService = require(script.Parent.Parent.PlayerDataService)
 local RateLimiter = require(script.Parent.Parent.Parent.Util.RateLimiter)
 local Types = require(script.Parent.Types)
 type Participant = Types.Participant
@@ -78,8 +80,10 @@ local function isInside(run: Run, player: Player): boolean
 end
 
 local function newParticipant(player: Player): Participant
+	local profile = PlayerDataService.get(player)
 	return {
 		Player = player,
+		Style = if profile then StyleLogic.sanitize(profile.PetData.Style) else nil,
 		Levels = {},
 		Mods = WaveLogic.modifiers({}),
 		Choices = nil,

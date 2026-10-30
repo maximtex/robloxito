@@ -59,9 +59,26 @@ local function wantsTutorial(player: Player): boolean
 	return type(tutorial) == "table" and tutorial.Status == "Active" and type(tutorial.Step) == "number" and tutorial.Step < TUTORIAL_STEP
 end
 
+-- Dificultades que puede jugar en un modo (en su orden; Normal siempre).
+local function unlockedDifficulties(player: Player, arenaId: string): { string }
+	local list = { "Normal" }
+	if not WaveLogic.hasDifficulties(arenaId) then
+		return list
+	end
+	local profile = PlayerDataService.get(player)
+	local records = profile and profile.PetData.Waves
+	for _, difficultyId in WaveConfig.Difficulties.Order do
+		if difficultyId ~= "Normal" and WaveLogic.isDifficultyUnlocked(records, arenaId, difficultyId) then
+			table.insert(list, difficultyId)
+		end
+	end
+	return list
+end
+
 -- Empezar (o unirse a una cuenta atrás) en el círculo `placeId` (o en el que esté el
--- jugador). true si ahora juega una partida.
-local function tryStart(player: Player, placeId: string?): boolean
+-- jugador), en la dificultad `difficultyId` (Normal si no se dice; solo si ya la tiene
+-- abierta). true si ahora juega una partida.
+local function tryStart(player: Player, placeId: string?, difficultyId: string?): boolean
 	if runOf[player] or (lockedUntil[player] or 0) > os.clock() then
 		return false
 	end
@@ -88,13 +105,22 @@ local function tryStart(player: Player, placeId: string?): boolean
 		end
 		mode = TUTORIAL_MODE :: string
 	end
-	-- Unirse a la cuenta atrás de otra partida del mismo modo (la práctica es solo suya)
+	-- Unirse a la cuenta atrás de otra partida del mismo modo (la práctica es solo suya; a la
+	-- de un amigo se puede entrar en su dificultad aunque no la tengas abierta)
 	if not WaveConfig.Arenas[mode].Tutorial then
 		local countdown = joinableRun(place.Id, mode)
 		if countdown then
 			addParticipant(countdown, player)
 			return true
 		end
+	end
+	local difficulty = WaveLogic.difficultyOf(mode, difficultyId)
+	if not table.find(unlockedDifficulties(player, mode), difficulty) then
+		local info = WaveConfig.Difficulties[difficulty]
+		local needs = WaveConfig.Difficulties[info.Requires]
+		ctx.eventRemote:FireClient(player, "Hint", { Text = ("🔒 %s %s: primero gana la %s de este modo."):format(info.Icon, info.Name, if needs then needs.Name else "anterior"), Seconds = 5 })
+		lockedUntil[player] = os.clock() + 1
+		return false
 	end
 	if runCount() >= WaveConfig.MaxRuns then
 		ctx.eventRemote:FireClient(player, "Hint", { Text = "Hay muchas partidas en marcha: prueba en unos segundos.", Seconds = 4 })
@@ -111,6 +137,7 @@ local function tryStart(player: Player, placeId: string?): boolean
 		slot += 1
 	end
 	ctx.nextRunId += 1
+	local mutator = WaveLogic.rollMutator(mode, math.random)
 	local run: Run = {
 		Id = ctx.nextRunId,
 		ArenaId = mode,
@@ -119,6 +146,9 @@ local function tryStart(player: Player, placeId: string?): boolean
 		Slot = slot,
 		ZoneId = arena.Zone,
 		Center = place.Center,
+		Difficulty = difficulty,
+		Mutator = mutator,
+		Effects = WaveLogic.runEffects(difficulty, mutator),
 		Phase = "Countdown",
 		Endless = false,
 		VictoryPaid = false,
@@ -142,6 +172,39 @@ local function tryStart(player: Player, placeId: string?): boolean
 	addParticipant(run, player)
 	hint(run, "Countdown")
 	return true
+end
+
+-- Pulsar E en el altar: si tiene más de una dificultad abierta (y no hay una cuenta atrás a
+-- la que unirse), el cliente le deja elegir ("Difficulty"); si no, empieza en Normal.
+local function requestStart(player: Player, placeId: string)
+	local place = places[placeId]
+	if not place or runOf[player] or (lockedUntil[player] or 0) > os.clock() then
+		return
+	end
+	local arenaId = place.ArenaId
+	if place.Practice or not WaveLogic.hasDifficulties(arenaId) or joinableRun(placeId, arenaId) then
+		tryStart(player, placeId)
+		return
+	end
+	local unlocked = unlockedDifficulties(player, arenaId)
+	if #unlocked <= 1 then
+		tryStart(player, placeId, "Normal")
+		return
+	end
+	local options = {}
+	for _, difficultyId in WaveConfig.Difficulties.Order do
+		local info = WaveConfig.Difficulties[difficultyId]
+		local needs = info.Requires and WaveConfig.Difficulties[info.Requires]
+		table.insert(options, {
+			Id = difficultyId,
+			Icon = info.Icon,
+			Name = info.Name,
+			Text = info.Text,
+			Unlocked = table.find(unlocked, difficultyId) ~= nil,
+			Needs = if needs then needs.Name else nil,
+		})
+	end
+	ctx.eventRemote:FireClient(player, "Difficulty", { Place = placeId, Arena = WaveConfig.Arenas[arenaId].DisplayName, Options = options })
 end
 
 function onEnemyDeath(run: Run, id: number)
@@ -296,6 +359,7 @@ local Part = { Api = {} }
 function Part.install(context: any)
 	ctx = context
 	context.onEnemyDeath = onEnemyDeath
+	context.requestStart = requestStart
 	context.step = step
 	context.tryStart = tryStart
 end

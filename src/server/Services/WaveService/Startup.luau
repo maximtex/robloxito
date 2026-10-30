@@ -14,6 +14,7 @@ local RemoteService = require(script.Parent.Parent.RemoteService)
 local EnemyService = require(script.Parent.Parent.EnemyService)
 local PetCombatService = require(script.Parent.Parent.PetCombatService)
 local PartFactory = require(script.Parent.Parent.Parent.Util.PartFactory)
+local RunBuffs = require(script.Parent.Parent.Parent.Util.RunBuffs)
 local Types = require(script.Parent.Types)
 type Place = Types.Place
 
@@ -88,12 +89,18 @@ function Api.start()
 		local _, participant = activeParticipant(player)
 		return if participant then participant.Mods else nil
 	end)
+	-- Botín de cada bicho: la carta Codicia/Tesoro y la dificultad y el modificador de la partida
 	EnemyService.setKillModifier(function(player: Player)
-		local _, participant = activeParticipant(player)
-		if participant then
-			return participant.Mods.Loot, participant.Mods.StreakSeconds
+		local run, participant = activeParticipant(player)
+		if run and participant then
+			return participant.Mods.Loot * run.Effects.Reward, participant.Mods.StreakSeconds
 		end
 		return 1, 0
+	end)
+	-- Daño recibido y daño a los jefes de las cartas (StyleService los aplica)
+	RunBuffs.setProvider(function(player: Player)
+		local _, participant = activeParticipant(player)
+		return if participant then participant.Mods else nil
 	end)
 	-- Lo ganado durante la partida (para el resumen final)
 	EnemyService.onDefeated(function(player: Player, info)
@@ -116,7 +123,15 @@ function Api.start()
 			return
 		end
 		if action == "Start" then
-			tryStart(player)
+			-- Desde la ventana de dificultades: { Place, Difficulty }
+			if type(value) == "table" then
+				local placeId, difficulty = value.Place, value.Difficulty
+				if type(placeId) == "string" and places[placeId] and type(difficulty) == "string" and #difficulty <= 32 then
+					tryStart(player, placeId, difficulty)
+				end
+			else
+				tryStart(player)
+			end
 		elseif action == "Pick" then
 			if type(value) ~= "string" then
 				return

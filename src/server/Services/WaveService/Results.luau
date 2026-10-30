@@ -43,7 +43,8 @@ function recordCleared(run: Run, wave: number)
 	if run.Arena.Tutorial then
 		return
 	end
-	best[run.ArenaId] = math.max(best[run.ArenaId] or 0, wave)
+	local key = WaveLogic.recordKey(run.ArenaId, run.Difficulty)
+	best[key] = math.max(best[key] or 0, wave)
 	for player, participant in run.Participants do
 		local profile = PlayerDataService.get(player)
 		if not profile then
@@ -54,8 +55,8 @@ function recordCleared(run: Run, wave: number)
 			records = WaveLogic.emptyRecords()
 			profile.PetData.Waves = records
 		end
-		GameEvents.fire("WaveCleared", player, run.ArenaId, wave) -- requisito de renacer (RebirthService)
-		if WaveLogic.recordWave(records, run.ArenaId, wave) then
+		GameEvents.fire("WaveCleared", player, run.ArenaId, wave, run.Difficulty, run.Endless) -- requisito de renacer (RebirthService) y retos semanales
+		if WaveLogic.recordWave(records, run.ArenaId, wave, run.Difficulty) then
 			participant.NewBest = true
 			if participant.StartBest > 0 and not participant.RecordShown and player.Parent then
 				participant.RecordShown = true
@@ -73,14 +74,16 @@ local function waveCleared(run: Run)
 	for _, participant in run.Participants do
 		local profile = PlayerDataService.get(participant.Player)
 		if profile then
+			-- Premio de la oleada (con la dificultad y el modificador de la partida)
 			local diamonds, money = WaveLogic.clearReward(wave, run.ArenaId)
-			local given, coins = pay(participant, diamonds, money)
-			-- Respiro: recupera parte de la vida (solo quien sigue en pie)
+			local given, coins = pay(participant, diamonds * run.Effects.Reward, money * run.Effects.Reward)
+			-- Respiro: recupera parte de la vida (solo quien sigue en pie; "Sin respiro", nada)
 			local healed = false
+			local heal = if run.Effects.ClearHeal ~= nil then run.Effects.ClearHeal else WaveConfig.ClearHeal
 			local _, humanoid = rootOf(participant.Player)
-			if humanoid and humanoid.Health > 0 and WaveConfig.ClearHeal and WaveConfig.ClearHeal > 0 then
+			if humanoid and humanoid.Health > 0 and heal and heal > 0 then
 				local before = humanoid.Health
-				humanoid.Health = math.min(humanoid.MaxHealth, before + humanoid.MaxHealth * WaveConfig.ClearHeal)
+				humanoid.Health = math.min(humanoid.MaxHealth, before + humanoid.MaxHealth * heal)
 				healed = humanoid.Health > before
 			end
 			ctx.eventRemote:FireClient(participant.Player, "Cleared", { Wave = wave, Diamonds = given, Money = coins, Healed = healed })
@@ -88,7 +91,7 @@ local function waveCleared(run: Run)
 	end
 	if not run.Endless and wave >= run.Waves then
 		finish(run, true) -- modo sin jefe: ganada al limpiar la última
-	elseif WaveLogic.isCardWave(run.ArenaId, wave) then
+	elseif WaveLogic.isCardWave(run.ArenaId, wave, run.Effects.CardEvery) then
 		enterCards(run)
 	else
 		enterBreak(run, WaveConfig.BreakSeconds)
@@ -102,6 +105,7 @@ local function giveChest(run: Run, participant: Participant)
 	local profile = PlayerDataService.get(player)
 	local items = profile and ItemLogic.ofProfile(profile)
 	local money, potion = WaveLogic.chestReward(run.ArenaId, math.random(), math.random(), ItemLogic.boostOrder())
+	money = math.floor(money * run.Effects.Reward)
 	if money <= 0 and not potion then
 		return
 	end
@@ -134,13 +138,15 @@ local function payVictory(run: Run)
 	for player, participant in run.Participants do
 		local profile = PlayerDataService.get(player)
 		if profile then
-			participant.VictoryDiamonds, participant.VictoryMoney = pay(participant, WaveLogic.victoryReward(run.ArenaId))
+			local diamonds, money = WaveLogic.victoryReward(run.ArenaId)
+			local scale = run.Effects.Reward * run.Effects.VictoryBonus
+			participant.VictoryDiamonds, participant.VictoryMoney = pay(participant, diamonds * scale, money * scale)
 			local ok, err = pcall(giveChest, run, participant)
 			if not ok then
 				warn("[WaveService] Cofre: " .. tostring(err))
 			end
 		end
-		GameEvents.fire("WaveWon", player, run.ArenaId)
+		GameEvents.fire("WaveWon", player, run.ArenaId, run.Difficulty, run.Mutator)
 	end
 end
 
@@ -154,6 +160,7 @@ local function sendResult(run: Run, player: Player, participant: Participant, vi
 			Tutorial = run.Arena.Tutorial == true,
 			Endless = run.Endless == true,
 			Arena = run.Arena.DisplayName,
+			Tags = WaveLogic.runTags(run.Difficulty, run.Mutator),
 			Wave = run.Wave,
 			Waves = run.Waves,
 			Kills = participant.Kills,
@@ -163,8 +170,8 @@ local function sendResult(run: Run, player: Player, participant: Participant, vi
 			BestStreak = participant.BestStreak,
 			VictoryDiamonds = participant.VictoryDiamonds,
 			VictoryMoney = participant.VictoryMoney,
-			Best = best[run.ArenaId] or 0,
-			PersonalBest = if profile then WaveLogic.bestWave(profile.PetData.Waves, run.ArenaId) else 0,
+			Best = best[WaveLogic.recordKey(run.ArenaId, run.Difficulty)] or 0,
+			PersonalBest = if profile then WaveLogic.bestWave(profile.PetData.Waves, WaveLogic.recordKey(run.ArenaId, run.Difficulty)) else 0,
 			NewBest = participant.NewBest and participant.StartBest > 0,
 		})
 	end
@@ -240,12 +247,25 @@ end
 local function addParticipant(run: Run, player: Player)
 	local participant = newParticipant(player)
 	local profile = PlayerDataService.get(player)
-	participant.StartBest = if profile then WaveLogic.bestWave(profile.PetData.Waves, run.ArenaId) else 0
+	participant.StartBest = if profile then WaveLogic.bestWave(profile.PetData.Waves, WaveLogic.recordKey(run.ArenaId, run.Difficulty)) else 0
 	run.Participants[player] = participant
 	runOf[player] = run
 	setPlayerRun(player, run)
 	broadcast(run)
 	updateSign()
+	-- Qué tiene de especial esta partida (modificador y dificultad), en el cartel de abajo
+	local lines = {}
+	local mutator = run.Mutator and WaveConfig.Mutators[run.Mutator]
+	if mutator then
+		table.insert(lines, ("%s %s: %s"):format(mutator.Icon, mutator.Name, mutator.Text))
+	end
+	local difficulty = run.Difficulty ~= "Normal" and WaveConfig.Difficulties[run.Difficulty]
+	if difficulty then
+		table.insert(lines, ("%s %s: %s"):format(difficulty.Icon, difficulty.Name, difficulty.Text))
+	end
+	if #lines > 0 and player.Parent then
+		ctx.eventRemote:FireClient(player, "Hint", { Text = table.concat(lines, "\n"), Seconds = 7 })
+	end
 end
 
 local Part = { Api = {} }

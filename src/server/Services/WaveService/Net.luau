@@ -47,6 +47,7 @@ local function stateOf(run: Run)
 		Run = run.Id,
 		Arena = run.ArenaId,
 		Name = run.Arena.DisplayName,
+		Tags = WaveLogic.runTags(run.Difficulty, run.Mutator),
 		Tutorial = run.Arena.Tutorial == true,
 		Endless = run.Endless == true,
 		Phase = run.Phase,
@@ -58,7 +59,7 @@ local function stateOf(run: Run)
 		Players = participantCount(run),
 		Center = run.Center,
 		Radius = WaveConfig.Place.AreaRadius,
-		Best = best[run.ArenaId] or 0,
+		Best = best[WaveLogic.recordKey(run.ArenaId, run.Difficulty)] or 0,
 		Boss = bossName(run),
 	}
 end

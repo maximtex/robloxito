@@ -19,6 +19,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared.Constants)
 local QuestConfig = require(Shared.Config.QuestConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
+local WaveConfig = require(Shared.Config.WaveConfig)
 local PetCombatConfig = require(Shared.Config.PetCombatConfig)
 local RebirthLogic = require(Shared.RebirthLogic)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -130,8 +131,12 @@ local function today(): number
 	return QuestLogic.dayOf(os.time())
 end
 
+local function thisWeek(): number
+	return QuestLogic.weekOf(os.time())
+end
+
 local function push(player: Player, profile: PlayerDataService.Profile, session: Session, ctx: QuestLogic.Context)
-	local state = QuestLogic.snapshot(profile.PetData.Quests, ctx, today())
+	local state = QuestLogic.snapshot(profile.PetData.Quests, ctx, today(), thisWeek())
 	state.Notices = session.Notices
 	session.Notices = {}
 	session.Dirty = false
@@ -149,6 +154,10 @@ local function update(player: Player, forcePush: boolean)
 	local data = profile.PetData.Quests
 	local ctx = contextOf(profile)
 	if QuestLogic.ensureDay(data, today(), player.UserId, ctx) then
+		session.Dirty = true
+		PlayerDataService.markDirty(player)
+	end
+	if QuestLogic.ensureWeek(data, thisWeek(), player.UserId, ctx) then
 		session.Dirty = true
 		PlayerDataService.markDirty(player)
 	end
@@ -180,8 +189,10 @@ local function record(player: Player, event: any)
 		return
 	end
 	local data = profile.PetData.Quests
-	-- Primero el día: un evento justo tras medianoche cuenta para las diarias nuevas.
-	QuestLogic.ensureDay(data, today(), player.UserId, contextOf(profile))
+	-- Primero el día y la semana: un evento justo tras medianoche cuenta para las nuevas.
+	local ctx = contextOf(profile)
+	QuestLogic.ensureDay(data, today(), player.UserId, ctx)
+	QuestLogic.ensureWeek(data, thisWeek(), player.UserId, ctx)
 	if QuestLogic.record(data, event) then
 		sessionOf(player).Dirty = true
 		PlayerDataService.markDirty(player)
@@ -212,7 +223,7 @@ function QuestService.start()
 
 	-- La recompensa de los enemigos es dinero: no cuenta como energía generada.
 	EnemyService.onDefeated(function(player, info)
-		record(player, { Type = "Kill", TypeId = info.TypeId, ZoneId = info.ZoneId })
+		record(player, { Type = "Kill", TypeId = info.TypeId, ZoneId = info.ZoneId, Elite = info.Elite == true })
 		update(player, false)
 	end)
 	PetCombatService.onAbilityHit(function(player)
@@ -227,9 +238,28 @@ function QuestService.start()
 		record(player, { Type = "Egg" })
 		update(player, false)
 	end)
-	-- Partida de oleadas ganada (WaveService): estadística WaveWins (tutorial).
-	GameEvents.on("WaveWon", function(player)
-		record(player, { Type = "WaveWin" })
+	-- Partida de oleadas ganada (WaveService): estadística WaveWins (tutorial) y retos semanales
+	-- (con su dificultad y su modificador; la práctica no cuenta para los retos).
+	GameEvents.on("WaveWon", function(player, arenaId, difficulty, mutator)
+		local arena = type(arenaId) == "string" and WaveConfig.Arenas[arenaId]
+		record(player, {
+			Type = "WaveWin",
+			Tutorial = not arena or arena.Tutorial == true,
+			Difficulty = if type(difficulty) == "string" then difficulty else "Normal",
+			Mutator = if type(mutator) == "string" then mutator else nil,
+		})
+		update(player, false)
+	end)
+	-- Oleada superada (WaveService): el reto "llega a la oleada 15" (la más alta)
+	GameEvents.on("WaveCleared", function(player, arenaId, wave)
+		local arena = type(arenaId) == "string" and WaveConfig.Arenas[arenaId]
+		if arena and not arena.Tutorial and type(wave) == "number" then
+			record(player, { Type = "WaveCleared", Wave = wave })
+		end
+	end)
+	-- Evento del mapa completado (MapEventService)
+	GameEvents.on("MapEventDone", function(player)
+		record(player, { Type = "MapEvent" })
 		update(player, false)
 	end)
 	-- Cada segundo (aviso de DiamondService): 💎 conseguidos, cambio de día y misiones de estado.

@@ -20,7 +20,8 @@
 --   gris al caer.
 
 --
--- Dividido en partes (Fase 3 del rediseño; mismo comportamiento): Gui, HudAndFx, CardsAndSummary, EventsAndStreak.
+-- Dividido en partes (Fase 3 del rediseño; mismo comportamiento): Gui, HudAndFx, CardsAndSummary, EventsAndStreak
+-- y Difficulty (la ventana para elegir la dificultad de la mazmorra).
 -- Cada parte se registra en la tabla de estado (install) y luego toma lo de las demás
 -- (link); sus funciones públicas se copian aquí, a WaveController, con el mismo nombre.
 
@@ -31,6 +32,7 @@ local PARTS = {
 	require(script.HudAndFx),
 	require(script.CardsAndSummary),
 	require(script.EventsAndStreak),
+	require(script.Difficulty),
 }
 
 -- Estado compartido entre las partes (lo que antes eran variables de primer nivel).

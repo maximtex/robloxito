@@ -2,7 +2,7 @@
 -- - Azulejo "Misiones" en la barra del menú, con el número de recompensas listas.
 -- - Bajo el menú, una línea de estado con la diaria más avanzada sin completar.
 -- - Avisos (misión completada, logro, energía recibida) en la pila común (Toasts).
--- - Panel (PanelManager) con pestañas Diarias / Misiones / Logros: progreso 3/5,
+-- - Panel (PanelManager) con pestañas Diarias / Semanales / Misiones / Logros: progreso 3/5,
 --   recompensa, botón "Reclamar" solo si el servidor la marca lista, "Completada" al
 --   reclamar y logros bloqueados/desbloqueados.
 -- - La energía solo se muestra como recibida cuando el servidor lo confirma (QuestResult
@@ -41,10 +41,13 @@ local MESSAGES = {
 }
 
 local definitions: { [string]: any } = {}
-for _, list in { QuestConfig.Missions, QuestConfig.Daily, QuestConfig.Achievements } do
+for _, list in { QuestConfig.Missions, QuestConfig.Daily, QuestConfig.Weekly or {}, QuestConfig.Achievements } do
 	for _, def in list do
 		definitions[def.Id] = def
 	end
+end
+if QuestConfig.WeeklyChest then
+	definitions[QuestConfig.WeeklyChest.Id] = QuestConfig.WeeklyChest -- el cofre de la semana
 end
 
 local QuestController = {}
@@ -99,9 +102,9 @@ local function buildGui()
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, tabsRow)
 	local tabs = {}
-	for order, spec in { { "Daily", "Diarias" }, { "Missions", "Misiones" }, { "Achievements", "Logros" } } do
+	for order, spec in { { "Daily", "Diarias" }, { "Weekly", "Semanales" }, { "Missions", "Misiones" }, { "Achievements", "Logros" } } do
 		local tab = UiKit.button(tabsRow, spec[1], {
-			Size = UDim2.fromOffset(150, 36),
+			Size = UDim2.fromOffset(130, 36),
 			BackgroundColor3 = THEME.Inset,
 			TextSize = 17,
 			Text = spec[2],
@@ -272,7 +275,7 @@ function QuestController.start()
 	local resultRemote = remotes:WaitForChild(Constants.Remotes.QuestResult) :: RemoteEvent
 
 	local ui = buildGui()
-	local state: any = { Ready = false, Missions = {}, Daily = {}, Achievements = {} }
+	local state: any = { Ready = false, Missions = {}, Daily = {}, Weekly = {}, Achievements = {} }
 	local tab = "Daily"
 	local pending: { [string]: boolean } = {}
 
@@ -327,6 +330,12 @@ function QuestController.start()
 		local minutes = math.floor((remaining % 3600) / 60)
 		return ("Nuevas diarias en %d h %02d min"):format(hours, minutes)
 	end
+	local function weekCountdown(): string
+		local remaining = math.max(0, (state.WeekResetAt or 0) - Workspace:GetServerTimeNow())
+		local days = math.floor(remaining / 86400)
+		local hours = math.floor((remaining % 86400) / 3600)
+		return ("Retos de la semana · nuevos en %d d %d h · reclama los 3 y abre el 🎁 cofre"):format(days, hours)
+	end
 
 	local function renderList()
 		for _, child in ui.List:GetChildren() do
@@ -346,6 +355,8 @@ function QuestController.start()
 		end
 		if tab == "Daily" then
 			ui.Subtitle.Text = countdown()
+		elseif tab == "Weekly" then
+			ui.Subtitle.Text = weekCountdown()
 		elseif tab == "Missions" then
 			ui.Subtitle.Text = "Objetivos permanentes: cada recompensa se reclama una vez"
 		else
@@ -363,7 +374,7 @@ function QuestController.start()
 
 	local function refreshHud()
 		local ready = 0
-		for _, list in { state.Missions or {}, state.Daily or {} } do
+		for _, list in { state.Missions or {}, state.Daily or {}, state.Weekly or {} } do
 			for _, entry in list do
 				if entry.Status == "Ready" then
 					ready += 1
@@ -396,7 +407,7 @@ function QuestController.start()
 			return
 		end
 		if data.Ready ~= true then
-			state = { Ready = false, Missions = {}, Daily = {}, Achievements = {} }
+			state = { Ready = false, Missions = {}, Daily = {}, Weekly = {}, Achievements = {} }
 			refreshHud()
 			if PanelManager.isOpen(PANEL_NAME) then
 				renderList()
@@ -414,6 +425,8 @@ function QuestController.start()
 						notify("🏆 Logro: " .. def.Title .. reward, VIOLET)
 					elseif notice.Type == "Daily" then
 						notify("★ Diaria completada: " .. def.Title .. " — ¡reclámala!", TURQUOISE)
+					elseif notice.Type == "Weekly" then
+						notify("🏅 Reto semanal completado: " .. def.Title .. " — ¡reclámalo!", THEME.Gold)
 					else
 						notify("★ Misión completada: " .. def.Title .. " — ¡reclámala!", TURQUOISE)
 					end

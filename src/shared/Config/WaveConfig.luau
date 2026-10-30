@@ -428,7 +428,15 @@ local WaveConfig = {
 	--   Chain (+saltos a otros enemigos), Splash (los disparos explotan: radio y fracción),
 	--   Twin (probabilidad de un disparo extra), Explode (al matar, explosión: radio y
 	--   veces el daño del disparo), Loot (+fracción de 💎 y 💰), Heal (vida por enemigo),
-	--   StreakSeconds (+segundos de ventana de la racha).
+	--   StreakSeconds (+segundos de ventana de la racha), Armor (·factor del daño que
+	--   recibes), BossDamage (+fracción de daño a los jefes).
+	-- Rarity (CardRarity): las Raras y las Épicas salen menos. Style: solo le salen a quien
+	-- pelea con ese estilo (las de clase). Pruebas con amigos: "se siente repetitivo".
+	CardRarity = {
+		Common = { Name = "Común", Weight = 1 },
+		Rare = { Name = "Rara", Weight = 0.45 },
+		Epic = { Name = "Épica", Weight = 0.18 },
+	},
 	Cards = {
 		Fury = { Order = 1, Icon = "🔥", Name = "Furia", Text = "+25 % de daño", MaxLevel = 3, Damage = 0.25 },
 		Trigger = { Order = 2, Icon = "⚡", Name = "Gatillo fácil", Text = "Disparas un 15 % más rápido", MaxLevel = 3, Cooldown = 0.85 },
@@ -439,6 +447,47 @@ local WaveConfig = {
 		Greed = { Order = 7, Icon = "💰", Name = "Codicia", Text = "+30 % de 💎 y 💰 en esta partida", MaxLevel = 3, Loot = 0.3 },
 		Vampire = { Order = 8, Icon = "🩸", Name = "Vampiro", Text = "+3 de vida por enemigo", MaxLevel = 3, Heal = 3 },
 		LongStreak = { Order = 9, Icon = "⏱️", Name = "Racha larga", Text = "La racha aguanta 1 s más", MaxLevel = 2, StreakSeconds = 1 },
+		Tough = { Order = 10, Icon = "🪨", Name = "Piel dura", Text = "Recibes un 10 % menos de daño", MaxLevel = 3, Armor = 0.9 },
+		Rapid = { Order = 11, Icon = "🌪️", Name = "Ráfaga", Text = "Disparas un 25 % más rápido", MaxLevel = 1, Rarity = "Rare", Cooldown = 0.75 },
+		Hunter = { Order = 12, Icon = "👑", Name = "Cazajefes", Text = "+30 % de daño a los jefes", MaxLevel = 2, Rarity = "Rare", BossDamage = 0.3 },
+		Glass = { Order = 13, Icon = "💎", Name = "Cañón de cristal", Text = "+60 % de daño, pero recibes un 30 % más", MaxLevel = 1, Rarity = "Epic", Damage = 0.6, Armor = 1.3 },
+		Jackpot = { Order = 14, Icon = "🏆", Name = "Tesoro", Text = "+75 % de 💎 y 💰 en esta partida", MaxLevel = 1, Rarity = "Epic", Loot = 0.75 },
+		-- De clase: solo para su estilo
+		Piercing = { Order = 15, Icon = "🏹", Name = "Flechas perforantes", Text = "Atraviesan a 1 enemigo más y +10 % de daño", MaxLevel = 2, Rarity = "Rare", Style = "Weapons", Chain = 1, Damage = 0.1 },
+		Whirl = { Order = 16, Icon = "🌀", Name = "Torbellino", Text = "Tus tajos dañan a los de alrededor", MaxLevel = 2, Rarity = "Rare", Style = "Warrior", Splash = { Radius = 7, RadiusPerLevel = 2, Fraction = 0.5 } },
+		Crusher = { Order = 17, Icon = "👊", Name = "Puño demoledor", Text = "+25 % a los jefes y +10 % de daño", MaxLevel = 2, Rarity = "Rare", Style = "Fists", BossDamage = 0.25, Damage = 0.1 },
+		Arcane = { Order = 18, Icon = "✨", Name = "Sobrecarga arcana", Text = "Lanzas un 15 % más rápido y 15 % de hechizo doble", MaxLevel = 2, Rarity = "Rare", Style = "Magic", Cooldown = 0.85, Twin = 0.15 },
+	},
+
+	-- Modificador de cada partida (pruebas con amigos: "se siente repetitivo"): al empezar
+	-- una (no la práctica) sale uno al azar según su Weight, y dura toda la partida (también
+	-- el modo infinito). None: la probabilidad de que no salga ninguno. Efectos (todos
+	-- opcionales): Health / Damage (· vida y daño de los bichos), BossHealth (· vida del
+	-- jefe), CountScale (· bichos por oleada), EliteBonus (+probabilidad de élite),
+	-- ClearHeal (vida al superar una oleada, en vez de la de siempre), CardEvery (mejoras
+	-- cada tantas oleadas), RareBoost (· probabilidad de cartas Raras y Épicas), Reward (·
+	-- premios de las oleadas, botín de cada bicho y cofre) y VictoryBonus (· solo el premio de
+	-- victoria).
+	MutatorNoneWeight = 2,
+	Mutators = {
+		Armored = { Order = 1, Weight = 2, Icon = "🛡️", Name = "Blindados", Text = "Los bichos tienen +50 % de vida · +35 % de premios", Health = 1.5, Reward = 1.35 },
+		Horde = { Order = 2, Weight = 2, Icon = "🌊", Name = "Marea", Text = "Salen +50 % de bichos con -30 % de vida · +30 % de premios", CountScale = 1.5, Health = 0.7, Reward = 1.3 },
+		Elites = { Order = 3, Weight = 2, Icon = "⭐", Name = "Élites", Text = "Muchos más bichos élite · +30 % de premios", EliteBonus = 0.15, Reward = 1.3 },
+		Lucky = { Order = 4, Weight = 2, Icon = "🍀", Name = "Suerte", Text = "Mejoras cada 2 oleadas y más cartas raras y épicas", CardEvery = 2, RareBoost = 3 },
+		Restless = { Order = 5, Weight = 2, Icon = "💔", Name = "Sin respiro", Text = "No te curas al superar una oleada · +45 % de premios", ClearHeal = 0, Reward = 1.45 },
+		Fierce = { Order = 6, Weight = 2, Icon = "🐺", Name = "Feroces", Text = "Los bichos pegan un 35 % más · +35 % de premios", Damage = 1.35, Reward = 1.35 },
+		BossRage = { Order = 7, Weight = 2, Icon = "😡", Name = "Jefe furioso", Text = "El jefe tiene +60 % de vida · premio de victoria ×2", BossHealth = 1.6, VictoryBonus = 2 },
+	},
+
+	-- Dificultades de cada mazmorra (los modos con jefe, no la práctica). Normal siempre; las
+	-- demás se abren al ganar la anterior en ese modo (Requires). Su récord va aparte
+	-- (WaveLogic.recordKey: "Forest@Hard"). Mismos efectos que los modificadores, que se suman
+	-- (se multiplican) a los de la dificultad.
+	Difficulties = {
+		Order = { "Normal", "Hard", "Nightmare" },
+		Normal = { Icon = "⚔", Name = "Normal", Text = "La de siempre" },
+		Hard = { Icon = "🔥", Name = "Difícil", Text = "Bichos con ×1,8 de vida y ×1,4 de daño · premios ×1,75", Requires = "Normal", Health = 1.8, Damage = 1.4, BossHealth = 2, Reward = 1.75 },
+		Nightmare = { Icon = "💀", Name = "Pesadilla", Text = "Bichos con ×3,2 de vida y ×1,9 de daño, más élites · premios ×2,75", Requires = "Hard", Health = 3.2, Damage = 1.9, BossHealth = 3.5, EliteBonus = 0.1, Reward = 2.75 },
 	},
 
 	-- Protección del servidor contra peticiones repetidas.

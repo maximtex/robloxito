@@ -49,6 +49,21 @@ function Part.start()
 	local CARD_READ = 0.35 -- s más tras la última antes de poder elegir
 	local CARD_HELP = "Haz clic o pulsa 1, 2 o 3 · dura toda la partida"
 	local cardsReadyAt = 0
+	-- Color del borde y etiqueta de cada rareza (WaveConfig.CardRarity); las de clase, naranja
+	local RARITY_COLORS = {
+		Common = THEME.Gold,
+		Rare = Color3.fromRGB(90, 176, 255),
+		Epic = Color3.fromRGB(196, 110, 255),
+	}
+	local CLASS_COLOR = Color3.fromRGB(255, 150, 60)
+	local function cardLook(info: any): (Color3, string)
+		local rarity = if type(info.Rarity) == "string" then info.Rarity else "Common"
+		local settings = WaveConfig.CardRarity and WaveConfig.CardRarity[rarity]
+		if info.Class == true then
+			return CLASS_COLOR, "De tu clase"
+		end
+		return RARITY_COLORS[rarity] or THEME.Gold, if rarity ~= "Common" and settings then settings.Name else ""
+	end
 
 	local function pick(index: number)
 		local card = ui.Cards[index]
@@ -85,8 +100,11 @@ function Part.start()
 				card.Name.Text = tostring(info.Name)
 				card.Body.Text = tostring(info.Text)
 				local level = tonumber(info.Level) or 0
-				card.Level.Text = if level > 0 then ("Nv. %d → %d"):format(level, level + 1) else "¡Nueva!"
-				card.Stroke.Color = THEME.Gold
+				local color, tag = cardLook(info)
+				local levelText = if level > 0 then ("Nv. %d → %d"):format(level, level + 1) else "¡Nueva!"
+				card.Level.Text = if tag ~= "" then tag .. " · " .. levelText else levelText
+				card.Level.TextColor3 = color
+				card.Stroke.Color = color
 			end
 		end
 		ui.CardPanel.Visible = true
@@ -269,7 +287,12 @@ function Part.start()
 			elseif personal > 0 then
 				table.insert(lines, ("🏅 Tu récord aquí: oleada %d"):format(personal))
 			end
-			table.insert(lines, ("Récord del servidor: oleada %d"):format(tonumber(data.Best) or 0))
+			-- Modificador y dificultad de la partida (en vez del récord del servidor: no cabe todo)
+			if type(data.Tags) == "string" and data.Tags ~= "" then
+				table.insert(lines, 1, ("<b>%s</b>"):format(data.Tags))
+			else
+				table.insert(lines, ("Récord del servidor: oleada %d"):format(tonumber(data.Best) or 0))
+			end
 		end
 		ui.ResultBody.Text = table.concat(lines, "\n")
 		ui.ResultPanel.Visible = true

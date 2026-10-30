@@ -400,6 +400,25 @@ local EnemyConfig = {
 			Trait = { Kind = "BattleFrenzy", HealthFraction = 0.50, SpeedMultiplier = 1.30 },
 			Look = { Style = "GoblinBrute", Primary = Color3.fromRGB(96, 152, 62), Secondary = Color3.fromRGB(120, 124, 136), Eyes = Color3.fromRGB(255, 120, 60) },
 		},
+		-- Goblin del tesoro (evento del mapa, MapEventService): no ataca a nadie (DetectRange 0)
+		-- y corretea por la zona hasta que se escapa. Su vida y su botín se escalan con los
+		-- bichos de la zona donde sale (MapEventLogic.goblinScale); estos son la base.
+		TreasureGoblin = {
+			DisplayName = "💰 Goblin del tesoro",
+			Kind = "Normal",
+			MaxHealth = 100,
+			Damage = 1,
+			AttackRange = 3,
+			AttackCooldown = 5,
+			AttackWindup = 1,
+			WalkSpeed = 20,
+			DetectRange = 0,
+			LeashRange = 30,
+			Reward = 100,
+			RespawnSeconds = 600,
+			Scale = 1.15,
+			Look = { Style = "Goblin", Primary = Color3.fromRGB(240, 196, 60), Secondary = Color3.fromRGB(150, 96, 40), Eyes = Color3.fromRGB(255, 255, 160) },
+		},
 		-- Rey Goblin (jefe final del Mundo 1): enorme, SUPER rápido (corre más que tú) y duro.
 		-- Embiste, salta sobre ti, lanza dagas y golpea el suelo sin apenas descansar. Abre el
 		-- portal gigante al Mundo 2 (ZoneConfig.Zones.World2.RequiredBoss).

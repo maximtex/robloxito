@@ -6,6 +6,7 @@ local WaveLogic = require(Shared.WaveLogic)
 
 export type Participant = {
 	Player: Player,
+	Style: string?, -- estilo de pelea al entrar (las cartas de clase: WaveConfig.Cards.*.Style)
 	Levels: WaveLogic.Levels,
 	Mods: WaveLogic.Mods,
 	Choices: { string }?, -- mejoras para elegir ahora (nil si no toca)
@@ -30,6 +31,9 @@ export type Run = {
 	Slot: number, -- hueco 1..MaxRuns (grupo de colisión de sus enemigos)
 	ZoneId: string,
 	Center: Vector3,
+	Difficulty: string, -- WaveConfig.Difficulties ("Normal" si el modo no tiene)
+	Mutator: string?, -- WaveConfig.Mutators (nil: ninguno)
+	Effects: WaveLogic.Effects, -- lo que cambian los dos (WaveLogic.runEffects)
 	Phase: string, -- "Countdown" | "Wave" | "Break" | "Cards" | "Boss" | "Choice" | "Done"
 	Endless: boolean, -- en el modo infinito (tras ganarle al jefe)
 	VictoryPaid: boolean, -- el premio de victoria ya se cobró (al caer el jefe)

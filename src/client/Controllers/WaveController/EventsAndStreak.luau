@@ -137,6 +137,10 @@ function Part.start()
 			end
 		elseif kind == "Chest" then
 			WaveChest.show(data) -- cofre de victoria de las mazmorras
+		elseif kind == "Difficulty" then
+			if ctx.openDifficulty then
+				ctx.openDifficulty(data) -- elegir la dificultad de la mazmorra (Difficulty)
+			end
 		end
 	end)
 

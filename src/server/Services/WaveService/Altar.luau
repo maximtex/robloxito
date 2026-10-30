@@ -15,7 +15,7 @@ local ctx: any -- tabla de estado compartida (la crea WaveService/init.luau)
 local GROUND: any
 
 -- Funciones de las otras partes
-local function tryStart(...) return ctx.tryStart(...) end
+local function requestStart(...) return ctx.requestStart(...) end
 
 -- Altar y círculo -----------------------------------------------------------------------
 
@@ -108,7 +108,7 @@ local function buildPlace(info: Place, parent: Instance)
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = column
 	prompt.Triggered:Connect(function(player: Player)
-		tryStart(player, info.Id)
+		requestStart(player, info.Id)
 	end)
 
 	-- Cartel flotante: qué es, cómo empezar y lo que pasa

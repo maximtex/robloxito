@@ -18,9 +18,10 @@ end
 print("-- 0. Configuración")
 do
 	local ids, ok = {}, true
-	for _, list in { QuestConfig.Missions, QuestConfig.Daily, QuestConfig.Achievements } do
+	for _, list in { QuestConfig.Missions, QuestConfig.Daily, QuestConfig.Weekly, QuestConfig.Achievements } do
 		for _, def in list do
 			if ids[def.Id .. tostring(list)] or #def.Id > QuestConfig.MaxIdLength or type(def.Target) ~= "number" or def.Target <= 0 then ok = false end
+			if def.Goal.MinDifficulty and not (QuestConfig.DifficultyRank[def.Goal.MinDifficulty] and WaveConfig.Difficulties[def.Goal.MinDifficulty]) then ok = false print("  dificultad inexistente", def.Id) end
 			ids[def.Id .. tostring(list)] = true
 			local goal = def.Goal
 			if goal.Source == "ZoneKills" or goal.Zone then
@@ -311,6 +312,75 @@ do
 	local data = QuestLogic.empty()
 	check("evento sin diarias activas: válido y sin progreso", QuestLogic.record(data, { Type = "Egg" }) and next(data.Daily.Progress) == nil)
 end
+print("-- Retos semanales")
+do
+	local WEEK = 2900
+	local fctx = ctxWith()
+	local w = QuestLogic.empty()
+	check("semana nueva: 3 retos, siempre con Racha de victorias", QuestLogic.ensureWeek(w, WEEK, 5, fctx) and #w.Weekly.Ids == QuestConfig.WeeklyCount and w.Weekly.Ids[1] == "WeeklyWins")
+	local reachable = true
+	for _, id in w.Weekly.Ids do
+		reachable = reachable and QuestLogic.Weekly[id].RequiresZone == nil
+	end
+	check("sin la zona que piden no salen (Pesadilla, élites)", reachable)
+	local again = QuestLogic.empty()
+	QuestLogic.ensureWeek(again, WEEK, 5, fctx)
+	check("los mismos retos en cualquier servidor", table.concat(again.Weekly.Ids, ",") == table.concat(w.Weekly.Ids, ","))
+	check("misma semana: no cambian; una semana anterior no reinicia", QuestLogic.ensureWeek(w, WEEK, 5, fctx) == false and QuestLogic.ensureWeek(w, WEEK - 1, 5, fctx) == false)
+	-- Retos concretos para probar cada evento
+	w.Weekly.Ids = { "WeeklyWins", "WeeklyHard", "WeeklyMutators", "WeeklyEndless", "WeeklyElites", "WeeklyEvents" }
+	QuestLogic.record(w, { Type = "WaveWin", Tutorial = true, Difficulty = "Nightmare", Mutator = "Horde" })
+	check("la práctica del tutorial no cuenta para los retos", next(w.Weekly.Progress) == nil)
+	QuestLogic.record(w, { Type = "WaveWin", Difficulty = "Normal" })
+	check("una victoria normal: solo cuenta para ganar partidas", w.Weekly.Progress.WeeklyWins == 1 and w.Weekly.Progress.WeeklyHard == nil and w.Weekly.Progress.WeeklyMutators == nil)
+	QuestLogic.record(w, { Type = "WaveWin", Difficulty = "Hard", Mutator = "Horde" })
+	check("en Difícil con modificador: cuenta para las tres", w.Weekly.Progress.WeeklyWins == 2 and w.Weekly.Progress.WeeklyHard == 1 and w.Weekly.Progress.WeeklyMutators == 1)
+	QuestLogic.record(w, { Type = "WaveWin", Difficulty = "Nightmare" })
+	check("Pesadilla también cuenta como Difícil o más (con tope)", w.Weekly.Progress.WeeklyHard == 1 and w.Weekly.Progress.WeeklyWins == 3)
+	QuestLogic.record(w, { Type = "WaveCleared", Wave = 12 })
+	QuestLogic.record(w, { Type = "WaveCleared", Wave = 9 })
+	check("la oleada más alta (no cuántas)", w.Weekly.Progress.WeeklyEndless == 12)
+	check("oleadas raras: no valen", QuestLogic.record(w, { Type = "WaveCleared", Wave = 0 / 0 }) == false and w.Weekly.Progress.WeeklyEndless == 12)
+	kill(w, "Thornling", "ThornWoods")
+	QuestLogic.record(w, { Type = "Kill", TypeId = "Thornling", ZoneId = "ThornWoods", Elite = true })
+	check("las élites solo cuentan si lo son", w.Weekly.Progress.WeeklyElites == 1)
+	QuestLogic.record(w, { Type = "MapEvent" })
+	check("eventos del mapa", w.Weekly.Progress.WeeklyEvents == 1)
+	local notices = QuestLogic.evaluate(w, fctx)
+	local weeklyNotice = false
+	for _, notice in notices do
+		weeklyNotice = weeklyNotice or (notice.Type == "Weekly" and notice.Id == "WeeklyHard")
+	end
+	check("aviso al completar un reto (una vez)", weeklyNotice and #QuestLogic.evaluate(w, fctx) == 0)
+	local code, amount = QuestLogic.claim(w, "WeeklyHard", fctx)
+	check("reclamar un reto completado da 💎 (y no dos veces)", code == "Success" and amount > 0 and QuestLogic.claim(w, "WeeklyHard", fctx) == "AlreadyClaimed")
+	check("uno a medias no se reclama", QuestLogic.claim(w, "WeeklyWins", fctx) == "NotComplete")
+	-- Cofre: solo con los tres reclamados
+	local c = QuestLogic.empty()
+	QuestLogic.ensureWeek(c, WEEK, 9, fctx)
+	c.Weekly.Ids = { "WeeklyHard", "WeeklyEvents", "WeeklyMutators" }
+	check("el cofre no se abre sin los tres", QuestLogic.claim(c, "WeeklyChest", fctx) == "NotComplete")
+	QuestLogic.record(c, { Type = "WaveWin", Difficulty = "Hard", Mutator = "Lucky" })
+	QuestLogic.record(c, { Type = "WaveWin", Difficulty = "Hard", Mutator = "Lucky" })
+	QuestLogic.record(c, { Type = "WaveWin", Difficulty = "Hard", Mutator = "Lucky" })
+	QuestLogic.record(c, { Type = "MapEvent" })
+	QuestLogic.record(c, { Type = "MapEvent" })
+	for _, id in c.Weekly.Ids do
+		QuestLogic.claim(c, id, fctx)
+	end
+	local chestCode, chestAmount = QuestLogic.claim(c, "WeeklyChest", fctx)
+	check("con los tres reclamados se abre el cofre (una vez) y da más que un reto", chestCode == "Success" and chestAmount > amount and QuestLogic.claim(c, "WeeklyChest", fctx) == "AlreadyClaimed")
+	local snap = QuestLogic.snapshot(c, fctx, DAY, WEEK)
+	local last = snap.Weekly[#snap.Weekly]
+	check("la interfaz recibe los retos, el cofre al final y cuándo cambian", #snap.Weekly == 4 and last.Id == "WeeklyChest" and last.Status == "Claimed" and snap.WeekResetAt == QuestLogic.weekEndsAt(WEEK))
+	local restored = QuestLogic.sanitize(QuestLogic.serialize(c))
+	check("los retos y el cofre se guardan", restored.Weekly.Week == WEEK and #restored.Weekly.Ids == 3 and restored.Weekly.Chest == true and restored.Weekly.Claimed.WeeklyHard == true)
+	check("semana siguiente: retos nuevos, cofre cerrado y progreso a cero", QuestLogic.ensureWeek(restored, WEEK + 1, 9, fctx) and restored.Weekly.Chest == false and next(restored.Weekly.Progress) == nil)
+	check("las semanas empiezan el lunes a las 00:00 UTC", QuestLogic.weekOf(4 * 86400) == QuestLogic.weekOf(4 * 86400 - 1) + 1 and QuestLogic.weekEndsAt(QuestLogic.weekOf(0)) == 4 * 86400)
+	local old = QuestLogic.sanitize({ Stats = {}, Daily = {} })
+	check("guardado antiguo sin retos: semana vacía", old.Weekly.Week == 0 and #old.Weekly.Ids == 0 and old.Weekly.Chest == false)
+end
+
 -- Jugador antiguo cargado de un registro sin Quests
 storeData["player_99"] = { Version = 1, Pets = { { Uid = "1", PetId = "MossFox" } }, Equipped = {}, NextPetUid = 2 }
 local st, oldData = SaveService.load(99)

@@ -46,6 +46,7 @@ local ItemService = require(Services.ItemService)
 local HealthService = require(Services.HealthService)
 local SettingsService = require(Services.SettingsService)
 local ProfileService = require(Services.ProfileService)
+local MapEventService = require(Services.MapEventService)
 
 local function safeStart(name: string, service: any)
 	local ok, err = pcall(service.start)
@@ -101,6 +102,7 @@ safeStart("ChestService", ChestService)
 safeStart("NpcService", NpcService)
 safeStart("QuestService", QuestService)
 safeStart("TutorialService", TutorialService)
+safeStart("MapEventService", MapEventService) -- eventos del mapa: invasión, goblin del tesoro y lluvia de 💎
 
 print("[REBIRTH CITY] Servidor iniciado completamente")
 

@@ -605,9 +605,6 @@ local EnemyConfig = {
 			SafeZones = {
 				{ Center = Vector2.new(38, 85), Radius = 20 }, -- Jardín de los Huevos (EggConfig.Gardens.Forest)
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- portal al Bosque de Espinas (ZoneConfig.Portals.ForestPortal)
-				-- Círculo de la práctica de las oleadas (WaveConfig.Places.Practice, radio AreaRadius + 4):
-				-- los del mundo no entran a por nadie ni atacan a quien espera junto al altar.
-				{ Center = Vector2.new(-69, 98), Radius = 22 },
 				-- Cueva de los Espinillos por dentro (CaveConfig, lejos del mapa; aquí relativo al centro
 				-- del Bosque, Z + 25): donde llegas al entrar (sala 1, junto al portal de salida) y el
 				-- círculo de las Oleadas del Guardián en la sala 3 (WaveConfig.Places.Forest).
@@ -653,11 +650,14 @@ local EnemyConfig = {
 				{ Center = Vector2.new(0, 160), Radius = 16 }, -- puerta del Valle (ZoneConfig.Portals.ValleyPortal)
 				-- Boca de la Cueva de los Espinillos (CaveConfig.Caves.Forest.Entrance): nadie te espera
 				{ Center = Vector2.new(30, 141), Radius = 16 },
+				-- Círculo de la práctica de las oleadas del tutorial (WaveConfig.Places.Practice, radio
+				-- AreaRadius + 4): los del mundo no entran a por nadie ni atacan a quien espera junto al altar.
+				{ Center = Vector2.new(-62, -109), Radius = 22 },
 			},
 			Spawns = {
-				-- Los pequeños, junto a la llegada
-				{ Type = "StarterThornling", Offset = Vector2.new(-50, -100) },
-				{ Type = "StarterThornling", Offset = Vector2.new(-80, -90) },
+				-- Los pequeños, junto a la llegada (los de la izquierda, lejos del altar de la práctica)
+				{ Type = "StarterThornling", Offset = Vector2.new(-20, -70) },
+				{ Type = "StarterThornling", Offset = Vector2.new(-105, -95) },
 				{ Type = "StarterThornling", Offset = Vector2.new(-20, -95) },
 				{ Type = "StarterThornling", Offset = Vector2.new(20, -95) },
 				{ Type = "StarterThornling", Offset = Vector2.new(50, -100) },

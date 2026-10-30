@@ -371,8 +371,44 @@ local inTown = false
 for _, area in EnemyConfig.Zones.Forest.SafeAreas or {} do
 	inTown = inTown or (spawnPortal.Offset.X >= area.Min.X and spawnPortal.Offset.X <= area.Max.X and spawnPortal.Offset.Y >= area.Min.Y and spawnPortal.Offset.Y <= area.Max.Y)
 end
-check("hay un portal en el pueblo (sin bichos) que lleva al Bosque de Espinas", spawnPortal ~= nil and spawnPortal.Zone == "Forest" and spawnPortal.Target == "ThornWoods"
+check("hay un portal en el pueblo (sin bichos) que abre 🗺️ Viajar", spawnPortal ~= nil and spawnPortal.Zone == "Forest" and spawnPortal.OpensTravel == true
 	and inTown and (spawnPortal.Offset - Vector2.new(0, 43)).Magnitude >= 12)
+-- La tarima del portal del spawn (PadPortal) tiene sitio: entera sobre el damero (no medio
+-- hundida en un camino), lejos de los huevos y las mascotas, de la Máquina de Evolución y del
+-- altar de la práctica, y se entra antes de llegar al marco.
+local padReach = PadPortal.footprint(spawnPortal.PadRadius or 7)
+local px, pz = worldOf("Forest", spawnPortal.Offset)
+local function far(x: number, z: number, room: number): boolean
+	local ok = math.sqrt((px - x) ^ 2 + (pz - z) ^ 2) >= room
+	if not ok then
+		print(("  la tarima del spawn está a menos de %.0f de (%.0f, %.0f)"):format(room, x, z))
+	end
+	return ok
+end
+local roomOk = spawnPortal.Design == "Pad" and spawnPortal.Radius < (spawnPortal.PadRadius or 7)
+	and StudFloor.onFloor(StudFloor.Zones.Forest, px, pz, padReach)
+for dx = -padReach, padReach, 1 do
+	for dz = -padReach, padReach, 1 do
+		if dx * dx + dz * dz <= padReach * padReach and StudFloor.raiseAt(px + dx, pz + dz) ~= 0 then
+			roomOk = false
+		end
+	end
+end
+local garden = EggConfig.Gardens.Forest
+local gx, gz = worldOf("Forest", garden.Center)
+roomOk = far(gx, gz, garden.Radius + padReach + 12) and roomOk
+for _, egg in EggConfig.Eggs do
+	if egg.Zone == "Forest" and egg.Enabled ~= false and egg.StandOffset then
+		local ex, ez = worldOf("Forest", egg.StandOffset)
+		roomOk = far(ex, ez, padReach + 20) and roomOk
+	end
+end
+local machine = VillageConfig.EvolutionMachine.Position
+roomOk = far(machine.X, machine.Y, padReach + 12) and roomOk
+local practice = WaveConfig.Places.Practice
+local ax, az = worldOf(practice.Zone, practice.Offset)
+roomOk = far(ax, az, padReach + 14) and roomOk
+check("la tarima del portal del spawn tiene sitio: sobre el damero, lejos de los huevos, la Máquina de Evolución y la práctica", roomOk)
 local travelOk, listed = true, {}
 for _, zoneId in ZoneConfig.TravelOrder do
 	travelOk = travelOk and ZoneConfig.Zones[zoneId] ~= nil and not listed[zoneId]

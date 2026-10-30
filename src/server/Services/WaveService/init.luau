@@ -22,7 +22,7 @@
 --    las hordas salen élite (Arenas.*.EliteChance; EnemyService, su propia reserva).
 -- 6. Si no queda nadie de la partida dentro y vivo durante LeaveGrace segundos, se pierde:
 --    los enemigos se retiran sin botín (lo ganado hasta ahí se queda).
--- Modos: "Tutorial" en el altar de la práctica (Places.Practice, en la pradera) para quien
+-- Modos: "Tutorial" en el altar de la práctica (Places.Practice, en el Bosque de Espinas) para quien
 -- está en ese paso del tutorial (partida corta con consejos en pantalla, "Hint"); a los demás
 -- ese altar les dice que las oleadas están en la cueva. Ganar suma WaveWins (GameEvents
 -- "WaveWon").

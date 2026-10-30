@@ -36,7 +36,7 @@ local TUTORIAL_MODE: string? = WaveLogic.tutorialArena()
 -- Círculo donde se juega la práctica (el de su modo).
 local TUTORIAL_PLACE: string? = if TUTORIAL_MODE then WaveConfig.Arenas[TUTORIAL_MODE].Place else nil
 -- Aviso para quien ya no está en la práctica y pulsa E en su altar.
-local PRACTICE_DONE_HINT = "⚔ Las Oleadas del Guardián están en la 🦇 Cueva de los Espinillos: camino de piedra al oeste de la plaza."
+local PRACTICE_DONE_HINT = "⚔ Las Oleadas del Guardián están en la 🦇 Cueva de los Espinillos: al fondo del Bosque de Espinas, junto a la puerta del Valle."
 
 
 

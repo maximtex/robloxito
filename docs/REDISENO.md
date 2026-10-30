@@ -508,15 +508,27 @@ cada mazmorra queda junto a la puerta de la zona siguiente:
 - Tutorial: la guía de la cueva y de la puerta del Valle pasa por los portales que hagan falta.
 - Pruebas: `zones` (todo en su suelo, bocas incluidas), `cave` (cada boca a ≤ 60 studs de la
   puerta siguiente), `waves` (el pueblo sin bichos y el Bosque de Espinas con 30 o más).
-- Portal del spawn (`WorldPortals.SpawnPortal`): un arco en diagonal junto a la avenida, entre
-  ella y el Jardín de los Huevos, que te lleva a la llegada del Bosque de Espinas (como los
-  portales entre mundos).
+- Portal del spawn (`WorldPortals.SpawnPortal`): al oeste de la avenida, bajando desde el spawn,
+  lejos de los huevos y las mascotas. Con el diseño de la referencia de Santiago (`Design = "Pad"`,
+  `Server.Util.PadPortal`): una tarima octogonal en el suelo con marco de tablones y herrajes, la
+  energía turquesa con un remolino que gira en el cliente (PortalController) y, detrás, un poste
+  con una calavera y huesos cruzados entre dos antorchas; en diagonal como el Evolucionador. La
+  decoración del pueblo deja un círculo libre alrededor (`PadPortal.footprint` + 6). No te lleva
+  solo: al pisarlo abre 🗺️ Viajar (`OpensTravel`) para elegir la zona; el servidor no lo usa como
+  viaje directo. La prueba `zones` comprueba que la tarima cabe entera en el damero y lejos de
+  los huevos, la Máquina de Evolución y la práctica.
 - 🗺️ Viajar (`TravelController`; botón encima del ⚙️, tecla O): las zonas del Mundo 1
   (`ZoneConfig.TravelOrder`); a las abiertas se va al instante (`FastTravel` →
   `ZoneService.fastTravel`), al pueblo junto al spawn (`TravelArrival`). No en una partida de
   oleadas (código `InWave`) y como mucho uno cada `FastTravelCooldown` (5 s). Las cerradas salen
   en la lista con su candado y lo que falta. (`DevConfig.StudioAllZones = true` deja ir a todas
   en Studio para probar; en el repositorio, false.)
+- La práctica del tutorial ya no está en el spawn (lo pidió Santiago): su altar
+  (`WaveConfig.Places.Practice`, modo `Tutorial` con `Zone = "ThornWoods"`) está en el Bosque de
+  Espinas, a la izquierda nada más llegar desde el pueblo, con su zona segura; los dos pequeños
+  que caían cerca se movieron. La decoración no pone nada dentro de los círculos de oleadas al
+  aire libre (`StudWorld.newDecor`). La flecha del paso 1 pasa por la puerta del pueblo
+  (`portalToward`).
 
 ## 16. Tutorial corto y fácil
 
@@ -537,3 +549,26 @@ el portal) lo hacían largo; además el banner solo enseñaba el título. Ahora 
   con su flecha; × lo oculta esta sesión.
 - Personajes: si la cuenta ya completó u omitió el tutorial (`ProfileLogic` `TutorialDone`),
   los personajes nuevos empiezan sin él.
+
+## 18. Estilo visual único: todo en studs, como el spawn (pueblo y Zona 1)
+
+Lo pidió Santiago tras la revisión general ("que todo el estilo visual sea del estilo de studs,
+como el spawn"). Primera tanda: lo hecho a mano en el pueblo y en el Bosque de Espinas. Los
+diseños importados (huevos, Evolucionador, puestos, tablas de clasificación, arco del Portal
+del Renacimiento, adornos de Navidad) y la tarima del portal del spawn se quedan como están.
+- `Server.Util.StudProps`: bloques de plástico con studs en todas las caras (sin cilindros ni
+  bolas), con la paleta del suelo y de los árboles de bloques; solo llamas y gemas de neón.
+  Antorcha, estandarte, provisiones, seta, matita y arbusto; `studify` pasa a studs lo que ya
+  tenía forma de bloques.
+- Pueblo (`WorldService`): antorchas, estandartes, provisiones, setas y matitas de bloques; los
+  cristales de amatista del paso al Valle (ya no lleva al Valle) son ahora dos arbustos a los
+  lados del paso al Bosque de Espinas.
+- Cofres escondidos (`ChestService`), cofre "RECLAMAR" (`VillageService`) y farolillos del
+  spawn (`SpawnService`): las mismas formas, en plástico con studs.
+- Altar de las oleadas (`WaveService/Altar`, también los de las cuevas): base cuadrada con
+  marco de neón, columna y remate de bloques con studs (el cristal y la columna de luz siguen).
+- Bosque de Espinas: cartel de bloques (postes detrás de la tabla para que se lean las letras,
+  "Cueva al fondo") y setas con studs también en el pie.
+- Textos: el altar de la práctica y el aviso de quien ya la hizo dicen que la cueva está al
+  fondo del Bosque de Espinas, junto a la puerta del Valle.
+- Siguiente: las demás zonas (Valle, Caldera, Tundra, Fortaleza) y los bichos.

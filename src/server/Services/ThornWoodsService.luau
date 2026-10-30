@@ -16,6 +16,7 @@ local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local StudFloor = require(Shared.Util.StudFloor)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local StudWorld = require(script.Parent.Parent.Util.StudWorld)
+local StudProps = require(script.Parent.Parent.Util.StudProps)
 
 local ThornWoodsService = {}
 
@@ -78,13 +79,13 @@ local function buildRock(parent: Instance, pos: Vector3, yaw: number, scale: num
 end
 
 local function buildMushroom(parent: Instance, pos: Vector3, scale: number)
-	PartFactory.part(parent, "SetaPie", {
+	StudWorld.allStuds(PartFactory.part(parent, "SetaPie", {
 		Size = Vector3.new(0.8, 1.6, 0.8) * scale,
 		CFrame = CFrame.new(pos + Vector3.new(0, 0.8 * scale, 0)),
 		Color = MUSHROOM_STEM,
 		Material = Enum.Material.Plastic,
 		Solid = false,
-	})
+	}))
 	StudWorld.allStuds(PartFactory.part(parent, "SetaSombrero", {
 		Size = Vector3.new(2.4, 0.9, 2.4) * scale,
 		CFrame = CFrame.new(pos + Vector3.new(0, 1.9 * scale, 0)),
@@ -94,27 +95,28 @@ local function buildMushroom(parent: Instance, pos: Vector3, scale: number)
 	}))
 end
 
--- Cartel de bienvenida a la derecha de la llegada
+-- Cartel de bienvenida a la derecha de la llegada (bloques con studs, como el spawn)
 local function buildSign(parent: Instance)
 	local folder = PartFactory.folder(parent, "Cartel")
 	local top = StudWorld.FloorTop
 	local base = world(22, top, -126)
 	for _, side in { -1, 1 } do
-		PartFactory.part(folder, "Poste", {
+		-- detrás de la tabla, para no tapar las letras
+		StudWorld.allStuds(PartFactory.part(folder, "Poste", {
 			Size = Vector3.new(0.8, 6, 0.8),
-			CFrame = CFrame.new(base + Vector3.new(side * 3.4, 3, 0)),
-			Color = Color3.fromRGB(116, 78, 46),
-			Material = Enum.Material.Wood,
+			CFrame = CFrame.new(base + Vector3.new(side * 3.4, 3, 0.65)),
+			Color = StudProps.Colors.Wood,
+			Material = Enum.Material.Plastic,
 			Solid = true,
-		})
+		}))
 	end
-	local board = PartFactory.part(folder, "Tabla", {
+	local board = StudWorld.allStuds(PartFactory.part(folder, "Tabla", {
 		Size = Vector3.new(8.4, 3, 0.5),
 		CFrame = CFrame.new(base + Vector3.new(0, 5, 0)),
-		Color = Color3.fromRGB(162, 116, 68),
-		Material = Enum.Material.WoodPlanks,
+		Color = StudProps.Colors.WoodDark,
+		Material = Enum.Material.Plastic,
 		Solid = true,
-	})
+	}))
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front -- mira a quien llega (hacia -Z, de donde viene)
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -128,7 +130,7 @@ local function buildSign(parent: Instance)
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(255, 244, 214)
 	label.TextStrokeTransparency = 0.2
-	label.Text = "🌲 " .. ZoneConfig.Zones[ZONE_ID].DisplayName .. "\n🦇 Cueva al fondo, junto a la puerta"
+	label.Text = "🌲 " .. ZoneConfig.Zones[ZONE_ID].DisplayName .. "\n🦇 Cueva al fondo"
 	label.Parent = gui
 end
 

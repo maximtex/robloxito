@@ -83,7 +83,7 @@ local function updateSign()
 				else "Pulsa E para jugar"
 		end
 		if place.Practice and place.InfoLabel then
-			place.InfoLabel.Text = "Las del Guardián: en la 🦇 Cueva, al oeste"
+			place.InfoLabel.Text = "Las del Guardián: en la 🦇 Cueva, al fondo junto a la puerta del Valle"
 		elseif place.InfoLabel then
 			local playing = 0
 			for _, run in runs do

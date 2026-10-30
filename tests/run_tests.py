@@ -546,6 +546,9 @@ def build_zones():
         ("GeneratorConfig", "src/shared/Config/GeneratorConfig.luau"),
         ("StudFloor", "src/shared/Util/StudFloor.luau"),
         ("CaveConfig", "src/shared/Config/CaveConfig.luau"),
+        ("VillageConfig", "src/shared/Config/VillageConfig.luau"),
+        ("WaveConfig", "src/shared/Config/WaveConfig.luau"),
+        ("PadPortal", "src/server/Util/PadPortal.luau"),
     ]]
     out.append(suite("zones_body.luau"))
     return "\n".join(out)

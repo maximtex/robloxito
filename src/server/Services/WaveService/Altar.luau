@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local WaveConfig = require(Shared.Config.WaveConfig)
 local StudFloor = require(Shared.Util.StudFloor)
 local PartFactory = require(script.Parent.Parent.Parent.Util.PartFactory)
+local StudProps = require(script.Parent.Parent.Parent.Util.StudProps)
 local Types = require(script.Parent.Types)
 type Place = Types.Place
 
@@ -46,20 +47,21 @@ local function buildPlace(info: Place, parent: Instance)
 	model:SetAttribute("Place", info.Id)
 	local center = info.Center
 	local ground = center.Y
-	local stone = Color3.fromRGB(110, 112, 100)
+	local stone = StudProps.Colors.Stone
 	local rune = Color3.fromRGB(255, 140, 70)
 	local area = WaveConfig.Place.AreaRadius
 
-	-- Altar en el centro (base baja: los enemigos y los jugadores pasan por encima sin tropezar)
-	PartFactory.verticalCylinder(model, "Base", Vector3.new(center.X, ground + 0.2, center.Z), 0.4, 11, stone, Enum.Material.Slate)
-	local ring = PartFactory.verticalCylinder(model, "Ring", Vector3.new(center.X, ground + 0.45, center.Z), 0.1, 10, rune, Enum.Material.Neon, false)
-	ring.Transparency = 0.2
-	local column = PartFactory.part(model, "Column", {
-		Size = Vector3.new(2.6, 5, 2.6),
-		CFrame = CFrame.new(center.X, ground + 2.9, center.Z),
-		Color = stone,
-		Material = Enum.Material.Slate,
-	})
+	-- Altar en el centro, en bloques con studs como el spawn (base baja: los enemigos y los
+	-- jugadores pasan por encima sin tropezar) con un marco de neón encima de la base
+	local at = CFrame.new(center.X, ground, center.Z)
+	StudProps.block(model, "Base", Vector3.new(10, 0.4, 10), at * CFrame.new(0, 0.2, 0), stone, true)
+	for index = 0, 3 do
+		local ring = StudProps.glow(model, if index == 0 then "Ring" else "Ring" .. index + 1, Vector3.new(8.4, 0.1, 0.5),
+			at * CFrame.Angles(0, math.rad(index * 90), 0) * CFrame.new(0, 0.45, -4.2), rune)
+		ring.Transparency = 0.2
+	end
+	local column = StudProps.block(model, "Column", Vector3.new(2.6, 5, 2.6), at * CFrame.new(0, 2.9, 0), stone, true)
+	StudProps.block(model, "Cap", Vector3.new(3.4, 0.6, 3.4), at * CFrame.new(0, 5.7, 0), StudProps.Colors.StoneDark, true)
 	local crystal = PartFactory.part(model, "Crystal", {
 		Size = Vector3.new(2.4, 3.6, 2.4),
 		CFrame = CFrame.new(center.X, ground + 7.4, center.Z) * CFrame.Angles(0, math.rad(45), math.rad(12)),

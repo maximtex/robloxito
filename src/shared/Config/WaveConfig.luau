@@ -69,9 +69,10 @@ local WaveConfig = {
 			-- los que salen de las paredes sin perder la partida.
 			InsideRadius = 64,
 		},
-		-- Pradera oeste, a unos 90 studs a la izquierda del spawn (que está en (0, 43)), con el
-		-- borde del mapa a 15 studs del círculo: la práctica del tutorial.
-		Practice = { Zone = "Forest", Offset = Vector2.new(-69, 98), Arena = "Tutorial", Practice = true },
+		-- La práctica del tutorial: en el Bosque de Espinas (Zona 1), a la izquierda nada más
+		-- llegar desde el pueblo (la llegada está en (0, -132)), en la pradera de los pequeños
+		-- (Santiago la quitó del spawn: el pueblo se queda para tiendas, huevos y portales).
+		Practice = { Zone = "ThornWoods", Offset = Vector2.new(-62, -109), Arena = "Tutorial", Practice = true },
 		-- Sala 3 de la Cueva de Amatista y de la Forja de Magma (CaveConfig.Caves: la misma cueva
 		-- movida a cada zona, así que el mismo Offset relativo a su zona).
 		CrystalValley = {
@@ -318,11 +319,11 @@ local WaveConfig = {
 			EliteMax = 14,
 			Chest = { Money = 600000, PotionChance = 0.8 },
 		},
-		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla, en el altar de
-		-- la pradera (Places.Practice).
+		-- Paso del tutorial: una partida corta y fácil con consejos en pantalla, en el altar del
+		-- Bosque de Espinas junto a la llegada (Places.Practice).
 		Tutorial = {
 			Place = "Practice",
-			Zone = "Forest",
+			Zone = "ThornWoods",
 			DisplayName = "Oleada de práctica",
 			Tutorial = true,
 			Pool = { StarterThornling = 70, Thornling = 80 },

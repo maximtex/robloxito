@@ -11,6 +11,7 @@ local VillageConfig = require(Shared.Config.VillageConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local StudFloor = require(Shared.Util.StudFloor)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
+local StudProps = require(script.Parent.Parent.Util.StudProps)
 local EvolucionadorData = require(script.Parent.Parent.Util.EvolucionadorData)
 local StallsData = require(script.Parent.Parent.Util.StallsData)
 
@@ -525,6 +526,8 @@ local function buildFreeClaimChest(parent: Instance, pos: Vector2, lookToward: V
 	subStroke.Thickness = 3.0
 	subStroke.Parent = sub
 
+	-- Estilo studs, como el spawn (gemas y remaches de neón aparte)
+	StudProps.studify(model)
 	model.PrimaryPart = body
 	model.Parent = parent
 end

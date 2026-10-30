@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local SpawnConfig = require(Shared.Config.SpawnConfig)
 local GeneratorConfig = require(Shared.Config.GeneratorConfig)
+local StudProps = require(script.Parent.Parent.Util.StudProps)
 
 local SpawnService = {}
 
@@ -25,6 +26,9 @@ local function createDecorPart(parent: Instance, name: string, size: Vector3, cf
 	part.CFrame = cframe
 	part.Color = color
 	part.Material = material
+	if material ~= Enum.Material.Neon then
+		StudProps.studify(part) -- estilo studs, como el suelo del spawn
+	end
 	part.Parent = parent
 	return part
 end

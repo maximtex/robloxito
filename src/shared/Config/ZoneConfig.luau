@@ -11,7 +11,7 @@
 -- Los 6 mapas del Mundo 1 son cuadrados de 320×320 (halfSpan = 160) pegados de forma
 -- continua en +Z sin puentes intermedios (el pueblo, sin bichos, y detrás la Zona 1 gratis;
 -- pruebas con amigos: "que el spawn sea solo el pueblo y la primera zona de pelea la de al lado"):
---   0. Forest:         Z = -160 .. +160 (Center Z = 0): el pueblo (spawn, tiendas, huevos, práctica)
+--   0. Forest:         Z = -160 .. +160 (Center Z = 0): el pueblo (spawn, tiendas, huevos, portal)
 --   1. ThornWoods:     Z = +160 .. +480 (Center Z = 320): Bosque de Espinas, gratis, con los
 --                      bichos del Bosque y la Cueva de los Espinillos junto a la puerta del Valle
 --   2. CrystalValley:  Z = +480 .. +800 (Center Z = 640)
@@ -174,20 +174,27 @@ local ZoneConfig = {
 	-- cruzar su energía (cliente: PortalController; viaje: ZoneService). Se abren cuando su
 	-- destino está desbloqueado. Offset: relativo al centro de su zona; Arrival / Facing: dónde
 	-- apareces (relativo al centro de Target; sin ellos, su Arrival). Scale: tamaño del arco
-	-- (Server.Util.PortalBuilder) y Style su aspecto. Radius: lo cerca que hay que pasar de
-	-- su centro para cruzarlo.
+	-- (Server.Util.PortalBuilder) y Style su aspecto. Design = "Pad": en vez del arco, una
+	-- tarima octogonal en el suelo (Server.Util.PadPortal) con la energía de PadRadius studs y el
+	-- cartel a SignHeight. Radius: lo cerca que hay que pasar de su centro para cruzarlo.
 	WorldPortals = {
-		-- Portal del spawn: junto a la avenida, entre ella y el Jardín de los Huevos (donde lo
-		-- pidió Santiago), en diagonal: mira a la avenida y al spawn. Lleva directo a la llegada del Bosque de Espinas.
+		-- Portal del spawn: al oeste de la avenida, bajando desde el spawn (donde lo pidió
+		-- Santiago), lejos de los huevos y las mascotas y con sitio alrededor (la decoración no
+		-- se pone encima). Con el diseño de su referencia: una tarima octogonal de madera en el
+		-- suelo con el remolino turquesa y, detrás, la calavera entre dos antorchas; en diagonal
+		-- como el Evolucionador (mira a la avenida y a la plaza). No te lleva solo: al pisarlo
+		-- abre 🗺️ Viajar (OpensTravel) para elegir la zona (las cerradas salen con su candado).
 		SpawnPortal = {
 			Zone = "Forest",
-			Offset = Vector2.new(18, 100),
-			Facing = Vector3.new(-0.7071, 0, -0.7071), -- en diagonal, mirando a la avenida y al spawn
+			Offset = Vector2.new(-31, 109),
+			Facing = Vector3.new(0.7071, 0, -0.7071), -- en diagonal, como el Evolucionador
 			Target = "ThornWoods",
-			Title = "🌲 BOSQUE DE ESPINAS",
-			Style = "Return",
-			Scale = 2.6,
-			Radius = 5,
+			OpensTravel = true,
+			Title = "🗺️ VIAJAR A LAS ZONAS",
+			Design = "Pad",
+			PadRadius = 7,
+			SignHeight = 12,
+			Radius = 6,
 		},
 		World2Portal = {
 			Zone = "GoblinFortress",

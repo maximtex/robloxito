@@ -11,7 +11,9 @@ local GeneratorConfig = require(Shared.Config.GeneratorConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local ZoneConfig = require(Shared.Config.ZoneConfig)
 local CaveConfig = require(Shared.Config.CaveConfig)
+local WaveConfig = require(Shared.Config.WaveConfig)
 local PartFactory = require(script.Parent.PartFactory)
+local PadPortal = require(script.Parent.PadPortal)
 
 local StudWorld = {}
 
@@ -805,10 +807,19 @@ function StudWorld.newDecor(layout, zoneName: string, keepOut: { { number } }?)
 			table.insert(blocked, { originX + arena.Center.X, originZ + arena.Center.Y, arena.Radius + 6 })
 		end
 	end
-	-- Los portales entre mundos de esta zona (el del spawn, el gigante del Mundo 2...)
+	-- Los portales entre mundos de esta zona (la tarima del spawn, el arco gigante del Mundo
+	-- 2...), con sitio alrededor para llegar y verlos
 	for _, portal in ZoneConfig.WorldPortals or {} do
 		if portal.Zone == zoneName then
-			table.insert(blocked, { originX + portal.Offset.X, originZ + portal.Offset.Y, (portal.Scale or 3.2) * 4 + 6 })
+			local reach = if portal.Design == "Pad" then PadPortal.footprint(portal.PadRadius or 7) + 6 else (portal.Scale or 3.2) * 4 + 6
+			table.insert(blocked, { originX + portal.Offset.X, originZ + portal.Offset.Y, reach })
+		end
+	end
+	-- Los círculos de las oleadas al aire libre de esta zona (la práctica del tutorial en el
+	-- Bosque de Espinas...): ni árboles ni rocas dentro
+	for _, place in WaveConfig.Places do
+		if place.Zone == zoneName and not place.Cave then
+			table.insert(blocked, { originX + place.Offset.X, originZ + place.Offset.Y, WaveConfig.Place.AreaRadius + 6 })
 		end
 	end
 	-- Las bocas de las mazmorras de esta zona (montículos de roca, con sitio delante)

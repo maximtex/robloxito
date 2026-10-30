@@ -28,6 +28,7 @@ local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local ZoneLogic = require(script.Parent.Parent.Util.ZoneLogic)
 local PortalBuilder = require(script.Parent.Parent.Util.PortalBuilder)
+local PadPortal = require(script.Parent.Parent.Util.PadPortal)
 local DevConfig = require(script.Parent.Parent.DevConfig)
 
 -- Solo en Studio (DevConfig.StudioAllZones): viajar a todas las zonas del Mundo 1 para probar
@@ -126,7 +127,8 @@ local function isNearPortalTo(player: Player, targetZone: string): (boolean, any
 		end
 	end
 	for portalId, portal in ZoneConfig.WorldPortals do
-		if portal.Target == targetZone then
+		-- (el del spawn no lleva solo: abre 🗺️ Viajar en el cliente)
+		if portal.Target == targetZone and not portal.OpensTravel then
 			local position = ZoneService.getPortalPosition(portalId)
 			if position and flatDistance(root.Position, position) <= (portal.Radius or 8) + 14 then
 				return true, portal
@@ -244,7 +246,8 @@ local function buildPortal(parent: Instance, portalId: string)
 	model.Parent = parent
 end
 
--- Portales entre mundos: el arco gigante (PortalBuilder) con su nombre encima ----------------
+-- Portales entre mundos: el arco gigante (PortalBuilder) o, con Design = "Pad", la tarima
+-- octogonal en el suelo (PadPortal: el del spawn), con su nombre encima ------------------------
 
 local function buildWorldPortal(parent: Instance, portalId: string)
 	local portal = ZoneConfig.WorldPortals[portalId]
@@ -257,7 +260,14 @@ local function buildWorldPortal(parent: Instance, portalId: string)
 	model:SetAttribute("WorldPortalId", portalId)
 	model:SetAttribute("TargetZone", portal.Target)
 	model:SetAttribute("PortalRadius", portal.Radius or 8)
-	local anchor, veil = PortalBuilder.build(model, CFrame.lookAt(ground, ground + facing), portal.Scale or 3.2, portal.Style)
+	local root = CFrame.lookAt(ground, ground + facing)
+	local pad = portal.Design == "Pad"
+	local anchor, veil
+	if pad then
+		anchor, veil = PadPortal.build(model, root, portal.PadRadius or 7)
+	else
+		anchor, veil = PortalBuilder.build(model, root, portal.Scale or 3.2, portal.Style)
+	end
 	veil.Name = "Energy"
 	model.PrimaryPart = anchor
 
@@ -270,11 +280,11 @@ local function buildWorldPortal(parent: Instance, portalId: string)
 	sign.CanTouch = false
 	sign.Transparency = 1
 	sign.Size = Vector3.one * 0.2
-	sign.CFrame = CFrame.new(ground + Vector3.new(0, 7.6 * (portal.Scale or 3.2) + 4, 0))
+	sign.CFrame = CFrame.new(ground + Vector3.new(0, if pad then portal.SignHeight or 12 else 7.6 * (portal.Scale or 3.2) + 4, 0))
 	sign.Parent = model
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "PortalSign"
-	billboard.Size = UDim2.fromScale(26, 7)
+	billboard.Size = if pad then UDim2.fromScale(18, 5) else UDim2.fromScale(26, 7)
 	billboard.LightInfluence = 0
 	billboard.MaxDistance = 260
 	billboard.Parent = sign

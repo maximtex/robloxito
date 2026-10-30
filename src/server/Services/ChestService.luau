@@ -24,6 +24,7 @@ local RewardLogic = require(script.Parent.Parent.Util.RewardLogic)
 local ZoneLogic = require(script.Parent.Parent.Util.ZoneLogic)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
+local StudProps = require(script.Parent.Parent.Util.StudProps)
 
 local Codes = Constants.PurchaseCodes
 local Colors = ChestConfig.Colors
@@ -285,6 +286,8 @@ local function buildChest(parent: Instance, chest: any)
 			push(player)
 		end
 	end)
+	-- Estilo studs, como el spawn (el brillo de la gema y la cerradura se queda de neón)
+	StudProps.studify(model)
 	model.PrimaryPart = body
 	model.Parent = parent
 	chestParts[chest.Id] = body

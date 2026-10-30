@@ -23,11 +23,12 @@
 local TutorialConfig = {
 	Steps = {
 		{
-			-- La mecánica principal. El altar da una partida corta de práctica
+			-- La mecánica principal. El altar (en el Bosque de Espinas, junto a la llegada desde
+			-- el pueblo: WaveConfig.Places.Practice) da una partida corta de práctica
 			-- (WaveConfig.Arenas.Tutorial) con consejos en pantalla.
 			Id = "Waves",
 			Title = "Tu primera oleada",
-			Text = "Sigue la flecha y pulsa E en el altar. Clic para atacar, Shift para esquivar.",
+			Text = "Sigue la flecha al Bosque de Espinas y pulsa E en el altar. Clic para atacar, Shift para esquivar.",
 			Goal = { Source = "Stat", Key = "WaveWins" },
 			Target = 1,
 			Guide = "Waves",

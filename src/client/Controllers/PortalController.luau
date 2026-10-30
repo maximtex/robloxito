@@ -4,12 +4,14 @@
 --   (`GateBarrier`) se vuelve invisible y sin colisión (`CanCollide = false`) para pasar caminando.
 -- - Portales entre mundos (ZoneConfig.WorldPortals: el arco gigante de la Fortaleza Goblin al
 --   Mundo 2 y el de vuelta): al cruzar su energía con el destino abierto, fundido y viaje
---   (TravelToZone). Cerrado, su energía se ve gris y avisa de qué jefe lo abre.
+--   (TravelToZone). Cerrado, su energía se ve gris y avisa de qué jefe lo abre. El remolino de
+--   los de tarima (Server.Util.PadPortal: el del spawn) gira aquí, solo en este cliente.
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
@@ -452,6 +454,9 @@ function PortalController.start()
 	-- Cruzar un portal entre mundos: si su destino está abierto, fundido y viaje; si no, aviso.
 	local WORLD_CHECK = 0.12
 	local worldCooldownUntil = 0
+	-- Portales que abren 🗺️ Viajar (OpensTravel: el del spawn) en los que ya estás dentro: el
+	-- panel se abre al entrar, no cada vez que se revisa
+	local insideHub: { [string]: boolean } = {}
 	local lockedNoticeAt = 0
 	local function fadeIn(text: string)
 		ui.Fade.Visible = true
@@ -478,7 +483,16 @@ function PortalController.start()
 				local offset = root.Position - energy.Position
 				local radius = portal.Radius or 8
 				if Vector2.new(offset.X, offset.Z).Magnitude > radius or math.abs(offset.Y) > radius * 2 then
+					insideHub[portalId] = nil
 					continue
+				end
+				-- El portal del spawn no te lleva solo: abre 🗺️ Viajar para elegir la zona
+				if portal.OpensTravel then
+					if not insideHub[portalId] then
+						insideHub[portalId] = true
+						PanelManager.open("Travel")
+					end
+					break
 				end
 				local target = ZoneConfig.Zones[portal.Target]
 				if isUnlocked(portal.Target) then
@@ -501,6 +515,27 @@ function PortalController.start()
 				end
 				break
 			end
+		end
+	end)
+	-- Remolino de los portales de tarima (modelo "Swirl" con su SpinRate): gira mientras se ve
+	local SPIN_DISTANCE = 220
+	RunService.RenderStepped:Connect(function(dt)
+		local folder = Workspace:FindFirstChild("ZonePortals")
+		local camera = Workspace.CurrentCamera
+		if not (folder and camera) then
+			return
+		end
+		for _, model in folder:GetChildren() do
+			local swirl = model:FindFirstChild("Swirl")
+			if not (swirl and swirl:IsA("Model") and swirl.PrimaryPart) then
+				continue
+			end
+			local pivot = swirl:GetPivot()
+			if (pivot.Position - camera.CFrame.Position).Magnitude > SPIN_DISTANCE then
+				continue
+			end
+			local rate = swirl:GetAttribute("SpinRate")
+			swirl:PivotTo(pivot * CFrame.Angles(0, -(if typeof(rate) == "number" then rate else 1) * dt, 0))
 		end
 	end)
 	travelResultRemote.OnClientEvent:Connect(function()

@@ -113,7 +113,9 @@ check("ningún enemigo del mundo sale dentro ni cerca de un círculo", spawnsCle
 check("cada círculo es zona segura para los enemigos del mundo", guardedAll)
 local tutorialMode = WaveLogic.tutorialArena()
 local practice = tutorialMode and WaveConfig.Places[WaveConfig.Arenas[tutorialMode].Place]
-check("la práctica del tutorial se juega en su altar de la pradera del Bosque", practice ~= nil and practice.Practice == true and practice.Zone == "Forest" and not practice.Cave)
+local arrival = ZoneConfig.Zones.ThornWoods.Arrival
+check("la práctica del tutorial se juega en su altar del Bosque de Espinas, cerca de la llegada (no en el spawn)", practice ~= nil and practice.Practice == true and practice.Zone == "ThornWoods" and not practice.Cave
+	and distance(Vector2.new(arrival.X, arrival.Z), practice.Offset) <= 90)
 local forestPlace = WaveConfig.Places[WaveConfig.Arenas.Forest.Place]
 local altarCenter = CaveLogic.altarCenter()
 local fx, fz = worldOf(forestPlace)

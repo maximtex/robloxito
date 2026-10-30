@@ -31,3 +31,13 @@ Color3 = {
 		return { R = r, G = g, B = b }
 	end,
 }
+-- Enum.X.Y devuelve "Y" (los módulos que solo los nombran al cargarse, como PadPortal)
+Enum = setmetatable({}, {
+	__index = function()
+		return setmetatable({}, {
+			__index = function(_, key)
+				return key
+			end,
+		})
+	end,
+})

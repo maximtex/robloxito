@@ -16,6 +16,7 @@ local StudFloor = require(Shared.Util.StudFloor)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local StudWorld = require(script.Parent.Parent.Util.StudWorld)
+local StudProps = require(script.Parent.Parent.Util.StudProps)
 
 local CalderaService = {}
 
@@ -491,6 +492,8 @@ function CalderaService.start()
 	if tops then
 		buildTerraceDecor(model, tops)
 	end
+	-- Todo en estilo studs, como el spawn (menos lo que brilla)
+	StudProps.studifyMap(model)
 	model.Parent = workspace
 end
 

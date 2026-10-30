@@ -25,6 +25,7 @@ local ZoneConfig = require(Shared.Config.ZoneConfig)
 local PartFactory = require(script.Parent.PartFactory)
 local StudWorld = require(script.Parent.StudWorld)
 local ForestCave = require(script.Parent.ForestCave)
+local StudProps = require(script.Parent.StudProps)
 
 local CaveDungeon = {}
 
@@ -810,6 +811,8 @@ function CaveDungeon.build(parent: Instance): Model
 	end
 	useTheme(CaveConfig.Caves[CaveConfig.Order[1]].Theme)
 
+	-- Todo en estilo studs, como el spawn (menos lo que brilla y la bruma de las bocas)
+	StudProps.studify(root, { Blockify = true, Glass = true, Skip = { Bruma = true } })
 	root.Parent = parent
 	return root
 end

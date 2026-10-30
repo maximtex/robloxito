@@ -17,6 +17,7 @@ local StudFloor = require(Shared.Util.StudFloor)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local PartFactory = require(script.Parent.Parent.Util.PartFactory)
 local StudWorld = require(script.Parent.Parent.Util.StudWorld)
+local StudProps = require(script.Parent.Parent.Util.StudProps)
 
 local TundraService = {}
 
@@ -426,6 +427,8 @@ function TundraService.start()
 		buildTerraceDecor(model, tops)
 	end
 	buildSnowfall(model)
+	-- Todo en estilo studs, como el spawn (menos lo que brilla)
+	StudProps.studifyMap(model)
 	model.Parent = workspace
 end
 

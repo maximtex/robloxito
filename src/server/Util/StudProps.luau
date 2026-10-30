@@ -6,8 +6,10 @@
 -- oleadas, los cofres y la decoración del spawn. Los diseños importados (huevos,
 -- Evolucionador, puestos, tablas de clasificación, portales) se quedan como están.
 --
--- StudProps.studify(root): pasa a plástico con studs todas las piezas de `root` que no sean
--- de neón, campo de fuerza o cristal (para lo que ya tenía forma de bloques).
+-- StudProps.studify(root, options): pasa a plástico con studs lo que ya tenía forma de bloques
+-- (y, con Blockify, los cilindros y las bolas a bloques); lo de neón se queda brillando.
+-- StudProps.studifyMap(model): lo mismo para el mapa de una zona entera (Valle, Caldera,
+-- Tundra y Fortaleza), sin tocar el suelo ni los muros. Las cuevas: CaveDungeon.
 
 local PartFactory = require(script.Parent.PartFactory)
 
@@ -66,20 +68,53 @@ function StudProps.glow(parent: Instance, name: string, size: Vector3, cframe: C
 	return part
 end
 
+-- Lo que brilla se queda como está (llamas, lava, gemas, energía)
 local KEEP = {
 	[Enum.Material.Neon] = true,
 	[Enum.Material.ForceField] = true,
-	[Enum.Material.Glass] = true,
 }
 
-function StudProps.studify(root: Instance)
+export type StudifyOptions = {
+	Blockify: boolean?, -- cilindros y bolas pasan a bloques del mismo tamaño
+	Glass: boolean?, -- el cristal y el hielo también (sin perder su transparencia)
+	Skip: { [string]: boolean }?, -- nombres (sin el número del final) que no se tocan
+}
+
+-- Pasa a plástico con studs las piezas de `root` (y `root` si es una pieza). No toca: lo de
+-- neón y campo de fuerza, lo invisible, lo que ya lleva studs (de superficie o de textura, como
+-- el suelo y los muros), las mallas importadas ni las uniones.
+function StudProps.studify(root: Instance, options: StudifyOptions?)
+	local opts: StudifyOptions = options or {}
+	local skip = opts.Skip or {}
 	local list = root:GetDescendants()
 	if root:IsA("BasePart") then
 		table.insert(list, root)
 	end
 	for _, item in list do
-		if item:IsA("BasePart") and not KEEP[item.Material] then
-			studs(item)
+		if not (item:IsA("Part") or item:IsA("WedgePart") or item:IsA("CornerWedgePart")) then
+			continue
+		end
+		local part = item :: BasePart
+		if KEEP[part.Material] or part.Transparency >= 1 or part:FindFirstChildOfClass("Texture")
+			or (part.Material == Enum.Material.Plastic and part.TopSurface == Enum.SurfaceType.Studs)
+			or (part.Material == Enum.Material.Glass and not opts.Glass)
+			or skip[(part.Name:gsub("%d+$", ""))] then
+			continue
+		end
+		if opts.Blockify and part:IsA("Part") and (part.Shape == Enum.PartType.Cylinder or part.Shape == Enum.PartType.Ball) then
+			part.Shape = Enum.PartType.Block
+		end
+		studs(part)
+	end
+end
+
+-- Un mapa entero de una zona (su modelo): todo menos el suelo y los muros (ya van en studs con
+-- textura), con cilindros y bolas a bloques y el hielo y el cristal también.
+function StudProps.studifyMap(model: Instance, options: StudifyOptions?)
+	local opts: StudifyOptions = options or { Blockify = true, Glass = true }
+	for _, child in model:GetChildren() do
+		if child.Name ~= "StudFloor" and child.Name ~= "PerimeterWalls" then
+			StudProps.studify(child, opts)
 		end
 	end
 end

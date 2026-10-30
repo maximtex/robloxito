@@ -571,4 +571,10 @@ del Renacimiento, adornos de Navidad) y la tarima del portal del spawn se quedan
   "Cueva al fondo") y setas con studs también en el pie.
 - Textos: el altar de la práctica y el aviso de quien ya la hizo dicen que la cueva está al
   fondo del Bosque de Espinas, junto a la puerta del Valle.
-- Siguiente: las demás zonas (Valle, Caldera, Tundra, Fortaleza) y los bichos.
+- Segunda tanda: el Valle, la Caldera, la Tundra y la Fortaleza (`StudProps.studifyMap` al
+  final de su servicio) y las cuevas por dentro con sus bocas (`CaveDungeon`): todo lo que no
+  brilla pasa a plástico con studs, los cilindros y las bolas a bloques del mismo tamaño
+  (columnas, troncos de los árboles de cristal, faroles, postes...) y el hielo y el agua a
+  plástico translúcido con studs. No se tocan el suelo ni los muros (ya van en studs con
+  textura), lo de neón (cristales, lava, llamas, runas), lo invisible ni la bruma de las bocas.
+- Siguiente: los bichos.
